@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import type { ClientCsrf } from "../api";
+import { ApiError, type ClientCsrf } from "../api";
 import {
   ACTING_ROLE_LABELS,
   daysUntilConfigExpiry,
@@ -39,6 +39,21 @@ export interface StationActorBarProps {
  * coder view with no informant personal data, even if the same person holds other roles.
  * In provisioned mode, switching to another roster user requires their 6-16 digit PIN.
  */
+/** Why a PIN unlock failed: the wait after five wrong PINs, the tries left, or the plain failure. */
+export function pinFailureText(error: unknown, fallbackKey: "stationPinUnlockFailed" | "stationStoreUnlockFailed"): string {
+  if (error instanceof ApiError) {
+    const payload = error.payload ?? {};
+    if (error.status === 429 && error.code === "pin_locked_out") {
+      const secs = Number(payload.retry_after_secs);
+      const minutes = Number.isFinite(secs) && secs > 0 ? Math.ceil(secs / 60) : 1;
+      return t("stationPinLockedOut", { minutes });
+    }
+    const left = Number(payload.remaining_attempts);
+    if (error.status === 401 && Number.isFinite(left)) return t("stationPinWrongAttempts", { count: left });
+  }
+  return t(fallbackKey);
+}
+
 export function StationActorBar({
   csrf,
   onActorSwitched,
@@ -109,8 +124,8 @@ export function StationActorBar({
       setSnapshot(res.roster);
       setPendingMemberId(null);
       onActorSwitched?.();
-    } catch {
-      setPinError(t("stationPinUnlockFailed"));
+    } catch (error) {
+      setPinError(pinFailureText(error, "stationPinUnlockFailed"));
     } finally {
       setBusy(false);
     }
@@ -427,8 +442,8 @@ export function StationRosterScreen({
       setSnapshot(res.roster);
       setUnlockTargetId(null);
       onActorSwitched?.();
-    } catch {
-      setError(t("stationStoreUnlockFailed"));
+    } catch (error) {
+      setError(pinFailureText(error, "stationStoreUnlockFailed"));
     } finally {
       setBusy(false);
     }

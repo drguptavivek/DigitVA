@@ -12,11 +12,14 @@ Resources:
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import tempfile
 import uuid
 from datetime import datetime, timezone
+from functools import partial
 from types import SimpleNamespace
 
 import sqlalchemy as sa
@@ -58,8 +61,10 @@ from app.services.data_management_service import (
     write_dm_smartva_input_export_csv,
     write_dm_submissions_export_csv,
 )
-from app.services import collection_hold, smartva_service
+from app.services import collection_hold, smartva_service, training_scope
 from app.services.authz import Action, AuthzError, can, require, scope_filter
+from app.services.authz import grant_cache
+from app.services.authz.grants import resolve_grants
 from app.services.viewer_pii_service import pii_scope
 from app.utils import va_user_timezone_name
 from app.services import export_store_service as export_store
@@ -95,14 +100,34 @@ def _refusal(action: Action, target, message: str):
     return None
 
 
-def _cache_key(suffix: str) -> str:
+def _scope_cache_key() -> str | None:
+    """Fingerprint the current access projection, or None if it cannot be versioned."""
+    grants = resolve_grants(current_user)
+    version = grant_cache.global_version()
+    if not version:
+        return None
+    encoded = json.loads(grant_cache.encode(grants))
+    encoded["grants"] = sorted(encoded["grants"], key=lambda item: json.dumps(item))
+    encoded["projects"] = sorted(encoded["projects"], key=lambda item: json.dumps(item))
+    pii = pii_scope(current_user, _grants=grants)
+    scope = [
+        version, encoded, pii.everywhere, sorted(pii.project_ids),
+        training_scope.current(), training_scope.training_project_id(),
+    ]
+    return hashlib.sha256(json.dumps(scope, sort_keys=True).encode()).hexdigest()
+
+
+def _cache_key(suffix: str, scope: str) -> str:
     qs = request.query_string.decode()
     # Date filters are the user's local days, so the timezone is part of the key.
-    return f"dm_analytics:{current_user.user_id}:{va_user_timezone_name(current_user)}:{suffix}:{qs}"
+    return f"dm_analytics:{current_user.user_id}:{scope}:{va_user_timezone_name(current_user)}:{suffix}:{qs}"
 
 
 def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
-    full_key = _cache_key(key)
+    scope = _scope_cache_key()
+    if scope is None:
+        return compute_fn()
+    full_key = _cache_key(key, scope)
     try:
         data = cache.get(full_key)
     except Exception:
@@ -124,6 +149,10 @@ def _refresh_dm_dashboard_analytics() -> None:
         cache.clear()
     except Exception as exc:
         log.warning("Data-manager cache clear failed after analytics refresh: %s", exc, exc_info=True)
+
+
+# SmartVA reads these files directly; a BOM would corrupt its first header.
+_NO_BOM_EXPORT_KINDS = frozenset({"smartva_input", "smartva_input_raw"})
 
 
 def _export_filters_from_request() -> dict[str, str | None]:
@@ -154,13 +183,13 @@ def _export_cache_ttl_seconds() -> int:
         return _EXPORT_CACHE_TTL
 
 
-def _csv_response(csv_file, filename: str, cache_status: str) -> Response:
+def _csv_response(csv_file, filename: str, cache_status: str, bom: bool = True) -> Response:
     """The CSV inline, streamed from *csv_file* (closed when the body is sent).
 
     Only a fallback now — see ``_deliver_export``.
     """
     response = Response(
-        export_store.encoded_file_chunks(csv_file),
+        export_store.encoded_file_chunks(csv_file, bom),
         content_type=EXPORT_CONTENT_TYPE,
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
@@ -170,7 +199,7 @@ def _csv_response(csv_file, filename: str, cache_status: str) -> Response:
     )
     # utf-8 text written with newline="": the file's size is its byte count.
     csv_file.flush()
-    response.content_length = len(UTF8_BOM.encode("utf-8")) + os.fstat(csv_file.fileno()).st_size
+    response.content_length = (len(UTF8_BOM.encode("utf-8")) if bom else 0) + os.fstat(csv_file.fileno()).st_size
     # The WSGI server closes the response even when the client disconnects
     # before the body starts, which a generator's ``finally`` would miss.
     response.call_on_close(csv_file.close)
@@ -218,24 +247,35 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, write_fn) -
     ``out``; the export is built in a scratch file, never one string.
 
     The export object in the store *is* the cache: a still-fresh object for the
-    same kind, user and filters is reused rather than recomputed, exactly as
-    the old on-disk cache did, and the ``user_id`` in the key means a lookup
+    same kind, user, access scope and filters is reused rather than recomputed.
+    The ``user_id`` in the key means a lookup
     can never reach another user's export. A store failure is never fatal — the
     CSV is already in hand, so it is sent inline and only the caching is lost.
     """
     filters = _export_filters_from_request()
+    bom = export_kind not in _NO_BOM_EXPORT_KINDS
     # Part of the cache identity only (not an export argument): a changed
     # timezone must not be served the old day boundaries.
-    cache_filters = {**filters, "timezone": va_user_timezone_name(current_user)}
+    scope = _scope_cache_key()
+    cache_filters = {
+        **filters,
+        "timezone": va_user_timezone_name(current_user),
+        "authorization_v2": scope or uuid.uuid4().hex,
+    }
+    if not bom:
+        # Cached BOM-framed files of these kinds predate this; a new key retires them.
+        cache_filters["bom"] = False
     ttl_seconds = _export_cache_ttl_seconds()
     filename = f"{filename_prefix}-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}.csv"
 
-    ref = export_store.export_cache_lookup(
-        export_kind=export_kind,
-        user_id=current_user.user_id,
-        filters=cache_filters,
-        ttl_seconds=ttl_seconds,
-    )
+    ref = None
+    if scope is not None:
+        ref = export_store.export_cache_lookup(
+            export_kind=export_kind,
+            user_id=current_user.user_id,
+            filters=cache_filters,
+            ttl_seconds=ttl_seconds,
+        )
     if ref is not None:
         response = _deliver_export(ref, filename, cache_status="HIT")
         if response is not None:
@@ -260,10 +300,11 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, write_fn) -
             user_id=current_user.user_id,
             filters=cache_filters,
             csv_file=csv_file,
+            bom=bom,
         )
     except (ExportStoreError, AttachmentStoreError, OSError) as exc:
         log.warning("Export store write failed for kind=%s: %s", export_kind, exc)
-        return _csv_response(csv_file, filename, cache_status="BYPASS")
+        return _csv_response(csv_file, filename, cache_status="BYPASS", bom=bom)
     except BaseException:
         csv_file.close()
         raise
@@ -274,7 +315,7 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, write_fn) -
         csv_file.close()
         raise
     if response is None:
-        return _csv_response(csv_file, filename, cache_status="BYPASS")
+        return _csv_response(csv_file, filename, cache_status="BYPASS", bom=bom)
     csv_file.close()
     return response
 
@@ -335,6 +376,14 @@ def submissions_export_csv():
 @role_required("data_manager", "admin")
 @limiter.limit("30 per minute")
 def submissions_export_smartva_input_csv():
+    # ?for_processing=1: same rows/columns without the Excel formula guard. A
+    # distinct export_kind keeps the two files apart in the export cache.
+    if request.args.get("for_processing") == "1":
+        return _serve_cached_export_csv(
+            export_kind="smartva_input_raw",
+            filename_prefix="data-management-smartva-input-raw",
+            write_fn=partial(write_dm_smartva_input_export_csv, raw=True),
+        )
     return _serve_cached_export_csv(
         export_kind="smartva_input",
         filename_prefix="data-management-smartva-input",

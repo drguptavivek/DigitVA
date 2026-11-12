@@ -1244,7 +1244,8 @@ class DataManagerDashboardTests(BaseTestCase):
             "workflow_counts": {},
         },
     )
-    def test_data_manager_kpi_endpoint_uses_cache(self, mocked_get_kpi):
+    @patch("app.services.authz.grant_cache.global_version", return_value="test-version")
+    def test_data_manager_kpi_endpoint_uses_cache(self, _version, mocked_get_kpi):
         self._login(self.dm_user_id)
         cache.clear()
 
@@ -1958,6 +1959,134 @@ class DataManagerDashboardTests(BaseTestCase):
         # base and payload-derived alike.
         self.assertEqual(header[-3:], ["org_unit_code", "org_unit_name", "org_unit_level_path"])
 
+    @patch("app.services.authz.grant_cache.global_version", return_value="test-version")
+    def test_export_cache_does_not_survive_project_grant_revocation(self, _version):
+        pair = db.session.scalar(db.select(VaProjectSites).where(
+            VaProjectSites.project_id == self.OUT_PROJECT_ID,
+            VaProjectSites.site_id == self.OUT_SITE_ID,
+        ))
+        grant = VaUserAccessGrants(
+            user_id=self.dm_user.user_id,
+            role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project_site,
+            project_site_id=pair.project_site_id,
+            grant_status=VaStatuses.active,
+        )
+        db.session.add(grant)
+        db.session.commit()
+        self._login(self.dm_user_id)
+        url = "/api/v1/data-management/submissions/export.csv"
+        with tempfile.TemporaryDirectory() as tmpdir, patch.dict(self.app.config, {
+            "APP_DATA": tmpdir, "DM_EXPORT_CACHE_TTL_SECONDS": 300,
+        }):
+            first = self.client.get(url)
+            self.assertIn(self.OUT_SID, first.get_data(as_text=True))
+            self.assertEqual(self.client.get(url).headers["X-Export-Cache"], "HIT")
+            grant.grant_status = VaStatuses.deactive
+            db.session.commit()
+            after = self.client.get(url)
+            self.assertIn(self.SID, after.get_data(as_text=True))
+            self.assertNotIn(self.OUT_SID, after.get_data(as_text=True))
+            self.assertEqual(after.headers["X-Export-Cache"], "MISS")
+            self.assertEqual(self.client.get(url).headers["X-Export-Cache"], "HIT")
+
+    @patch("app.services.authz.grant_cache.global_version", return_value="test-version")
+    def test_export_cache_does_not_survive_pii_revocation(self, _version):
+        pair = db.session.scalar(db.select(VaProjectSites).where(
+            VaProjectSites.project_id == self.OUT_PROJECT_ID,
+            VaProjectSites.site_id == self.OUT_SITE_ID,
+        ))
+        grants = [VaUserAccessGrants(
+            user_id=self.dm_user.user_id, role=role,
+            scope_type=VaAccessScopeTypes.project_site,
+            project_site_id=pair.project_site_id, grant_status=VaStatuses.active,
+        ) for role in (VaAccessRoles.data_manager, VaAccessRoles.collaborator)]
+        db.session.add_all(grants)
+        db.session.commit()
+        self._login(self.dm_user_id)
+        from app.services.viewer_pii_service import pii_scope
+
+        def write(out, user, **filters):
+            out.write("case,staff\nretained," + (
+                "private-marker" if pii_scope(user).sees(self.OUT_PROJECT_ID) else ""
+            ))
+
+        url = "/api/v1/data-management/submissions/export.csv"
+        with tempfile.TemporaryDirectory() as tmpdir, patch.dict(self.app.config, {
+            "APP_DATA": tmpdir, "DM_EXPORT_CACHE_TTL_SECONDS": 300,
+        }), patch("app.routes.api.data_management.write_dm_submissions_export_csv", side_effect=write):
+            self.assertIn("private-marker", self.client.get(url).get_data(as_text=True))
+            self.assertEqual(self.client.get(url).headers["X-Export-Cache"], "HIT")
+            grants[0].grant_status = VaStatuses.deactive
+            db.session.commit()
+            after = self.client.get(url)
+            self.assertIn("retained", after.get_data(as_text=True))
+            self.assertNotIn("private-marker", after.get_data(as_text=True))
+            self.assertEqual(after.headers["X-Export-Cache"], "MISS")
+            self.assertEqual(self.client.get(url).headers["X-Export-Cache"], "HIT")
+
+    @patch("app.services.authz.grant_cache.global_version", return_value="test-version")
+    def test_analytics_cache_does_not_survive_project_grant_revocation(self, _version):
+        pair = db.session.scalar(db.select(VaProjectSites).where(
+            VaProjectSites.project_id == self.OUT_PROJECT_ID,
+            VaProjectSites.site_id == self.OUT_SITE_ID,
+        ))
+        grant = VaUserAccessGrants(
+            user_id=self.dm_user.user_id, role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project_site,
+            project_site_id=pair.project_site_id, grant_status=VaStatuses.active,
+        )
+        db.session.add(grant)
+        db.session.commit()
+        self._login(self.dm_user_id)
+        cache.clear()
+        from app.services.data_management_service import dm_grant_scope
+
+        def kpi(projects, pairs, **kwargs):
+            return {"projects": sorted(p for p, _ in pairs)}
+
+        def daily(user, **kwargs):
+            return {"projects": sorted(p for p, _ in dm_grant_scope(user).pairs)}
+
+        with patch("app.routes.api.data_management.get_dm_kpi_from_mv", side_effect=kpi) as kpi_mock, \
+                patch("app.routes.api.data_management.dm_coder_daily_statistics", side_effect=daily) as daily_mock:
+            urls = ("/api/v1/data-management/kpi", "/api/v1/data-management/coder-daily-stats")
+            for url in urls:
+                self.assertIn(self.OUT_PROJECT_ID, self.client.get(url).get_json()["projects"])
+                self.client.get(url)
+            self.assertEqual(kpi_mock.call_count, 1)
+            self.assertEqual(daily_mock.call_count, 1)
+            grant.grant_status = VaStatuses.deactive
+            db.session.commit()
+            for url in urls:
+                projects = self.client.get(url).get_json()["projects"]
+                self.assertIn(self.BASE_PROJECT_ID, projects)
+                self.assertNotIn(self.OUT_PROJECT_ID, projects)
+            self.assertEqual(kpi_mock.call_count, 2)
+            self.assertEqual(daily_mock.call_count, 2)
+
+    @patch("app.services.authz.grant_cache.global_version", return_value="")
+    def test_unavailable_scope_version_disables_cache_reuse(self, _version):
+        self._login(self.dm_user_id)
+        cache.clear()
+        with tempfile.TemporaryDirectory() as tmpdir, patch.dict(self.app.config, {
+            "APP_DATA": tmpdir, "DM_EXPORT_CACHE_TTL_SECONDS": 300,
+        }), patch("app.routes.api.data_management.write_dm_submissions_export_csv",
+                  side_effect=_writes("first", "second")) as writer, \
+                patch("app.routes.api.data_management.dm_coder_daily_statistics",
+                      side_effect=[{"value": 1}, {"value": 2}]) as daily:
+            url = "/api/v1/data-management/submissions/export.csv"
+            first, second = self.client.get(url), self.client.get(url)
+            self.assertEqual(first.headers["X-Export-Cache"], "MISS")
+            self.assertEqual(second.headers["X-Export-Cache"], "MISS")
+            self.assertIn("first", first.get_data(as_text=True))
+            self.assertIn("second", second.get_data(as_text=True))
+            self.assertEqual(writer.call_count, 2)
+            url = "/api/v1/data-management/coder-daily-stats"
+            self.assertEqual(self.client.get(url).get_json()["value"], 1)
+            self.assertEqual(self.client.get(url).get_json()["value"], 2)
+            self.assertEqual(daily.call_count, 2)
+
     @patch(
         "app.routes.api.data_management.write_dm_smartva_input_export_csv",
         side_effect=_writes("sid,result\nuuid:data-manager-dashboard,ok\n"),
@@ -1975,8 +2104,44 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, "text/csv")
         self.assertIn("attachment; filename=", response.headers["Content-Disposition"])
-        self.assertTrue(response.get_data(as_text=True).startswith("\ufeffsid,result"))
+        self.assertEqual(response.get_data()[:3], b"sid")
         mocked_export.assert_called_once()
+
+    @patch("app.routes.api.data_management.write_dm_smartva_input_export_csv")
+    def test_smartva_input_for_processing_flag_requests_raw_cells(self, mocked_export):
+        self._login(self.dm_user_id)
+        url = "/api/v1/data-management/submissions/export-smartva-input.csv"
+        mocked_export.side_effect = _writes("a\n1\n", "a\n2\n")
+
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.get(url + "?for_processing=1").status_code, 200)
+
+        self.assertNotIn("raw", mocked_export.call_args_list[0].kwargs)
+        self.assertIs(mocked_export.call_args_list[1].kwargs["raw"], True)
+
+    @patch(
+        "app.routes.api.data_management.write_dm_smartva_input_export_csv",
+        side_effect=_writes("sid,result\n1,a\n", "sid,result\n2,b\n"),
+    )
+    def test_smartva_input_exports_have_no_bom_and_exact_length(self, _export):
+        self._login(self.dm_user_id)
+        url = "/api/v1/data-management/submissions/export-smartva-input.csv"
+        for suffix, body in (("", b"sid,result\n1,a\n"), ("?for_processing=1", b"sid,result\n2,b\n")):
+            response = self.client.get(url + suffix)
+            self.assertEqual(response.get_data(), body)
+            self.assertFalse(response.get_data().startswith(b"\xef\xbb\xbf"))
+
+    @patch("app.routes.api.data_management.write_dm_smartva_input_export_csv")
+    def test_smartva_input_both_variants_refuse_a_non_data_manager(self, mocked_export):
+        self._login(self.base_coder_user.user_id)
+        url = "/api/v1/data-management/submissions/export-smartva-input.csv"
+
+        guarded = self.client.get(url)
+        raw = self.client.get(url + "?for_processing=1")
+
+        self.assertEqual(guarded.status_code, raw.status_code)
+        self.assertNotEqual(raw.status_code, 200)
+        mocked_export.assert_not_called()
 
     @patch(
         "app.routes.api.data_management.dm_smartva_results_export_csv",
@@ -2083,7 +2248,8 @@ class DataManagerDashboardTests(BaseTestCase):
             "sid,result\nuuid:data-manager-dashboard,second\n",
         ),
     )
-    def test_export_route_reuses_disk_cache_for_same_filters(self, mocked_export):
+    @patch("app.services.authz.grant_cache.global_version", return_value="test-version")
+    def test_export_route_reuses_disk_cache_for_same_filters(self, _version, mocked_export):
         self._login(self.dm_user_id)
         with tempfile.TemporaryDirectory() as tmpdir:
             old_app_data = self.app.config.get("APP_DATA")
@@ -2116,7 +2282,8 @@ class DataManagerDashboardTests(BaseTestCase):
             "sid,result\nuuid:data-manager-dashboard,second\n",
         ),
     )
-    def test_export_cache_ignores_sort_query_params(self, mocked_export):
+    @patch("app.services.authz.grant_cache.global_version", return_value="test-version")
+    def test_export_cache_ignores_sort_query_params(self, _version, mocked_export):
         self._login(self.dm_user_id)
         with tempfile.TemporaryDirectory() as tmpdir:
             old_app_data = self.app.config.get("APP_DATA")
@@ -2262,7 +2429,7 @@ class DataManagerDashboardTests(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["X-Export-Cache"], "BYPASS")
         self.assertEqual(response.headers["Cache-Control"], "private, no-store")
-        self.assertTrue(response.get_data(as_text=True).startswith("\ufeffsid,result"))
+        self.assertEqual(response.get_data()[:3], b"sid")
 
     def test_single_form_task_revalidates_scope_in_worker(self):
         from app.tasks.sync_tasks import run_single_form_sync

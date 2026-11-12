@@ -465,3 +465,40 @@ class AdminSelfCodingSettingTests(BaseTestCase):
         response = self._put(self.PROJECT, self_coding_enabled="yes")
         self.assertEqual(response.status_code, 400)
         self.assertIs(db.session.get(VaProjectMaster, self.PROJECT).self_coding_enabled, False)
+
+
+class OwnCaseOutsideSelfCodingTests(SelfCodingFixture, BaseTestCase):
+    """Outside a self-coding project no coder is allocated a case they
+    submitted, by pick or from the random pool (owner 2026-11-12,
+    digitva-9xn9.22)."""
+
+    def test_pick_of_own_case_is_refused(self):
+        self._set_project(self_coding_enabled=False, coding_intake_mode="pick_and_choose")
+        self._own_case("csc-own")
+        with self.assertRaises(AllocationError) as ctx:
+            allocate_pick_form(self.submitter, "csc-own")
+        self.assertEqual((ctx.exception.status_code, ctx.exception.code), (403, "forbidden"))
+        self.assertEqual(self._allocations("csc-own"), [])
+        self.assertEqual(get_submission_workflow_state("csc-own"), "ready_for_coding")
+
+    def test_another_coder_may_pick_it(self):
+        self._set_project(self_coding_enabled=False, coding_intake_mode="pick_and_choose")
+        self._own_case("csc-own")
+        result = allocate_pick_form(self.other, "csc-own")
+        self.assertEqual(result.va_sid, "csc-own")
+
+    def test_random_pool_skips_own_case(self):
+        from app.services.coder_workflow_service import allocate_random_form
+
+        self._set_project(self_coding_enabled=False, coding_intake_mode="random_form_allocation")
+        self._own_case("csc-own")
+        with self.assertRaises(AllocationError):
+            allocate_random_form(self.submitter, self.PROJECT)
+        self.assertEqual(self._allocations("csc-own"), [])
+        # The case is still in the pool for everyone else.
+        self.assertEqual(allocate_random_form(self.other, self.PROJECT).va_sid, "csc-own")
+
+    def test_self_coding_project_still_allows_pick(self):
+        self._set_project(self_coding_enabled=True, coding_intake_mode="pick_and_choose")
+        self._own_case("csc-own")
+        self.assertEqual(allocate_pick_form(self.submitter, "csc-own").va_sid, "csc-own")

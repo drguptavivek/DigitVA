@@ -56,6 +56,7 @@ from app.models import (
 )
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.mas_icd11_mms import MasIcd11Mms
+from app.services.case_export_service import safe_cell
 from app.services.coding_release_service import deactivate_coding_for_accepted_change
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services import project_clock, training_scope
@@ -1154,6 +1155,15 @@ def _serialize_csv_cell(value):
     if value is None:
         return ""
     if isinstance(value, (list, dict)):
+        return safe_cell(json.dumps(value, ensure_ascii=True, sort_keys=True))
+    return safe_cell(str(value))
+
+
+def _raw_csv_cell(value):
+    """Like ``_serialize_csv_cell`` without the formula guard (SmartVA input only)."""
+    if value is None:
+        return ""
+    if isinstance(value, (list, dict)):
         return json.dumps(value, ensure_ascii=True, sort_keys=True)
     return str(value)
 
@@ -2082,10 +2092,13 @@ def write_dm_smartva_input_export_csv(
     org_unit: str = "",
     sort_field: str = "va_submission_date",
     sort_dir: str = "desc",
+    raw: bool = False,
 ) -> None:
     """Write the SmartVA input CSV shape for all filtered submissions to *out*.
 
     Streams and spools exactly as :func:`write_dm_submissions_export_csv` does.
+    ``raw=True`` skips the spreadsheet formula guard (no leading apostrophe) for
+    SmartVA offline processing; the file must not be opened in Excel.
     """
     from app.utils.va_smartva.va_smartva_02_prepdata import _clean_payload_for_smartva
 
@@ -2180,7 +2193,9 @@ def write_dm_smartva_input_export_csv(
         writer = csv.DictWriter(out, fieldnames=headers, extrasaction="ignore")
         writer.writeheader()
         for prepared in _read_spool(spool):
-            writer.writerow({key: _serialize_csv_cell(value) for key, value in prepared.items()})
+            writer.writerow(
+                {key: _raw_csv_cell(value) if raw else _serialize_csv_cell(value) for key, value in prepared.items()}
+            )
 
 
 def dm_smartva_input_export_csv(user, **filters) -> str:

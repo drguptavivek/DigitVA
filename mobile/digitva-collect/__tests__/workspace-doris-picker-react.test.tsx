@@ -593,6 +593,19 @@ describe("extension codes and categories are never staged", () => {
     expect(text(h)).toContain(CATEGORY);
     expect(h.handlers.onSelect).not.toHaveBeenCalled();
   });
+
+  it("opens the refused category's children, which a search box filters (digitva-dn15)", async () => {
+    const tree = { schema_version: 1, selected: opt("CA40"), ancestors: [], siblings: [], children: [opt("CA40.0", { title: "Bacterial" }), opt("CA40.Z", { title: "Unspecified" })], related_maternal: [], related_perinatal: [], truncated: false };
+    const h = mount({ env: { check: () => { throw failure(422, "INVALID_SELECTION", "CA40 is a category, not a final code. Choose a more specific code under it."); }, guidance: { hierarchy: () => tree } } });
+    await search(h, "pneu");
+    await press(h, "CA40 Pneumonia");
+    await press(h, "Use the selected code");
+    expect(calls(h, "hierarchy")).toEqual([{ schema_version: 1, code: "CA40" }]);
+    expect(has(h, "CA40.Z Unspecified")).toBe(true);
+    await typeInto(h, "Search child codes", "bact");
+    expect(has(h, "CA40.0 Bacterial")).toBe(true);
+    expect(has(h, "CA40.Z Unspecified")).toBe(false);
+  });
 });
 
 /* ------------------------------------------------- staging, OK and verification */

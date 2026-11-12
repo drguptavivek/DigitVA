@@ -34,7 +34,7 @@ class VaCodBucketSchemeSnapshot(db.Model):
     __tablename__ = "va_cod_bucket_scheme_snapshots"
     __table_args__ = (
         sa.CheckConstraint(
-            "reason IN ('reset_scheme', 'reset_age_band', 'cli_import', 'apply_overrides')",
+            "reason IN ('reset_scheme', 'reset_age_band', 'cli_import', 'apply_overrides', 'json_import')",
             name="reason",
         ),
         sa.Index(
@@ -48,11 +48,13 @@ class VaCodBucketSchemeSnapshot(db.Model):
     REASON_RESET_AGE_BAND = "reset_age_band"
     REASON_CLI_IMPORT = "cli_import"
     REASON_APPLY_OVERRIDES = "apply_overrides"
+    REASON_JSON_IMPORT = "json_import"
     REASONS = (
         REASON_RESET_SCHEME,
         REASON_RESET_AGE_BAND,
         REASON_CLI_IMPORT,
         REASON_APPLY_OVERRIDES,
+        REASON_JSON_IMPORT,
     )
 
     snapshot_id: so.Mapped[uuid.UUID] = so.mapped_column(

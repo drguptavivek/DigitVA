@@ -68,7 +68,7 @@ export async function standaloneCounts(db: Db, clientDeviceUuid: string): Promis
     if (!row) continue;
     const { answersHash } = await sentAnswers(item, consents);
     if (offlineCodingBody(row, answersHash, clientDeviceUuid)) counts.codings += 1;
-    else if (row.status === "coded" && isCodingStale(row, answersHash)) counts.staleDraftIds.push(item.id);
+    else if (row.ucod_code && isCodingStale(row, answersHash)) counts.staleDraftIds.push(item.id);
   }
   return counts;
 }

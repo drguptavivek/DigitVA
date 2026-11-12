@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # Offline API Contract v1
@@ -1166,10 +1166,10 @@ pushes are safe.
 | --- | --- |
 | Same device, same draft id, same `answers_sha256` and exact coding digest | 200, the existing result; `offline_coding` reports that coding's status and digest |
 | Same answers, changed coding while pending | current policy is checked and the pending snapshot replaced; the reply identifies the new coding digest |
-| Changed coding after an applied or refused terminal snapshot | 409 `coding_conflict`; terminal history is preserved and the phone keeps its revision |
+| Changed coding after an applied or refused terminal snapshot (the coder recoded) | current policy is checked and the newer coding replaces the held one (owner 2026-11-12, `digitva-9cll.14`); the replaced snapshot stays in the held row's `result.history` and an `offline coding replaced (<status>)` audit row. Over an applied final the import takes the online recode path and its rules (recode window, the authoritative coder, `coder_finalized` state; else `refused`, `recode_not_allowed` or the allocation code); the earlier final is deactivated, never deleted. Servers before this change answered 409 `coding_conflict`, which phones still treat as "send the interview without its coding" |
 | Same device, same draft id, different hash | the existing later-version-wins rule of 3.6, and history-only once coding is finished (`kept: server`, `locked: true`, [Interview Revisions](interview-revisions.md)). A coding still `pending` for the earlier answers is replaced by this push's coding when it codes the answers now kept, else refused `coded_version_superseded` at once |
 | Same draft id, **different** device (a backup restored on a second phone) | 409 `conflict`, never a new case |
-| `offline_coding.coded_answers_sha256` not equal to the interview's `answers_sha256` (the coding is stale) | the interview is accepted, the coding is **not** applied (`refused`, `coded_version_superseded`), the case enters the normal coding queue |
+| `offline_coding.coded_answers_sha256` not equal to the interview's `answers_sha256` (the coding is stale) | the interview is accepted, the coding is held **stale** and never applied (`refused`, `coded_version_superseded`, audited), the case enters the normal coding queue. Enrolled phones send a stale coding under the hash it was coded on, with the newer answers, keep the interview and coding, and show the recode notice; the recoded final, sent with the same answers, replaces it (row above). Standalone pushes still leave a stale coding on the phone |
 
 **Reply.** The 3.6 reply plus, when `offline_coding` was sent,
 `offline_coding: {status, code, coding_sha256}`. The digest covers the complete
@@ -1185,7 +1185,8 @@ ignore the additive reply field; the server computes it without a new request ke
 | `refused` | `self_coding_required` | the project has self-coding off (`self_coding_enabled` false); the interview is kept (owner 2026-11-05, `digitva-ssg7.7`) |
 | `refused` | `coding_grant_required` | the account holds no `coder` grant that codes on the project (the self-coding grant included) |
 | `refused` | `coding_mode_mismatch` | the project is not unmasked DORIS on ICD-11 |
-| `refused` | `coded_version_superseded` | stale coding (above) |
+| `refused` | `coded_version_superseded` | stale coding (above): the phone asks the coder to recode |
+| `refused` | `recode_not_allowed` | a recode over an applied final that the online recode rules refuse |
 | `refused` | `not_available` | no case of its own (a superseded copy), or the account is gone |
 | `refused` | an allocation code (`forbidden`, ...) | the import could not take the coder's allocation (scope, language, coding gates) |
 

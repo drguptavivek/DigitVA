@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # DORIS COD Workflow Policy
@@ -126,7 +126,10 @@ be a final MMS code: an extension code (WHO chapter X) alone, or a category
 that has children in the MMS linearization, is refused at selection with
 `422 INVALID_SELECTION` and these words: "XK8G is an extension code. It cannot
 be used alone: add it to a stem through + Build." and "NC72 is a category, not
-a final code. Choose a more specific code under it." WHO objects to both only
+a final code. Choose a more specific code under it." (Hindi in Collect Plus:
+"{code} एक श्रेणी है, अंतिम कोड नहीं। इसके अंतर्गत कोई अधिक विशिष्ट कोड चुनें।").
+Since 2026-11-12 (`digitva-dn15`) the picker opens the category's children with
+a search box. WHO objects to both only
 after processing: CoDEdit flags an extension alone (FER-CE-883) and a category
 ("not a terminal code", BER-CE-10), and DORIS silently recodes NC72 to NC72.Z. The pickers (web and Collect Plus) offer no Use and
 no + Build on such a result: a category shows "Choose specific", which opens
@@ -246,6 +249,13 @@ accept a code the server would refuse.
   ([Offline API Contract](offline-api-contract.md) section 17). Local digests
   are integrity markers, not WHO canonical digests, and are never used for
   server verification.
+- **What is sent (owner 2026-11-12, `digitva-9cll.14`).** DORIS and CodeEdit
+  are advisory: every code the coder saved is sent as their final, a DORIS
+  reject or an engine that never answered included (no DORIS result then).
+  A coding on older answers is sent marked stale with the new answers and
+  held unapplied until the coder recodes; a recode replaces the coding the
+  server holds (pending, applied or refused), keeping the older one in the
+  audit history and superseding, never deleting, an earlier final.
 - **SmartVA** is not available offline for now; this section covers DORIS only.
 - **One step on a standalone phone.** With no second reviewer, the offline
   DORIS editor saves the cause of death directly ("Save cause of death") and

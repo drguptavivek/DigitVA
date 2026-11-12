@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type DependencyList } from "r
 
 import type { PickerFrameProps } from "../IcdPickerFrame";
 import type { PickerReply } from "../pickerBridge";
-import { NOT_FINAL_REFUSAL } from "./expression";
+import { t } from "../../../i18n";
+import { NON_LEAF_REFUSAL, NOT_FINAL_REFUSAL } from "./expression";
 
 /** A failed bridge call: the bridge's `{code, message, status}` reply as an Error. */
 export class PickerError extends Error {
@@ -51,7 +52,11 @@ const KNOWN_CODES = new Map([
 export function errorMessage(error: unknown): string {
   if (error instanceof Notice) return error.message;
   // The selection check's "extension code" / "category" refusal tells the coder what to do instead; only that exact wording is shown.
-  if (error instanceof PickerError && error.code === "INVALID_SELECTION" && NOT_FINAL_REFUSAL.test(error.message)) return error.message;
+  if (error instanceof PickerError && error.code === "INVALID_SELECTION") {
+    const category = NON_LEAF_REFUSAL.exec(error.message);
+    if (category) return t("icd11NonLeafCategory", { code: category[1] });
+    if (NOT_FINAL_REFUSAL.test(error.message)) return error.message;
+  }
   return (error instanceof PickerError && KNOWN_CODES.get(error.code)) || GENERIC;
 }
 

@@ -3481,12 +3481,14 @@ def _has_candidate():
     )
 
 
-def list_candidates(death: VaDeathRegister) -> list[dict]:
+def list_candidates(death: VaDeathRegister, *, redact_names: bool = False) -> list[dict]:
     """The other complete interviews of a submitted case a supervisor may
     choose, newest first: ``{draft_id, interviewer_name, completed_at,
     outcome}``. Names are for supervisors only (staff identity, as the
     supervision list shows who registered a case); never serve this to an
-    interviewer. One query, joined to the interviewer."""
+    interviewer. *redact_names*: the viewer has no personal-data access in
+    the case's project, so ``interviewer_name`` is null. One query, joined to
+    the interviewer."""
     if death.status != "submitted" or not death.va_sid:
         return []
     rows = db.session.execute(
@@ -3501,7 +3503,7 @@ def list_candidates(death: VaDeathRegister) -> list[dict]:
     ).all()
     return [
         {
-            "draft_id": str(draft_id), "interviewer_name": name,
+            "draft_id": str(draft_id), "interviewer_name": None if redact_names else name,
             "completed_at": completed or (submitted_at.isoformat() if submitted_at else None),
             "outcome": "completed",
         }
@@ -5348,7 +5350,12 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     """A worklist row plus who registered and started the case (staff identity,
     decision 13), without the informant's phones: the supervisor list does not
     contact families. ``other_complete_interview``: a candidate to choose
-    exists (``choose_interview``)."""
+    exists (``choose_interview``). The deceased, registrant and starter names
+    are null where *user* has no personal-data access in the case's project
+    (``pii_scope``; web-intake.md item 14), and the name is then never opened."""
+    named = pii_scope(user).sees(death.project_id)
+    if not named:
+        register = {"deceased_name": None}
     row = serialize_worklist_row(user, death, unit_name, None, other_complete_interview=other_complete_interview,
                                  register=register)
     for key in ("my_draft_id", "has_informant_phone", "has_informant_phone_2",
@@ -5357,8 +5364,8 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     # Supervisors oversee every interview in scope, so they keep every va_sid
     # (the submitter-only rule is the interviewer lists').
     row["va_sid"] = death.va_sid
-    row["registered_by_name"] = registered_by_name
-    row["started_by_name"] = started_by_name
+    row["registered_by_name"] = registered_by_name if named else None
+    row["started_by_name"] = started_by_name if named else None
     row["duplicate_of_death_id"] = str(death.duplicate_of_death_id) if death.duplicate_of_death_id else None
     return row
 

@@ -36,10 +36,11 @@ jest.mock("../src/offlineIdentity", () => ({
 
 import { createDraftStore, getDraftRow, getMeta, reopenCompletedDraft, getOfflineCoding, markCompleted, migrate, retryHeldDraft, saveOfflineCoding, setMeta, type Db } from "../src/drafts";
 import type { AccessSummary, SmartVaTarget } from "../src/api";
-import { refreshAuthorizedProjectDefinitions, canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, preloadLastFormLocale, translationsFor, translationsForDraft, uploadQueuedWork, draftAnswersSha256, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
+import { refreshAuthorizedProjectDefinitions, canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, preloadLastFormLocale, translationsFor, translationsForDraft, uploadQueuedWork, draftAnswersSha256, codingLeftKey, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
 import { acquireDraftUpload, acquireLocalCodingEditor } from "../src/localCodingLeases";
 import { getOrCreatePlusDeviceIdentity } from "../src/offlineIdentity";
 import { codingReceiptSha256 } from "../src/codingReceipt";
+import { codingNotices } from "../src/codingUploadNotices";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { createNativeDefinitionCache } from "../src/formDefinitionCache";
 import { checkCollectionGate } from "../src/collectionGate";
@@ -1125,26 +1126,129 @@ describe("sync upload ordering", () => {
     expect(await getOfflineCoding(db, DRAFT)).not.toBeNull();
   });
 
+  const CODING_ROW = {
+    client_draft_id: DRAFT, certificate: "{}", result: "{}", codedit_result: "{}", process_token: "local-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    certificate_digest: null, result_digest: null, ucod_code: "BA41.Z", ucod_uri: null, status: "coded" as const,
+    coder_profile_updated_at: null, device_uuid: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", provenance: JSON.stringify({ allowability: { rules: "v1" } }),
+    created_at: "2026-10-01T00:00:00Z", updated_at: "v1",
+  };
+  const submissionCalls = () => calls.filter(({ url }) => url.endsWith("/submissions"));
+  const codingAck = (call: { body?: { offline_coding?: unknown } }) => call.body?.offline_coding
+    ? { offline_coding: { status: "pending", code: "not_ready", coding_sha256: codingReceiptSha256(call.body.offline_coding) } } : {};
+
   it.each([
-    ["stale", { status: "coded" as const, answers_sha256: "0".repeat(64) }],
-    ["nonfinal", { status: "draft" as const, answers_sha256: null }],
-  ])("retains enrolled %s coding instead of sending code-less upload", async (_name, changes) => {
+    ["stale", { answers_sha256: "0".repeat(64) }, true],
+    ["uncoded draft", { status: "draft" as const, ucod_code: null }, false],
+  ])("sends an enrolled interview with its %s coding held back, keeps the coding and sends it once recoded", async (_name, changes, sentStale) => {
     const db = memoryDb();
     await migrate(db);
     const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
     await store.save(draft(DRAFT));
     await markCompleted(db, DRAFT, { valid: true, issues: [] });
-    await saveOfflineCoding(db, {
-      client_draft_id: DRAFT, certificate: "{}", result: "{}", codedit_result: "{}", process_token: "local-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-      certificate_digest: null, result_digest: null, ucod_code: "BA41.Z", ucod_uri: null, status: changes.status,
-      coder_profile_updated_at: null, device_uuid: "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d", provenance: JSON.stringify({ allowability: { rules: "v1" } }),
-      answers_sha256: changes.answers_sha256 ?? await draftAnswersSha256(db, DRAFT), created_at: "2026-10-01T00:00:00Z", updated_at: "v1",
+    const answersHash = await draftAnswersSha256(db, DRAFT);
+    await saveOfflineCoding(db, { ...CODING_ROW, answers_sha256: answersHash, ...changes });
+    // The server keeps a stale coding refused coded_version_superseded (digitva-9cll.14).
+    server((call) => {
+      if (!call.url.endsWith("/submissions")) return json(204, null);
+      const sent = call.body?.offline_coding as { coded_answers_sha256?: string } | undefined;
+      if (sent && sent.coded_answers_sha256 !== answersHash) {
+        return submissionSuccess(call, { offline_coding: { status: "refused", code: "coded_version_superseded", coding_sha256: codingReceiptSha256(sent) } });
+      }
+      return submissionSuccess(call, codingAck(call));
     });
-    server(() => { throw new Error("submission must not be sent"); });
 
-    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1 });
+    const first = await uploadQueuedWork(USER, db);
+    expect(first).toMatchObject({ sent: 1, failed: 0 });
+    expect(submissionCalls()).toHaveLength(1);
+    if (sentStale) {
+      expect(submissionCalls()[0].body?.offline_coding).toMatchObject({ coded_answers_sha256: "0".repeat(64), conclusive_cod: "BA41.Z" });
+      expect(first.codingOutcomes).toEqual([expect.objectContaining({ status: "refused", code: "coded_version_superseded" })]);
+      expect(await codingNotices(db)).toEqual([expect.objectContaining({ draftId: DRAFT, code: "coded_version_superseded" })]);
+    } else {
+      expect(submissionCalls()[0].body).not.toHaveProperty("offline_coding");
+    }
     expect(await getDraftRow(db, DRAFT)).not.toBeNull();
     expect(await getOfflineCoding(db, DRAFT)).not.toBeNull();
+
+    // Held at these answers: the next sync sends nothing until the coder recodes.
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0 });
+    expect(submissionCalls()).toHaveLength(1);
+
+    // Recoded: the final goes with the same answers (the server's resend replaces the stale one) and the draft is done.
+    await saveOfflineCoding(db, { ...CODING_ROW, answers_sha256: answersHash, updated_at: "v2" });
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 1, codingOutcomes: [{ draftId: DRAFT, status: "pending" }] });
+    expect(submissionCalls()).toHaveLength(2);
+    expect(submissionCalls()[1].body?.offline_coding).toMatchObject({ coded_answers_sha256: answersHash });
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+    expect(await getMeta(db, codingLeftKey(DRAFT))).toBeUndefined();
+    expect(await codingNotices(db)).toEqual([]);
+  });
+
+  it("sends a code the coder saved with no engine verdict as the final, with no DORIS result", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await createDraftStore(db, { projectId: PROJECT, siteId: SITE }).save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    await saveOfflineCoding(db, {
+      ...CODING_ROW, status: "draft", result: JSON.stringify({ status: "timeout", result: null }),
+      answers_sha256: await draftAnswersSha256(db, DRAFT),
+    });
+    server((call) => call.url.endsWith("/submissions") ? submissionSuccess(call, codingAck(call)) : json(204, null));
+
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0, codingOutcomes: [{ status: "pending" }] });
+    expect(submissionCalls()[0].body?.offline_coding).toMatchObject({ conclusive_cod: "BA41.Z", result: { status: "timeout", result: null } });
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+  });
+
+  it("sends a DORIS-rejected final code with its DORIS and CodeEdit results", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await createDraftStore(db, { projectId: PROJECT, siteId: SITE }).save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    await saveOfflineCoding(db, {
+      ...CODING_ROW, status: "rejected", result: JSON.stringify({ reject: true }), codedit_result: JSON.stringify({ errors: ["x"] }),
+      answers_sha256: await draftAnswersSha256(db, DRAFT),
+    });
+    server((call) => call.url.endsWith("/submissions") ? submissionSuccess(call, codingAck(call)) : json(204, null));
+
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0 });
+    expect(submissionCalls()[0].body?.offline_coding).toMatchObject({
+      conclusive_cod: "BA41.Z", result: { reject: true }, codedit_result: { errors: ["x"] },
+    });
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+  });
+
+  it("sends the interview again without a coding the server refuses outright", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await createDraftStore(db, { projectId: PROJECT, siteId: SITE }).save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    await saveOfflineCoding(db, { ...CODING_ROW, answers_sha256: await draftAnswersSha256(db, DRAFT) });
+    server((call) => {
+      if (!call.url.endsWith("/submissions")) return json(204, null);
+      if (call.body?.offline_coding) return json(422, { error: "bad", code: "offline_coding_invalid" });
+      return submissionSuccess(call);
+    });
+
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0, codingOutcomes: [] });
+    expect(submissionCalls().map((call) => "offline_coding" in (call.body ?? {}))).toEqual([true, false]);
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+    expect(await getOfflineCoding(db, DRAFT)).not.toBeNull();
+    expect(await codingNotices(db)).toEqual([expect.objectContaining({ draftId: DRAFT, code: "offline_coding_invalid" })]);
+
+    // Later syncs send nothing for the refused revision.
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0 });
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0 });
+    expect(submissionCalls()).toHaveLength(2);
+
+    // A recode is sent and, once taken, finishes the draft.
+    server((call) => call.url.endsWith("/submissions") ? submissionSuccess(call, codingAck(call)) : json(204, null));
+    await saveOfflineCoding(db, { ...CODING_ROW, answers_sha256: await draftAnswersSha256(db, DRAFT), updated_at: "v2" });
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 1, codingOutcomes: [{ status: "pending" }] });
+    expect(submissionCalls()).toHaveLength(1); // server() starts a new call log
+    expect(submissionCalls()[0].body).toHaveProperty("offline_coding");
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+    expect(await codingNotices(db)).toEqual([]);
   });
 
   it.each([false, true])("persists refusal before deletion and retains work if persistence fails (%s)", async (failNotice) => {
@@ -1210,7 +1314,7 @@ describe("sync upload ordering", () => {
     }
   });
 
-  it("retains coded work when the enrolled device identity is unavailable", async () => {
+  it("sends the interview and keeps coded work when the enrolled device identity is unavailable", async () => {
     const db = memoryDb();
     await migrate(db);
     const store = createDraftStore(db, { projectId: PROJECT, siteId: SITE });
@@ -1223,9 +1327,10 @@ describe("sync upload ordering", () => {
       answers_sha256: await draftAnswersSha256(db, DRAFT), created_at: "2026-10-01T00:00:00Z", updated_at: "v1",
     });
     jest.mocked(getOrCreatePlusDeviceIdentity).mockResolvedValueOnce(null);
-    server(() => { throw new Error("submission must not be sent"); });
+    server((call) => call.url.endsWith("/submissions") ? submissionSuccess(call) : json(204, null));
 
-    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 0, failed: 1 });
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0 });
+    expect(submissionCalls()[0].body).not.toHaveProperty("offline_coding");
     expect(await getDraftRow(db, DRAFT)).not.toBeNull();
     expect(await getOfflineCoding(db, DRAFT)).not.toBeNull();
   });

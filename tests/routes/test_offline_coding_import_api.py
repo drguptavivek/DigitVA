@@ -358,6 +358,24 @@ class StandalonePushTests(BaseTestCase):
         self.assertEqual(self._coding_receipt(again), {"status": "pending", "code": "not_ready"})
         self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaBundlePendingCoding)), count)
 
+    def test_a_later_coding_doris_rejected_is_held_and_applied_with_its_results(self):
+        """DORIS and CodeEdit are advisory (digitva-9cll.14): a final the coder saved over a DORIS reject, sent after
+        its interview, is taken and imported with the device's results; server review handles the disagreement."""
+        client_uuid, headers = self._device(self.coder)
+        first, draft_id = self._push_enrolled(headers, client_uuid, coding=False)
+        self.assertEqual(first.status_code, 201, first.get_json())
+        _, answers_sha = self._answers_json()
+        coding = {**self._coding(client_uuid, answers_sha), "result": {"reject": True, "errors": ["doris says no"]},
+                  "codedit_result": {"warnings": ["codedit note"]}}
+        later, _ = self._push_enrolled(headers, client_uuid, client_draft_id=draft_id, coding=False, offline_coding=coding)
+        self.assertEqual(later.status_code, 200, later.get_json())
+        self.assertEqual(self._coding_receipt(later), {"status": "pending", "code": "not_ready"})
+        va_sid = later.get_json()["va_sid"]
+        self.assertEqual(self._apply(va_sid)["applied"], 1)
+        final = self._final(va_sid)
+        self.assertEqual(final.doris_result, {"reject": True, "errors": ["doris says no"]})
+        self.assertEqual(final.codedit_result, {"warnings": ["codedit note"]})
+
     def test_same_hash_retry_rejects_a_cross_project_substitution(self):
         other_project, other_site = "SAP02", "SA02"
         now = datetime.now(UTC)
@@ -529,27 +547,134 @@ class StandalonePushTests(BaseTestCase):
         self.assertEqual(self._apply(first.get_json()["va_sid"])["applied"], 1)
         self.assertEqual(self._final(first.get_json()["va_sid"]).icd11_provenance["conclusive"]["code"], OTHER_CODE)
 
-    def test_changed_terminal_coding_conflicts_and_exact_resend_remains_idempotent(self):
-        for actor, terminal in ((self.coder, "applied"), (self.interviewer, "refused")):
+    def test_a_recode_replaces_a_terminal_coding_keeping_its_history(self):
+        """digitva-9cll.14 (3): a recode after the server applied or refused a coding replaces it; the exact
+        resend stays idempotent, the older snapshot stays in the held row's history and the audit log."""
+        for actor, terminal, after in ((self.coder, "applied", "pending"), (self.interviewer, "refused", "refused")):
             with self.subTest(terminal=terminal):
                 client_uuid, headers = self._device(actor)
                 _text, answers_sha = self._answers_json()
                 coding = self._coding(client_uuid, answers_sha)
                 first, draft_id = self._push(headers, client_uuid, coding=False, offline_coding=coding)
                 self.assertEqual(first.status_code, 201, first.get_json())
+                va_sid = first.get_json()["va_sid"]
                 if terminal == "applied":
-                    self.assertEqual(self._apply(first.get_json()["va_sid"])["applied"], 1)
+                    self.assertEqual(self._apply(va_sid)["applied"], 1)
                 again, _ = self._push(headers, client_uuid, client_draft_id=draft_id,
                                       coding=False, offline_coding=coding)
                 self.assertEqual(again.status_code, 200, again.get_json())
                 self.assertEqual(again.get_json()["offline_coding"]["status"], terminal)
-                changed = {**coding, "remark": "Changed coding revision"}
-                refused, _ = self._push(headers, client_uuid, client_draft_id=draft_id,
+                changed = {**self._coding(client_uuid, answers_sha, OTHER_CODE), "remark": "Recoded"}
+                recoded, _ = self._push(headers, client_uuid, client_draft_id=draft_id,
                                         coding=False, offline_coding=changed)
-                self.assertEqual((refused.status_code, refused.get_json()["code"]), (409, "coding_conflict"))
+                self.assertEqual(recoded.status_code, 200, recoded.get_json())
+                self.assertEqual(recoded.get_json()["offline_coding"]["status"], after)
                 held = db.session.get(VaBundlePendingCoding, draft_id)
-                self.assertEqual(held.content_sha256, coding_receipt_sha256(coding))
-                self.assertEqual(held.result["coding"]["remark"], coding["remark"])
+                self.assertEqual(held.content_sha256, coding_receipt_sha256(changed))
+                self.assertEqual([h["coding_sha256"] for h in held.result["history"]], [coding_receipt_sha256(coding)])
+                self.assertEqual(held.result["history"][0]["status"], "applied" if terminal == "applied" else "rejected")
+                self.assertEqual(len(self._audits(va_sid, "offline coding replaced")), 1)
+
+    def test_a_recode_after_an_applied_coding_supersedes_the_earlier_final(self):
+        """The recode takes the online recode path: the new final is authoritative and the earlier one stays,
+        deactivated, in final-assessment history."""
+        client_uuid, headers = self._device(self.coder)
+        _text, answers_sha = self._answers_json()
+        first, draft_id = self._push(headers, client_uuid, coding=False,
+                                     offline_coding=self._coding(client_uuid, answers_sha))
+        va_sid = first.get_json()["va_sid"]
+        self.assertEqual(self._apply(va_sid)["applied"], 1)
+        earlier = self._final(va_sid)
+        self.assertIsNotNone(earlier)
+        recoded, _ = self._push(headers, client_uuid, client_draft_id=draft_id, coding=False,
+                                offline_coding=self._coding(client_uuid, answers_sha, OTHER_CODE))
+        self.assertEqual(self._coding_receipt(recoded), {"status": "pending", "code": "not_ready"})
+        self.assertEqual(bundle_ingest_service.apply_pending_coding()["applied"], 1)
+        final = self._final(va_sid)
+        self.assertEqual(final.icd11_provenance["conclusive"]["code"], OTHER_CODE)
+        self.assertNotEqual(final.va_finassess_id, earlier.va_finassess_id)
+        db.session.refresh(earlier)
+        self.assertEqual(earlier.va_finassess_status, VaStatuses.deactive)
+        self.assertEqual(get_submission_workflow_state(va_sid), "coder_finalized")
+
+    def test_a_failed_recode_apply_leaves_the_earlier_final_authoritative(self):
+        client_uuid, headers = self._device(self.coder)
+        _text, answers_sha = self._answers_json()
+        first, draft_id = self._push(headers, client_uuid, coding=False,
+                                     offline_coding=self._coding(client_uuid, answers_sha))
+        va_sid = first.get_json()["va_sid"]
+        self.assertEqual(self._apply(va_sid)["applied"], 1)
+        earlier = self._final(va_sid)
+        self._push(headers, client_uuid, client_draft_id=draft_id, coding=False,
+                   offline_coding=self._coding(client_uuid, answers_sha, OTHER_CODE))
+        failure = offline_coding.coder_cod.CoderCodingError("simulated final-save refusal", 409, code="wrong_state")
+        with mock.patch.object(offline_coding, "_save_imported_final", side_effect=failure):
+            self.assertEqual(bundle_ingest_service.apply_pending_coding()["rejected"], 1)
+        self.assertEqual(self._final(va_sid).va_finassess_id, earlier.va_finassess_id)
+        self.assertIsNone(offline_coding.coder_workflow.get_active_coding_allocation(self.coder.user_id))
+        self.assertIsNone(offline_coding.get_active_recode_episode(va_sid))
+        self.assertEqual(get_submission_workflow_state(va_sid), "coder_finalized")
+
+    def test_a_first_coding_of_a_case_finalized_meanwhile_is_still_refused(self):
+        """Only a recode over this hold's own applied coding takes the recode path."""
+        client_uuid, headers = self._device(self.coder)
+        first, _ = self._push(headers, client_uuid)
+        va_sid = first.get_json()["va_sid"]
+        set_submission_workflow_state(va_sid, "coder_finalized", reason="test", by_role="test")
+        db.session.commit()
+        self.assertEqual(bundle_ingest_service.apply_pending_coding()["rejected"], 1)
+        self.assertIsNone(self._final(va_sid))
+        self.assertIsNone(offline_coding.get_active_recode_episode(va_sid))
+
+    def test_a_recode_with_an_allowability_disagreement_goes_to_review(self):
+        client_uuid, headers = self._device(self.coder)
+        _text, answers_sha = self._answers_json()
+        first, draft_id = self._push(headers, client_uuid, coding=False,
+                                     offline_coding=self._coding(client_uuid, answers_sha))
+        va_sid = first.get_json()["va_sid"]
+        self.assertEqual(self._apply(va_sid)["applied"], 1)
+        flagged = self._coding(client_uuid, answers_sha, OTHER_CODE)
+        flagged["provenance"]["antecedent"]["primary_stem"] = AGREEING_CODE
+        self._push(headers, client_uuid, client_draft_id=draft_id, coding=False, offline_coding=flagged)
+        self.assertEqual(bundle_ingest_service.apply_pending_coding()["applied"], 1)
+        self.assertEqual(self._final(va_sid).icd11_provenance["conclusive"]["allowability_disagreement"],
+                         ["primary_stem_mismatch"])
+        self.assertEqual(get_submission_workflow_state(va_sid), "reviewer_eligible")
+
+    def test_an_enrolled_stale_coding_is_held_until_the_recode(self):
+        client_uuid, headers = self._device(self.coder)
+        stale = self._coding(client_uuid, "e" * 64)
+        first, draft_id = self._push_enrolled(headers, client_uuid, coding=False, offline_coding=stale)
+        self.assertEqual(first.status_code, 201, first.get_json())
+        self.assertEqual(self._coding_receipt(first), {"status": "refused", "code": "coded_version_superseded"})
+        va_sid = first.get_json()["va_sid"]
+        self.assertEqual(self._apply(va_sid)["applied"], 0)
+        _text, answers_sha = self._answers_json()
+        recoded, _ = self._push_enrolled(headers, client_uuid, client_draft_id=draft_id, coding=False,
+                                         offline_coding=self._coding(client_uuid, answers_sha))
+        self.assertEqual(recoded.status_code, 200, recoded.get_json())
+        self.assertEqual(self._coding_receipt(recoded), {"status": "pending", "code": "not_ready"})
+        self.assertEqual(bundle_ingest_service.apply_pending_coding()["applied"], 1)
+        self.assertIsNotNone(self._final(va_sid))
+
+    def test_a_stale_coding_is_kept_unapplied_until_the_recode_replaces_it(self):
+        """digitva-9cll.14 (2): the older coding sent with the new answers is held refused
+        coded_version_superseded, never applied; the recode on the final answers replaces and is applied."""
+        client_uuid, headers = self._device(self.coder)
+        stale = self._coding(client_uuid, "e" * 64)
+        first, draft_id = self._push(headers, client_uuid, coding=False, offline_coding=stale)
+        self.assertEqual(self._coding_receipt(first), {"status": "refused", "code": "coded_version_superseded"})
+        va_sid = first.get_json()["va_sid"]
+        self.assertEqual(self._apply(va_sid)["applied"], 0)
+        self.assertIsNone(self._final(va_sid))
+        _text, answers_sha = self._answers_json()
+        recoded, _ = self._push(headers, client_uuid, client_draft_id=draft_id, coding=False,
+                                offline_coding=self._coding(client_uuid, answers_sha))
+        self.assertEqual(self._coding_receipt(recoded), {"status": "pending", "code": "not_ready"})
+        self.assertEqual(bundle_ingest_service.apply_pending_coding()["applied"], 1)
+        self.assertIsNotNone(self._final(va_sid))
+        held = db.session.get(VaBundlePendingCoding, draft_id)
+        self.assertEqual(held.result["history"][0]["code"], "coded_version_superseded")
 
     def test_pending_replacement_refusal_receipts_the_new_snapshot(self):
         client_uuid, headers = self._device(self.coder)

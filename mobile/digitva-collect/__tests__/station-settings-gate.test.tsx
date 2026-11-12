@@ -9,7 +9,7 @@ import {
   type StationSettings,
 } from "../src/api";
 import { ApiError } from "../src/api";
-import { exportStationBundle, fetchStationRoster, importBundleReceipt, type StationRosterSnapshot } from "../src/roster";
+import { exportStationBundle, fetchStationRoster, importBundleReceipt, importStationConfig, type StationRosterSnapshot } from "../src/roster";
 import { fetchContextualHelp } from "../src/web/ContextualHelp";
 
 // The station UI (actor bar, .dvb transfer, roster) exists only in the desktop edition, which
@@ -42,6 +42,7 @@ jest.mock("../src/roster", () => ({
   ...jest.requireActual("../src/roster"),
   fetchStationRoster: jest.fn(),
   importBundleReceipt: jest.fn(),
+  importStationConfig: jest.fn(),
   exportStationBundle: jest.fn(),
 }));
 
@@ -275,4 +276,43 @@ it("lists the records held back from a data file, with their reasons", async () 
     byTestId(tree, "export-dvb-bundle-btn")[0].props.onPress();
   });
   expect(texts()).toContain("1 record(s) were kept out of this data file and stay on this computer: c-2: No notice.");
+});
+
+it("asks the operator to confirm the server key on a first import, then re-posts with it; cancel stores nothing", async () => {
+  globals.__DIGITVA_LAUNCH_TOKEN__ = "launch-token";
+  jest.mocked(importStationConfig).mockReset().mockRejectedValueOnce(
+    new ApiError(409, "server_key_unconfirmed", undefined, undefined, { server_key_fingerprint: "0123456789abcdef" }),
+  );
+  const tree = await render();
+  const input = tree.root.findAll((n) => n.props.onChangeText && String(n.props.placeholder ?? "").includes("station_config_format_version"))[0];
+  await act(async () => {
+    input.props.onChangeText("line1\nline2");
+  });
+  await act(async () => {
+    byTestId(tree, "import-station-config-btn")[0].props.onPress();
+  });
+  expect(byTestId(tree, "server-key-fingerprint")[0].props.children).toBe("0123 4567 89AB CDEF");
+  expect(importStationConfig).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    byTestId(tree, "server-key-cancel-btn")[0].props.onPress();
+  });
+  expect(byTestId(tree, "server-key-confirm")).toHaveLength(0);
+  expect(importStationConfig).toHaveBeenCalledTimes(1);
+
+  jest.mocked(importStationConfig).mockRejectedValueOnce(
+    new ApiError(409, "server_key_unconfirmed", undefined, undefined, { server_key_fingerprint: "0123456789abcdef" }),
+  );
+  await act(async () => {
+    byTestId(tree, "import-station-config-btn")[0].props.onPress();
+  });
+  jest.mocked(importStationConfig).mockResolvedValueOnce({
+    station_config_id: "cfg-1", station_mode: "provisioned", custodian: null, purged_ids: [],
+    roster: { ...snapshot, station_mode: "provisioned" }, server_key_fingerprint: "0123456789abcdef",
+  });
+  await act(async () => {
+    byTestId(tree, "server-key-confirm-btn")[0].props.onPress();
+  });
+  expect(importStationConfig).toHaveBeenLastCalledWith("line1\nline2", { token: "csrf" }, "0123456789abcdef");
+  expect(byTestId(tree, "server-key-confirm")).toHaveLength(0);
 });

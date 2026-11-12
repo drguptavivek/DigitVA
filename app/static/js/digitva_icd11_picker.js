@@ -214,6 +214,7 @@ export function createIcd11Picker(options) {
   // (absent = unknown, e.g. a built expression or an older server); the
   // selection check on OK decides the rest, in these same words
   // (selection_refusal in app/services/icd11_postcoordination.py).
+  var NON_LEAF_REFUSAL = /^[A-Z0-9][A-Z0-9.]{0,15} is a category, not a final code\. Choose a more specific code under it\.$/;
   function notFinal(item) {
     var stem = text(item.code).split(/[&/]/)[0];
     if (item.extension === true) return {kind: 'extension', stem: stem, message: stem + ' is an extension code. It cannot be used alone: add it to a stem through + Build.'};
@@ -271,6 +272,8 @@ export function createIcd11Picker(options) {
       var message = error.message || 'Could not verify this code.';
       if (statusEl) statusEl.textContent = message;
       else if (active && active.line === container) setFooterMessage(message);
+      // A category the search did not flag opens its children, as staging does.
+      if (NON_LEAF_REFUSAL.test(message) && item.code && item.code.indexOf('/') === -1) openCategory(container, item.code.split('&')[0], trigger || null);
     });
   }
 
@@ -881,6 +884,21 @@ export function createIcd11Picker(options) {
       choices('Ancestor path', data.ancestors);
       choices('Siblings', data.siblings);
       choices('Children', data.children);
+      // A category is refused as a final code (digitva-dn15): filter its
+      // children (.Z included) by code or title.
+      if (list(data.children).length) {
+        var childList = panel.lastElementChild.querySelector('.list-group');
+        var filter = document.createElement('input');
+        filter.type = 'search'; filter.className = 'form-control form-control-sm mb-1';
+        filter.placeholder = 'Search child codes'; filter.setAttribute('aria-label', 'Search child codes');
+        filter.addEventListener('input', function () {
+          var needle = filter.value.trim().toLowerCase();
+          Array.prototype.forEach.call(childList.children, function (row) {
+            row.hidden = Boolean(needle) && row.textContent.toLowerCase().indexOf(needle) === -1;
+          });
+        });
+        childList.parentNode.insertBefore(filter, childList);
+      }
       [['Maternal context', data.related_maternal], ['Perinatal context', data.related_perinatal]].forEach(function (entry) {
         if (!list(entry[1]).length) return;
         var p = document.createElement('p'); p.className = 'small mb-1'; p.textContent = entry[0] + ': ' + list(entry[1]).map(function (item) { return text(item.title || item); }).join('; '); panel.appendChild(p);

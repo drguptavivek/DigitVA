@@ -290,6 +290,29 @@ class DmExportStreamingTests(BaseTestCase):
         self.assertEqual(actual[0][5:-1], sorted(actual[0][5:-1]))
         self.assertEqual(actual, _smartva_view(self._golden("smartva_input.csv")))
 
+    def test_smartva_input_formula_guard_is_skipped_only_when_raw(self):
+        from unittest.mock import patch
+
+        cleaned = {"Id10001": "-5", "Id10002": "=X", "Id10003": "ok"}
+        with patch(
+            "app.utils.va_smartva.va_smartva_02_prepdata._clean_payload_for_smartva",
+            side_effect=lambda payload, va_sid=None: dict(cleaned),
+        ):
+            guarded = _smartva_view(dm_smartva_input_export_csv(self.user, project=PROJECT))
+            raw_handle = io.StringIO()
+            write_dm_smartva_input_export_csv(raw_handle, self.user, project=PROJECT, raw=True)
+            raw = _smartva_view(raw_handle.getvalue())
+
+        self.assertEqual(guarded[0], raw[0])
+        self.assertEqual(len(guarded[1]), len(raw[1]))
+        guarded_cells = {c for row in guarded[1] for c in row}
+        raw_cells = {c for row in raw[1] for c in row}
+        self.assertIn(("Id10001", "'-5"), guarded_cells)
+        self.assertIn(("Id10002", "'=X"), guarded_cells)
+        self.assertIn(("Id10001", "-5"), raw_cells)
+        self.assertIn(("Id10002", "=X"), raw_cells)
+        self.assertNotIn(("Id10002", "'=X"), raw_cells)
+
     def test_export_carries_the_country_stamp(self):
         """rou1: the header has the column and the row cell reads the stamp."""
         from app.services.data_management_service import _dm_submission_export_row
@@ -381,7 +404,7 @@ class DmExportStreamingTests(BaseTestCase):
 
     # -- the route -----------------------------------------------------------------
 
-    def test_route_stores_a_bom_plus_the_golden_text(self):
+    def test_route_stores_the_golden_text_with_bom_except_smartva_input(self):
         self._login(str(USER_ID))
         with tempfile.TemporaryDirectory() as tmp:
             old = {k: self.app.config.get(k) for k in ("APP_DATA", "DB_BACKUP_TMP_DIR")}
@@ -410,7 +433,9 @@ class DmExportStreamingTests(BaseTestCase):
             self.assertEqual(response.status_code, 200, name)
             self.assertEqual(response.headers["X-Export-Cache"], "MISS", name)
             body = response.get_data()
-            self.assertTrue(body.startswith(export_store_service.UTF8_BOM.encode("utf-8")), name)
+            has_bom = body.startswith(export_store_service.UTF8_BOM.encode("utf-8"))
+            # SmartVA input is read by SmartVA itself: no BOM; the others keep it.
+            self.assertEqual(has_bom, name.startswith("submissions"), name)
             if name.startswith("submissions"):
                 self.assertEqual(
                     _split_records(body.decode("utf-8"), "uuid:lj7u-"),

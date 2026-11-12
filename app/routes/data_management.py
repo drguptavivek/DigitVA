@@ -36,12 +36,17 @@ from app.routes.admin import (
     _grant_project_id_expression,
     _grant_site_id_expression,
     _json_error,
+    _mask_email,
+    _mask_phone,
     _payload_grant_target,
     _resolve_scope_from_payload,
     _serialize_grant,
     _serialize_project_site,
     _serialize_projects,
     _serialize_user,
+    serialize_searched_users,
+    user_search_condition,
+    users_in_caller_reach,
 )
 from app.services import authz
 from app.services import mentor_institute_service as mentors
@@ -206,6 +211,28 @@ def _dm_may_see_user(target_user_id) -> bool:
         current_user.user_id, "", True, user_id=target_user_id
     )
     return bool(staff)
+
+
+def _dm_user_json(user) -> dict:
+    """One account as these pages show it. A wide writer sees it in full
+    inside its reach (``users_in_caller_reach``); outside it, email and phone
+    masked and no landing page, keeping the profile fields it may edit
+    (languages, job title). A unit writer gets the old shape: no phone,
+    landing page or admin flag (dm-user-grant-management.md, digitva-9xn9.22)."""
+    if _is_wide_writer():
+        in_reach = user.user_id in users_in_caller_reach([user.user_id])
+        user_json = _serialize_user(user)
+        if not in_reach:
+            # The profile fields the caller manages stay; contacts are masked.
+            user_json.update(
+                email=_mask_email(user.email), phone=_mask_phone(user.phone),
+                landing_page=None, contact_masked=True,
+            )
+        return user_json
+    user_json = _serialize_user(user)
+    for key in ("phone", "landing_page", "is_admin"):
+        user_json.pop(key, None)
+    return user_json
 
 
 def require_dm_scope(f):
@@ -635,20 +662,15 @@ _USER_SEARCH_LIMIT = 25
 
 
 def _search_users(stmt, query, include_inactive):
-    """Run a user search: *query* is a literal substring of email or name
-    (%, _ and \\ match themselves; autoescape sets its own ESCAPE character).
+    """Run a user search: *query* is a literal substring of email, name or
+    phone (%, _ and \\ match themselves; autoescape sets its own ESCAPE character).
     Returns up to ``_USER_SEARCH_LIMIT + 1`` rows so the caller can flag more."""
     if not include_inactive:
         stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
     # The ODK sync service account is never a grant target.
     stmt = stmt.where(VaUsers.user_id != ODK_SYNC_USER_ID)
     if query:
-        stmt = stmt.where(
-            sa.or_(
-                VaUsers.email.icontains(query, autoescape=True),
-                VaUsers.name.icontains(query, autoescape=True),
-            )
-        )
+        stmt = stmt.where(user_search_condition(query))
     return db.session.scalars(
         stmt.order_by(VaUsers.email).limit(_USER_SEARCH_LIMIT + 1)
     ).all()
@@ -668,7 +690,7 @@ def manage_users():
     if not _is_wide_writer():
         # A unit writer (unit data manager, In-charge) finds the holders of
         # grants it may manage and the staff of mentoring institutes attached
-        # to districts it covers; no one else, and no contact details.
+        # to districts it covers; no one else, and no phone (the old shape).
         staff, truncated = mentors.dm_visible_mentor_staff(
             current_user.user_id, query, include_inactive, limit=_USER_SEARCH_LIMIT
         )
@@ -679,7 +701,7 @@ def manage_users():
         truncated = truncated or len(managed) > _USER_SEARCH_LIMIT
         for user in managed[:_USER_SEARCH_LIMIT]:
             found.setdefault(user.user_id, (user, []))
-        rows = sorted(found.values(), key=lambda row: (row[0].email or "", row[0].name))
+        rows = sorted(found.values(), key=lambda row: (row[0].email or "", row[0].name))[:_USER_SEARCH_LIMIT]
         return jsonify({"users": [
             {
                 "user_id": str(u.user_id),
@@ -689,11 +711,12 @@ def manage_users():
                 "status": u.user_status.value,
                 "institutes": codes,
             }
-            for u, codes in rows[:_USER_SEARCH_LIMIT]
-        ], "truncated": truncated or len(rows) > _USER_SEARCH_LIMIT})
+            for u, codes in rows
+        ], "truncated": truncated or len(found) > _USER_SEARCH_LIMIT})
+    # A wide writer searches the platform; contacts outside its reach are masked.
     users = _search_users(sa.select(VaUsers), query, include_inactive)
     return jsonify({
-        "users": [_serialize_user(u) for u in users[:_USER_SEARCH_LIMIT]],
+        "users": serialize_searched_users(users[:_USER_SEARCH_LIMIT]),
         "truncated": len(users) > _USER_SEARCH_LIMIT,
     })
 
@@ -931,11 +954,7 @@ def manage_user_detail(target_user_id):
         g for g in serialized_grants if g["scope_type"] == VaAccessScopeTypes.project_site.value
     ]
 
-    user_json = _serialize_user(user)
-    if not _is_wide_writer():
-        # Unit writers open managed people without contact details (policy).
-        for key in ("phone", "landing_page", "is_admin"):
-            user_json.pop(key, None)
+    user_json = _dm_user_json(user)
     return jsonify(
         {
             "user": user_json,
@@ -1150,11 +1169,7 @@ def manage_update_user(target_user_id):
         except Exception:
             pass
 
-    user_json = _serialize_user(target_user)
-    if not _is_wide_writer():
-        for key in ("phone", "landing_page", "is_admin"):
-            user_json.pop(key, None)
-    return jsonify({"user": user_json})
+    return jsonify({"user": _dm_user_json(target_user)})
 
 
 @data_management.get("/api/access-grants")

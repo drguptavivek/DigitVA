@@ -21,6 +21,7 @@ Computed fields added to each record:
 """
 
 import logging
+from urllib.parse import quote
 from datetime import datetime, timezone
 
 from flask import current_app, has_app_context
@@ -106,7 +107,7 @@ def va_odk_fetch_submissions_by_ids(
 
     for idx, iid in enumerate(instance_ids, 1):
         # OData single-entity: Submissions('uuid:...')
-        url = f"{base_url}('{iid}')"
+        url = f"{base_url}('{quote(str(iid), safe=':')}')"
         try:
             response = guarded_odk_call(
                 lambda: client.session.get(url, timeout=request_timeout),

@@ -1026,6 +1026,54 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertFalse(set(db.session.scalars(
             sa.select(VaDeathRegister.death_id).where(cases.supervised_case_condition(other_pi)))))
 
+    def test_non_pii_overseers_get_supervision_rows_without_names(self):
+        # Web-intake item 14 (owner 2026-11-12, digitva-9xn9.22): a project PI
+        # and a project-scope data manager hold no PII grant on a tree project,
+        # so the supervision list and detail carry no names; Sam's unit
+        # supervisor grant does.
+        pi = self._user_with("pi.names", VaAccessRoles.project_pi,
+                             scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT_ID)
+        case = self._register()
+        db.session.commit()
+        url = "/api/v1/intake/supervision/cases"
+
+        self._login(str(self.sam.user_id))
+        rows = {r["death_id"]: r for r in self.client.get(url).get_json()["cases"]}
+        self.assertEqual(rows[str(case.death_id)]["deceased_name"], "Asha Devi")
+        self.assertEqual(rows[str(case.death_id)]["registered_by_name"], self.ian.name)
+
+        for user in (pi, self.dana):
+            self._login(str(user.user_id))
+            listed = self.client.get(url)
+            self.assertEqual(listed.status_code, 200, listed.get_json())
+            rows = {r["death_id"]: r for r in listed.get_json()["cases"]}
+            self.assertIn(str(case.death_id), rows)
+            row = rows[str(case.death_id)]
+            self.assertIn("deceased_name", row)
+            self.assertIsNone(row["deceased_name"])
+            self.assertIsNone(row["registered_by_name"])
+            self.assertIsNone(row["started_by_name"])
+            detail = self.client.get(f"{url}/{case.death_id}")
+            self.assertEqual(detail.status_code, 200, detail.get_json())
+            self.assertIsNone(detail.get_json()["case"]["deceased_name"])
+            self.assertIsNone(detail.get_json()["case"]["registered_by_name"])
+
+    def test_supervisor_duplicates_carry_names_only_with_pii(self):
+        pi = self._user_with("pi.dups", VaAccessRoles.project_pi,
+                             scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT_ID)
+        case = self._register()
+        dup = self._register(deceased_name="Asha D")
+        db.session.commit()
+        url = f"/api/v1/intake/supervision/cases/{case.death_id}/possible-duplicates"
+        for user, expected in ((self.sam, "Asha D"), (pi, None)):
+            self._login(str(user.user_id))
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200, response.get_json())
+            rows = {r["death_id"]: r for r in response.get_json()["possible_duplicates"]}
+            self.assertIn(str(dup.death_id), rows)
+            self.assertIn("deceased_name", rows[str(dup.death_id)])
+            self.assertEqual(rows[str(dup.death_id)]["deceased_name"], expected)
+
     def test_a_classical_site_pi_supervises_nothing(self):
         # A pair site_pi is outside the supervising roles.
         project_site_id = db.session.scalar(sa.select(VaProjectSites.project_site_id).filter_by(

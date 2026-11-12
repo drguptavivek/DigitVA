@@ -876,7 +876,7 @@ export async function draftUniqueIds(db: Db, projectId?: string): Promise<string
 
 /** What the phone keeps beside a draft, deleted with it: consent records, files, its offline coding and private note. */
 async function deleteDraftCompanions(db: Db, id: string): Promise<void> {
-  await db.runAsync("DELETE FROM meta WHERE key IN (?, ?, ?, ?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`, `standaloneConsent:${id}`, `offlineNote:${id}`, `server-attachments:${id}`]);
+  await db.runAsync("DELETE FROM meta WHERE key IN (?, ?, ?, ?, ?, ?, ?)", [`consent:draft:${id}`, `consentRefused:${id}`, `standaloneConsent:${id}`, `offlineNote:${id}`, `server-attachments:${id}`, `coding-left:${id}`, `coding-refused:${id}`]);
   await db.runAsync("DELETE FROM attachments WHERE draft_id = ?", [id]);
   await db.runAsync("DELETE FROM offline_coding WHERE client_draft_id = ?", [id]);
   await db.runAsync("DELETE FROM local_smartva WHERE draft_id = ?", [id]);

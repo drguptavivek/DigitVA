@@ -132,6 +132,7 @@
       setStatus(state.status, 'WHO returned no complete code expression. Choose a coded entity or postcoordinated expression.', 'error');
       return;
     }
+    if (state.childrenBox) state.childrenBox.remove();
     var sequence = ++state.selectionSequence;
     setStatus(state.status, 'Checking this WHO selection against DigitVA policy...', 'muted');
     fetch(state.selectionCheckUrl, {
@@ -145,7 +146,11 @@
     })
       .then(function (response) {
         return response.json().catch(function () { return {}; }).then(function (data) {
-          if (!response.ok) throw new Error(data.error || 'DigitVA could not validate this WHO selection.');
+          if (!response.ok) {
+            var refusal = new Error(data.error || 'DigitVA could not validate this WHO selection.');
+            if (data.code === 'non_leaf_category' && Array.isArray(data.children)) refusal.children = data.children;
+            throw refusal;
+          }
           if (data.valid === false || data.allowed === false) {
             throw new Error(data.error || 'This WHO selection is not selectable for this death.');
           }
@@ -164,7 +169,44 @@
       .catch(function (error) {
         if (sequence !== state.selectionSequence || state.activeField !== entry) return;
         setStatus(state.status, error.message || 'WHO selection validation failed.', 'error');
+        if (error.children) renderChildren(state, entry, error.children);
       });
+  }
+
+  // A category with children is not a final code (digitva-dn15): list its
+  // children under the refusal, filtered by code or title; a pick is checked
+  // again from the start, so it replaces the selection only once accepted.
+  function renderChildren(state, entry, children) {
+    var box = document.createElement('div');
+    box.className = 'digitva-ect-children mt-2';
+    var filter = document.createElement('input');
+    filter.type = 'search';
+    filter.className = 'form-control form-control-sm mb-1';
+    filter.placeholder = 'Search child codes';
+    filter.setAttribute('aria-label', 'Search child codes');
+    var listNode = document.createElement('div');
+    listNode.className = 'list-group list-group-flush';
+    children.forEach(function (child) {
+      var code = text(child && child.code);
+      if (!code) return;
+      var title = text(child.title);
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'list-group-item list-group-item-action text-start small';
+      row.textContent = code + (title ? ' — ' + title : '');
+      row.addEventListener('click', function () { checkSelection(state, entry, { code: code, title: title }); });
+      listNode.appendChild(row);
+    });
+    filter.addEventListener('input', function () {
+      var needle = filter.value.trim().toLowerCase();
+      Array.prototype.forEach.call(listNode.children, function (row) {
+        row.hidden = Boolean(needle) && row.textContent.toLowerCase().indexOf(needle) === -1;
+      });
+    });
+    box.append(filter, listNode);
+    // A sibling of the status <p>: a <div> cannot sit inside a paragraph.
+    state.status.insertAdjacentElement('afterend', box);
+    state.childrenBox = box;
   }
 
   function configureAndBind(state) {

@@ -1189,6 +1189,40 @@ class CodBucketMappingServiceTests(BaseTestCase):
         )
         self.assertEqual(restored_count, 1)
 
+    def test_import_json_snapshots_the_scheme_before_replacing_it(self):
+        scheme, _ = create_cod_bucket_scheme(
+            scheme_name="Before Import",
+            scheme_code="SNAP_BEFORE_IMPORT",
+            age_bands=[
+                {
+                    "age_label": "Adult",
+                    "min_age_value": 0,
+                    "min_age_unit": "days",
+                    "max_age_value": 100,
+                    "max_age_unit": "years",
+                    "level_count": 1,
+                }
+            ],
+        )
+        payload = export_cod_bucket_scheme_json(scheme_code=scheme.scheme_code)
+        payload["scheme"]["scheme_name"] = "After Import"
+
+        import_cod_bucket_scheme_json(
+            scheme_code=scheme.scheme_code,
+            payload=payload,
+            snapshot_reason=VaCodBucketSchemeSnapshot.REASON_JSON_IMPORT,
+        )
+
+        snapshot = db.session.scalar(
+            sa.select(VaCodBucketSchemeSnapshot).where(
+                VaCodBucketSchemeSnapshot.scheme_code == scheme.scheme_code
+            )
+        )
+        self.assertIsNotNone(snapshot)
+        self.assertEqual(snapshot.reason, "json_import")
+        self.assertEqual(snapshot.payload["scheme"]["scheme_name"], "Before Import")
+        self.assertEqual(scheme.scheme_name, "After Import")
+
     def test_create_cod_bucket_scheme_returns_non_blocking_gap_feedback(self):
         scheme, warnings = create_cod_bucket_scheme(
             scheme_name="Created Scheme",

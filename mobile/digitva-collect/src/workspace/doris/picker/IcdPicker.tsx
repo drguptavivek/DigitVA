@@ -13,8 +13,8 @@ import { HierarchyCard } from "./HierarchyCard";
 import { Reveal } from "./Panel";
 import { RelatedCard, type RelatedTerm } from "./RelatedCard";
 import { ResultRow, type Chapter } from "./ResultRow";
-import { isComplete, isMandatory, looksCode, notFinal, splitExpression, type PickerItem } from "./expression";
-import { errorMessage, Notice, usePost } from "./transport";
+import { isComplete, isMandatory, looksCode, NON_LEAF_REFUSAL, notFinal, splitExpression, type PickerItem } from "./expression";
+import { errorMessage, Notice, PickerError, usePost } from "./transport";
 
 const MAX_QUERY = 80;
 // The server refuses a search under 2 characters; the app's own auto-search starts at AUTO_SEARCH_MIN_CHARS.
@@ -275,6 +275,12 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
       onMessage({ t: "select", choice: { code: verified.code, uri: verified.uri, ...(selection.causingUnknown ? { causing_condition_unknown: true } : {}) } }, () => undefined);
     } catch (error) {
       setFooter({ text: errorMessage(error), error: true });
+      // A category the search did not flag: open its children to choose from, as staging does. A "/" cluster's
+      // refused stem may be a later one, so only a single stem opens.
+      if (error instanceof PickerError && NON_LEAF_REFUSAL.test(error.message) && !selection.code.includes("/")) {
+        setSelection(null);
+        openHierarchy(splitExpression(selection.code).stem);
+      }
     } finally {
       setVerifying(false);
     }

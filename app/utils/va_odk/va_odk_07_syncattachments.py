@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import logging
 import threading
+from urllib.parse import quote
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -245,11 +246,11 @@ def _sync_submission_attachments_no_db(
     else:
         request_timeout = (10, 60)
 
-    list_url = (
-        f"projects/{va_form.odk_project_id}"
-        f"/forms/{va_form.odk_form_id}"
-        f"/submissions/{instance_id}/attachments"
-    )
+    # Central-supplied values are one path segment each, never path or query.
+    project_seg = quote(str(va_form.odk_project_id), safe="")
+    form_seg = quote(str(va_form.odk_form_id), safe="")
+    instance_seg = quote(str(instance_id), safe="")
+    list_url = f"projects/{project_seg}/forms/{form_seg}/submissions/{instance_seg}/attachments"
     list_resp = guarded_odk_call(
         lambda: client.session.get(list_url, timeout=request_timeout),
         client=client,
@@ -294,9 +295,8 @@ def _sync_submission_attachments_no_db(
             headers["If-None-Match"] = stored_etag
 
         dl_url = (
-            f"projects/{va_form.odk_project_id}"
-            f"/forms/{va_form.odk_form_id}"
-            f"/submissions/{instance_id}/attachments/{filename}"
+            f"projects/{project_seg}/forms/{form_seg}"
+            f"/submissions/{instance_seg}/attachments/{quote(filename, safe='')}"
         )
         dl_resp = None
         tmp_path: str | None = None

@@ -14,6 +14,7 @@ one site CS01): both PHCs share one site and one form, so only the unit
 predicate can tell their submissions apart.
 """
 import uuid
+from unittest.mock import patch
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -262,7 +263,8 @@ class DmKpiUnitScopeTests(UnitScopeFixture, BaseTestCase):
 
     # -- cache -------------------------------------------------------------
 
-    def test_cache_is_keyed_on_the_unit_scope(self):
+    @patch("app.services.authz.grant_cache.global_version", return_value="test-version")
+    def test_cache_is_keyed_on_the_unit_scope(self, _version):
         self._seed_coded("csc-kpi-cache-a", self.phc_a)
         self._seed_coded("csc-kpi-cache-b", self.phc_b)
         dm_a = self._unit_dm(self.phc_a)

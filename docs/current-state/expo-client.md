@@ -18,6 +18,16 @@ when they resolve inside that directory. It uses `index.html` for the known
 Expo client routes and returns `404` for missing assets, unknown routes and
 path traversal attempts.
 
+The offline PHC desktop trial serves the same export from its own loopback
+server. The macOS launcher opens the browser only after its server binds and
+passes the launch credential in a URL fragment. The page removes the fragment
+and keeps the credential in that tab's session storage for reloads. The API
+checks the bearer and refuses case access while the station is locked. See
+[the desktop policy](../policy/offline-phc-desktop-edition.md) for trial PIN
+setup and recovery. For a direct developer launch, supply a fresh 64-digit
+hex token through `DIGITVA_LAUNCH_TOKEN` and open `/app/` with that value in
+the `#digitva-launch=` fragment.
+
 ## Local web HMR (opt-in, 2026-10-25)
 
 `make dev-hmr` starts the Expo web client in a local Node 22 container with the
@@ -1134,7 +1144,11 @@ the device while unenrolled.
   `process_token` `local-<uuid>`, `device_uuid` +
   `coder_profile_updated_at` provenance, and `answers_sha256` of the answers
   coded, so later edits make it stale). The row is deleted with its draft when
-  an upload is acknowledged; a standalone store pushes it with the interview
+  an upload is acknowledged with a coding receipt; an interview sent with no
+  saved code, or with a stale coding (sent under its own coded answers hash,
+  server reply `refused coded_version_superseded`), keeps draft and coding
+  (`coding-left:<draft>` meta stops resends at the same answers) until the
+  coder's recode is sent and taken (`digitva-9cll.14`); a standalone store pushes it with the interview
   after adoption (device-collection-api.md "Standalone push"). Engine error payloads never surface
   or log (status `unavailable`). Screens are platform-split (`​.native`/`.web`
   twins) so the web export never pulls expo-sqlite.

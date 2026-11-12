@@ -3,7 +3,7 @@ title: ICD-11 Embedded Coding Tool in Assessments
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-26
+last_updated: 2026-11-12
 ---
 
 # ICD-11 Embedded Coding Tool in Assessments
@@ -35,6 +35,15 @@ never shortened to its first stem during save. DigitVA verifies a cluster
 against WHO `codeinfo` for the pinned release, then checks the returned first
 stem against its active local ICD-11 coding policy and the death's age and sex.
 An invalid expression or an unavailable validation service blocks the save.
+
+A category with children in the local MMS catalogue (for example `1A40`) is
+not a final code (owner decision 2026-11-12, `digitva-dn15`). The selection
+check refuses any stem of the expression that is one with `422`, code
+`non_leaf_category`, the message "NC72 is a category, not a final code. Choose a
+more specific code under it." (the refused stem) and `children: [{code, title, uri}]` (residuals such as `.Z`
+included). The assessment lists those children under the message with a
+search box; a pick is checked again before it replaces the selection. Chapter
+X keeps its existing "not selectable" refusal.
 The assessment also stores nullable `icd11_provenance` JSON with the complete
 code expression, the local catalog's canonical title, the selected display
 text, the release, and server-verified WHO linearization and codeinfo URIs.

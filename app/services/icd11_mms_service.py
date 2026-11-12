@@ -1094,6 +1094,51 @@ def validate_icd11_mms_coding_value_for_submission(
         )
 
 
+#: The refusal of a category with children, on every coding surface (``digitva-dn15``).
+#: Format with ``code``: the refused category's stem.
+NON_LEAF_MESSAGE = "{code} is a category, not a final code. Choose a more specific code under it."
+
+#: Ceiling on the children a non-leaf refusal lists; MMS categories have far fewer.
+_MAX_NON_LEAF_CHILDREN = 200
+
+
+def icd11_non_leaf_children(
+    code: str, release: str = DEFAULT_ICD11_RELEASE
+) -> list[dict] | None:
+    """The coded children of ``code`` when it is a selectable non-leaf category.
+
+    A category with children is not a final code (``digitva-dn15``): the
+    selection check refuses it and offers these instead. Returns ``None``
+    for a leaf, an unknown code, or a code that is not coding-selectable
+    (chapter X and other excluded rows keep their own refusal). Children are
+    ``{code, title, uri}`` in WHO order, residuals (``.Y``/``.Z``) included.
+    Two indexed reads: ``code``, then ``parent_linearization_uri``.
+    """
+    parent_uri = db.session.scalar(
+        sa.select(MasIcd11Mms.linearization_uri).where(
+            MasIcd11Mms.release == release,
+            MasIcd11Mms.code == code,
+            MasIcd11Mms.is_active.is_(True),
+            MasIcd11Mms.is_coding_selectable.is_(True),
+            MasIcd11Mms.is_leaf.is_(False),
+        ).limit(1)
+    )
+    if parent_uri is None:
+        return None
+    rows = db.session.execute(
+        sa.select(MasIcd11Mms.code, MasIcd11Mms.title, MasIcd11Mms.linearization_uri)
+        .where(
+            MasIcd11Mms.release == release,
+            MasIcd11Mms.parent_linearization_uri == parent_uri,
+            MasIcd11Mms.is_active.is_(True),
+            MasIcd11Mms.code.is_not(None),
+        )
+        .order_by(MasIcd11Mms.sort_order, MasIcd11Mms.linearization_uri)
+        .limit(_MAX_NON_LEAF_CHILDREN)
+    ).all()
+    return [{"code": r.code, "title": r.title, "uri": r.linearization_uri} for r in rows]
+
+
 def icd11_primary_stem(codeinfo: dict | None, first_stem: str) -> str:
     """The stem that drives allowability and the VA cause (principle 13).
 

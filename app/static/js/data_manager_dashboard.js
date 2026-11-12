@@ -1164,11 +1164,13 @@
       data: '/api/v1/data-management/submissions/export.csv',
       coded_cod_snapshot: '/api/v1/data-management/submissions/export-coded-cod-snapshot.csv',
       smartva_input: '/api/v1/data-management/submissions/export-smartva-input.csv',
+      smartva_input_raw: '/api/v1/data-management/submissions/export-smartva-input.csv',
       smartva_results: '/api/v1/data-management/submissions/export-smartva-results.csv',
       smartva_likelihoods: '/api/v1/data-management/submissions/export-smartva-likelihoods.csv',
     };
     const exportPath = exportPathByKind[kind] || exportPathByKind.data;
     const url = new URL(exportPath, window.location.origin);
+    if (kind === 'smartva_input_raw') url.searchParams.set('for_processing', '1');
     ['search', 'project', 'site', 'date_from', 'date_to', 'death_from', 'death_to', 'odk_status', 'smartva', 'age_group', 'gender', 'odk_sync', 'workflow', 'visit_note', 'org_unit']
       .forEach(key => {
         const value = currentFilters[key];

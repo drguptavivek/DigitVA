@@ -2404,15 +2404,92 @@ def _serialize_user(user, *, include_profile=False):
     return data
 
 
+def _mask_email(email):
+    """``vi***@gmail.com``: two characters of a local part of five or more,
+    else one; an address without ``@`` shows its first character only."""
+    if not email:
+        return email
+    local, at, domain = email.partition("@")
+    if not at:
+        return f"{email[:1]}***"
+    return f"{local[:2] if len(local) >= 5 else local[:1]}***@{domain}"
+
+
+def _mask_phone(phone):
+    """``******4321``: the last four digits of a number of eight or more
+    digits; a shorter number is masked whole."""
+    if not phone:
+        return phone
+    digits = re.sub(r"\D", "", phone)
+    if len(digits) < 8:
+        return "*" * len(digits)
+    return "*" * (len(digits) - 4) + digits[-4:]
+
+
+def users_in_caller_reach(user_ids) -> set:
+    """Of *user_ids*, those whose contact details the current user sees in
+    full: holders of an active grant in the caller's own project, site or
+    unit reach (``authz.user_list_filter``, the Users page's rule), the
+    caller themself, and everyone for an admin. One query.
+    Policy: dm-user-grant-management.md, "User listing" (digitva-9xn9.22)."""
+    from app.services import authz
+
+    ids = set(user_ids)
+    if not ids or authz.resolve_grants(current_user).is_admin:
+        return ids
+    found = set(db.session.scalars(
+        sa.select(VaUserAccessGrants.user_id).where(
+            VaUserAccessGrants.user_id.in_(ids),
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+            authz.user_list_filter(current_user),
+        ).distinct()
+    ))
+    if current_user.user_id in ids:
+        found.add(current_user.user_id)
+    return found
+
+
+def serialize_searched_users(users) -> list[dict]:
+    """``_serialize_user`` rows for a platform-wide user search. A user outside
+    the caller's reach (``users_in_caller_reach``) keeps name, user id and
+    status, with email and phone masked and every other key null;
+    ``contact_masked`` says which."""
+    in_reach = users_in_caller_reach(u.user_id for u in users)
+    rows = []
+    for user in users:
+        data = _serialize_user(user)
+        if user.user_id in in_reach:
+            rows.append({**data, "contact_masked": False})
+            continue
+        # Allow-list: every other key stays, as null, so the shape is unchanged.
+        rows.append({
+            **dict.fromkeys(data),
+            "user_id": data["user_id"], "name": data["name"], "status": data["status"],
+            "email": _mask_email(user.email), "phone": _mask_phone(user.phone),
+            "contact_masked": True,
+        })
+    return rows
+
+
+def user_search_condition(query):
+    """A user search matches *query* as a literal substring of email, name or
+    phone (``autoescape``: %, _ and \\ match themselves)."""
+    return sa.or_(
+        VaUsers.email.icontains(query, autoescape=True),
+        VaUsers.name.icontains(query, autoescape=True),
+        VaUsers.phone.icontains(query, autoescape=True),
+    )
+
+
 @admin.get("/api/users")
 @role_required("admin", "project_pi")
 def admin_users():
     query = (request.args.get("query") or "").strip()
     master = request.args.get("master") == "1"
-    
+
     # The ODK sync service account is hidden so it cannot be reactivated by mistake.
     stmt = sa.select(VaUsers).where(VaUsers.user_id != ODK_SYNC_USER_ID)
-    
+
     if master:
         if not current_user.is_admin():
             return _json_error("Admin access required.", 403)
@@ -2420,18 +2497,15 @@ def admin_users():
             stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
     else:
         stmt = stmt.where(VaUsers.user_status == VaStatuses.active)
-        
+
     if query:
-        stmt = stmt.where(
-            sa.or_(
-                VaUsers.email.icontains(query, autoescape=True),
-                VaUsers.name.icontains(query, autoescape=True),
-            )
-        )
-        
+        stmt = stmt.where(user_search_condition(query))
+
     users = db.session.scalars(stmt.order_by(VaUsers.email).limit(25 if not master else None)).all()
-    # master=1 is admin-only (checked above).
-    return jsonify({"users": [_serialize_user(u, include_profile=master) for u in users]})
+    if master:  # admin-only (checked above)
+        return jsonify({"users": [_serialize_user(u, include_profile=True) for u in users]})
+    # A project PI searches the platform; contacts outside its reach are masked.
+    return jsonify({"users": serialize_searched_users(users)})
 
 
 @admin.post("/api/users")
@@ -5727,6 +5801,10 @@ def admin_cod_bucket_scheme_import(scheme_code):
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
 
+    # Import replaces every node and mapping; the UI must have asked first.
+    if request.form.get("confirm") != "true":
+        return _json_error("Confirm the import: it replaces the whole scheme.", 400)
+
     uploaded_file = request.files.get("file")
     if uploaded_file is None or not uploaded_file.filename:
         return _json_error("A JSON file is required.", 400)
@@ -5740,6 +5818,8 @@ def admin_cod_bucket_scheme_import(scheme_code):
         scheme = import_cod_bucket_scheme_json(
             scheme_code=scheme_code,
             payload=payload,
+            snapshot_reason=VaCodBucketSchemeSnapshot.REASON_JSON_IMPORT,
+            created_by_user_id=current_user.user_id,
         )
     except LookupError:
         return _json_error("COD bucket scheme not found.", 404)
@@ -5757,7 +5837,7 @@ def admin_cod_bucket_scheme_import(scheme_code):
     return jsonify(
         {
             "scheme": card,
-            "message": "Scheme imported from JSON.",
+            "message": "Scheme imported from JSON. The previous scheme was saved as a snapshot.",
         }
     )
 

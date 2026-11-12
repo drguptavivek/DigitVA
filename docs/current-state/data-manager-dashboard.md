@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # Data Manager Dashboard
@@ -330,10 +330,18 @@ Current export behavior:
 - all exports reuse the current dashboard filters and sort order
 - CSVs are written UTF-8 with BOM for Excel compatibility — the BOM is part of
   the stored object, so both stores deliver the same bytes
+- the two SmartVA input exports are the exception: written UTF-8 without a BOM
+  (SmartVA reads them directly); their cache key carries `bom=False`, so
+  earlier BOM-framed cached files are never served
 - `Export Data` includes current workflow/coding state and the filtered ODK
   payload data
 - `SmartVA Input Data` exports the cleaned SmartVA preparation input shape for
   the active payload
+- `SmartVA input for offline processing (no spreadsheet protection)` is the same
+  export with `?for_processing=1`: identical rows and columns, but cells are
+  raw (no leading apostrophe on text starting `=`, `+`, `-`, `@`). Same
+  authorization, PII stripping and filters; cached under its own export kind.
+  Not for Excel
 - `Results` exports active SmartVA summary result fields only
 - `Likelihoods` exports raw active SmartVA likelihood rows only
 
@@ -385,12 +393,19 @@ row count; the `dm_*_export_csv` string functions are thin wrappers for tests.
 ### The export cache
 
 The stored object **is** the cache. Its name carries the sha256 of the export
-kind, the user and every filter value, so a repeat request for the same export
+kind, the user, current authorization scope and every filter value, so a repeat request for the same export
 is answered by one bounded listing of `exports/<kind>/<user_id>/` rather than by
 recomputing the query — exactly the `DM_EXPORT_CACHE_TTL_SECONDS` (900 s)
 semantics the old `APP_DATA/exports/cache/` directory had, with no second store
 to keep in step. The `user_id` is part of the key, so a lookup can only ever
-reach the requesting user's own exports.
+reach the requesting user's own exports. The scope fingerprint includes resolved
+grants, PII visibility, training scope and the global authorization version.
+The data-management dashboard caches (`app/routes/api/data_management.py`) use the same fingerprint; the KPI-panel cache (`dm_kpi_scope.py`) keys on the scope digest plus the global grant version. If the
+global version is unavailable, dashboard analytics are computed afresh and an
+export is stored under a unique key without reusing an earlier object. Objects
+created before authorization was included in the key are never reused.
+The separate data-manager KPI panel cache also computes fresh results when
+the global authorization version is unavailable.
 
 The legacy `APP_DATA/exports/cache/` directory is no longer written or read. It
 holds nothing but expired derived data and can be deleted on any deployment.

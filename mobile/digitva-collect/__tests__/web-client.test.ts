@@ -264,6 +264,33 @@ describe("server draft store", () => {
     data: { Id10007: "updated" },
   };
 
+  it("does not send a consent No while the interviewer is asked to confirm it", async () => {
+    const calls: string[] = [];
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      calls.push(String(input));
+      if (calls.length > 1) return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } });
+      return response({
+        status: 200,
+        body: {
+          draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
+          envelope: { ...draft, data: {} },
+          prefill: {},
+        },
+      });
+    });
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10013", "s1"]]) });
+    await store.load("d1");
+    store.holdNo(true);
+    await store.save({ ...draft, data: { Id10013: "no" } });
+    await store.flush();
+    expect(calls).toEqual(["/api/v1/intake/drafts/d1"]); // the load only
+    store.holdNo(false);
+    const saved = store.save({ ...draft, data: { Id10013: "no" } });
+    await store.flush();
+    await saved;
+    expect(calls).toHaveLength(2);
+  });
+
   it("retains a failed write so an unchanged draft can be retried", async () => {
     const calls: Array<{ url: string; body?: Record<string, unknown> }> = [];
     jest.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

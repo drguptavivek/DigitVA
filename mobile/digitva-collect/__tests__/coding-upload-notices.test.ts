@@ -51,22 +51,21 @@ describe("coding upload notices", () => {
     }
   });
 
-  it("does not show pending outcomes and clears only a matching applied coding", async () => {
+  it("clears an interview's refusals once a newer coding is taken, pending or applied", async () => {
     const db = memoryDb();
     await migrate(db);
-    await recordCodingOutcome(db, {
-      draftId: "draft-1", status: "refused", code: "coding_mode_mismatch", codingSha256: "a".repeat(64),
+    const refuse = (draftId: string, sha: string) => recordCodingOutcome(db, {
+      draftId, status: "refused", code: "coded_version_superseded", codingSha256: sha,
     });
+    await refuse("draft-1", "a".repeat(64));
+    await refuse("draft-2", "c".repeat(64));
+    expect(await codingNotices(db)).toHaveLength(2);
     await recordCodingOutcome(db, {
-      draftId: "draft-1", status: "pending", code: "not_ready", codingSha256: "a".repeat(64),
+      draftId: "draft-1", status: "pending", code: "not_ready", codingSha256: "b".repeat(64),
     });
-    expect(await codingNotices(db)).toHaveLength(1);
+    expect(await codingNotices(db)).toEqual([expect.objectContaining({ draftId: "draft-2" })]);
     await recordCodingOutcome(db, {
-      draftId: "draft-1", status: "applied", code: null, codingSha256: "b".repeat(64),
-    });
-    expect(await codingNotices(db)).toHaveLength(1);
-    await recordCodingOutcome(db, {
-      draftId: "draft-1", status: "applied", code: null, codingSha256: "a".repeat(64),
+      draftId: "draft-2", status: "applied", code: null, codingSha256: "d".repeat(64),
     });
     expect(await codingNotices(db)).toEqual([]);
     await db.closeAsync();

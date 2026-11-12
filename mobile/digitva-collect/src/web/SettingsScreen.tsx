@@ -20,6 +20,7 @@ import {
   fetchStationRoster,
   heldBackRecords,
   importBundleReceipt,
+  formatServerKeyFingerprint,
   importStationConfig,
   type StationRosterSnapshot,
 } from "../roster";
@@ -57,6 +58,7 @@ export default function SettingsScreen() {
   const [receiptText, setReceiptText] = useState("");
   const [enrolmentText, setEnrolmentText] = useState<string | null>(null);
   const [transferBusy, setTransferBusy] = useState(false);
+  const [pendingFingerprint, setPendingFingerprint] = useState<string | null>(null);
   const [transferStatus, setTransferStatus] = useState<string | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
   const [rosterRefreshKey, setRosterRefreshKey] = useState(0);
@@ -169,18 +171,19 @@ export default function SettingsScreen() {
 
   const isProvisioned = rosterSnapshot?.station_mode === "provisioned";
 
-  async function handleImportStationConfig() {
+  async function handleImportStationConfig(confirmFingerprint?: string) {
     if (!bootstrap || transferBusy) return;
     const trimmed = stationConfigText.trim();
     if (!trimmed) {
       setTransferError(t("stationConfigPasteFirst"));
       return;
     }
+    setPendingFingerprint(null);
     setTransferBusy(true);
     setTransferError(null);
     setTransferStatus(null);
     try {
-      const res = await importStationConfig(trimmed, bootstrap.csrf);
+      const res = await importStationConfig(trimmed, bootstrap.csrf, confirmFingerprint);
       setRosterSnapshot(res.roster);
       setStationConfigText("");
       setRosterRefreshKey((k) => k + 1);
@@ -188,14 +191,22 @@ export default function SettingsScreen() {
       setTransferStatus(
         [
           t("stationConfigImported", { id: res.station_config_id || t("stationVerifiedId") }),
+          res.server_key_fingerprint
+            ? t("stationConfigServerKeyNote", { fingerprint: formatServerKeyFingerprint(res.server_key_fingerprint) })
+            : "",
           res.custodian ? t("stationConfigCustodianNote", { name: res.custodian.name }) : "",
           res.purged_ids.length > 0 ? t("stationConfigPurgedNote", { count: res.purged_ids.length }) : "",
         ]
           .filter(Boolean)
           .join(" "),
       );
-    } catch {
-      setTransferError(t("stationConfigImportFailed"));
+    } catch (error) {
+      const fingerprint = error instanceof ApiError ? error.payload?.server_key_fingerprint : undefined;
+      if (error instanceof ApiError && error.code === "server_key_unconfirmed" && typeof fingerprint === "string") {
+        setPendingFingerprint(fingerprint);
+      } else {
+        setTransferError(t("stationConfigImportFailed"));
+      }
     } finally {
       setTransferBusy(false);
     }
@@ -485,6 +496,30 @@ export default function SettingsScreen() {
               >
                 <Text style={localStyles.actionBtnText}>{t("stationConfigImportButton")}</Text>
               </Pressable>
+              {pendingFingerprint ? (
+                <View style={localStyles.errorBox} testID="server-key-confirm">
+                  <Text style={localStyles.blockTitle}>{t("stationServerKeyTitle")}</Text>
+                  <Text style={localStyles.helperText}>{t("stationServerKeyHelp")}</Text>
+                  <Text style={localStyles.blockTitle} testID="server-key-fingerprint">
+                    {formatServerKeyFingerprint(pendingFingerprint)}
+                  </Text>
+                  <Pressable
+                    disabled={transferBusy}
+                    onPress={() => void handleImportStationConfig(pendingFingerprint)}
+                    style={localStyles.actionBtn}
+                    testID="server-key-confirm-btn"
+                  >
+                    <Text style={localStyles.actionBtnText}>{t("stationServerKeyConfirm")}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setPendingFingerprint(null)}
+                    style={localStyles.actionBtn}
+                    testID="server-key-cancel-btn"
+                  >
+                    <Text style={localStyles.actionBtnText}>{t("stationServerKeyCancel")}</Text>
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
 
             <View style={localStyles.block}>

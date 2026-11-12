@@ -108,6 +108,13 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private loaded = false;
   private refusalMode = false;
 
+  private noHeld = false;
+
+  /** While the interviewer is asked to confirm a consent No, a draft holding it is not saved (the server wipes on it). */
+  holdNo(on: boolean): void {
+    this.noHeld = on;
+  }
+
   enterRefusal(): void {
     this.refusalMode = true;
     this.retained = {};
@@ -254,6 +261,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
   save(draft: WhoVaDraft): Promise<void> {
     if (!this.loaded) return Promise.reject(new Error("Draft must load before it can be saved."));
     if (this.abandoned) return Promise.resolve();
+    if (this.noHeld && draft.data.Id10013 === "no") return Promise.resolve();
     if (this.refusalMode) draft = { ...draft, data: refusalAnswers(draft.data) as SubmissionData };
     this.latestDraft = draft;
     this.noteWorkflowMilestones(draft);

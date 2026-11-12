@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-12
 ---
 
 # DORIS COD Workflow
@@ -19,8 +19,14 @@ encoded as big-endian bytes, and negative zero treated as zero. Shared Python
 and TypeScript vectors cover Unicode, missing values and numeric formatting.
 Only a matching coding digest together with the interview receipt permits
 local deletion; a refused coding outcome is saved in SQLCipher first.
-Different pending coding replaces the hold after current checks. A changed
-terminal coding returns `409 coding_conflict` and retains the local revision.
+Different coding replaces a pending, applied or refused hold after current
+checks, keeping the older snapshot in `result.history` and an audit row; over
+an applied final the applier uses `start_recode_allocation` and
+`mark_recode_finalized`, deactivating the earlier final (`digitva-9cll.14`).
+A stale coding (sent by enrolled phones under its own coded answers hash) is
+held refused `coded_version_superseded`; the phone keeps the interview and
+coding (`coding-left:<draft>` meta) and shows the recode notice until the
+recoded final is taken.
 
 Coder saves and allocation changes lock the submission before checking current
 ownership and workflow state. This prevents a save waiting behind release or

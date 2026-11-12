@@ -343,6 +343,7 @@ class AdminCodBucketPanelTests(BaseTestCase):
         response = self.client.post(
             f"/admin/api/cod-bucket-schemes/{scheme_code}/import",
             data={
+                "confirm": "true",
                 "file": (
                     BytesIO(json.dumps(payload).encode("utf-8")),
                     "cod_bucket_import.json",
@@ -354,6 +355,14 @@ class AdminCodBucketPanelTests(BaseTestCase):
 
         self.assertEqual(response.status_code, 200)
         body = response.get_json()
+        self.assertEqual(
+            db.session.scalar(
+                sa.select(VaCodBucketSchemeSnapshot.reason).where(
+                    VaCodBucketSchemeSnapshot.scheme_code == scheme_code
+                )
+            ),
+            "json_import",
+        )
         self.assertEqual(body["scheme"]["scheme_code"], scheme_code)
         self.assertEqual(body["scheme"]["scheme_name"], "Imported Admin COD Scheme")
         self.assertEqual(len(body["scheme"]["age_bands"]), 2)
@@ -409,6 +418,7 @@ class AdminCodBucketPanelTests(BaseTestCase):
         response = self.client.post(
             f"/admin/api/cod-bucket-schemes/{self.scheme_code}/import",
             data={
+                "confirm": "true",
                 "file": (
                     BytesIO(json.dumps(payload).encode("utf-8")),
                     "who_2022_icd10_2019_2_policy_reviewed.json",
@@ -1238,3 +1248,14 @@ class AdminCodBucketPanelTests(BaseTestCase):
         codes = [row[3] for row in sheet.iter_rows(min_row=2, values_only=True)]
         self.assertIn("V01", codes)
         self.assertNotIn("1D2Z", codes)
+
+    def test_cod_bucket_scheme_import_json_requires_confirmation(self):
+        self._login(self.base_admin_id)
+        response = self.client.post(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/import",
+            data={"file": (BytesIO(b"{}"), "x.json")},
+            headers=self._csrf_headers(),
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Confirm", response.get_json()["error"])

@@ -544,13 +544,26 @@ export interface StationConfigImportResult {
   config_expires_at?: string | null;
   purged_ids: string[];
   roster: StationRosterSnapshot;
+  server_key_fingerprint?: string;
 }
 
+/** A server key fingerprint (16 hex) in groups of four, for reading aloud and comparing. */
+export function formatServerKeyFingerprint(fingerprint: string): string {
+  return (fingerprint.match(/.{1,4}/g) ?? []).join(" ").toUpperCase();
+}
+
+/**
+ * Imports a signed station config. With no server key pinned the station refuses (409
+ * server_key_unconfirmed, fingerprint in the ApiError payload) and stores nothing; call again
+ * with `confirmServerKeyFingerprint` once the operator has matched it with the server admin's.
+ */
 export async function importStationConfig(
   rawStationConfig: string,
   csrf: ClientCsrf,
+  confirmServerKeyFingerprint?: string,
 ): Promise<StationConfigImportResult> {
   const res = await requestClientJson<{
+    server_key_fingerprint?: string;
     station_config_id?: string;
     custodian?: StationCustodian | null;
     config_expires_at?: string | null;
@@ -558,12 +571,18 @@ export async function importStationConfig(
     roster?: unknown;
   }>("/api/v1/station/config", {
     method: "POST",
-    json: { station_config: rawStationConfig },
+    json: {
+      station_config: rawStationConfig,
+      ...(confirmServerKeyFingerprint
+        ? { confirm_server_key_fingerprint: confirmServerKeyFingerprint }
+        : {}),
+    },
     csrf,
   });
   const roster =
     normaliseStationRosterSnapshot(res.roster) ?? defaultStationRosterSnapshot();
   return {
+    server_key_fingerprint: res.server_key_fingerprint,
     station_config_id: String(
       res.station_config_id ?? roster.station_config_id ?? "",
     ),

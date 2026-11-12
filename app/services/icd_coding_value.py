@@ -141,18 +141,56 @@ def get_icd_classification_for_submission(va_sid: str) -> str:
     return setting or DEFAULT_ICD_CLASSIFICATION
 
 
+class NonLeafCategory(ValueError):
+    """A new COD value that is an ICD-11 category with children (``digitva-dn15``)."""
+
+    code = "non_leaf_category"
+
+
+def _is_saved_cod(va_sid: str, value: str) -> bool:
+    """Whether ``value`` is already a COD saved on this death, in any assessment."""
+    from app.models import (
+        VaFinalAssessments,
+        VaInitialAssessments,
+        VaReviewerFinalAssessments,
+        VaReviewerInitialAssessments,
+    )
+
+    for model, columns in (
+        (VaInitialAssessments, ("va_immediate_cod", "va_antecedent_cod")),
+        (VaReviewerInitialAssessments, ("va_immediate_cod", "va_antecedent_cod")),
+        (VaFinalAssessments, ("va_immediate_cod", "va_conclusive_cod")),
+        (VaReviewerFinalAssessments, ("va_immediate_cod", "va_conclusive_cod")),
+    ):
+        if db.session.scalar(
+            sa.select(model.va_sid)
+            .where(
+                model.va_sid == va_sid,
+                sa.or_(*(getattr(model, c) == value for c in columns)),
+            )
+            .limit(1)
+        ):
+            return True
+    return False
+
+
 def validate_coding_value_for_submission(va_sid: str, value: str | None) -> str:
     """Check a COD value against the catalogue its project allows.
 
     The project's ``icd_classification`` setting (``icd10`` or ``icd11``) is
     the classification checked against. Returns the value's classification.
     Raises ``ValueError`` when the value is not a selectable code for this
-    submission and ``LookupError`` when the submission does not exist.
+    submission and ``LookupError`` when the submission does not exist. A
+    value that is an ICD-11 category with children raises ``NonLeafCategory``
+    unless it is already saved on this death, so re-validating a saved
+    value still passes (``digitva-dn15``).
     """
     from app.services.icd10_2019_2_service import (
         validate_icd10_2019_2_coding_value_for_submission,
     )
     from app.services.icd11_mms_service import (
+        NON_LEAF_MESSAGE,
+        icd11_non_leaf_children,
         validate_icd11_mms_coding_value_for_submission,
     )
 
@@ -160,6 +198,17 @@ def validate_coding_value_for_submission(va_sid: str, value: str | None) -> str:
     if classification == "icd10":
         validate_icd10_2019_2_coding_value_for_submission(va_sid, value)
     elif classification == "icd11":
+        text = (value or "").strip()
+        refused = next(
+            (
+                stem
+                for stem in (part.split("&", 1)[0] for part in text.split("/"))
+                if icd11_non_leaf_children(stem) is not None
+            ),
+            None,
+        )
+        if refused is not None and not _is_saved_cod(va_sid, text):
+            raise NonLeafCategory(NON_LEAF_MESSAGE.format(code=refused))
         validate_icd11_mms_coding_value_for_submission(va_sid, value)
     else:
         raise ValueError("Select a valid ICD-10 or ICD-11 code.")

@@ -423,11 +423,17 @@ class S3AttachmentStore:
         key = self.key_for(record)
         if key is None:
             return None
+        from app.services.attachment_service import inline_mime_type
+
+        # Same rule as a local serve: only allowlisted types render inline.
+        inline_type = inline_mime_type(content_type, filename)
         params = {
             "Bucket": self.bucket,
             "Key": key,
-            "ResponseContentType": content_type or DEFAULT_CONTENT_TYPE,
-            "ResponseContentDisposition": f'inline; filename="{filename}"',
+            "ResponseContentType": inline_type or DEFAULT_CONTENT_TYPE,
+            "ResponseContentDisposition": (
+                f'{"inline" if inline_type else "attachment"}; filename="{filename}"'
+            ),
             "ResponseCacheControl": STORE_CACHE_CONTROL,
         }
         try:

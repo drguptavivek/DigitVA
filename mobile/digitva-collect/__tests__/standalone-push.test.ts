@@ -353,7 +353,13 @@ describe("stale coding", () => {
     expect(isCodingStale(row, sha("other"))).toBe(true);
     expect(isCodingStale({ answers_sha256: null }, hash)).toBe(true);
     expect(offlineCodingBody(row, hash, DEVICE_UUID)).not.toBeNull();
-    expect(offlineCodingBody({ ...row, status: "draft" }, hash, DEVICE_UUID)).toBeNull();
+    // A saved code is the coder's final whatever DORIS said; no saved code is never sent (digitva-9cll.14).
+    expect(offlineCodingBody({ ...row, status: "draft" }, hash, DEVICE_UUID)).not.toBeNull();
+    expect(offlineCodingBody({ ...row, status: "draft", ucod_code: null }, hash, DEVICE_UUID)).toBeNull();
+    // Stale: only on request, under the hash it was coded on.
+    expect(offlineCodingBody(row, sha("other"), DEVICE_UUID)).toBeNull();
+    expect(offlineCodingBody(row, sha("other"), DEVICE_UUID, true)).toMatchObject({ coded_answers_sha256: hash });
+    expect(offlineCodingBody({ ...row, answers_sha256: null }, hash, DEVICE_UUID, true)).toBeNull();
     expect(offlineCodingBody({ ...row, provenance: null }, hash, DEVICE_UUID)).toBeNull();
     expect(offlineCodingBody(row, hash, "99999999-9999-4999-8999-999999999999")).toBeNull();
   });

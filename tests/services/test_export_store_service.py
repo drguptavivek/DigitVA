@@ -42,6 +42,22 @@ class _ExportStoreBase(TestCase):
         )
 
 
+class BomFramingTests(_ExportStoreBase):
+    def test_bom_is_the_default_and_can_be_omitted(self):
+        with_bom = b"".join(svc._encoded_chunks(self.CSV))
+        without = b"".join(svc._encoded_chunks(self.CSV, bom=False))
+        self.assertTrue(with_bom.startswith(b"\xef\xbb\xbf" + b"sid"))
+        self.assertEqual(without, self.CSV.encode("utf-8"))
+
+    def test_file_chunks_omit_the_bom_when_asked(self):
+        import io
+
+        self.assertEqual(
+            b"".join(svc.encoded_file_chunks(io.StringIO(self.CSV), bom=False)),
+            self.CSV.encode("utf-8"),
+        )
+
+
 class LocalExportStoreTests(_ExportStoreBase):
     """The local store keeps today's behaviour: files under APP_DATA/exports/."""
 

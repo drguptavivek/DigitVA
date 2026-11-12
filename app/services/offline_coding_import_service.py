@@ -59,16 +59,23 @@ from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
     is_demo_training_submission,
 )
-from app.services.final_cod_authority_service import upsert_final_cod_authority
+from app.services.final_cod_authority_service import (
+    complete_recode_episode,
+    get_active_recode_episode,
+    upsert_final_cod_authority,
+)
 from app.services.icd11_mms_service import POLICY_EDITABLE_CLASS_KINDS
 from app.services.icd_coding_policy import coding_context_for_submission, policy_ok_columns
 from app.services.icd_coding_value import extract_icd11_code_expression, extract_icd_code
 from app.services.submission_payload_version_service import get_active_payload_version
 from app.services.who_icd_api import DEFAULT_ICD11_RELEASE
+from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED
+from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import (
     WorkflowTransitionError,
     coder_actor,
     mark_coder_finalized,
+    mark_recode_finalized,
     mark_reviewer_eligible_after_recode_window,
     system_actor,
 )
@@ -109,6 +116,10 @@ _PACK_MAX = 20
 _REPLY_STATUS = {"pending": "pending", "applied": "applied", "rejected": "refused"}
 #: Allocation refusals that leave a held result pending (as the bundle applier).
 _STILL_PENDING = frozenset({"not_ready", "allocation_exists"})
+#: Replaced snapshots kept on a held row (``result.history``).
+_HISTORY_MAX = 20
+#: The refusal of a recode the normal recode rules refuse (window, coder, state).
+RECODE_REFUSED = "recode_not_allowed"
 
 
 class OfflineCodingError(Exception):
@@ -425,18 +436,26 @@ def hold(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, codin
     """Keep *coding* for the applier, or record why it is refused (a held row
     ``rejected`` with the code, so a resend reports the same). Returns the
     reply's exact coding receipt. Identical snapshots are idempotent; a changed
-    pending snapshot replaces the held result after current checks. Changed
-    terminal snapshots conflict and never overwrite authoritative history."""
+    snapshot (the coder recoded) replaces a pending, applied or refused one
+    after current checks (owner, digitva-9cll.14): the replaced snapshot is
+    kept in ``result.history`` and the audit log, and an applied final is
+    superseded by the applier (``_save_imported_final``), never deleted. A
+    coding on older answers is kept refused ``coded_version_superseded``
+    (stale): never applied, the phone asks the coder to recode."""
     held = _lock_held(draft.client_draft_id, draft.va_sid)
     digest = coding_sha256
     if held is not None:
         if hmac.compare_digest(held.content_sha256, digest):
             return status_of(held)
-        if held.status != "pending":
-            raise OfflineCodingError("This coding revision conflicts with a completed upload.", "coding_conflict", 409)
         refusal = _push_refusal(user, project, draft, coding)
+        replaced = {"coding_sha256": held.content_sha256, "status": held.status, "code": held.code,
+                    "resolved_at": held.resolved_at.isoformat() if held.resolved_at else None,
+                    "coding": held.result.get("coding")}
+        # ponytail: capped at _HISTORY_MAX snapshots; the audit log keeps every replacement.
+        history = [*(held.result.get("history") or []), replaced][-_HISTORY_MAX:]
+        _audit(draft.va_sid, user.user_id, f"offline coding replaced ({held.status})", draft.draft_id)
         held.result = {**held.result, "coding": coding, "profile_snapshot": profile_snapshot,
-                       "enrolled_context": enrolled_context}
+                       "enrolled_context": enrolled_context, "history": history}
         held.content_sha256 = digest
         held.status, held.code = ("rejected", refusal) if refusal else ("pending", "not_ready")
         held.resolved_at = datetime.now(UTC) if refusal else None
@@ -550,13 +569,21 @@ def apply_held(held: VaBundlePendingCoding) -> str:
     refusal = _push_refusal(actor, project, draft, coding)
     if refusal is not None:
         return _finish(client_id, va_sid, coding_sha256, "rejected", refusal)
+    # A recode over this hold's own applied coding takes the online recode path and its rules (the recode window,
+    # the authoritative coder, the state). A first coding of a case finalized meanwhile is refused as before.
+    recode = (any(h.get("status") == "applied" for h in record.get("history") or [])
+              and get_submission_workflow_state(va_sid) == WORKFLOW_CODER_FINALIZED)
     try:
-        coder_workflow.allocate_pick_form(actor, va_sid, own_case=True)
+        if recode:
+            coder_workflow.start_recode_allocation(actor, va_sid)
+        else:
+            coder_workflow.allocate_pick_form(actor, va_sid, own_case=True)
     except coder_workflow.AllocationError as exc:
         db.session.rollback()
         if exc.code in _STILL_PENDING:
             return "pending"
-        return _finish(client_id, va_sid, coding_sha256, "rejected", exc.code or "not_available")
+        return _finish(client_id, va_sid, coding_sha256, "rejected",
+                       exc.code or (RECODE_REFUSED if recode else "not_available"))
     # Allocation commits. Reacquire both locks and consume the latest snapshot,
     # then commit its final and receipt together so replacement cannot slip in.
     held = _lock_held(client_id, va_sid)
@@ -679,6 +706,7 @@ def _save_imported_final(actor: VaUsers, va_sid: str, project: VaProjectMaster, 
     payload = get_active_payload_version(va_sid)
     if submission is None or payload is None:
         raise coder_cod.CoderCodingError("This submission has no active payload version.", 422, code="final_blocked")
+    recode_episode = get_active_recode_episode(va_sid)
     flags, primary = allowability_disagreements(va_sid, coding["provenance"])
     snapshot = cod_entry_mode_snapshot(project, str(current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or "").strip())
     snapshot.update(coding_origin=ORIGIN, offline={
@@ -721,7 +749,12 @@ def _save_imported_final(actor: VaUsers, va_sid: str, project: VaProjectMaster, 
     db.session.flush()
     upsert_final_cod_authority(va_sid, final, reason=IMPORTED_REASON, source_role="vacoder",
                                updated_by=actor.user_id)
-    mark_coder_finalized(va_sid, reason=IMPORTED_REASON, actor=coder_actor(actor.user_id))
+    if recode_episode is not None:
+        # A recode replaces the earlier final as submit_coder_final_cod does; the earlier row stays, deactivated.
+        mark_recode_finalized(va_sid, reason=IMPORTED_REASON, actor=coder_actor(actor.user_id))
+        complete_recode_episode(recode_episode, final)
+    else:
+        mark_coder_finalized(va_sid, reason=IMPORTED_REASON, actor=coder_actor(actor.user_id))
     if flags or is_demo_training_submission(va_sid):
         # Forced review: the reviewer pool at once, the recode window skipped.
         mark_reviewer_eligible_after_recode_window(

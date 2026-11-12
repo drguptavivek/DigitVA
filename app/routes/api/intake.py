@@ -55,7 +55,7 @@ from app.services import web_intake_attachment_service as attachments_svc
 from app.services import web_intake_service as intake_svc
 from app.services.authz import resolve_grants
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
-from app.services.viewer_pii_service import should_redact_pii
+from app.services.viewer_pii_service import pii_scope, should_redact_pii
 from app.services.visit_note import visit_note_for_viewer, visit_notes_for
 
 bp = Blueprint("intake_api", __name__)
@@ -1509,8 +1509,12 @@ def _supervised_rows(rows) -> list[dict]:
     """The supervision list's rows, the page's ``identifiers`` loaded once."""
     identifiers = identifiers_svc.identifier_payloads(current_user, [row[0] for row in rows])
     editable = intake_svc.can_edit_identifiers(current_user, [row[0] for row in rows])
-    names = register_pii_accessor.open_register_pii([row[0] for row in rows], only=("deceased_name",))
-    return [dict(intake_svc.serialize_supervised_row(current_user, *row, register=names[row[0].death_id]),
+    # Names open only where the caller sees PII (``serialize_supervised_row``).
+    pii = pii_scope(current_user)
+    names = register_pii_accessor.open_register_pii(
+        [row[0] for row in rows if pii.sees(row[0].project_id)], only=("deceased_name",)
+    )
+    return [dict(intake_svc.serialize_supervised_row(current_user, *row, register=names.get(row[0].death_id)),
                  identifiers=identifiers[row[0].death_id],
                  can_edit_identifiers=editable[row[0].death_id])
             for row in rows]
@@ -1584,7 +1588,7 @@ def supervised_case_detail(death_id):
     note = visit_notes_for([death.va_sid] if death.va_sid else [], redact_pii=redact_pii).get(death.va_sid)
     return jsonify({
         "case": _supervised_body(*intake_svc.supervised_case_row(death)),
-        "candidates": intake_svc.list_candidates(death),
+        "candidates": intake_svc.list_candidates(death, redact_names=redact_pii),
         "visit_note": visit_note_for_viewer(note, redact_pii=redact_pii),
     })
 
@@ -1608,8 +1612,14 @@ def supervised_possible_duplicates(death_id):
     rows = intake_svc.possible_duplicates(
         current_user, death, scope=case_svc.supervised_case_condition(current_user)
     )
+    # Candidates share the subject's project (register_duplicate_service), so
+    # one per-project PII check covers every row (web-intake.md item 14).
+    named = pii_scope(current_user).sees(death.project_id)
     return jsonify({
-        "possible_duplicates": [{k: row[k] for k in _SUPERVISOR_DUPLICATE_KEYS} for row in rows],
+        "possible_duplicates": [
+            {k: (row[k] if named or k != "deceased_name" else None) for k in _SUPERVISOR_DUPLICATE_KEYS}
+            for row in rows
+        ],
     })
 
 

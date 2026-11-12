@@ -334,6 +334,19 @@ class DmAuthzStageThreeTests(UnitScopeFixture, BaseTestCase):
         db.session.commit()
         self.assertNotEqual(key(), after_activation)
 
+    def test_kpi_skips_cache_without_global_authorization_version(self):
+        from app.routes.api.dm_kpi import dm_kpi_scope
+
+        dm = self._unit_user("digest.unavailable", self.phc_a)
+        with self.app.test_request_context("/"):
+            login_user(dm)
+            with patch.object(dm_kpi_scope.grant_cache, "global_version", return_value=""), \
+                    patch.object(dm_kpi_scope.cache, "get", return_value="stale") as get, \
+                    patch.object(dm_kpi_scope.cache, "set") as put:
+                self.assertEqual(dm_kpi_scope.cached_kpi("figures", lambda: "fresh"), "fresh")
+                get.assert_not_called()
+                put.assert_not_called()
+
     # -- F11 ---------------------------------------------------------------
 
     def test_admin_passes_the_data_manager_view_check(self):

@@ -327,12 +327,18 @@ const parsedObject = (text: string | null) => {
 };
 
 /**
- * The contract 17 `offline_coding` object for a coding row, or null when it must not be sent: not a coded final,
- * no allowability provenance, coded on other answers (stale) or on another phone, or a token the server refuses.
+ * The contract 17 `offline_coding` object for a coding row, or null when it must not be sent: no code the coder saved,
+ * no allowability provenance, coded on another phone, or a token the server refuses. Every saved code is the coder's
+ * final (owner, digitva-9cll.14): DORIS-rejected (`rejected`) or with no engine verdict (`draft`, engine unavailable;
+ * its `result` carries no DORIS result). DORIS and CodeEdit are advisory; server review handles disagreements.
+ * A coding on other answers (stale) is sent only with `allowStale` and a kept answers hash, under that older hash:
+ * the server holds it refused `coded_version_superseded`, never applied, until the coder recodes.
  * conclusive_cod is the code alone: the phone keeps no title and the server takes it from its own MMS row.
  */
-export function offlineCodingBody(row: OfflineCodingRow, answersHash: string, clientDeviceUuid: string) {
-  if (row.status !== "coded" || !row.ucod_code || !row.provenance || isCodingStale(row, answersHash)) return null;
+export function offlineCodingBody(row: OfflineCodingRow, answersHash: string, clientDeviceUuid: string, allowStale = false) {
+  if (!row.ucod_code || !row.provenance) return null;
+  const stale = isCodingStale(row, answersHash);
+  if (stale && (!allowStale || !HEX64.test((row.answers_sha256 ?? "").toLowerCase()))) return null;
   if (row.device_uuid !== clientDeviceUuid || !PROCESS_TOKEN.test(row.process_token)) return null;
   // `packVersions` (which engine coded this, src/workspace/offlineDoris.ts) travels as the contract's `pack_versions`,
   // not inside `provenance`, whose keys the server fixes.
@@ -343,7 +349,7 @@ export function offlineCodingBody(row: OfflineCodingRow, answersHash: string, cl
     Object.entries(packVersions && typeof packVersions === "object" && !Array.isArray(packVersions) ? packVersions : {}).filter(([, version]) => typeof version === "string"),
   );
   return {
-    coded_answers_sha256: answersHash,
+    coded_answers_sha256: stale ? row.answers_sha256!.toLowerCase() : answersHash,
     device_uuid: clientDeviceUuid,
     process_token: row.process_token,
     conclusive_cod: row.ucod_code,
@@ -369,6 +375,15 @@ function codingOutcome(body: { offline_coding?: unknown }, draftId: string, sent
   return { draftId, status: value.status as OfflineCodingOutcome["status"], code: (value.code as string | null) ?? null,
     codingSha256: value.coding_sha256 };
 }
+
+/** Meta key: the answers hash of an interview the server holds while its coding waits on the phone (digitva-9cll.14). */
+export const codingLeftKey = (draftId: string) => `coding-left:${draftId}`;
+
+/** Meta key: the `updated_at` of a coding revision the server refused outright, held until the coder changes it. */
+export const codingRefusedKey = (draftId: string) => `coding-refused:${draftId}`;
+
+/** Enrolled refusals of the offline coding alone, after which the interview is sent again without it. */
+const ENROLLED_CODING_REFUSALS = new Set(["422 offline_coding_invalid", "409 coding_conflict", "403 device_mismatch"]);
 
 /** Standalone refusals shown and held, never resent or reopened on their own (contract 17: consent is terminal). */
 const STANDALONE_HELD_422 = new Set(["consent_invalid", "consent_required", "consent_conflict", "standalone_invalid", "offline_coding_invalid"]);
@@ -574,24 +589,28 @@ export async function uploadQueuedWork(
     const row = refusedInterview ? null : await getOfflineCoding(db, item.id);
     if (row) codingSnapshot = { updated_at: row.updated_at };
     let coding: ReturnType<typeof offlineCodingBody> = null;
-    if (!standalone && row) {
-      const deviceUuid = await currentEnrolledDeviceUuid();
-      try {
-        coding = deviceUuid ? offlineCodingBody(row, sentHash, deviceUuid) : null;
-      } catch {
-        coding = null;
-      }
-      if (!coding) {
-        await noteSendError(db, item.id, "offline_coding_not_sendable");
-        failed += 1;
-        continue draftLoop;
-      }
+    try {
+      const deviceUuid = standalone ? standalone.clientDeviceUuid : row ? await currentEnrolledDeviceUuid() : null;
+      coding = row && deviceUuid ? offlineCodingBody(row, sentHash, deviceUuid, !standalone) : null;
+      // A coding revision the server refused outright is not sent again until the coder changes it.
+      if (!standalone && row && await getMeta<string>(db, codingRefusedKey(item.id)) === row.updated_at) coding = null;
+    } catch {
+      coding = null;
+    }
+    // Enrolled only: an older coding sent with these newer answers, which the server keeps as stale.
+    let codingStale = !!coding && coding.coded_answers_sha256 !== sentHash;
+    // The interview is never withheld for its coding (owner, digitva-9cll.14). One the server already holds at these
+    // answers, whose coding is still not sendable or already sent stale, waits on the phone for the coder's recode.
+    if (!standalone && row && (!coding || codingStale) && await getMeta<string>(db, codingLeftKey(item.id)) === sentHash) {
+      await clearSendError(db, item.id);
+      continue draftLoop;
+    }
+    if (!standalone && coding) {
       codingSent = true;
       standaloneFields = { offline_coding: coding };
     }
     if (standalone) {
-      coding = row ? offlineCodingBody(row, sentHash, standalone.clientDeviceUuid) : null;
-      if (row?.status === "coded" && isCodingStale(row, sentHash)) staleCodingDraftIds.push(item.id);
+      if (row?.ucod_code && isCodingStale(row, sentHash)) staleCodingDraftIds.push(item.id);
       codingSent = coding !== null;
       standaloneFields = {
         standalone: {
@@ -616,7 +635,7 @@ export async function uploadQueuedWork(
     }
     let answersHash = sentHash;
     try {
-      const codingDigest = coding ? codingReceiptSha256(coding) : null;
+      let codingDigest = coding ? codingReceiptSha256(coding) : null;
       const send = () => authedRequest<unknown>(userId, `${INTAKE_API}/submissions`, {
         method: "POST",
         timeoutMs: 120_000,
@@ -638,7 +657,21 @@ export async function uploadQueuedWork(
       });
       let acknowledgement;
       try {
-        acknowledgement = await send();
+        try {
+          acknowledgement = await send();
+        } catch (error) {
+          // A coding the server will not take never holds the enrolled interview back: send it again without one.
+          if (standalone || !codingSent || !(error instanceof ApiError) || !ENROLLED_CODING_REFUSALS.has(`${error.status} ${error.code}`)) throw error;
+          console.warn(`offline coding refused draft=${item.id} status=${error.status} code=${error.code}; interview sent without it`);
+          await setMeta(db, codingRefusedKey(item.id), row!.updated_at);
+          await recordCodingOutcome(db, { draftId: item.id, status: "refused", code: error.code ?? "offline_coding_invalid", codingSha256: codingDigest! });
+          coding = null;
+          codingSent = false;
+          codingStale = false;
+          codingDigest = null;
+          standaloneFields = {};
+          acknowledgement = await send();
+        }
       } catch (error) {
         if (error instanceof ApiError && error.status === 422 && error.code === "answers_hash_invalid") {
           answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
@@ -714,8 +747,14 @@ export async function uploadQueuedWork(
         }
       }
       await purgeTerminalAcknowledgement(db, item.project_id, acknowledgement.body);
-      // Edited during the send: the draft stays, and files its answers no longer name go.
-      if (!(await deleteDraftSnapshot(db, item.id, item.envelope, codingSnapshot))) await pruneDraftAttachments(db, item.id);
+      if (row && !standalone && (!codingSent || codingStale)) {
+        // Sent without its coding, or with a stale one: the draft and coding stay for the coder, and the next sync
+        // sends the recoded final (with these answers, which the server accepts as a resend and lets replace it).
+        await setMeta(db, codingLeftKey(item.id), answersHash);
+      } else if (!(await deleteDraftSnapshot(db, item.id, item.envelope, codingSnapshot))) {
+        // Edited during the send: the draft stays, and files its answers no longer name go.
+        await pruneDraftAttachments(db, item.id);
+      }
       await clearSendError(db, item.id);
       sent += 1;
     } catch (error) {

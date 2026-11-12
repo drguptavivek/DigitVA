@@ -2549,7 +2549,19 @@ def export_public_cod_bucket_scheme(*, scheme_code: str) -> dict:
     return projection
 
 
-def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodBucketScheme:
+def import_cod_bucket_scheme_json(
+    *,
+    scheme_code: str,
+    payload: dict,
+    snapshot_reason: str | None = None,
+    created_by_user_id: uuid.UUID | None = None,
+) -> MasCodBucketScheme:
+    """Replace a scheme's age bands, nodes and mappings from an export payload.
+
+    With ``snapshot_reason`` the whole scheme is snapshotted after validation
+    and before anything is replaced, in the same transaction (refused if the
+    snapshot fails). Callers that restore a snapshot omit it.
+    """
     scheme = get_cod_bucket_scheme(scheme_code)
     if scheme is None:
         raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
@@ -2752,6 +2764,17 @@ def import_cod_bucket_scheme_json(*, scheme_code: str, payload: dict) -> MasCodB
                 f"ICD '{icd_code}' is mapped more than once for age scope "
                 f"'{scope_label}' in the import payload."
             )
+
+    if snapshot_reason:
+        try:
+            snapshot_cod_bucket_scheme(
+                scheme=scheme,
+                reason=snapshot_reason,
+                created_by_user_id=created_by_user_id,
+            )
+        except Exception as exc:
+            db.session.rollback()
+            raise ValueError("Snapshot failed; import refused.") from exc
 
     scheme.scheme_name = normalized_name
     scheme.scheme_description = normalized_description or f"{normalized_name} COD bucket scheme"

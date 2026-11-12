@@ -303,7 +303,11 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
         found = self.client.get(
             "/data-management/api/users", query_string={"query": "authz.reviewer_sp1"}
         ).get_json()["users"]
-        self.assertEqual([u["email"] for u in found], [self.users["reviewer_sp1"].email])
+        # Platform-wide, but reviewer_sp1 holds grants only in another project,
+        # so its contacts come back masked (owner 2026-11-12, digitva-9xn9.22).
+        self.assertEqual([u["user_id"] for u in found], [str(self.users["reviewer_sp1"].user_id)])
+        self.assertTrue(found[0]["contact_masked"])
+        self.assertEqual(found[0]["email"], "au***@test.local")
 
     def test_manage_update_user_requires_managed_grant_and_redacts_unit_writer_response(self):
         inside = self.users["reviewer_c1"]

@@ -13,7 +13,7 @@ import hashlib
 import json
 import logging
 import re
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import redis
 import requests
@@ -55,6 +55,20 @@ def _base_url() -> str:
     return configured.rstrip("/")
 
 
+def _has_traversal(resource: str) -> bool:
+    """True when percent-decoding (repeated, so %252e counts) yields a dot
+    segment or backslash that the HTTP client or upstream could resolve."""
+    decoded = resource
+    for _ in range(5):
+        step = unquote(decoded)
+        if step == decoded:
+            break
+        decoded = step
+    else:
+        return True
+    return ".." in decoded or "\\" in decoded
+
+
 def _validate_resource(resource: str) -> str:
     resource = (resource or "").strip()
     if (
@@ -64,6 +78,7 @@ def _validate_resource(resource: str) -> str:
         or "\\" in resource
         or ".." in resource
         or not _SAFE_RESOURCE_RE.fullmatch(resource)
+        or _has_traversal(resource)
     ):
         raise ValueError("Invalid WHO ICD API resource.")
 

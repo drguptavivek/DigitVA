@@ -210,7 +210,12 @@ Who they find depends on their grants:
   project, site or unit scope come back with full email and phone. Users
   outside it come back with name, user id and masked email and phone (for
   example `vi***@gmail.com`, `******4321`), enough to spot a duplicate and
-  grant access, and with no landing page or job title;
+  grant access, and with no landing page, job title or account flags.
+  Accepted risk (owner, 2026-11-12): because the search matches partial
+  email and phone across the platform, a determined PI or DM can recover a
+  masked address or number by repeated narrowing searches; the masking stops
+  casual exposure only. No minimum query length or extra rate limit applies;
+
 - a unit writer (a `data_manager` at a unit, an In-charge) finds and opens
   only the holders of grants it may manage and the staff of mentoring
   institutes attached to districts it covers. Holders of grants within the

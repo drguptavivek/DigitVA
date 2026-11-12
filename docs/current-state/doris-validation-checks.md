@@ -3,7 +3,7 @@ title: DORIS Validation Checks
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-11-12
 ---
 
 # DORIS Validation Checks
@@ -155,4 +155,4 @@ decision: WHO either flags them only after processing or recodes them silently.
 | G4 | The server refuses the four value ranges in section 3, which V11 only warns about, with different bounds. | `digitva-e505` |
 | G5 | V9 "line above": the web compares with the nearest line above that has an interval, the phone only with the line directly above. | `digitva-giym` |
 | G6 | The age-confirmation wording differs: the phone adds DORIS's plausibility sentence. | `digitva-37gr` |
-| G7 | The WHO ECT assessment's `/api/v1/icd11/selection-check` still allows 2,077 non-leaf categories through the local catalogue. Owner decision pending. | `digitva-dn15` |
+| G7 | Closed 2026-11-12 (owner option A): `/api/v1/icd11/selection-check` refuses a non-leaf category with `422 non_leaf_category` and its `children`; DORIS (web, Collect online and offline) keeps `INVALID_SELECTION` with the same words, "NC72 is a category, not a final code. Choose a more specific code under it." (the refused code named), and opens the category's children with a search box. Coder and reviewer saves that bypass the selection check (Select2 search) do not refuse non-leaf yet. | `digitva-dn15` |

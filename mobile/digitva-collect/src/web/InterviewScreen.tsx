@@ -39,6 +39,7 @@ import { guardedNavigate, useNavigationGuard } from "./navigationGuard";
 import { loadWhoCoreRuntime, loadWhoWebRuntime, type WhoWebRuntime } from "./whoRuntimeLoader";
 import type { WhoCoreRuntime } from "../whoCoreRuntime";
 import { RefusalPanel } from "../RefusalPanel";
+import { useWhoNoConfirm } from "../useWhoNoConfirm";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { isRefused, refusalAnswers } from "../refusalBoundary";
 import { formUiTranslations, useFormPackRevision } from "../uiPacks";
@@ -336,6 +337,19 @@ export default function InterviewScreen() {
   const [refusalSex, setRefusalSex] = useState("");
   const [changingConsent, setChangingConsent] = useState(false);
   const [confirmWhoGrant, setConfirmWhoGrant] = useState(false);
+  // Bumped when a cancelled No remounts the form so it reloads the server's copy (the No was never sent).
+  const [formEpoch, setFormEpoch] = useState(0);
+  const whoNo = useWhoNoConfirm({
+    onConfirmed: () => {
+      if (store instanceof ServerDraftStore) { store.holdNo(false); store.enterRefusal(); }
+      setWhoRefused(true);
+      void controller?.saveDraft().catch(() => undefined);
+    },
+    onReverted: () => {
+      if (store instanceof ServerDraftStore) store.holdNo(false);
+      setFormEpoch((n) => n + 1);
+    },
+  });
   const [saveInfo, setSaveInfo] = useState<{ savedSections: number; updatedAt?: string }>({ savedSections: 0 });
   const [welcomePending, setWelcomePending] = useState(false);
   const [loadedBootstrap, setLoadedBootstrap] = useState(bootstrap);
@@ -1115,10 +1129,11 @@ export default function InterviewScreen() {
     });
   }, []);
   const handleFormChange = useCallback((data: SubmissionData) => {
-    if (!(store instanceof RevisionMemoryStore) && isRefused(data)) {
-      if (store instanceof ServerDraftStore) store.enterRefusal();
-      setWhoRefused(true);
-      void controller?.saveDraft().catch(() => undefined);
+    // A consent "No" asks once before it wipes the draft; the change is handled when confirmed or put back.
+    if (!(store instanceof RevisionMemoryStore)) {
+      // The server wipes a draft on a saved No, so hold the save before anything else sees the change.
+      if (store instanceof ServerDraftStore && isRefused(data)) store.holdNo(true);
+      if (!whoNo.onChange(data)) return;
     }
     if (store instanceof RevisionMemoryStore) revisionGenerationRef.current += 1;
     setNeedsNewSnapshot(false);
@@ -1128,7 +1143,7 @@ export default function InterviewScreen() {
     if (!(store instanceof RevisionMemoryStore) && loadedBootstrap) {
       writeWebRecall(loadedBootstrap.user.user_id, recallFromData(data));
     }
-  }, [controller, loadedBootstrap, store, updateLiveAnswers]);
+  }, [loadedBootstrap, store, updateLiveAnswers, whoNo.onChange]);
   const handleDraftSaved = useCallback((saved?: { data?: SubmissionData }) => {
     if (!(store instanceof ServerDraftStore)) return;
     saveFailedRef.current = false;
@@ -1403,6 +1418,7 @@ export default function InterviewScreen() {
             ) : <Text style={styles.muted}>{t("loading")}</Text>
           ) : null}
           {(consentRefused || whoRefused) && !changingConsent ? <RefusalPanel locale={locale} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} onSave={() => void saveRefusal()} onChangeConsent={() => void changeRefusal()} onNew={() => { dirtyRef.current = false; router.replace(collectionPath as never); }} /> : null}
+          {whoNo.dialog}
           {confirmWhoGrant ? <ConfirmDialog title={locale.startsWith("hi") ? "सहमति की पुष्टि करें" : "Confirm consent"} message={locale.startsWith("hi") ? "क्या उत्तरदाता ने अब साक्षात्कार के लिए सहमति दी है? हटाए गए उत्तर वापस नहीं आएंगे।" : "Has the respondent now agreed to the interview? Removed answers will not be restored."} confirmLabel={locale.startsWith("hi") ? "हाँ, सहमति दी" : "Yes, consent granted"} cancelLabel={t("cancel")} onConfirm={() => void grantWhoConsent()} onCancel={() => setConfirmWhoGrant(false)} /> : null}
           {!consentPending && !changingConsent && !consentRefused && !whoRefused && welcomePending && formOptions?.intake_note?.trim() ? (
             <View
@@ -1445,7 +1461,7 @@ export default function InterviewScreen() {
           {consentPending || changingConsent || consentRefused || whoRefused || welcomePending || overtaken ? null : <View nativeID="digitva-who-form-theme" style={[{ minWidth: 0, width: "100%" }, webFormStyle]}>
             <WhoVaFormComponent
               theme={whoTheme}
-              key={`${draftId}:${locale}`}
+              key={`${draftId}:${locale}:${formEpoch}`}
               instrument={instrument}
               locale={locale}
               showEnglish={locale !== "en"}

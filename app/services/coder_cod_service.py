@@ -60,6 +60,7 @@ from app.services.final_cod_authority_service import (
 from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
 from app.services.icd_coding_value import (
     InvalidCausingConditionFlag,
+    NonLeafCategory,
     build_icd11_provenance_for_values,
     check_causing_condition_unknown,
     record_final_cod_flags,
@@ -606,7 +607,7 @@ def _masked_doris_step1_fields(
             va_sid, {"antecedent": underlying_cod}
         )
     except (LookupError, ValueError) as exc:
-        raise CoderCodingError(str(exc), 400, code="invalid_cod") from exc
+        raise CoderCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
     provenance = record_final_cod_flags(
         provenance,
         age_restriction=age_restriction,
@@ -642,12 +643,15 @@ def _masked_simple_step1_fields(
             "immediate_cod and antecedent_cod are required.", 400, code="invalid_request"
         )
     errors: list[tuple[str, str]] = []
+    error_code = "invalid_cod"
     classifications = set()
     for field, value in (("immediate_cod", immediate_cod), ("antecedent_cod", antecedent_cod)):
         try:
             classifications.add(validate_coding_value_for_submission(va_sid, value))
         except (LookupError, ValueError) as exc:
             errors.append((field, str(exc)))
+            if isinstance(exc, NonLeafCategory):
+                error_code = exc.code
     # One classification per save.
     if not errors and len(classifications) > 1:
         errors.append(
@@ -668,7 +672,7 @@ def _masked_simple_step1_fields(
         raise CoderCodingError(
             errors[0][1],
             400,
-            code="invalid_cod",
+            code=error_code,
             messages=[message for _, message in errors],
             fields=[field for field, _ in errors],
         )
@@ -784,6 +788,8 @@ def submit_coder_final_cod(
         validate_coding_value_for_submission(va_sid, conclusive_cod)
     except InvalidCausingConditionFlag as exc:
         raise CoderCodingError(str(exc), 422, code="INVALID_CAUSING_CONDITION_FLAG") from exc
+    except NonLeafCategory as exc:
+        raise CoderCodingError(str(exc), 422, code=exc.code) from exc
     except AgeRestrictionConfirmationRequired as exc:
         # Age warns, sex blocks (digitva-oh7j): asked before the other gates.
         if not age_restriction_confirmed:
@@ -813,6 +819,8 @@ def submit_coder_final_cod(
                 immediate_icd11_provenance = build_icd11_provenance_for_values(
                     va_sid, {"immediate": saved_immediate_cod}
                 )
+            except NonLeafCategory as exc:
+                raise CoderCodingError(str(exc), 422, code=exc.code) from exc
             except (LookupError, ValueError) as exc:
                 blocking_messages.append(str(exc))
         saved_immediate_cod = saved_immediate_cod or None

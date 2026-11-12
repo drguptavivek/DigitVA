@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-11-10
 ---
 
 # Data Manager Workflow Policy
@@ -131,6 +131,9 @@ Export policy:
 
 - export scope must respect the same project / project-site grants as the
   dashboard table
+- cached exports and dashboard responses must reflect the caller's current
+  grant, PII and organisation scope. When the cache cannot distinguish that
+  scope reliably, compute a fresh response.
 - export content must respect the current dashboard filters
 - exports must omit payload fields marked as PII in field mapping
 - exports must omit direct local identifiers that should not appear in bulk

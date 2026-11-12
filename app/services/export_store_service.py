@@ -145,7 +145,8 @@ def filter_hash(*, export_kind: str, user_id, filters: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def write_export(
-    *, export_kind: str, user_id, filters: dict, csv_text: str | None = None, csv_file=None
+    *, export_kind: str, user_id, filters: dict, csv_text: str | None = None, csv_file=None,
+    bom: bool = True,
 ) -> ExportRef:
     """Store one CSV export and return the reference to it.
 
@@ -154,7 +155,9 @@ def write_export(
     so a large export is never one in-memory string. Either way it is streamed
     to a bounded temporary file first — never handed to the store as one
     in-memory body. The temporary file is removed on every path, including a
-    failed upload; closing ``csv_file`` stays with the caller.
+    failed upload; closing ``csv_file`` stays with the caller. ``bom=False``
+    omits the UTF-8 BOM (SmartVA input); callers must also vary ``filters`` so a
+    cached file with the other framing is never reused.
     """
     if (csv_text is None) == (csv_file is None):
         raise ValueError("write_export needs exactly one of csv_text or csv_file")
@@ -170,7 +173,7 @@ def write_export(
     handle, tmp_path = tempfile.mkstemp(prefix="dm_export_", suffix=".csv", dir=tmp_dir)
     os.close(handle)
     try:
-        size_bytes, digest = _write_temp_csv(tmp_path, csv_text, csv_file)
+        size_bytes, digest = _write_temp_csv(tmp_path, csv_text, csv_file, bom)
         _put(key, tmp_path)
     finally:
         _remove_quietly(tmp_path)
@@ -333,11 +336,11 @@ def _segment(value) -> str:
     return cleaned[:80]
 
 
-def _write_temp_csv(tmp_path: str, csv_text: str | None, csv_file=None) -> tuple[int, str]:
-    """Write the CSV (BOM first) to *tmp_path*, returning its size and sha256."""
+def _write_temp_csv(tmp_path: str, csv_text: str | None, csv_file=None, bom: bool = True) -> tuple[int, str]:
+    """Write the CSV (BOM first unless ``bom`` is False) to *tmp_path*, returning its size and sha256."""
     digest = hashlib.sha256()
     size = 0
-    chunks = _encoded_chunks(csv_text) if csv_file is None else encoded_file_chunks(csv_file)
+    chunks = _encoded_chunks(csv_text, bom) if csv_file is None else encoded_file_chunks(csv_file, bom)
     with open(tmp_path, "wb") as handle:
         for chunk in chunks:
             handle.write(chunk)
@@ -346,17 +349,19 @@ def _write_temp_csv(tmp_path: str, csv_text: str | None, csv_file=None) -> tuple
     return size, digest.hexdigest()
 
 
-def encoded_file_chunks(csv_file):
-    """The BOM then a text file's CSV, rewound and encoded one chunk at a time."""
-    yield UTF8_BOM.encode("utf-8")
+def encoded_file_chunks(csv_file, bom: bool = True):
+    """The BOM (if ``bom``) then a text file's CSV, rewound and encoded one chunk at a time."""
+    if bom:
+        yield UTF8_BOM.encode("utf-8")
     csv_file.seek(0)
     while chunk := csv_file.read(CHUNK_SIZE):
         yield chunk.encode("utf-8")
 
 
-def _encoded_chunks(csv_text: str):
-    """The BOM then the CSV, encoded in bounded slices rather than one buffer."""
-    yield UTF8_BOM.encode("utf-8")
+def _encoded_chunks(csv_text: str, bom: bool = True):
+    """The BOM (if ``bom``) then the CSV, encoded in bounded slices rather than one buffer."""
+    if bom:
+        yield UTF8_BOM.encode("utf-8")
     for start in range(0, len(csv_text), CHUNK_SIZE):
         yield csv_text[start:start + CHUNK_SIZE].encode("utf-8")
 

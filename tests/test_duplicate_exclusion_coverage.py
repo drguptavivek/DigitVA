@@ -83,6 +83,11 @@ _NO_REGISTER_ROW = (
 )
 
 EXEMPT = {
+    "services/offline_coding_import_service.py::apply_held": (
+        "reads one case's state only to choose first coding or recode; both allocators "
+        "(allocate_pick_form, start_recode_allocation) refuse a confirmed duplicate, and "
+        "apply_held rejects the hold with that refusal code; never lists or counts coding work"
+    ),
     "services/recode_window.py::_round_started_at": (
         "finds when a case's current coding round began, for that case's own recode "
         "window; the lists that offer recodes apply the predicate themselves"

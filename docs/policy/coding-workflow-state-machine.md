@@ -878,6 +878,14 @@ enrolment. It adds no workflow state and no new transition.
   `reviewer_eligible` at once (reason `offline_coding_disagreement_review`),
   skipping the recode window. Reviewer selection has no sampling rate, so every
   flagged case is in the reviewer pool from the moment it is imported.
+- **Stale and recode (owner 2026-11-12, `digitva-9cll.14`).** A coding made on
+  older answers is held stale (`coded_version_superseded`), never applied.
+  A recoded final replaces the held coding, whatever its status; the replaced
+  snapshot is kept in the hold's history and audited. When it replaces an
+  applied offline final on a `coder_finalized` case, the import takes the
+  online recode path (`start_recode_allocation`: recode window, authoritative
+  coder; refused `recode_not_allowed` otherwise) and finishes with
+  `recode_finalized`, deactivating the earlier final.
 - **Unchanged.** Recode (by the importing coder, within the window), review,
   revisions, send-back and KPIs treat it as any coder final; it counts as the
   pushing coder's final.

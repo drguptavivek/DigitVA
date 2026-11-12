@@ -1029,9 +1029,16 @@ missing strings fall back visibly to English. No server publication is implied.
   one deterministic representation, verified by shared digest vectors. Local
   deletion requires both the matching interview receipt and matching coding
   digest. Missing, malformed or different coding receipts retain local work.
-- An exact resend is idempotent. Different coding may replace a pending hold
-  only after current policy/answer checks; an already-terminal different
-  snapshot returns `409 coding_conflict` without overwriting terminal history.
+- An exact resend is idempotent. Different coding (a recode) replaces a
+  pending, applied or refused hold after current policy/answer checks (owner
+  2026-11-12, `digitva-9cll.14`); the older snapshot stays in the hold's
+  history and the audit log, and an applied final is superseded through the
+  online recode path, never deleted.
+- Every code the coder saved is sent as their final, whatever DORIS said
+  (rejected, or no verdict when the engine was unavailable); a coding with no
+  saved code is not sent and the interview goes without it. A coding made on
+  older answers is sent marked stale (its own coded answers hash) with the new
+  answers: the server keeps it unapplied and the phone asks for a recode.
 - Coding refusals are durably recorded in the encrypted account store before
   acknowledged local work is removed, and remain visible after restart. A
   pending coding receipt is not displayed as an applied coding result.

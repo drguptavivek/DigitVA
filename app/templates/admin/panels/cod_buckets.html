@@ -714,9 +714,15 @@
 
   async function importSchemeJson(schemeCode, file) {
     if (!schemeCode || !file) return;
+    if (!window.confirm(`Import "${file.name}" into ${schemeCode}? This replaces every node and mapping in the scheme. The current scheme is saved as a snapshot first.`)) {
+      els.schemeImportInput.value = '';
+      delete els.schemeImportInput.dataset.schemeCode;
+      return;
+    }
     setStatus(`Importing JSON into ${schemeCode}...`, false);
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('confirm', 'true');
     try {
       const payload = await apiMultipart(
         `/admin/api/cod-bucket-schemes/${encodeURIComponent(schemeCode)}/import`,

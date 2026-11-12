@@ -23,7 +23,7 @@ export const codingNotices = async (db: Db): Promise<CodingNotice[]> =>
 export const dismissCodingNotices = (db: Db) =>
   db.runAsync("DELETE FROM meta WHERE key = ?", [NOTICES_KEY]);
 
-/** Save a terminal refusal before upload code removes the acknowledged draft. */
+/** Save a terminal refusal before upload code removes the acknowledged draft; clear it once a recode is taken. */
 export async function recordCodingOutcome(db: Db, outcome: CodingUploadOutcome): Promise<void> {
   const notices = await codingNotices(db);
   const matching = (notice: CodingNotice) =>
@@ -36,8 +36,10 @@ export async function recordCodingOutcome(db: Db, outcome: CodingUploadOutcome):
       codingSha256: outcome.codingSha256,
     }, ...notices.filter((notice) => !matching(notice))].slice(0, MAX_NOTICES);
     await setMeta(db, NOTICES_KEY, next);
-  } else if (outcome.status === "applied") {
-    const next = notices.filter((notice) => !matching(notice));
+  } else {
+    // A coding the server took (pending or applied) replaces the earlier refusals of this interview, such as the
+    // stale coding's "recode needed" notice (digitva-9cll.14).
+    const next = notices.filter((notice) => notice.draftId !== outcome.draftId);
     if (next.length !== notices.length) await setMeta(db, NOTICES_KEY, next);
   }
 }

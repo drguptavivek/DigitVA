@@ -459,7 +459,7 @@ def dm_scope() -> DmScope:
 # Caching helpers (same pattern as analytics.py)
 # ---------------------------------------------------------------------------
 
-def _cache_key(suffix: str) -> str:
+def _cache_key(suffix: str) -> str | None:
     """Per user and per scope: a grant change, or two DMs with different
     units, never share an entry. The digest sits after the user id so
     ``bust_dm_kpi_cache``'s ``dm_kpi:{uid}:*`` pattern still matches.
@@ -469,10 +469,13 @@ def _cache_key(suffix: str) -> str:
     counts only active pairs) without moving the digest. The authz global
     version, bumped by every such write, is part of the key so figures never
     lag one by the cache life."""
+    version = grant_cache.global_version()
+    if not version:
+        return None
     qs = request.query_string.decode()
     return (
         f"dm_kpi:{current_user.user_id}:{dm_scope().digest()}"
-        f":{grant_cache.global_version()}:{suffix}:{qs}"
+        f":{version}:{suffix}:{qs}"
     )
 
 
@@ -483,6 +486,8 @@ def cached_kpi(key: str, compute_fn, timeout: int = _CACHE_TTL):
     caches the result for `timeout` seconds.
     """
     full_key = _cache_key(key)
+    if full_key is None:
+        return compute_fn()
     try:
         data = cache.get(full_key)
     except Exception:

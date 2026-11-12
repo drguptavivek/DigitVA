@@ -322,13 +322,15 @@ class DataManagerUserSearchTests(BaseTestCase):
         ).get_json()
 
     def test_wildcards_in_the_query_match_literally(self):
-        self._get_or_make_user("percent%user@test.local", "SearchDm123")
-        self._get_or_make_user("plainuser@test.local", "SearchDm123")
+        percent = self._get_or_make_user("percent%user@test.local", "SearchDm123")
+        plain = self._get_or_make_user("plainuser@test.local", "SearchDm123")
         # Would match "t\\u" if the backslash were read as LIKE's escape.
         self._get_or_make_user("tuser.search@test.local", "SearchDm123")
-        emails = {u["email"] for u in self._search("%user")["users"]}
-        self.assertIn("percent%user@test.local", emails)
-        self.assertNotIn("plainuser@test.local", emails)
+        # Grantless accounts are outside the DM's reach, so their emails come
+        # back masked (digitva-9xn9.22): compare by user id.
+        found = {u["user_id"] for u in self._search("%user")["users"]}
+        self.assertIn(str(percent.user_id), found)
+        self.assertNotIn(str(plain.user_id), found)
         self.assertEqual(self._search("_lainuser")["users"], [])
         self.assertEqual(self._search("t\\u")["users"], [])
 

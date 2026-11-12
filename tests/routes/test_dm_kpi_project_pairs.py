@@ -6,6 +6,7 @@ panel (all live since digitva-0hul, the per-day grid included), and through
 the KPI cache (two such managers must never share a cache entry).
 """
 import uuid
+from unittest.mock import patch
 from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -223,7 +224,8 @@ class DmKpiProjectPairTests(BaseTestCase):
         rows = {r["date"]: r for r in self._kpi(both, "grid/")["data"]}
         self.assertEqual(rows[str(yesterday)]["coded"], 2)
 
-    def test_moving_a_grant_to_the_same_site_in_another_project_misses_the_cache(self):
+    @patch("app.services.authz.grant_cache.global_version", return_value="test-version")
+    def test_moving_a_grant_to_the_same_site_in_another_project_misses_the_cache(self, _version):
         from app import cache
 
         self._seed_coded("lh1h-cache-p1", self.FORMS[self.P1])

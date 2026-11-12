@@ -23,7 +23,9 @@ from app.routes.api.request_helpers import error as api_error
 from app.services import coding_search_telemetry_service, public_demo_service
 from app.services.coding_search_explain import explained_payload
 from app.services.icd11_mms_service import (
+    NON_LEAF_MESSAGE,
     build_icd11_provenance,
+    icd11_non_leaf_children,
     search_icd11_mms,
     validate_icd11_mms_coding_value_for_submission,
 )
@@ -171,6 +173,10 @@ def icd11_selection_check(va_sid: str):
     age_group_selectable, restriction_note}`` so the screen can ask for the
     confirmation the final save requires (``digitva-oh7j``). ``warnings`` is
     always present.
+
+    A stem that is a category with children (``digitva-dn15``) refuses with
+    422 ``non_leaf_category`` and ``children: [{code, title, uri}]`` beside
+    the usual ``error``; picking a child is checked again from the start.
     """
 
     err = _require_coding_or_reviewing_access(va_sid)
@@ -192,6 +198,16 @@ def icd11_selection_check(va_sid: str):
     canonical_code = extract_icd11_code_expression(value)
     if not canonical_code or len(title) > 512 or len(value) > 1024:
         return api_error("Select a valid ICD-11 code.", status_code=400)
+    for part in canonical_code.split("/"):
+        stem = part.split("&", 1)[0]
+        children = icd11_non_leaf_children(stem)
+        if children is not None:
+            return api_error(
+                NON_LEAF_MESSAGE.format(code=stem),
+                "non_leaf_category",
+                status_code=422,
+                children=children,
+            )
     warnings = []
     try:
         try:

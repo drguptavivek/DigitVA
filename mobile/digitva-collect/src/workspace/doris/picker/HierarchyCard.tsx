@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import { Button, Label, Muted, Body, font, gap, useUi } from "../ui";
+import { t as tr } from "../../../i18n";
+import { Button, Input, Label, Muted, Body, font, gap, useUi } from "../ui";
 import { parseDorisHierarchy, type DorisHierarchy, type DorisOption } from "../guidance";
 import { LoadView, Panel } from "./Panel";
 import { isExtension } from "./expression";
@@ -25,12 +27,17 @@ function HierarchyBody({ tree, onNode, onUse, onBuild }: { tree: DorisHierarchy;
   // Only a final code is offered: a node with children is drilled into (tap a child), an extension code is added through + Build.
   const usable = Boolean(selected.code && selected.uri) && !tree.children.length && !isExtension(selected.code);
   const context = [["Maternal context", tree.related_maternal], ["Perinatal context", tree.related_perinatal]] as const;
+  // A category is refused as a final code (digitva-dn15); its children, .Z included, are filtered by code or title.
+  const [filter, setFilter] = useState("");
+  const needle = filter.trim().toLowerCase();
+  const children = needle ? tree.children.filter((node) => `${node.code} ${node.title}`.toLowerCase().includes(needle)) : tree.children;
   return (
     <View style={{ gap: gap.sm }}>
       <Body>Selected: {selected.code}{selected.title ? ` — ${selected.title}` : ""}</Body>
       {tree.ancestors.length ? <Nodes title="Ancestor path" nodes={tree.ancestors} onNode={onNode} /> : null}
       {tree.siblings.length ? <Nodes title="Siblings" nodes={tree.siblings} onNode={onNode} /> : null}
-      {tree.children.length ? <Nodes title="Children" nodes={tree.children} onNode={onNode} /> : null}
+      {tree.children.length ? <Input testID="picker-hierarchy-filter" value={filter} onChangeText={setFilter} placeholder={tr("icd11FilterChildCodes")} accessibilityLabel={tr("icd11FilterChildCodes")} autoCorrect={false} /> : null}
+      {tree.children.length ? <Nodes title="Children" nodes={children} onNode={onNode} /> : null}
       {context.map(([title, nodes]) => nodes.length ? <Muted key={title}>{title}: {nodes.map((node) => node.title).join("; ")}</Muted> : null)}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: gap.sm }}>
         <Button label="Use this code" size="sm" disabled={!usable} onPress={() => onUse(selected)} />
@@ -46,7 +53,7 @@ export function HierarchyCard({ code, post, onNode, onUse, onBuild, onClose }: {
   const state = useLoad(async () => parseDorisHierarchy(await post("hierarchy", { code })), [code]);
   return (
     <Panel testID="picker-hierarchy" title="See in hierarchy" onClose={onClose}>
-      <LoadView state={state} loading="Loading the WHO hierarchy…">{(tree) => <HierarchyBody tree={tree} onNode={onNode} onUse={onUse} onBuild={onBuild} />}</LoadView>
+      <LoadView state={state} loading="Loading the WHO hierarchy…">{(tree) => <HierarchyBody key={tree.selected.code} tree={tree} onNode={onNode} onUse={onUse} onBuild={onBuild} />}</LoadView>
     </Panel>
   );
 }

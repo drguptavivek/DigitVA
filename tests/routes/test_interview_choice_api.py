@@ -248,6 +248,20 @@ class InterviewChoiceTests(BaseTestCase):
 
     # ── candidates ─────────────────────────────────────────────────────────
 
+    def test_candidate_names_are_null_for_a_viewer_without_pii(self):
+        # Web-intake item 14 (digitva-9xn9.22): the detail route passes
+        # should_redact_pii as redact_names.
+        from app.services import web_intake_service as intake_svc
+
+        death_id, *_ = self._pair()
+        death = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        named = intake_svc.list_candidates(death)
+        self.assertEqual([c["interviewer_name"] for c in named], [self.bela.name])
+        redacted = intake_svc.list_candidates(death, redact_names=True)
+        self.assertEqual(len(redacted), 1)
+        self.assertIsNone(redacted[0]["interviewer_name"])
+        self.assertEqual(redacted[0]["draft_id"], named[0]["draft_id"])
+
     def test_a_second_complete_interview_is_a_candidate_and_an_incomplete_one_is_not(self):
         death_id, _va_sid, alice_draft, bela_draft = self._pair()
         self.assertEqual((alice_draft.status, bela_draft.status), ("submitted", "superseded"))

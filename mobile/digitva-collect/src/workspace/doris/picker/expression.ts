@@ -1,3 +1,4 @@
+import { t } from "../../../i18n";
 import type { DorisAxis, DorisOption } from "../guidance";
 
 /**
@@ -48,11 +49,13 @@ export const isMandatory = (item: PickerItem): boolean => item.postcoordination_
 export function notFinal(item: PickerItem): { kind: "extension" | "category"; stem: string; message: string } | null {
   const { stem } = splitExpression(item.code);
   if (item.extension === true) return { kind: "extension", stem, message: `${stem} is an extension code. It cannot be used alone: add it to a stem through + Build.` };
-  if (item.leaf === false) return { kind: "category", stem, message: `${stem} is a category, not a final code. Choose a more specific code under it.` };
+  if (item.leaf === false) return { kind: "category", stem, message: t("icd11NonLeafCategory", { code: stem }) };
   return null;
 }
 /** The selection check's refusal of a code that is not final, worded as `notFinal` words it; transport.ts shows only text that matches. */
 export const NOT_FINAL_REFUSAL = /^[A-Z0-9][A-Z0-9.]{0,15} is (an extension code\. It cannot be used alone: add it to a stem through \+ Build|a category, not a final code\. Choose a more specific code under it)\.$/;
+/** The selection check's refusal of a category with children (digitva-dn15), naming the category in group 1: the picker opens its children to choose from. */
+export const NON_LEAF_REFUSAL = /^([A-Z0-9][A-Z0-9.]{0,15}) is a category, not a final code\. Choose a more specific code under it\.$/;
 /** A search box value with a digit and no space is a code (codeinfo), anything else is text. */
 export const looksCode = (value: string): boolean => /\d/.test(value) && !/\s/.test(value);
 

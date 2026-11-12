@@ -527,7 +527,7 @@ def submit_reviewer_final_cod(
             ) from exc
         age_restriction = exc.details()
     except (LookupError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
+        raise ReviewerCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
 
     active_allocation = db.session.scalar(
         sa.select(VaAllocations).where(
@@ -587,7 +587,7 @@ def submit_reviewer_final_cod(
                 va_sid, {"immediate": immediate_cod}
             )
         except (LookupError, ValueError) as exc:
-            raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
+            raise ReviewerCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
     elif mode == "unmasked_doris":
         who_image_digest = _who_image_digest()
         verified = verify_doris_submission(
@@ -632,7 +632,7 @@ def submit_reviewer_final_cod(
             va_sid, {"conclusive": conclusive_cod}
         )
     except (LookupError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
+        raise ReviewerCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
     final_provenance = record_final_cod_flags(
         final_provenance,
         age_restriction=age_restriction,
@@ -705,7 +705,7 @@ def submit_reviewer_final_cod(
             icd11_provenance=final_provenance,
         )
     except (LookupError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
+        raise ReviewerCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
     db.session.add(
         VaSubmissionsAuditlog(
             va_sid=va_sid,
@@ -862,7 +862,7 @@ def submit_reviewer_initial_cod(
                 ) from exc
             age_restriction = exc.details()
         except (LookupError, ValueError) as exc:
-            raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
+            raise ReviewerCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
         # The immediate cause was checked against WHO when the certificate
         # was processed; only the reviewer's own pick needs provenance.
         provenance_fields = ("antecedent",)
@@ -887,7 +887,7 @@ def submit_reviewer_initial_cod(
                     validate_coding_value_for_submission(va_sid, coding_value)
                 )
             except (LookupError, ValueError) as exc:
-                raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
+                raise ReviewerCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
         # One classification per save.
         if len(classifications) > 1:
             raise ReviewerCodingError(
@@ -907,7 +907,7 @@ def submit_reviewer_initial_cod(
             **doris_fields,
         )
     except (LookupError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 400, code="invalid_cod") from exc
+        raise ReviewerCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
     # Pending row: the in-place provenance edit is what gets inserted.
     record_final_cod_flags(
         reviewer_initial.icd11_provenance,

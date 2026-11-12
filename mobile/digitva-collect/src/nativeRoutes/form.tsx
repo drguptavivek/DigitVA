@@ -130,6 +130,7 @@ import {
 } from "../smartva/options";
 import { RefusalPanel } from "../RefusalPanel";
 import { isRefused, refusalAnswers } from "../refusalBoundary";
+import { useWhoNoConfirm } from "../useWhoNoConfirm";
 import { runInTransaction } from "../dbTransaction";
 import { ensureLocalSmartVa } from "../smartva/ensureLocal";
 
@@ -408,6 +409,19 @@ export default function Form() {
   const [refusalRecoveryAttempt, setRefusalRecoveryAttempt] = useState(0);
   const [refusalRecovered, setRefusalRecovered] = useState(false);
   const [confirmWhoGrant, setConfirmWhoGrant] = useState(false);
+  // True while the consent No is awaiting confirmation: the draft store drops a save that holds it (it would strip the draft).
+  const noHeld = useRef(false);
+  const whoNo = useWhoNoConfirm({
+    onConfirmed: () => {
+      noHeld.current = false;
+      setWhoRefused(true);
+      void controller.current?.saveDraft().catch((error: unknown) => setMessage(errorText(error)));
+    },
+    onReverted: () => {
+      noHeld.current = false;
+      void controller.current?.saveDraft().catch((error: unknown) => setMessage(errorText(error)));
+    },
+  });
   const [refusalAge, setRefusalAge] = useState("");
   const [refusalSex, setRefusalSex] = useState("");
   // "Delete draft": offered only while the draft was never sent; `deleted` stops any later autosave re-creating the row.
@@ -1040,6 +1054,7 @@ export default function Form() {
       ...store,
       save: (draft: Parameters<typeof store.save>[0]) => {
         if (deleted.current) return Promise.resolve(); // the draft was deleted: nothing may bring its row back
+        if (noHeld.current && draft.data.Id10013 === "no") return Promise.resolve(); // asking first
         if (loaded.accessVersion !== lockVersionRef.current) {
           return Promise.reject(new Error("interview_access_changed"));
         }
@@ -1461,6 +1476,7 @@ export default function Form() {
         onProblems={() => controller.current?.showProblems()}
         consentChip={consentChip}
       />
+      {whoNo.dialog}
       {confirmLeave ? (
         <ConfirmDialog
           title={t("leaveUnsavedTitle")}
@@ -1518,10 +1534,8 @@ export default function Form() {
           {...(serverProblems ? { serverProblems } : {})}
           onProblemsChange={setProblemCount}
           onChange={(data) => {
-            if (isRefused(data)) {
-              setWhoRefused(true);
-              void controller.current?.saveDraft().catch((error: unknown) => setMessage(errorText(error)));
-            }
+            if (isRefused(data)) noHeld.current = true; // before the autosave that follows this change
+            whoNo.onChange(data);
           }}
           autoSaveDraftOnChange
           onDraftController={(next) => {
@@ -1532,6 +1546,7 @@ export default function Form() {
           onReady={(next) => {
             if (loaded.accessVersion === lockVersionRef.current) {
               session.current = next;
+              whoNo.onReady(next);
               // A saved draft may hold covered answers from before the refusal: they are dropped, not sent.
               const held = next.getSnapshot().data;
               if (covered.some((name) => name in held)) {

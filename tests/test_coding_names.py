@@ -75,7 +75,12 @@ class CodingNamesTests(SelfCodingFixture, BaseTestCase):
     def test_submitter_without_pii_sees_nothing_when_not_self_coding(self):
         self._case("csc-mine", "Asha Rao", owner=self.submitter)
         self._set_project(self_coding_enabled=False)
-        self.assertEqual(self._names(self.submitter), {"csc-mine": None})
+        # Outside self-coding projects the submitter's own intake case is excluded from their
+        # coding pool (digitva-9xn9.22), so it is absent from the view; no name leaks either.
+        self.assertIn("csc-mine", self._names(self.other))
+        names = self._names(self.submitter)
+        self.assertNotIn("csc-mine", names)
+        self.assertNotIn("Asha Rao", names.values())
 
     def test_case_without_register_row_has_no_name(self):
         self._submission("csc-odk")

@@ -217,6 +217,23 @@ def _demo_recode_reset_message() -> str:
 # Internal helpers (no current_user — caller passes user explicitly)
 # ---------------------------------------------------------------------------
 
+def _own_collected_condition(user, va_sid_column=VaSubmissions.va_sid) -> sa.ColumnElement:
+    """*va_sid_column* is a case *user* submitted through web intake in a
+    project without self-coding: never theirs to code, from the pool or by
+    pick (coding-workflow-state-machine.md, "Self-coding"; owner 2026-11-12,
+    digitva-9xn9.22). Served by ``ix_va_web_intake_drafts_user_status``."""
+    return sa.exists().where(
+        VaWebIntakeDraft.va_sid == va_sid_column,
+        VaWebIntakeDraft.user_id == user.user_id,
+        VaWebIntakeDraft.status == "submitted",
+        VaWebIntakeDraft.project_id.in_(
+            sa.select(VaProjectMaster.project_id).where(
+                VaProjectMaster.self_coding_enabled.is_not(True)
+            )
+        ),
+    )
+
+
 def _available_submission_filters(form_ids, project_id=None, user=None):
     filters = [
         VaSubmissions.va_form_id.in_(form_ids),
@@ -234,6 +251,7 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
         # The coding scope: the same predicate require(CODE) answers for
         # one submission, so the pool never offers what pick refuses.
         filters.append(scope_filter(user, Action.CODE))
+        filters.append(sa.not_(_own_collected_condition(user)))
     if project_id:
         filters.append(
             VaSubmissions.va_form_id.in_(
@@ -996,6 +1014,12 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
         raise AllocationError(RETIRED_MESSAGE, 409)
     if is_confirmed_duplicate(va_sid):
         raise _excluded_error(va_sid)
+    if db.session.scalar(sa.select(_own_collected_condition(user, sa.literal(va_sid)))):
+        raise AllocationError(
+            "You cannot code a case you collected yourself in this project.",
+            403,
+            code="forbidden",
+        )
 
     # The pick list filters on the narration language; so does the pick (F16).
     languages = _normalized_vacode_languages(user)

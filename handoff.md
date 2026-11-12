@@ -30,20 +30,18 @@ contrast, Large text) and refrozen.
    closed for implementation). On staging check saved web audio after
    leaving and returning (`digitva-oll6`), and the sent read-only media view
    (`digitva-e621`). Hindi attachment and camera strings need owner review.
-4. Run-6 audit fixes (`digitva-9xn9`; reports in
-   `~/security-audit-skill/DigitVA/run-6/`, local only, the repo is public).
-   D1–D8 and security leads 1–3 landed and are not deployed. Next in order:
-   lead 4 (`.18`), D9–D13 (`.9`–`.13`), leads 5–7 (`.19`–`.21`), S3
-   presigned links (`.23`), then low items (`.14`). The owner decisions are
-   recorded on `.22`, and their policy baselines landed in `b4deba337`; the
-   code for them is not started (supervision PII, own-case coding block,
-   scoped user search with masking, station key fingerprint, lock-never-erase
-   on the station, consent "No" confirmation). Native Hindi review is needed
-   for the new phone strings `draftAttachmentMissing` and `draftNotSaved`.
-   Run-5 acceptance still open: a multi-project user's supervision views for
-   per-project PII. Keep the old-APK compatibility audit in the deploy
-   checklist. For the offline PHC station, run the packaged macOS security
-   acceptance with dummy data (`digitva-xt9y`).
+4. Run-6 audit (`digitva-9xn9`): everything except the low items landed
+   2026-11-12 and is not deployed (CHANGELOG). Before the next staging deploy,
+   run the new restore swap and staging backup checker once under
+   supervision (`digitva-rbj8`), and audit for old APKs: a changed coding now
+   gets a receipt instead of 409 `coding_conflict`, non-leaf ICD-11 codes get
+   422 `non_leaf_category`. Next: low items D14–D26 (`.14`), then unit-writer
+   phone (`digitva-8z9m`), standalone stale codings (`digitva-fowp`), Hindi
+   review of the new strings (`digitva-br3y`). Check on a phone: consent "No"
+   Cancel (verified on web), station key confirm and PIN lockout, offline
+   non-leaf child list. Run-5 acceptance still open: a multi-project user's
+   supervision views for per-project PII. For the offline PHC station, run
+   the packaged macOS security acceptance with dummy data (`digitva-xt9y`).
 5. On staging, by hand, refuse then re-consent a direct interview
    (`digitva-lgzl`); a DORIS cluster such as BD1Z shows the whole title
    (`digitva-iae8`); the other-interviewer banner names them.
@@ -69,11 +67,8 @@ contrast, Large text) and refrozen.
 
 - Send the WHO technical note (one `[OPEN]`: a WHO contact email).
 - Engine `tests/fixtures/doris_help_examples.json` provenance.
-- `digitva-9cll.14`: send the interview when offline coding is rejected?
-- `digitva-dn15`: ECT check refuses non-leaf categories?
-- Hindi strings: `digitva-ygo5`, `digitva-omqx`, `digitva-jt1w`.
 - WHO data files' duplicated sha256 values; CI as engine release source.
-- InterVA2022/InSilicoVA2022 experimental (`.tasks` note): needs a go.
+- InterVA2022/InSilicoVA2022 experimental (`.tasks` note): candidates, no go yet.
 - AI interview-quality checks are on hold (`docs/policy/ai-data-quality.md`,
   `digitva-qtmq` deferred).
 
@@ -90,12 +85,10 @@ contrast, Large text) and refrozen.
 
 ## Caveats
 
-- Full-suite noise: two DM KPI cache tests fail against an uncommitted
-  `dm_kpi_scope.py` edit (`digitva-mx6j`); six tests fail only under `-n 4`
-  (`digitva-6igh`).
-- `docs/current-state/expo-client.md` and `docs/policy/offline-phc-desktop-edition.md`
-  hold uncommitted desktop-station text that belongs with the uncommitted
-  `desktop/` changes; commit them together.
+- Full-suite noise: a few tests fail only under `-n 4` (`digitva-6igh`).
+- Still uncommitted from before 2026-11-12: public-demo config and docs,
+  `va_smartva_02_prepdata.py`, `smartva-analysis.md`, parity tooling,
+  `AGENTS.md`.
 - The previous staging deployment was `210ea326e`. Use the release runbook
   and owner approval for a rollback (`docs/current-state/release-process.md`).
 - `ios/` and `android/` are Collect Plus prebuilds. Plain Collect prebuilds

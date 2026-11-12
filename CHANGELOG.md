@@ -5,6 +5,26 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-12
 
+- **Run-6 audit fixes, second batch, and owner decisions** (not deployed):
+  - `ff0761757` (D11–D13, `.11`–`.13`): backup gate reads the newest row;
+    restore swaps in a scratch database; boot.sh stops on an unknown
+    revision; rollback runbooks corrected. Restore swap and staging checker
+    still need one supervised run (`digitva-rbj8`).
+  - `ff5f50eb0` (D9, lead 7, lead 12, desktop PIN; `.9`, `.21`, `.22`):
+    station keeps cases until their interview lands, confirms the server key
+    before pinning, locks and never erases on wrong PINs. Includes the
+    earlier desktop-station code.
+  - `efb539594` (leads 4–6, S3, D10; `.18`–`.20`, `.23`, `.10`; `.22`;
+    `digitva-9cll.14`; `digitva-dn15`; `digitva-mx6j`): WHO proxy path check,
+    CSV formula guard, ODK URL quoting, S3 inline allowlist, COD import
+    snapshot (migration `a9d3e6b1c4f8`); per-project PII in supervision,
+    own-case coding block, masked platform user search; consent "No"
+    confirmation; offline coding always sends the interview, stale and
+    recoded codings with history; non-leaf ICD-11 refused with a child list;
+    raw SmartVA input export, no BOM on SmartVA input; DM cache scoping.
+    Docs: `docs/policy/offline-api-contract.md`,
+    `docs/policy/dm-user-grant-management.md`,
+    `docs/policy/doris-cod-workflow.md`, `docs/policy/icd11-ect-production.md`.
 - **Run-6 audit fixes** (`digitva-9xn9`, not deployed):
   - `4fd66b8ba` (D1, `.1`): an ODK edit to a finalised case is re-fetched and
     held as `finalized_upstream_changed` in every sync path.

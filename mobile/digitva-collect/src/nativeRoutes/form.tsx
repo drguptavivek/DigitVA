@@ -394,6 +394,7 @@ export default function Form() {
   const [blockedReferenceData, setBlockedReferenceData] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const controller = useRef<WhoVaDraftController | undefined>(undefined);
+  const saveFailedRef = useRef(false);
   const session = useRef<WhoVaSession | undefined>(undefined);
   const loadGeneration = useRef(0);
   // Respondent consent (docs/policy/respondent-consent-notice-draft.md, "Phone flow"): the questionnaire opens
@@ -1293,10 +1294,19 @@ export default function Form() {
       : { pathname: "/worklist", params: { userId: account!.user_id, view: "interviews", filter: "drafts" } });
   }
 
+  /**
+   * The vendored saveDraft reports a store error through onDraftError and still resolves, so a rejection never
+   * comes: check the flag it sets. Cleared by the next successful save.
+   */
+  async function flushDraft() {
+    await controller.current?.saveDraft();
+    if (saveFailedRef.current) throw new Error("draft_save_failed");
+  }
+
   /** Flush first; a failed save asks before leaving so typed answers are never dropped silently. */
   async function leave() {
     try {
-      await controller.current?.saveDraft();
+      await flushDraft();
     } catch (error) {
       setSaveState("unsaved");
       setMessage(errorText(error));
@@ -1311,7 +1321,7 @@ export default function Form() {
   async function saveNow() {
     setSaveState("saving");
     try {
-      await controller.current?.saveDraft();
+      await flushDraft();
       setSaveState("saved");
       toast.show({ kind: "success", text: t("draftSaved") });
     } catch (error) {
@@ -1322,7 +1332,7 @@ export default function Form() {
 
   async function switchLocale(code: string) {
     try {
-      await controller.current?.saveDraft();
+      await flushDraft();
     } catch (error) {
       setMessage(errorText(error));
       return;
@@ -1370,7 +1380,7 @@ export default function Form() {
       return;
     }
     try {
-      await controller.current?.saveDraft();
+      await flushDraft();
       try {
         await recordDraftTimeline(loaded.db, draftId, "submit_started");
       } catch {
@@ -1384,7 +1394,11 @@ export default function Form() {
       await clearSendError(loaded.db, draftId);
     } catch (error) {
       // Stay on the form with the answers intact; say what went wrong (digitva-jish).
-      setMessage(error instanceof Error && error.message === "draft_conflict" ? t("formDraftConflict") : errorText(error));
+      setMessage(
+        error instanceof Error && error.message === "draft_conflict" ? t("formDraftConflict")
+          : error instanceof Error && error.message === "draft_save_failed" ? t("draftNotSaved")
+          : errorText(error),
+      );
       return;
     }
     leaveGuard.release();
@@ -1530,10 +1544,12 @@ export default function Form() {
           onDraftError={(error) => {
             // The failure code only (e.g. draft_conflict); describeError scrubs the rest, and answers never reach it.
             recordError(`draft ${describeError(error)}`);
+            saveFailedRef.current = true;
             setSaveState("unsaved");
             setMessage(t("errGeneric"));
           }}
           onDraftSaved={() => {
+            saveFailedRef.current = false;
             setSaveState("saved");
             if (typeof recordDraftMilestones === "function") {
               void recordDraftMilestones(

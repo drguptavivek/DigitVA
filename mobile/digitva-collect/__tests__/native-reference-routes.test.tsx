@@ -2155,6 +2155,61 @@ describe("immersive interview form", () => {
     );
     await act(async () => tree.unmount());
   });
+
+describe("a save the vendored form reports through onDraftError (it resolves, never rejects)", () => {
+  const answers = { valid: true, issues: [], data: { Id10013: "yes", Id10017: "A", Id10019: "male", Id10023: "2026-01-02" } };
+  // Mirrors create-who-va-form: the store error goes to onDraftError and saveDraft still resolves.
+  const failing = () => jest.fn(async () => { (mockFormProps.onDraftError as (e: Error) => void)(new Error("draft_conflict")); });
+  const mount = async (saveDraft: jest.Mock) => act(async () => {
+    (mockFormProps.onDraftController as (c: unknown) => void)({ saveDraft, showProblems: jest.fn() });
+    (mockFormProps.onReady as (s: unknown) => void)({ validate: jest.fn(), getSnapshot: () => ({ data: {} }) });
+  });
+
+  it("complete after a failed save does not mark the interview complete", async () => {
+    const tree = await open();
+    await mount(failing());
+    mockToast.mockClear();
+    await act(async () => { (mockFormProps.onComplete as (r: unknown) => void)(answers); });
+    await settle();
+    expect(jest.requireMock("../src/drafts").markCompleted).not.toHaveBeenCalled();
+    expect(mockToast).toHaveBeenCalledWith({ kind: "error", text: "draftNotSaved" });
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
+  it("leave after a failed save asks before leaving", async () => {
+    const tree = await open();
+    await mount(failing());
+    mockRouter.back.mockClear();
+    await act(async () => { mockHardwareBack(); });
+    await settle();
+    expect(mockRouter.back).not.toHaveBeenCalled();
+    expect(mockConfirmProps).toMatchObject({ title: "leaveUnsavedTitle", cancelLabel: "stay" });
+    await act(async () => tree.unmount());
+  });
+
+  it("Save now after a failed save does not say saved", async () => {
+    const tree = await open();
+    await mount(failing());
+    mockToast.mockClear();
+    await choose(tree, "saveNow");
+    await settle();
+    expect(mockToast).not.toHaveBeenCalledWith({ kind: "success", text: "draftSaved" });
+    await act(async () => tree.unmount());
+  });
+
+  it("complete works again after a later save succeeds", async () => {
+    const tree = await open();
+    const saveDraft = failing();
+    await mount(saveDraft);
+    saveDraft.mockImplementation(async () => { (mockFormProps.onDraftSaved as () => void)(); });
+    jest.requireMock("../src/drafts").markCompleted.mockClear();
+    await act(async () => { (mockFormProps.onComplete as (r: unknown) => void)(answers); });
+    await settle();
+    expect(jest.requireMock("../src/drafts").markCompleted).toHaveBeenCalledTimes(1);
+    await act(async () => tree.unmount());
+  });
+});
 });
 
 describe("respondent consent in the interview form", () => {

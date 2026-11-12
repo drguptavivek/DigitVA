@@ -2099,5 +2099,6 @@
   "queueCaseNumber": "Case {number}",
   "detailsChip": "details: {code}",
   "detailsChipLabel": "Details {code}: tap to copy or share",
-  "releaseCaseNamed": "Releasing {name}."
+  "releaseCaseNamed": "Releasing {name}.",
+  "draftNotSaved": "Your latest answers could not be saved. They are still on this screen. Try again."
 }

@@ -831,6 +831,13 @@ its README). Screens use these components instead of their own styles.
   ignored, the stepper's secondary control is tinted, the Sections drawer
   has a title and 48 dp rows, and the required asterisk follows a
   no-break space.
+- Phone form saves (digitva-9xn9.8): the vendored form's `saveDraft` resolves
+  even when the store refuses the save and reports it through `onDraftError`.
+  `src/nativeRoutes/form.tsx` keeps a `saveFailedRef` (set there, cleared by
+  `onDraftSaved`) and `flushDraft` throws after a save that set it, so Back
+  asks "Not saved" before leaving, Save now does not say "saved", language
+  switch stays, and Finish stays on the form with "draftNotSaved" instead of
+  completing the older stored copy.
 
 ## Document photos: scanner, blur check, photo viewer (digitva-lq5m)
 

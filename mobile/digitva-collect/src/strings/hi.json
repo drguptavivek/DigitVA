@@ -2099,5 +2099,6 @@
   "queueCaseNumber": "मामला {number}",
   "detailsChip": "विवरण: {code}",
   "detailsChipLabel": "विवरण {code}: कॉपी या साझा करने के लिए दबाएँ",
-  "releaseCaseNamed": "{name} छोड़ा जा रहा है।"
+  "releaseCaseNamed": "{name} छोड़ा जा रहा है।",
+  "draftNotSaved": "आपके नवीनतम उत्तर सहेजे नहीं जा सके। वे अभी भी इस स्क्रीन पर हैं। फिर से प्रयास करें।"
 }

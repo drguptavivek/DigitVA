@@ -5,7 +5,7 @@
 import { DatabaseSync } from "node:sqlite";
 
 import type { WhoVaDraft } from "@drguptavivek/who-2022-va";
-import { saveDraftConsent, type StoredConsent } from "../src/consentStore";
+import { consentForDraft, saveDraftConsent, type StoredConsent } from "../src/consentStore";
 import { recordDraftTimeline } from "../src/draftSync";
 import { draftAttachments, saveAttachment } from "../src/attachmentStore";
 
@@ -205,6 +205,19 @@ describe("draft store", () => {
     expect(saved.completedAt).toBeDefined();
     expect(saved.data).toEqual({ Id10007: "final" });
     expect((await getDraftRow(db, "late"))?.completed).toBe(1);
+  });
+
+  it("keeps a standalone draft's consent, prefill and early answers across a reopen (digitva-qlhq, digitva-m3i5)", async () => {
+    const host = { projectId: "STANDALONE1", siteId: "STANDALONE", binding: { projectId: "STANDALONE1", prefill: { answers: { Id10010: "Asha" }, lockedQuestionNames: ["Id10010"] } } };
+    const first = createDraftStore(db, host);
+    await saveDraftConsent(db, "reopen", { envelope: { decision: "granted" }, project_id: "STANDALONE1", covered_fields: [], recorded_by: "u" } as unknown as StoredConsent);
+    await first.save(draft("reopen", "2026-09-30T01:00:00Z", { Id10010: "Asha", Id10002: "high", Id10013: "yes" }));
+    await first.save(draft("reopen", "2026-09-30T02:00:00Z", { Id10010: "Asha", Id10002: "high", Id10013: "yes", Id10017: "Later" }));
+    // A new store on the same database is what the form builds when it reopens the draft.
+    const reopened = createDraftStore(db, host);
+    expect((await reopened.load!("reopen"))!.data).toEqual({ Id10010: "Asha", Id10002: "high", Id10013: "yes", Id10017: "Later" });
+    expect((await consentForDraft(db, { id: "reopen" }))?.own).toBe(true);
+    expect(await getDraftPrefill(db, "reopen")).toEqual(host.binding.prefill);
   });
 
   it("retains imported language metadata and lets the active form update it", async () => {

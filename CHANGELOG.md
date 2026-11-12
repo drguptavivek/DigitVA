@@ -3,6 +3,11 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-12
+
+- **Staging deploy `22a9fca67`** (previous `210ea326e`): the COD reset
+  dialog says WHO_2022_VA_2026 resets to the WHO baseline.
+
 ## 2026-11-11
 
 - **Staging deploy `210ea326e`** (previous `73a14cba4`), migrations at head

@@ -3,8 +3,7 @@
 ## Start here
 
 Continue fully offline DORIS coding in Collect Plus (`digitva-9cll`). The
-10 Nov deployment record lists staging at `73a14cba4`, hosting Collect and
-Collect Plus 0.3.20. Verify the installed build and enrollment before device
+staging runs `22a9fca67` (12 Nov), hosting Collect and Collect Plus 0.3.20. Verify the installed build and enrollment before device
 acceptance. Preserve shared checkout edits, including the iOS and SmartVA
 work, parity tooling, manuscript files and Play assets. WHO notes, parity
 runs and phone measurements live in `private/`.
@@ -84,7 +83,7 @@ contrast, Large text) and refrozen.
 
 ## Caveats
 
-- The previous staging deployment was `9464fa016`. Use the release runbook
+- The previous staging deployment was `210ea326e`. Use the release runbook
   and owner approval for a rollback (`docs/current-state/release-process.md`).
 - `ios/` and `android/` are Collect Plus prebuilds. Plain Collect prebuilds
   are untracked in `ios.plain-bak/` and `android.plain-bak/`.

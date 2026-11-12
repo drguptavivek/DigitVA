@@ -3,7 +3,7 @@ title: Test Project TST001 (Intake Test)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-07
+last_updated: 2026-11-12
 ---
 
 # Test Project TST001 (Intake Test)
@@ -129,6 +129,28 @@ the landing page and the unit-placed worker is SC01 ANM. It also holds
 project-scope `coder` and `reviewer` grants in SADEMO (classical, sites, random allocation; dev only),
 written by the seed directly because the user import is organization-only.
 The SADEMO grant is skipped when that project does not exist.
+
+## E2E users (Maestro runs)
+
+Phones allow three live devices per account, so Maestro runs use throwaway
+accounts instead of the roster above (debug or testing app only; there is no
+staging opt-in):
+
+- `flask seed e2e-users create` needs TST001 (`flask seed test-project`). It
+  creates `e2e.<run>.all`, `e2e.<run>.interviewer` and `e2e.<run>.coder`
+  `@digitva.test`: `all` holds coder, reviewer and data_manager at project
+  scope, death_reporter and interviewer at SC01 (ANM) and interview_supervisor
+  at PHC01 (MO); `interviewer` is SC01 CHO; `coder` is project scope. Grants go
+  through the project user import and `grants.log`, actor testadmin. One random
+  password per run is written only to `private/e2e-users.json` (gitignored,
+  mode 0600, `--out` to change); stdout shows the emails and the file path.
+- `flask seed e2e-users teardown [--run <id>] [--older-than-hours N]` revokes
+  every unrevoked device any matched account has a session on
+  (`device_auth_service.revoke_device`, actor testadmin, reason
+  `e2e_teardown`), bumps the session version (ends web and device sessions)
+  and deactivates the accounts. Rows and their work stay. Idempotent.
+  Revoking a device ends every session on it, including a non-e2e account
+  signed in on the same phone.
 
 ## make test-projects
 

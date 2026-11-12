@@ -729,5 +729,180 @@ def _log_test_project_grants(audit, actor_user_id) -> None:
         )
 
 
+#: (role key, landing_page, unit_code, cadre_code, roles) for one e2e run on
+#: TST001. "all" mirrors test.all; the unit rows need a cadre the grid permits.
+_E2E_ROSTER = (
+    ("all", "coder", None, None, ("coder", "reviewer", "data_manager")),
+    ("all", "coder", "SC01", "ANM", ("death_reporter", "interviewer")),
+    ("all", "coder", "PHC01", "MO", ("interview_supervisor",)),
+    ("interviewer", "intake", "SC01", "CHO", ("interviewer",)),
+    ("coder", "coder", None, None, ("coder",)),
+)
+_E2E_DOMAIN = "digitva.test"
+
+
+def _e2e_email(run_id: str, key: str) -> str:
+    return f"e2e.{run_id}.{key}@{_E2E_DOMAIN}"
+
+
+def _e2e_default_out() -> str:
+    from flask import current_app
+
+    return os.path.join(os.path.dirname(current_app.root_path), "private", "e2e-users.json")
+
+
+def _require_dev_app(command: str) -> None:
+    """Refuse anything but a debug or testing app (no staging opt-in)."""
+    from flask import current_app
+
+    if not (current_app.debug or current_app.testing):
+        raise click.ClickException(
+            f"e2e-users {command} manages throwaway test accounts; it runs only on a debug or testing app."
+        )
+
+
+@seed_group.group("e2e-users")
+def e2e_users_group():
+    """Throwaway TST001 accounts for one Maestro run (dev/test only)."""
+
+
+@e2e_users_group.command("create")
+@click.option("--out", "out_path", default=None, help="Credentials file (default private/e2e-users.json).")
+def e2e_users_create(out_path):
+    """Create a fresh e2e user set on TST001 and write its credentials to a local file.
+
+    Each run gets new emails (e2e.<run>.<role>@digitva.test) and one random
+    password, so phones never hit the per-user device cap. Grants go through
+    the project user import and grants.log like `seed test-project`. Only
+    emails and the file path are printed; the password lives only in the file.
+    """
+    import json
+    from datetime import UTC, datetime
+
+    from app.models import MasCadre, VaProjectMaster, VaUsers
+    from app.services import organization_service as org
+    from app.services import project_user_import_service as user_import
+
+    _require_dev_app("create")
+    if db.session.get(VaProjectMaster, TEST_PROJECT_ID) is None:
+        raise click.ClickException(f"{TEST_PROJECT_ID} missing; run `flask seed test-project` first.")
+    _seed_admin()
+    actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
+    run_id = datetime.now(UTC).strftime("%y%m%d%H%M") + secrets.token_hex(2)
+    password = secrets.token_urlsafe(18)
+    emails = {}
+    try:
+        for key, landing, *_ in _E2E_ROSTER:
+            if key in emails:
+                continue
+            user = VaUsers(
+                user_id=uuid.uuid4(),
+                name=f"E2E {run_id} {key}",
+                email=_e2e_email(run_id, key),
+                vacode_language=["english"],
+                vacode_formcount=0,
+                permission={},
+                landing_page=landing,
+                timezone="Asia/Kolkata",
+                pw_reset_t_and_c=True,
+                email_verified=True,
+                other=creation_other("seed"),
+            )
+            user.set_password(password)
+            db.session.add(user)
+            emails[key] = user.email
+        db.session.flush()
+        # Workers: the person-holds-cadre-at-unit record the unit grants pair with.
+        for key, _landing, unit_code, cadre_code, _roles in _E2E_ROSTER:
+            if unit_code is None:
+                continue
+            unit = org.find_unit_by_code(TEST_PROJECT_ID, unit_code)
+            cadre = db.session.scalar(sa.select(MasCadre).where(
+                MasCadre.project_id == TEST_PROJECT_ID, MasCadre.cadre_code == cadre_code,
+            ))
+            if unit is None or cadre is None:
+                raise click.ClickException(f"{TEST_PROJECT_ID} lacks {unit_code}/{cadre_code}; rerun `flask seed test-project`.")
+            org.create_worker(
+                TEST_PROJECT_ID, org_unit_id=unit.org_unit_id, cadre_id=cadre.cadre_id,
+                worker_name=f"E2E {run_id} {key}",
+                worker_code=f"E2E_{run_id}_{key[:3]}_{unit_code}".upper(), user=emails[key],
+            )
+        rows = [
+            {"_line_number": n, "email": emails[key], "name": "", "role": role,
+             "org_unit_code": unit_code or "", "cadre_code": cadre_code or "",
+             "language_codes": "", "phone": ""}
+            for n, (key, role, unit_code, cadre_code) in enumerate(
+                ((k, r, u, c) for k, _l, u, c, roles in _E2E_ROSTER for r in roles), start=1
+            )
+        ]
+        plan = user_import.prepare(TEST_PROJECT_ID, rows, actor=actor)
+        _new, audit, _codes = user_import.apply(TEST_PROJECT_ID, plan, actor_user_id=actor.user_id)
+    except (org.OrganizationError, user_import.ProjectUserImportError, ValueError) as exc:
+        db.session.rollback()
+        raise click.ClickException(f"{TEST_PROJECT_ID}: {exc}")
+    db.session.commit()
+    _log_test_project_grants(audit, actor.user_id)
+
+    out_path = out_path or _e2e_default_out()
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        json.dump({"run_id": run_id, "project_id": TEST_PROJECT_ID, "password": password,
+                   "users": emails}, fh, indent=2)
+    click.echo(f"  run        {run_id}")
+    for key, email in emails.items():
+        click.echo(f"  {key:10s} {email}")
+    click.echo(f"  grants     {len(audit)} written")
+    click.echo(f"  file       {out_path}")
+
+
+@e2e_users_group.command("teardown")
+@click.option("--run", "run_id", default=None, help="Only this run id (default: every e2e run).")
+@click.option("--older-than-hours", type=click.FloatRange(min=0), default=None,
+              help="Only accounts created more than N hours ago.")
+def e2e_users_teardown(run_id, older_than_hours):
+    """Revoke the devices, end the sessions and deactivate e2e accounts.
+
+    Devices are revoked through device_auth_service.revoke_device with the
+    seeded admin as actor (audited). Rows are kept, so work the accounts made
+    stays. Idempotent: a rerun finds nothing active and changes nothing.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from app.models import AuthDevice, AuthDeviceSession, VaStatuses, VaUsers
+    from app.services import device_auth_service
+
+    _require_dev_app("teardown")
+    if run_id is not None and not run_id.isalnum():
+        raise click.ClickException("--run must be the alphanumeric run id `create` printed.")
+    _seed_admin()
+    actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
+    pattern = f"e2e.{run_id or '%'}.%@{_E2E_DOMAIN}"
+    query = sa.select(VaUsers).where(VaUsers.email.like(pattern))
+    if older_than_hours is not None:
+        query = query.where(VaUsers.user_created_at < datetime.now(UTC) - timedelta(hours=older_than_hours))
+    users = db.session.scalars(query).all()
+    user_ids = [u.user_id for u in users]
+    devices = db.session.scalars(
+        sa.select(AuthDevice).where(
+            AuthDevice.revoked_at.is_(None),
+            AuthDevice.device_id.in_(
+                sa.select(AuthDeviceSession.device_id).where(AuthDeviceSession.user_id.in_(user_ids))
+            ),
+        )
+    ).all() if user_ids else []
+    ended = sum(device_auth_service.revoke_device(d, actor=actor, reason="e2e_teardown") for d in devices)
+    deactivated = 0
+    for user in users:
+        if user.user_status != VaStatuses.deactive:
+            user.user_status = VaStatuses.deactive
+            user.bump_session_version()  # ends web sessions and remember cookies
+            deactivated += 1
+    db.session.commit()
+    click.echo(f"  matched    {len(users)} e2e account(s)")
+    click.echo(f"  devices    {len(devices)} revoked, {ended} session(s) ended")
+    click.echo(f"  users      {deactivated} deactivated")
+
+
 def init_app(app):
     app.cli.add_command(seed_group)

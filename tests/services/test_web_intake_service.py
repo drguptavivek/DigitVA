@@ -676,6 +676,23 @@ class WebIntakeServiceTests(BaseTestCase):
         self.assertEqual(rows["device"]["Id10021"], "x")  # an answer it never saved is kept
         self.assertNotIn("Id10020", intake_svc.load_draft_envelope(draft)["data"])
 
+    def test_a_first_browser_save_with_an_explicit_null_clears_the_phones_value(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        intake_svc.save_draft_sections(
+            draft, sections={intake_svc.DEVICE_SECTION: {"Id10019": "female", "Id10020": "1999"}}
+        )
+        rows = {r.section_name: r.data for r in draft.sections}
+        self.assertEqual(rows["device"]["Id10020"], "1999")  # subject present before it is cleared
+
+        # The browser never saved the section; it clears Id10020 by sending null.
+        intake_svc.save_draft_sections(draft, sections={"background": {"Id10019": "female", "Id10020": None}})
+
+        rows = {r.section_name: r.data for r in draft.sections}
+        self.assertNotIn("Id10020", rows["device"])
+        self.assertIsNone(intake_svc.load_draft_envelope(draft)["data"].get("Id10020"))
+
     def test_coding_timeline_is_separate_bounded_and_first_event_wins(self):
         draft = intake_svc.start_draft(
             self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID

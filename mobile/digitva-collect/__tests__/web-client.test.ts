@@ -647,7 +647,7 @@ describe("server draft store", () => {
         const body = JSON.parse(String(init.body));
         patches.push(body.sections);
         if (Object.hasOwn(body.sections, "s1"))
-          savedData = { ...body.sections.s1 };
+          savedData = Object.fromEntries(Object.entries(body.sections.s1).filter(([, v]) => v !== null));
         return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } });
       }
       return response({
@@ -670,12 +670,45 @@ describe("server draft store", () => {
     const pending = store.save(cleared);
     await store.flush();
     await pending;
-    expect(patches).toEqual([{ s1: {} }]);
+    expect(patches).toEqual([{ s1: { Id10007: null } }]);
     expect((await store.load("d1"))?.data).toEqual({});
     const repeated = store.save(cleared);
     await store.flush();
     await repeated;
     expect(patches).toHaveLength(1);
+  });
+
+  it("sends an explicit null for a loaded answer the browser clears, and none for keys never loaded (digitva-k00b)", async () => {
+    const patches: Record<string, unknown>[] = [];
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+      if (init?.method === "PATCH") {
+        patches.push(JSON.parse(String(init.body)).sections);
+        return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z" } } });
+      }
+      return response({
+        status: 200,
+        body: {
+          draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
+          envelope: { ...draft, data: { Id10007: "phone", Id10008: "kept" } },
+          prefill: {},
+        },
+      });
+    });
+    const store = new ServerDraftStore({
+      endpoint: "/api/v1/intake/drafts",
+      csrf,
+      sectionOf: new Map([["Id10007", "s1"], ["Id10008", "s1"], ["Id10009", "s1"]]),
+    });
+    const loaded = await store.load("d1");
+    const pending = store.save({ ...loaded!, data: { Id10008: "kept", Id10009: "new" } });
+    await store.flush();
+    await pending;
+    expect(patches).toEqual([{ s1: { Id10008: "kept", Id10009: "new", Id10007: null } }]);
+    // Sent once: the next save of the section does not repeat the null.
+    const next = store.save({ ...loaded!, data: { Id10008: "kept", Id10009: "newer" } });
+    await store.flush();
+    await next;
+    expect(patches[1]).toEqual({ s1: { Id10008: "kept", Id10009: "newer" } });
   });
 
   it("keeps the prefill for the form's own load after the pin-only write (digitva-k7m4)", async () => {

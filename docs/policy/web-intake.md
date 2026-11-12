@@ -887,10 +887,13 @@ are never restored. Phones and older clients see the same status codes and
 reply shapes; the new fields are additive.
 
 The Android app's side of the sync is built
-(`mobile/digitva-collect/src/draftSync.ts`). Not built (`digitva-xz83`): a
-browser answer the interviewer *clears* after a phone win comes back
-from the phone's copy on reload (cleared answers are absent from a browser
-section, so the phone's old value is not removed).
+(`mobile/digitva-collect/src/draftSync.ts`). A browser answer the interviewer
+*clears* after a phone win is removed from the phone's copy (`digitva-k00b`):
+the web client sends an explicit null for each answer present in the loaded
+draft and now absent, once, and the server treats a null key like any key the
+browser saved, so the device row loses it. Keys never loaded are not sent.
+Older clients omit the key and keep the earlier behaviour (only keys the
+browser had saved in that section beat the phone's copy).
 
 ### Supervisors
 

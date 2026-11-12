@@ -84,6 +84,11 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private locale?: string;
   private translationVersion?: number;
   private baseline: BaselineMap = {};
+  // Answers present in the loaded draft that a save has not yet cleared: a
+  // cleared one goes out as an explicit null, because the server cannot tell
+  // a cleared question from one never asked (a phone-won draft's copy would
+  // come back, digitva-k00b).
+  private loadedAnswerKeys = new Set<string>();
   // Saved answers to questions this form does not ask (a draft moved to a
   // newer form). The form never sees them, so every save carries them back,
   // in the section splitBySection gives unknown names.
@@ -230,6 +235,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.baselineDefinitionPin = savedPin;
     this.retained = Object.fromEntries(Object.entries(savedData).filter(([name]) => !this.sectionOf.has(name)));
     this.retainedUnwritten = Object.keys(this.retained).length > 0;
+    this.loadedAnswerKeys = new Set(Object.keys(savedData).filter((name) => this.sectionOf.has(name)));
     this.baseline = Object.fromEntries(
       // Keep the server's raw answers as the baseline. Defaults newly added
       // by the host prefill must be emitted on the next save, while saved
@@ -440,6 +446,15 @@ export class ServerDraftStore implements WhoVaDraftStore {
     if (this.retainedUnwritten && Object.keys(changed).length > 0) {
       changed[RETAINED_SECTION] = sections[RETAINED_SECTION] ?? {};
     }
+    // Explicit nulls for loaded answers now absent; the baseline stays null-free.
+    const wire: SectionMap = {};
+    for (const [name, answers] of Object.entries(changed)) {
+      const nulls: Record<string, null> = {};
+      for (const key of this.loadedAnswerKeys) {
+        if (this.sectionOf.get(key) === name && (answers[key] === undefined || answers[key] === null)) nulls[key] = null;
+      }
+      wire[name] = { ...answers, ...nulls };
+    }
     const metadataChanged = this.locale !== this.baselineLocale ||
       this.translationVersion !== this.baselineTranslationVersion ||
       !sameOptionalDefinitionPin(this.definitionPin, this.baselineDefinitionPin) ||
@@ -452,7 +467,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
       method: "PATCH",
       csrf: this.csrf,
       json: {
-        sections: changed,
+        sections: wire,
         ...(draft.currentSection ? { current_section: draft.currentSection } : {}),
         if_updated_at: overwrite ?? this.serverUpdatedAt,
         ...(overwrite ? { overwrite: true } : {}),
@@ -486,6 +501,9 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.serverUpdatedAt = acknowledgement.draft.updated_at;
     if (!options?.isPinOnly && !this.pending) forgetKeptDraft(draft.id);
     for (const [name, answers] of Object.entries(changed)) this.baseline[name] = serialise(answers);
+    for (const answers of Object.values(wire)) {
+      for (const [key, value] of Object.entries(answers)) if (value === null) this.loadedAnswerKeys.delete(key);
+    }
     if (Object.hasOwn(changed, RETAINED_SECTION)) this.retainedUnwritten = false;
     this.lastSection = draft.currentSection;
     this.baselineLocale = this.locale;

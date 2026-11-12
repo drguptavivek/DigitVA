@@ -279,8 +279,22 @@ if ! docker compose exec -T "$DB_SERVICE" sh -lc \
 fi
 
 echo "==> Swapping: '$POSTGRES_DB' -> '$OLD_DB', '$SCRATCH_DB' -> '$POSTGRES_DB'"
-docker compose exec -T "$DB_SERVICE" sh -lc \
-  "$PSQL_ADMIN -c 'ALTER DATABASE \"$POSTGRES_DB\" RENAME TO \"$OLD_DB\"' -c 'ALTER DATABASE \"$SCRATCH_DB\" RENAME TO \"$POSTGRES_DB\"'"
+# The rename fails while anything is connected, and the earlier connection check
+# can be stale by now (a container restarting, a stray client). Stop new
+# connections, terminate the rest, rename; reopen the old database afterwards.
+if ! docker compose exec -T "$DB_SERVICE" sh -lc \
+  "$PSQL_ADMIN \
+    -c 'ALTER DATABASE \"$POSTGRES_DB\" ALLOW_CONNECTIONS false' \
+    -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$POSTGRES_DB' AND pid <> pg_backend_pid()\" \
+    -c 'ALTER DATABASE \"$POSTGRES_DB\" RENAME TO \"$OLD_DB\"' \
+    -c 'ALTER DATABASE \"$SCRATCH_DB\" RENAME TO \"$POSTGRES_DB\"' \
+    -c 'ALTER DATABASE \"$OLD_DB\" ALLOW_CONNECTIONS true'"; then
+  docker compose exec -T "$DB_SERVICE" sh -lc \
+    "$PSQL_ADMIN -c 'ALTER DATABASE \"$POSTGRES_DB\" ALLOW_CONNECTIONS true'; \
+     PGPASSWORD='$POSTGRES_PASSWORD' dropdb -U '$POSTGRES_USER' --if-exists '$SCRATCH_DB'; rm -f '$CONTAINER_DUMP'" || true
+  echo "ERROR: the swap failed. '$POSTGRES_DB' is unchanged and the scratch database was dropped."
+  exit 1
+fi
 echo "Previous database kept as '$OLD_DB'. Drop it once the restore is confirmed good:"
 echo "  docker compose exec $DB_SERVICE dropdb -U $POSTGRES_USER $OLD_DB"
 

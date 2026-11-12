@@ -11,12 +11,11 @@ appId: com.causeofdeathindia.digitvacollect.plus
     file: unlock.yaml
 # A previous flow may have left a form open: leave it (header Back arrow).
 - tapOn:
-    text: "Back"
-    index: 0
+    id: "header-back"
     optional: true
 - waitForAnimationToEnd
 - tapOn:
-    text: "Home"
+    id: "tab-home"
     optional: true
 - assertVisible:
     id: "home-counts"

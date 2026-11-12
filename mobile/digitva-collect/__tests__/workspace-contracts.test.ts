@@ -75,6 +75,17 @@ describe("offline station coding fields", () => {
     expect(() => parseCoderHistory(page([{ ...row, server_status: "pending", server_code: 5 }]), 50, 0)).toThrow(WorkspaceContractError);
   });
 
+  it("keeps needs_recode only when the server sends true", () => {
+    const parsed = parseCoderHistory(page([
+      { ...row, needs_recode: true },
+      { ...row, va_sid: "VA-2", needs_recode: false },
+      { ...row, va_sid: "VA-3", needs_recode: "yes" },
+      { ...row, va_sid: "VA-4" },
+    ]), 50, 0).history;
+    expect(parsed[0].needs_recode).toBe(true);
+    expect(parsed.slice(1).every((item) => !("needs_recode" in item))).toBe(true);
+  });
+
   it("reads station_coding_disabled only when true", () => {
     const base = { projects: [], project_options: [], last_project_id: null };
     expect(parseCoderProjects({ ...base, station_coding_disabled: true }).station_coding_disabled).toBe(true);

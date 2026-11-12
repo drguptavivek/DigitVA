@@ -343,6 +343,8 @@ export interface CoderHistoryCase {
   server_status?: "pending" | "refused" | null;
   /** The server's reason code for `server_status` (e.g. `doris_pending`, `coding_mode_mismatch`). */
   server_code?: string | null;
+  /** The case's ODK data changed after this coding: code it again with the new data (additive, digitva-knu2). */
+  needs_recode?: boolean;
 }
 
 export interface CoderHistory {
@@ -776,6 +778,7 @@ function coderHistoryCase(value: unknown, field: string): CoderHistoryCase {
     va_coding_date: string(source.va_coding_date, `${field}.va_coding_date`),
     va_code_status: string(source.va_code_status, `${field}.va_code_status`),
     recodeable: boolean(source.recodeable, `${field}.recodeable`),
+    ...(source.needs_recode === true ? { needs_recode: true } : {}),
     ...(source.recode_until !== undefined ? { recode_until: nullableString(source.recode_until, `${field}.recode_until`) } : {}),
     ...(source.server_status === "pending" || source.server_status === "refused"
       ? { server_status: source.server_status, server_code: nullableString(source.server_code ?? null, `${field}.server_code`) }

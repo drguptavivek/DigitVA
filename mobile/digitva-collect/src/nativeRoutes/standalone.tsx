@@ -156,12 +156,12 @@ export default function StandaloneHome() {
       {records.length > 0 && shown.length === 0 ? <Text style={styles.muted}>{t(tabInfo.empty)}</Text> : null}
       {shown.map((record) => {
         const sex = sexLabel(record.sex);
-        const title = [record.name || record.id, record.age_years === null ? "" : t("metaAgeYears", { value: record.age_years }), sex].filter(Boolean).join(" · ");
+        const title = [record.name || t("untitledInterview"), record.age_years === null ? "" : t("metaAgeYears", { value: record.age_years }), sex].filter(Boolean).join(" · ");
         return (
         <View key={record.id} style={[styles.card, { gap: 8 }]}>
-          {/* The name line is the title; the UUID (still selectable) is the title itself when nothing is answered yet. */}
+          {/* The name line is the title ("Untitled interview" until a name is read, as on the Interviews list); the UUID stays selectable below it. */}
           <Text style={styles.text}>{title}</Text>
-          {record.name ? <Text style={styles.muted} selectable>{record.id}</Text> : null}
+          <Text style={styles.muted} selectable>{record.id}</Text>
           <Text style={styles.muted}>
             {/* The tab already names the state, so the row gives only its time. */}
             {record.completed

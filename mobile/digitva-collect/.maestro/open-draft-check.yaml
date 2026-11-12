@@ -18,9 +18,8 @@ appId: com.causeofdeathindia.digitvacollect.plus
     id: "question-Id10007a-choice-female"
     selected: true
 - tapOn:
-    text: "Back"
-    index: 0
+    id: "header-back"
 - waitForAnimationToEnd
 - tapOn:
-    text: "Home"
+    id: "tab-home"
     optional: true

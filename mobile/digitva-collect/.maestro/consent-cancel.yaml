@@ -29,11 +29,10 @@ appId: com.causeofdeathindia.digitvacollect.plus
     selected: true
 # Leave the form (Back arrow, top-left) and reopen the new draft.
 - tapOn:
-    text: "Back"
-    index: 0
+    id: "header-back"
 - waitForAnimationToEnd
 - tapOn:
-    text: "Home"
+    id: "tab-home"
     optional: true
 - runFlow: drafts-count.yaml
 - assertTrue: ${output.drafts == output.before + 1}

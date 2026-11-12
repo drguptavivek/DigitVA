@@ -94,7 +94,7 @@ export function FormTopBar({
   const state = t(SAVE_LABEL[saveState]);
   return (
     <View style={{ height: label ? BAR_HEIGHT_WITH_LABEL : BAR_HEIGHT, flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xs, gap: spacing.xs, borderBottomWidth: 1, borderColor: ui.border, backgroundColor: ui.background }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={t("back")} disabled={disabled} onPress={onBack} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
+      <Pressable testID="header-back" accessibilityRole="button" accessibilityLabel={t("back")} disabled={disabled} onPress={onBack} style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}>
         <Chevron expanded={false} direction="left" />
       </Pressable>
       <View style={{ flex: 1, minWidth: 0 }}>

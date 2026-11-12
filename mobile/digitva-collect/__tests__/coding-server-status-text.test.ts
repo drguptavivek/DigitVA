@@ -14,4 +14,9 @@ describe("codingServerStatusText", () => {
   it("tells the coder to code again with new data when the interview changed after coding", () => {
     expect(codingServerStatusText({ server_status: "refused", server_code: "coded_version_superseded" })).toBe(en.codingStaleRecode);
   });
+  it("shows the recode notice when the server flags an upstream change on a case the phone never coded", () => {
+    expect(codingServerStatusText({ needs_recode: true })).toBe(en.codingStaleRecode);
+    expect(codingServerStatusText({ needs_recode: false })).toBeNull();
+    expect(codingServerStatusText({})).toBeNull();
+  });
 });

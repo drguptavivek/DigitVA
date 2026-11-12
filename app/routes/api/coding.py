@@ -46,6 +46,7 @@ from app.services.coder_dashboard_service import (
     get_coder_output_summary,
     get_coder_project_options,
     get_coder_recodeable_sids,
+    set_needs_recode,
     set_recode_until,
     last_allocated_project_id,
 )
@@ -725,7 +726,8 @@ def history():
 
     Each row carries ``recode_until`` (tz-aware ISO, or null): when the
     coder's recode window on a final coding ends, counted from their first
-    final of the case (``set_recode_until``).
+    final of the case (``set_recode_until``), and ``needs_recode`` (bool):
+    the case's ODK data changed since coding, code it again (``set_needs_recode``).
 
     Without ``limit``: the whole list, ``{history, count}`` (the web
     dashboard). With ``limit`` (1..200) and optional ``offset`` (>= 0): one
@@ -756,10 +758,12 @@ def history():
     for row in rows:
         row["recodeable"] = row["va_sid"] in recodeable_sids
     set_recode_until(rows, current_user.user_id)
+    set_needs_recode(rows)
     demo_rows = get_coder_demo_history(current_user.user_id, va_user_timezone_name(current_user))
     for row in demo_rows:
         row["recodeable"] = False
         row["recode_until"] = None
+        row["needs_recode"] = False
     rows = [*demo_rows, *rows]
     if project_id:
         rows = [row for row in rows if row["project_id"] == project_id]

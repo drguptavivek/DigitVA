@@ -23,7 +23,6 @@ appId: com.causeofdeathindia.digitvacollect.plus
 - inputText: ${PIN.charAt(5)}
 - waitForAnimationToEnd
 - tapOn:
-    text: "Unlock"
-    index: 1
+    id: "unlock-submit"
 - waitForAnimationToEnd
 - assertNotVisible: "Enter your PIN to unlock this phone."

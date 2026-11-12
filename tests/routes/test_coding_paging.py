@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
 )
 from tests.base import BaseTestCase
@@ -413,7 +414,8 @@ class CodingPagingTests(BaseTestCase):
                 "va_sid", "va_uniqueid_masked", "va_deceased_age",
                 "va_deceased_gender", "va_coding_date", "va_code_status",
                 # recode_until: additive, digitva-yeg3.2.
-                "is_tester", "recodeable", "recode_until",
+                # needs_recode: additive, digitva-knu2.
+                "is_tester", "recodeable", "recode_until", "needs_recode",
             },
         )
         self.assertEqual(
@@ -447,6 +449,24 @@ class CodingPagingTests(BaseTestCase):
             self.assertEqual([bool(r.get("is_demo")) for r in rows], [True, True] + [False] * 8)
             dates = [r["va_coding_date"] for r in real]
             self.assertEqual(dates, sorted(dates, reverse=True))
+
+    def test_history_needs_recode_only_after_an_upstream_change(self):
+        workflow = db.session.scalar(sa.select(VaSubmissionWorkflow).filter_by(va_sid="hist-c-0"))
+        whole = self._get("/api/v1/coding/history").get_json()["history"]
+        self.assertTrue(whole)
+        self.assertFalse(any(r["needs_recode"] for r in whole))
+        workflow.workflow_state = WORKFLOW_FINALIZED_UPSTREAM_CHANGED
+        db.session.flush()
+        try:
+            whole = self._get("/api/v1/coding/history").get_json()["history"]
+            paged = [r for b in self._pages("/api/v1/coding/history", "history", 3) for r in b["history"]]
+            for rows in (whole, paged):
+                flagged = {r["va_sid"] for r in rows if r["needs_recode"]}
+                self.assertEqual(flagged, {"hist-c-0"})
+                self.assertTrue(all(r["needs_recode"] is False for r in rows if r.get("is_demo")))
+        finally:
+            workflow.workflow_state = WORKFLOW_CODER_FINALIZED
+            db.session.flush()
 
     def test_history_page_order_is_deterministic_across_ties(self):
         first = [

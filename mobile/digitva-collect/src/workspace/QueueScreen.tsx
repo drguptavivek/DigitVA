@@ -142,9 +142,11 @@ function formatQueueDate(raw: string | null | undefined): string {
 
 /**
  * The offline station's line for a coded case the server has answered: held ("waiting for the
- * server's DORIS") or refused with a plain reason per code. Null when there is nothing to say.
+ * server's DORIS") or refused with a plain reason per code, or the recode notice when the server
+ * says the interview data changed after coding (`needs_recode`). Null when there is nothing to say.
  */
-export function codingServerStatusText(item: Pick<CoderHistoryCase, "server_status" | "server_code">): string | null {
+export function codingServerStatusText(item: Pick<CoderHistoryCase, "server_status" | "server_code" | "needs_recode">): string | null {
+  if (item.needs_recode) return t("codingStaleRecode");
   if (item.server_status === "pending") return t("codingServerPending");
   if (item.server_status !== "refused") return null;
   const code = item.server_code ?? "";

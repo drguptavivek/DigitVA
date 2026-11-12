@@ -38,6 +38,7 @@ jest.mock("../src/standalone/records", () => ({
   listStandaloneRecords: jest.fn(async () => [
     { ...baseRecord, id: "draft-1", name: "Ravi Kumar", age_years: 30, sex: "male" },
     { ...baseRecord, id: "p-1", completed: true, name: "Sita Devi", age_years: 41, sex: "female" },
+    { ...baseRecord, id: "0ef144e3-eb3f-48fb-839f-84187165790a", completed: true },
   ]),
   lastBackupAt: jest.fn(async () => new Date().toISOString()),
 }));
@@ -80,6 +81,9 @@ describe("standalone Interviews view", () => {
     expect(tree.root.findByType("main").props["data-title"]).toBe("tabInterviews");
     expect(out).toContain("Sita Devi · 41 y · Female");
     expect(out).toContain("standaloneCoded (0)");
+    // A record with no name read is "Untitled interview", never its UUID as the title (digitva-egr0).
+    expect(out).toContain("untitledInterview");
+    expect(out).toContain("0ef144e3-eb3f-48fb-839f-84187165790a");
     expect(out).not.toContain("standaloneNewInterview");
     expect(out).not.toContain("standaloneClockNotice");
     expect(out).not.toContain("settings");

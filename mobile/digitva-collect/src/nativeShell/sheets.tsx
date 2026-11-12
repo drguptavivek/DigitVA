@@ -91,9 +91,9 @@ export function AccountSheet() {
       </Card>
       {/* Actions, not navigation: no chevrons. Sign out keeps the encrypted data (digitva-dxgj), so it is ink, not red. */}
       <Card grouped style={{ marginTop: spacing.md }}>
-        <ListRow icon={icons.lock} label={t("lockNow")} chevron={false} disabled={!userId || !isUnlocked(userId)} onPress={go(() => void lockNow())} />
+        <ListRow testID="account-lock-now" icon={icons.lock} label={t("lockNow")} chevron={false} disabled={!userId || !isUnlocked(userId)} onPress={go(() => void lockNow())} />
         <Separator icon />
-        <ListRow icon={icons.switchUser} label={t("switchInterviewer")} chevron={false} onPress={go(() => void lockNow().then((locked) => (locked ? router.replace("/") : lockFailed())))} />
+        <ListRow testID="account-switch-profile" icon={icons.switchUser} label={t("switchInterviewer")} chevron={false} onPress={go(() => void lockNow().then((locked) => (locked ? router.replace("/") : lockFailed())))} />
         <Separator icon />
         <ListRow icon={icons.signOut} label={t("signOut")} chevron={false} disabled={!userId} onPress={go(() => userId && void confirmSignOut(userId, () => void doSignOut()))} />
       </Card>

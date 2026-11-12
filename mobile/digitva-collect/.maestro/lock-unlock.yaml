@@ -10,16 +10,16 @@ appId: com.causeofdeathindia.digitvacollect.plus
 - tapOn:
     id: "question-Id10013-choice-yes"
 - tapOn:
-    text: "Back"
-    index: 0
+    id: "header-back"
 - waitForAnimationToEnd
 - tapOn:
-    text: "Home"
+    id: "tab-home"
     optional: true
 - runFlow: drafts-count.yaml
 - evalScript: ${output.before = output.drafts}
 - tapOn: "Account"
-- tapOn: "Lock now"
+- tapOn:
+    id: "account-lock-now"
 - assertVisible: "Profiles on this phone"
 - tapOn: "Test ALL, Locked"
 - runFlow: unlock.yaml

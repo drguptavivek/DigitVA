@@ -28,6 +28,7 @@ from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
+    WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
     WORKFLOW_NOT_CODEABLE_BY_CODER,
 )
 from app.utils import va_local_date, va_render_serialisedates, va_user_timezone_name
@@ -424,8 +425,10 @@ def get_coder_history_page(
         for item in real_rows:
             item["recodeable"] = item["va_sid"] in recodeable
         set_recode_until(real_rows, user.user_id)
+        set_needs_recode(real_rows)
     for row in rows:
         row["recode_until"] = None
+        row["needs_recode"] = False
     rows.extend(real_rows)
     return rows[:limit], len(rows) > limit
 
@@ -467,6 +470,27 @@ def set_recode_until(rows: list[dict], user_id) -> None:
             # Stored as naive UTC.
             coded_at = coded_at.replace(tzinfo=timezone.utc)
         row["recode_until"] = (coded_at + window).isoformat()
+
+
+def set_needs_recode(rows: list[dict]) -> None:
+    """Set ``needs_recode`` on history rows: the case's ODK data changed after coding.
+
+    True while the submission is ``finalized_upstream_changed``: the coding was
+    made on answers that are no longer current, so the case must be coded
+    again with the new data (a phone that holds no coding for it learns it
+    here). One query for the rows' sids; additive, old clients ignore it.
+    """
+    sids = {row["va_sid"] for row in rows}
+    changed = set(
+        db.session.scalars(
+            sa.select(VaSubmissionWorkflow.va_sid).where(
+                VaSubmissionWorkflow.va_sid.in_(sids),
+                VaSubmissionWorkflow.workflow_state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
+            )
+        )
+    ) if sids else set()
+    for row in rows:
+        row["needs_recode"] = row["va_sid"] in changed
 
 
 def get_coder_demo_history(user_id, tz_name: str = "Asia/Kolkata") -> list[dict]:

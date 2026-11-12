@@ -317,7 +317,7 @@ export default function Unlock() {
           ) : error ? <Notice tone="error">{error}</Notice> : null}
         </View>
         <View testID="unlock-actions" style={{ gap: spacing.sm, marginTop: longPin || error || locked ? 0 : linkOffsetBelow(spacing.lg) - spacing.lg }}>
-          <Button label={t("unlock")} disabled={busy || locked || pin.length < PIN_BOXES} onPress={() => void tryPin(pin)} />
+          <Button testID="unlock-submit" label={t("unlock")} disabled={busy || locked || pin.length < PIN_BOXES} onPress={() => void tryPin(pin)} />
           {biometric ? (
             <Button kind="secondary" label={biometricText("biometricEnable", bioKind)} disabled={busy || locked} onPress={() => void tryBiometric()} />
           ) : null}

@@ -152,7 +152,7 @@ function HeaderBar() {
       <View style={{ minHeight: HEADER_HEIGHT, flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingLeft: spacing.sm, paddingRight: spacing.xxs }}>
         {back ? (
           <>
-            <Pressable accessibilityRole="button" accessibilityLabel={t("back")} onPress={goBack} style={{ width: 48, height: 48, marginLeft: -spacing.sm, alignItems: "center", justifyContent: "center" }}>
+            <Pressable testID="header-back" accessibilityRole="button" accessibilityLabel={t("back")} onPress={goBack} style={{ width: 48, height: 48, marginLeft: -spacing.sm, alignItems: "center", justifyContent: "center" }}>
               <Icon name={icons.back} color={tokens.primary} size={22} />
             </Pressable>
             {/* The screen's title (Screen publishes it); one line, shrinking so the sync chip and account stay on the bar. */}
@@ -248,6 +248,7 @@ function TabBar() {
         return (
           <Pressable
             key={tab.key}
+            testID={`tab-${tab.key}`}
             accessibilityRole="tab"
             accessibilityLabel={badge ? `${t(tab.labelKey)}, ${t("syncChipUnsent", { count: badge })}` : t(tab.labelKey)}
             accessibilityState={{ selected: on }}

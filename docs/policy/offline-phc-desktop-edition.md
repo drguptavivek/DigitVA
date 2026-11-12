@@ -3,7 +3,7 @@ title: Offline PHC Desktop Edition Policy
 doc_type: policy
 status: active
 owner: Vivek Gupta
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # Offline PHC Desktop Edition Policy
@@ -18,8 +18,9 @@ The **DigitVA Field / PHC Edition** enables health workers and Medical Officers 
 
 1. **Station Onboarding, Custodian, and Signed Station Config (`digitva-bundle` & `digitva-db`)**:
    - Real fieldwork is ingestable only from an **onboarded** station with a verified **custodian** (`{name, designation, phone, email, onboarded_on, verified_by_user_id}`) and an admin-signed two-line `.station-config` file (`b"digitva-station-config-v1\x00" || line1`).
+   - **Server signing key pinning** (owner, 2026-11-12, `digitva-9xn9.22`): on the first station-config import the station shows the server signing key fingerprint and pins the key only after the operator confirms it matches the fingerprint shown on the server's admin page. Later configs must verify against the pinned key.
    - An unprovisioned standalone installation operates strictly as a **local sandbox** (`project_id = 1`, `PHC-STANDALONE`): sandbox data is local-only, never exported as a `.dvb` bundle, and never remapped into a server project.
-   - Station roster (`death_reporter`, `interviewer`, `station_supervisor`, `coder`): editable in the standalone sandbox, read-only on a provisioned station (using integer server `user_id`s). A `station_supervisor` role is a roster-level role (never in `/api/v1/me/access`) issued by the server only to a user holding an `interview_supervisor` grant at that site. Every record carries `actor_user_id` and `acting_role`.
+   - Station roster (`death_reporter`, `interviewer`, `station_supervisor`, `coder`): editable in the standalone sandbox, read-only on a provisioned station (using integer server `user_id`s). A `station_supervisor` role is a roster-level role (never in `/api/v1/me/access`) issued by the server only to a user holding an `interview_supervisor` grant at that site. Every record carries `actor_user_id` and `acting_role`. Switching the acting member on a provisioned station needs no server-side PIN (owner, 2026-11-12, `digitva-9xn9.22`): the PIN is an idle lock and UI step on a shared workstation, not a server credential.
 
 2. **Registration-Time DPDP Consent, Identifiers, and Aadhaar Reduction (`digitva-text`, `digitva-db`, `mobile/digitva-collect`)**:
    - **DPDP Consent at Registration**: Respondent consent is captured at death registration (`client_draft_id: null`) before any informant personal data (`informant_name`, `informant_phone`, `informant_phone_2`, `address*`) is saved. The interview reuses the case's granted registration consent and re-asks only when the informant is a different person (`client_draft_id` set). Provisioned projects never fall back to hardcoded notices, purposes, or contacts.
@@ -44,7 +45,7 @@ The **DigitVA Field / PHC Edition** enables health workers and Medical Officers 
    - Deterministic A4 WHO Medical Certificate of Cause of Death (MCCD) PDF generation (`desktop/crates/digitva-pdf`) printed normally **without** a provisional watermark.
 
 6. **Data Protection, SQLCipher Per-User Stores & Sealed `.dvb` Bundles (`digitva-pii`, `digitva-bundle`, `digitva-db`, `digitva-server`)**:
-   - **SQLCipher (`bundled-sqlcipher`)**: Local database encrypted at rest using a 256-bit key derived via `HKDF-SHA256` from the OS keystore secret + roster user ID + user PIN (6–16 ASCII digits). Enforces inactivity auto-lock; wrong PINs lock the user out with a growing wait (after 5 free tries: 1, 5, 15, 60 minutes) and a password sign-in resets the PIN without losing data, as the phone does (field-data-collection "Wrong PINs and PIN reset").
+   - **SQLCipher (`bundled-sqlcipher`)**: Local database encrypted at rest using a 256-bit key derived via `HKDF-SHA256` from the OS keystore secret + roster user ID + user PIN (6–16 ASCII digits). Enforces inactivity auto-lock; wrong PINs lock the user out with a growing wait (after 5 free tries: 1, 5, 15, 60 minutes) and a password sign-in resets the PIN without losing data; no number of wrong PINs erases anything and unexported work is never deleted, as on the phone (field-data-collection "Wrong PINs and PIN reset"; owner, 2026-11-12, `digitva-9xn9.22`).
    - **PII Envelope (`digitva-pii`)**: Implements [pii-envelope-format.md](../from-server/2026-10-21/policy/pii-envelope-format.md) (`v1:aes256gcm+mlkem768x25519:` DEK wrapping to the server's public key only, `v1:aes256gcm:` value sealing with `record_aad`, and HKDF/HMAC blind indexing).
    - **`.dvb` Bundle Transfer (`digitva-bundle`)**: Writes line-oriented `.dvb` files (JCS manifest line, Ed25519 `b"digitva-bundle-v1\x00"` signature line, and AEAD-sealed record lines in canonical order) and verifies signed server receipts (`b"digitva-receipt-v1\x00"`), deleting local records only upon matching receipt acknowledgement (`received_sha256` verified for interviews).
    - **Loopback Server (`digitva-server`)**: Binds `127.0.0.1` only, requires a constant-time per-launch 256-bit bearer token on every `/api/v1/*` route (GETs included), validates `Host` and `Origin` against DNS rebinding, sends `Cache-Control: no-store` on every reply, and emits zero CORS headers.

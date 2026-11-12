@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-07
+last_updated: 2026-11-12
 ---
 
 # Web Intake Policy
@@ -86,7 +86,10 @@ submission enters the workflow. Plan:
   package's draft envelope is stored as metadata plus one JSON row per
   questionnaire section. The page sends only the sections whose answers
   changed. Each interviewer edits only their own draft; a death may have
-  several (see "Parallel interviews").
+  several (see "Parallel interviews"). Removing an interviewer's grant for the
+  draft's project, site or unit does not close an in-flight browser draft: the
+  interviewer may still read, edit and submit it (owner, 2026-11-12,
+  `digitva-9xn9.22`).
 - **Prefill contract** (`web_intake_service._prefill_from_death`): the
   package's `createWhoVaInitialDataFromPrefill` (`vendor/who-va-2022/src/
   prefill.ts`) throws if both `deceased.dateOfDeath` and `deceased.
@@ -957,9 +960,17 @@ section, so the phone's old value is not removed).
   as all unit grants do. Confirmed (owner, 2026-09-30, item 17): the
   `interview_supervisor` grant alone gives the supervisor views of that reach,
   with no interviewer grant needed.
-- **Privacy rule (item 14).** Supervisors see identifiers (deceased name,
-  informant name and phones, address) **only in the worklist and
-  case-administration views**. Coding screens keep their existing PII redaction
+- **Privacy rule (item 14; owner, 2026-11-12, `digitva-9xn9.22`).** Supervisor
+  views follow the per-project PII rule of the unified case list ([Access Control
+  Model](access-control-model.md), rule 4). Inside the organization tree, unit
+  grants carry PII; project-scope and site-scope PI and data manager grants, and
+  mentoring-institute members, do not. A caller sees identifiers (deceased name,
+  registrant, starter and interviewer names, informant name and phones,
+  address) on a case only where they hold a PII grant in that case's project.
+  Elsewhere the supervision list, case detail, supervisor action replies and
+  candidate interviewer names redact them. A mentoring-institute data manager
+  who needs PII gets an additional `data_manager` unit grant in the
+  organization. Coding screens keep their existing PII redaction
   (`should_redact_pii`) unchanged: an `interview_supervisor` grant does not lift
   redaction anywhere else.
 - **Audit (item 14).** Every supervisor action's audit row names the grant and

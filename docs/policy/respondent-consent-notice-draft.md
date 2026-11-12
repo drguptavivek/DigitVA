@@ -3,7 +3,7 @@ title: Respondent Consent Notice, Draft Text
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-05
+last_updated: 2026-11-12
 ---
 
 # Respondent Consent Notice, Draft Text
@@ -165,7 +165,11 @@ WHO decision when supplied, the broad `refusal_age_group` and `refusal_sex`,
 and essential consent and system audit metadata may be retained. Names,
 identifiers, exact demographic details, clinical answers, narratives,
 attachments, visit notes and coding are excluded. An explicit subsequent
-grant permits an unsent draft to resume; removed answers remain empty. Historic
+grant permits an unsent draft to resume; removed answers remain empty. When the respondent
+answers "No" in the middle of an interview, the app asks one confirmation
+("Delete this interview?" style) before the draft, its files and its history are
+wiped; declining the prompt keeps the interview as it was (owner, 2026-11-12,
+`digitva-9xn9.22`). The outcome after confirming is unchanged. Historic
 lawfully finalised submissions are not changed; withdrawal is separate.
 
 **Later agreement and shared cases (owner 2026-10-29, `digitva-hs7e.15.2`).**

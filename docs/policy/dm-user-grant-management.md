@@ -3,7 +3,7 @@ title: Data-Manager User and Grant Management Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-06
+last_updated: 2026-11-12
 ---
 
 # Data-Manager User and Grant Management Policy
@@ -204,10 +204,20 @@ Data-managers may search users (up to 25 results) and open per-user details.
 Who they find depends on their grants:
 
 - a project or project-site writer (`data_manager` at project or site scope,
-  `project_pi`) and an admin search every account, as before;
+  `project_pi`) and an admin search the whole platform by partial email or
+  phone, so they can find an existing account and avoid creating a duplicate
+  (owner, 2026-11-12, `digitva-9xn9.22`). Users within the caller's own
+  project, site or unit scope come back with full email and phone. Users
+  outside it come back with name, user id and masked email and phone (for
+  example `vi***@gmail.com`, `******4321`), enough to spot a duplicate and
+  grant access, and with no landing page or job title;
 - a unit writer (a `data_manager` at a unit, an In-charge) finds and opens
   only the holders of grants it may manage and the staff of mentoring
-  institutes attached to districts it covers, with no contact details.
+  institutes attached to districts it covers. Holders of grants within the
+  caller's own units come back with full email and phone, which the caller
+  needs to manage them (owner, 2026-11-12, `digitva-9xn9.22`). Mentoring-
+  institute staff come back with no contact details. Anyone outside that
+  reach is found only through the exact email or mobile lookup below.
 
 **Find by exact email or mobile, then add (digitva-i0zb).** A unit writer who needs
 to grant someone with an existing account outside its area types that

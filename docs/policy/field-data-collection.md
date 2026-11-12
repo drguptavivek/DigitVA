@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-07
+last_updated: 2026-11-12
 ---
 
 # Field Data Collection Policy
@@ -358,7 +358,8 @@ supersedes the collection-only UI restriction in `digitva-cpx5`). Both APK
 variants offer the existing online coding queue and shared case workspace to
 signed-in users with coding access. The server remains authoritative for every
 case and preserves the self-collected-case restriction outside self-coding
-projects. Plus adds local coding only under the same-project self-coding and
+projects: a coder is never allocated, from the random pool or by pick, a case
+they submitted themselves (server-enforced; owner 2026-11-12, `digitva-9xn9.22`). Plus adds local coding only under the same-project self-coding and
 coder permission rule below. Review access has the same online reach in both variants
 (see the Review tab below); offline review stays Plus-only. No separate app identifier or account migration is needed.
 

@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # Coding Workflow State Machine Policy
@@ -816,7 +816,10 @@ That means:
 Owner decision 2026-10-05, `digitva-xuxk`. In a self-coding project (project
 setting `self_coding_enabled`; see [Web Intake
 Policy](web-intake.md), "Self-coding projects") a coder may interview and then
-code their own case. This adds no workflow state and no new pool rule.
+code their own case. This adds no workflow state. Outside a self-coding
+project a coder is never allocated, from the random pool or by pick, a case
+they themselves submitted through intake; the server enforces this (owner,
+2026-11-12, `digitva-9xn9.22`).
 
 - **Normal path.** The case goes through attachment sync, `smartva_pending`,
   SmartVA on completion and `ready_for_coding` as any web or device case, and

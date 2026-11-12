@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-12
 ---
 
 # Organization Model Policy
@@ -761,8 +761,11 @@ grant list shows those mentor grants. A
 data manager who holds only unit-scope grants finds people through the
 user search, which returns only active staff of active institutes attached to
 a district they cover, with id, name, email, status and institute code (no
-phone or landing page); platform and project-level data managers keep the
-full search, and may open only the accounts their search returns. Both
+phone or landing page), plus holders of grants within their own units with
+full email and phone (owner, 2026-11-12, `digitva-9xn9.22`); platform and project-level data managers keep the
+full search (out-of-scope users appear with masked email and phone; see
+[Data-Manager User and Grant Management Policy](dm-user-grant-management.md),
+"User listing"), and may open only the accounts their search returns. Both
 searches return at most 25 people, report `truncated: true` when more matched
 (the page says so), and match the query as a literal substring.
 

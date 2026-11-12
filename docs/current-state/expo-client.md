@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-08
+last_updated: 2026-11-12
 ---
 
 # Expo Client Hosting And Access
@@ -1101,7 +1101,10 @@ the device while unenrolled.
   engine results, and the case's workflow events are served from the local store. Enrol this phone sits in Settings > Account;
   an unlocked standalone account's Settings > "Export and backup" holds Export my records, Back up this phone and
   Restore from a backup (`src/standalone/DataActions.tsx`). The home re-reads the last backup time on every focus,
-  so a backup made in Settings clears the reminder.
+  so a backup made in Settings clears the reminder. Consent lives in the `meta` table (`consent:draft:<id>`,
+  `standaloneConsent:<id>`), so backup and restore copy those rows plus `draft-config:<id>` for each restored draft
+  (an enrolled backup keeps only the unsent drafts' rows), and the export reads consent from `meta`; the old
+  `consent_records` table is no longer written or read (`digitva-9xn9.3`).
 - **Offline coding** (route `/offline-coding`, `src/nativeRoutes/offlineCoding.native.tsx`;
   reached from the "Local cases" row of the coding case lists, `src/ui/CodingCaseChips.tsx`,
   shown on the Collect Plus home and worklist, or from a standalone record's "Code" or "View"

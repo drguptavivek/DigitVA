@@ -60,7 +60,9 @@ jest.mock("expo-document-picker", () => ({}));
 jest.mock("../src/ConfirmDialog", () => ({}));
 
 import { backupAndShare, BackupError, MIN_PASSPHRASE_LENGTH, passphraseValid, restoreBackup } from "../src/standalone/backup";
-import { initConsentTables } from "../src/consent";
+import { initConsentTables, type ConsentRecordEnvelope } from "../src/consent";
+import { saveDraftConsent, type StoredConsent } from "../src/consentStore";
+import { getStandaloneConsent, saveStandaloneConsent } from "../src/standaloneConsentStore";
 import { migrate, getMeta, type Db } from "../src/drafts";
 import { backupReminder } from "../src/standalone/age";
 import { buildExport, collectRecords, dataActionsAllowed, exportAndShare, toCsv } from "../src/standalone/export";
@@ -134,9 +136,14 @@ async function seeded(userId: string): Promise<Db> {
   await initConsentTables(db);
   await insertDraft(db, userId, "d1", { Id10017: "Asha", Id10018: "Rao", Id10019: "female", Id10007: "=cmd()" });
   await insertDraft(db, "42", "server-1", { Id10019: "male" });
-  await db.runAsync(
-    `INSERT INTO consent_records (client_id, project_id, client_draft_id, notice_version_id, notice_language, notice_sha256, decision, purposes_json, mode, recorded_by, recorded_at)
-     VALUES ('c1', ?, 'd1', 'v1', 'en', 'abc', 'granted', '[]', 'verbal', 'u', '2026-09-30T08:01:00Z')`, [userId]);
+  const envelope: ConsentRecordEnvelope = {
+    client_id: "c1", client_draft_id: "d1", notice_version_id: "v1", notice_language: "en", notice_sha256: "abc", decision: "granted",
+    purposes: [], mode: "spoken", witness_present: false, supersedes_client_id: null, recorded_at: "2026-09-30T08:01:00Z",
+  };
+  // Consent is written the way the app writes it: to `meta`, never to consent_records.
+  await saveStandaloneConsent(db, "d1", { envelope, notice_text: "the notice the respondent saw", bundle_version: "b1", bundle_sha256: "bbb" });
+  await saveDraftConsent(db, "d1", { envelope, project_id: userId, covered_fields: [], recorded_by: "u" } as StoredConsent);
+  await db.runAsync("INSERT INTO meta (key, value) VALUES ('draft-config:d1', '{\"smartva\":1}')", []);
   await db.runAsync(
     `INSERT INTO offline_coding (client_draft_id, certificate, process_token, status, ucod_code, device_uuid, created_at, updated_at)
      VALUES ('d1', 'Asha Rao died of fever', 'tok', 'coded', 'A41', 'dev-1', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z')`, []);
@@ -297,7 +304,9 @@ describe("encrypted backup", () => {
     expect(result).toEqual({ restored: 1, skipped: 0 });
     expect(await target.getAllAsync("SELECT id, project_id FROM drafts", [])).toEqual([{ id: "d1", project_id: USER_B }]);
     expect(await target.getAllAsync("SELECT client_draft_id, ucod_code FROM offline_coding", [])).toEqual([{ client_draft_id: "d1", ucod_code: "A41" }]);
-    expect(await target.getAllAsync("SELECT project_id FROM consent_records", [])).toEqual([{ project_id: USER_B }]);
+    expect(await getStandaloneConsent(target, "d1")).toMatchObject({ notice_text: "the notice the respondent saw", envelope: { decision: "granted", notice_sha256: "abc" } });
+    expect(await getMeta(target, "consent:draft:d1")).toMatchObject({ envelope: { decision: "granted" } });
+    expect(await getMeta(target, "draft-config:d1")).toEqual({ smartva: 1 });
     expect(fs.existsSync(uri.replace("file://", ""))).toBe(false); // the picked copy is deleted
   });
 
@@ -385,6 +394,8 @@ describe("encrypted backup", () => {
       expect(await target.getAllAsync("SELECT id FROM drafts ORDER BY id", [])).toEqual([{ id: "d1" }, { id: "server-1" }]);
       expect(await target.getAllAsync("SELECT project_id FROM drafts WHERE id = 'server-1'", [])).toEqual([{ project_id: "42" }]); // not re-pointed
       expect(await target.getAllAsync("SELECT key FROM meta WHERE key = 'secret-token'", [])).toEqual([]);
+      expect(await getMeta(target, "consent:draft:d1")).toMatchObject({ envelope: { decision: "granted" } }); // consent travels with the unsent draft
+      expect(await getStandaloneConsent(target, "d1")).toMatchObject({ notice_text: "the notice the respondent saw" });
       expect(await target.getAllAsync("SELECT death_id FROM cases", [])).toEqual([]);
       expect(await target.getFirstAsync("SELECT value FROM meta WHERE key = ?", [LAST_BACKUP_META_KEY])).toBeNull();
     });
@@ -404,6 +415,26 @@ describe("encrypted backup", () => {
       await insertDraft(target, "42", "d1", { Id10019: "local" }, "2026-09-01T00:00:00Z");
       expect(await restoreBackup(target, "42", uri, PASS)).toEqual({ restored: 1, skipped: 1 });
       expect(JSON.stringify(await target.getAllAsync("SELECT envelope FROM drafts WHERE id = 'd1'", []))).toContain("local");
+    });
+
+    it("keeps the phone's own consent for a draft the backup also holds", async () => {
+      const uri = await enrolledBackup(await enrolledStore());
+      const target = cipherDb();
+      await migrate(target);
+      await initConsentTables(target);
+      await insertDraft(target, "42", "d1", { Id10019: "local" }, "2026-09-01T00:00:00Z");
+      const local: ConsentRecordEnvelope = {
+        client_id: "c-local", client_draft_id: "d1", notice_version_id: "v2", notice_language: "en", notice_sha256: "local", decision: "granted",
+        purposes: [], mode: "spoken", witness_present: false, supersedes_client_id: null, recorded_at: "2026-10-05T08:00:00Z",
+      };
+      await saveStandaloneConsent(target, "d1", { envelope: local, notice_text: "the phone's own notice", bundle_version: "b2", bundle_sha256: "ccc" });
+      await saveDraftConsent(target, "d1", { envelope: local, project_id: "42", covered_fields: [], recorded_by: "u" } as StoredConsent);
+
+      expect(await restoreBackup(target, "42", uri, PASS)).toEqual({ restored: 1, skipped: 1 });
+      expect(await getStandaloneConsent(target, "d1")).toMatchObject({ notice_text: "the phone's own notice" });
+      expect(await getMeta(target, "consent:draft:d1")).toMatchObject({ envelope: { client_id: "c-local" } });
+      // The restored draft (server-1) has no consent in the backup; the backup's d1 consent did not leak onto it.
+      expect(await getMeta(target, "consent:draft:server-1")).toBeUndefined();
     });
   });
 });

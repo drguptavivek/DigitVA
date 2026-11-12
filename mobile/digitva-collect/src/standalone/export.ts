@@ -8,6 +8,7 @@ import type { Account } from "../auth";
 import type { Db } from "../drafts";
 import { removeFile } from "../mediaFiles";
 import { cacheFile, shareAndDelete } from "./shareFile";
+import { getStandaloneConsent } from "../standaloneConsentStore";
 import { PII_FIELD_IDS } from "./pii";
 import { isStandaloneId, standaloneProjectId } from "./project";
 
@@ -31,7 +32,6 @@ export interface ExportRecord {
   coding: Row | null;
 }
 
-const CONSENT_COLUMNS = "client_draft_id, decision, purposes_json, notice_version_id, notice_language, notice_sha256, mode, witness_present, recorded_at";
 const CODING_COLUMNS = "client_draft_id, status, ucod_code, ucod_uri, result, provenance, device_uuid, process_token, certificate_digest, result_digest, coder_profile_updated_at, created_at, updated_at";
 
 const marks = (n: number) => Array(n).fill("?").join(",");
@@ -45,7 +45,18 @@ async function byDraft(db: Db, sql: string, ids: string[]): Promise<Map<string, 
   return out;
 }
 
-/** Read the account's records, 200 at a time by id (keyset), with consent and coding joined per page. */
+/** The draft's consent from `meta` (the only place it is written), shaped as the export's consent columns. */
+async function consentRows(db: Db, draftId: string): Promise<Row[]> {
+  const record = await getStandaloneConsent(db, draftId);
+  if (!record) return [];
+  const e = record.envelope;
+  return [{
+    client_draft_id: draftId, decision: e.decision, purposes_json: JSON.stringify(e.purposes), notice_version_id: e.notice_version_id,
+    notice_language: e.notice_language, notice_sha256: e.notice_sha256, mode: e.mode, witness_present: e.witness_present ? 1 : 0, recorded_at: e.recorded_at,
+  }];
+}
+
+/** Read the account's records, 200 at a time by id (keyset), with coding joined per page. */
 export async function collectRecords(db: Db, userId: string, omitIdentifiers = true): Promise<ExportRecord[]> {
   if (!isStandaloneId(userId)) throw new Error("export_standalone_only");
   const projectId = standaloneProjectId(userId);
@@ -58,7 +69,6 @@ export async function collectRecords(db: Db, userId: string, omitIdentifiers = t
     );
     if (page.length === 0) break;
     const ids = page.map((r) => r.id);
-    const consent = await byDraft(db, `SELECT ${CONSENT_COLUMNS} FROM consent_records WHERE project_id = ? AND client_draft_id IN (${marks(ids.length)}) ORDER BY recorded_at`, [projectId, ...ids]);
     const coding = await byDraft(db, `SELECT ${CODING_COLUMNS} FROM offline_coding WHERE client_draft_id IN (${marks(ids.length)})`, ids);
     for (const row of page) {
       const envelope = JSON.parse(row.envelope) as { startedAt?: string; completedAt?: string; data?: Record<string, unknown> };
@@ -71,7 +81,7 @@ export async function collectRecords(db: Db, userId: string, omitIdentifiers = t
         completed_at: envelope.completedAt ?? null,
         updated_at: row.updated_at,
         answers,
-        consent: consent.get(row.id) ?? [],
+        consent: await consentRows(db, row.id),
         coding: code,
       });
     }

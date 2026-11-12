@@ -13,7 +13,7 @@
  * confirms overwriting; newer local records need that confirmation. Rows are re-pointed to this account's project.
  *
  * Enrolled (server-connected) accounts get the same file, but only for UNSENT work: after the export the backup's
- * copy is pruned to drafts, their attachments, offline coding and consent records (every row left in the live store
+ * copy is pruned to drafts, their attachments, offline coding, consent records and the drafts' consent/config `meta` rows (every row left in the live store
  * is unsent, because the server's acknowledgement deletes the draft), so downloaded cases, queues, meta and the
  * error log never leave the phone. The header names the account (`source_account_id`). Restore there needs the same
  * account, only ever adds rows (an existing id is kept, never overwritten) and does not re-point project ids. The
@@ -48,6 +48,13 @@ export const passphraseValid = (passphrase: string) => passphrase.length >= MIN_
 const RESTORE_TABLES = ["drafts", "attachments", "offline_coding", "consent_records"] as const;
 /** What an enrolled backup keeps: unsent work only. Everything else in the exported copy is emptied. */
 const ENROLLED_KEEP = new Set<string>([...RESTORE_TABLES, "backup_info"]);
+/**
+ * Per-draft `meta` keys that carry a draft's consent and frozen config (consentStore.ts, standaloneConsentStore.ts,
+ * drafts.ts). Consent lives here, not in `consent_records` (nothing writes that table), so restore must copy these.
+ */
+const DRAFT_META_PREFIXES = ["consent:draft:", "standaloneConsent:", "draft-config:"];
+/** SQL listing the meta keys of the backup's drafts (optionally filtered by `where`, which has one `?` at most). */
+const draftMetaKeys = (where = "") => DRAFT_META_PREFIXES.map((p) => `SELECT '${p}' || id FROM bak.drafts ${where}`).join(" UNION ALL ");
 const quote = (name: string) => `"${name.replace(/"/g, '""')}"`;
 
 async function detach(db: Db) {
@@ -68,7 +75,11 @@ async function writeBackup(db: Db, userId: string, passphrase: string, now: Date
     await db.getFirstAsync("SELECT sqlcipher_export('bak')", []);
     if (!isStandaloneId(userId)) {
       const tables = await db.getAllAsync<{ name: string }>("SELECT name FROM bak.sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'", []);
-      for (const { name } of tables) if (!ENROLLED_KEEP.has(name)) await db.execAsync(`DELETE FROM bak.${quote(name)}`);
+      for (const { name } of tables) {
+        // meta keeps only the unsent drafts' consent and config; the rest (tokens, queues, caches) never leaves the phone.
+        if (name === "meta") await db.execAsync(`DELETE FROM bak.meta WHERE key NOT IN (${draftMetaKeys()})`);
+        else if (!ENROLLED_KEEP.has(name)) await db.execAsync(`DELETE FROM bak.${quote(name)}`);
+      }
       await db.execAsync("VACUUM bak"); // deleted rows must not linger in free pages
     }
     const kdf = await db.getFirstAsync<{ cipher_default_kdf_iter: number }>("PRAGMA cipher_default_kdf_iter", []).catch(() => null);
@@ -158,6 +169,7 @@ export async function restoreBackup(db: Db, userId: string, fileUri: string, pas
         const binds: Bind[] = [...cols.filter((c) => c === "project_id").map(() => target), ...where[table].binds];
         await tx.runAsync(`${verb} INTO main.${table} (${names}) SELECT ${values.join(", ")} FROM bak.${table} WHERE ${where[table].sql}`, binds);
       }
+      await tx.runAsync(`${verb} INTO main.meta (key, value) SELECT key, value FROM bak.meta WHERE key IN (${draftMetaKeys("WHERE project_id = ?")})`, DRAFT_META_PREFIXES.map(() => source));
     });
     return { restored: confirmOverwrite ? total : fresh, skipped: confirmOverwrite ? 0 : total - fresh };
   } finally {
@@ -183,6 +195,7 @@ async function restoreUnsent(db: Db): Promise<RestoreResult> {
       const names = cols.map(quote).join(", ");
       await tx.runAsync(`INSERT OR IGNORE INTO main.${table} (${names}) SELECT ${names} FROM bak.${table} WHERE ${where[table]}`, []);
     }
+    await tx.runAsync(`INSERT OR IGNORE INTO main.meta (key, value) SELECT key, value FROM bak.meta WHERE key IN (${draftMetaKeys()})`, []);
   });
   return { restored: fresh, skipped: total - fresh };
 }

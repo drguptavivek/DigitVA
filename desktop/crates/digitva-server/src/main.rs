@@ -50,10 +50,10 @@ async fn serve() -> anyhow::Result<()> {
                 }
             }
             None
-        })
-        // Absolute: the WHO engine changes the working directory while it starts.
-        .map(|dir| dir.canonicalize().unwrap_or(dir));
+        });
 
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let listener = tokio::net::TcpListener::bind(addr).await?;
     let db = OfflineDatabase::open_file(&db_path, resource_dir)?;
     let state = match std::env::var("DIGITVA_LAUNCH_TOKEN")
         .ok()
@@ -65,9 +65,11 @@ async fn serve() -> anyhow::Result<()> {
     .with_web_dist_dir(web_dist_dir);
     let app = build_router(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    println!("DigitVA Offline PHC Server listening on http://{addr}");
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    // The wrapper opens a browser only for its own child, after a successful bind and setup.
+    if let Some(path) = std::env::var_os("DIGITVA_READY_FILE") {
+        std::fs::OpenOptions::new().write(true).create_new(true).open(path)?;
+    }
+    println!("DigitVA Offline PHC Server listening on http://{}", listener.local_addr()?);
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;

@@ -511,6 +511,8 @@ fn redact_json_value(value: &Value, key: Option<&str>, flagged: &mut Vec<String>
 
 /// Canonicalize a numeric string if `raw` represents a finite decimal number
 /// matching Python's `Decimal(str(value)).normalize()` + `format(..., "f")` rules.
+const MAX_DECIMAL_EXPONENT: u64 = 1000;
+
 fn canonicalize_decimal_str(raw: &str) -> Option<String> {
     let s = raw.trim();
     if s.is_empty() {
@@ -531,6 +533,11 @@ fn canonicalize_decimal_str(raw: &str) -> Option<String> {
     let (mantissa, exp_val): (&str, i64) = if let Some(idx) = rest.find(['e', 'E']) {
         let (m, e_str) = rest.split_at(idx);
         let exp: i64 = e_str[1..].parse().ok()?;
+        // A few characters of exponent must not decide an unbounded render;
+        // keep such text as-is instead of expanding it.
+        if exp.unsigned_abs() > MAX_DECIMAL_EXPONENT {
+            return None;
+        }
         (m, exp)
     } else {
         (rest, 0)
@@ -1098,6 +1105,17 @@ fn write_jcs_value(value: &Value, parent_key: Option<&str>, buf: &mut String) ->
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn huge_decimal_exponent_is_kept_verbatim() {
+        assert_eq!(canonicalize_decimal_str("1e99999999999"), None);
+        assert_eq!(canonicalize_decimal_str("1e-99999999999"), None);
+        assert_eq!(canonicalize_decimal_str("1e9223372036854775807"), None);
+        assert_eq!(canonicalize_decimal_str("1.5e3").as_deref(), Some("1500"));
+        assert_eq!(canonicalize_decimal_str("1e400").map(|s| s.len()), Some(401));
+        let out = normalize_payload_for_fingerprint(&json!({"x": "1e99999999999"}));
+        assert_eq!(out, json!({"x": "1e99999999999"}));
+    }
 
     #[test]
     fn word_boundary_is_ascii_like_re2() {

@@ -1,7 +1,7 @@
 use axum::{
     body::Bytes,
     extract::{DefaultBodyLimit, Path, Query, Request, State},
-    http::{header, HeaderMap, HeaderValue, StatusCode},
+    http::{header, HeaderMap, HeaderValue, Method, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, patch, post, put},
@@ -16,8 +16,11 @@ use rand::rngs::OsRng;
 use rand::RngCore;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::io::Read;
+use std::path::{Component, Path as FsPath, PathBuf};
 use subtle::ConstantTimeEq;
 use std::sync::Arc;
+use tokio::sync::RwLock;
 
 mod icd11;
 pub use icd11::Icd11Service;
@@ -27,7 +30,9 @@ pub struct AppState {
     pub db: OfflineDatabase,
     pub csrf_token: String,
     pub launch_token: String,
-    pub web_dist_dir: Option<std::path::PathBuf>,
+    web_dist_dir: Option<PathBuf>,
+    static_dirs: Vec<PathBuf>,
+    api_requests: Arc<RwLock<()>>,
     /// The lazily started WHO ICD-11 + DORIS engine (`icd11_doris` coding).
     pub icd11: Arc<Icd11Service>,
 }
@@ -36,15 +41,7 @@ impl AppState {
     pub fn new(db: OfflineDatabase) -> Self {
         let mut launch_bytes = [0u8; 32];
         OsRng.fill_bytes(&mut launch_bytes);
-        let mut csrf_bytes = [0u8; 16];
-        OsRng.fill_bytes(&mut csrf_bytes);
-        Self {
-            db,
-            csrf_token: hex::encode(csrf_bytes),
-            launch_token: hex::encode(launch_bytes),
-            web_dist_dir: None,
-            icd11: Arc::new(Icd11Service::from_env()),
-        }
+        Self::with_launch_token(db, hex::encode(launch_bytes))
     }
 
     pub fn with_launch_token(db: OfflineDatabase, launch_token: impl Into<String>) -> Self {
@@ -55,12 +52,29 @@ impl AppState {
             csrf_token: hex::encode(csrf_bytes),
             launch_token: launch_token.into(),
             web_dist_dir: None,
+            static_dirs: Vec::new(),
+            api_requests: Arc::new(RwLock::new(())),
             icd11: Arc::new(Icd11Service::from_env()),
         }
     }
 
-    pub fn with_web_dist_dir(mut self, dir: Option<std::path::PathBuf>) -> Self {
-        self.web_dist_dir = dir;
+    /// Captures absolute roots before the WHO engine changes the process working directory.
+    pub fn with_web_dist_dir(mut self, dir: Option<PathBuf>) -> Self {
+        self.web_dist_dir = dir.and_then(|dir| dir.canonicalize().ok()).filter(|dir| dir.is_dir());
+        self.static_dirs = std::env::var_os("DIGITVA_STATIC_DIR")
+            .map(PathBuf::from)
+            .into_iter()
+            .chain([PathBuf::from("../app/static"), PathBuf::from("app/static")])
+            .filter_map(|dir| dir.canonicalize().ok())
+            .filter(|dir| dir.is_dir())
+            .collect();
+        if let Some(dir) = &self.web_dist_dir {
+            if let Ok(static_dir) = dir.join("static").canonicalize() {
+                if &static_dir != dir && static_dir.starts_with(dir) && static_dir.is_dir() {
+                    self.static_dirs.push(static_dir);
+                }
+            }
+        }
         self
     }
 
@@ -182,7 +196,10 @@ async fn verify_local_request_middleware(
     }
 
     // 3. Require per-launch bearer token on all /api/v1/* endpoints (including GETs)
-    if req.uri().path().starts_with("/api/v1/") {
+    let path = req.uri().path();
+    let _transition;
+    let _request;
+    if path.starts_with("/api/v1/") {
         let Some(provided) = extract_provided_launch_token(headers) else {
             return json_with_csrf(
                 &state,
@@ -197,9 +214,45 @@ async fn verify_local_request_middleware(
                 json!({ "error": "Invalid per-launch bearer token", "code": "invalid_launch_token" }),
             );
         }
+        // Lock and actor changes must finish between API requests so admitted case work
+        // cannot outlive a successful manual lock or be attributed to a different actor.
+        if !req.method().is_safe()
+            && matches!(
+                path,
+                "/api/v1/station/lock"
+                    | "/api/v1/station/unlock"
+                    | "/api/v1/station/acting-role"
+                    | "/api/v1/station/roster"
+                    | "/api/v1/station/config"
+                    | "/api/v1/station/config/signed"
+            )
+        {
+            _transition = state.api_requests.write().await;
+        } else {
+            _request = state.api_requests.read().await;
+        }
+        if state.db.is_locked() {
+            let allowed_while_locked = matches!(
+                (req.method(), path),
+                (&Method::GET, "/api/v1/health" | "/api/v1/me/access" | "/api/v1/station/roster")
+                    | (&Method::POST, "/api/v1/station/unlock" | "/api/v1/station/acting-role")
+            );
+            if !allowed_while_locked {
+                return json_with_csrf(
+                    &state,
+                    StatusCode::LOCKED,
+                    json!({ "error": "Station store is locked.", "code": "station_locked" }),
+                );
+            }
+        } else if !headers
+            .get("x-digitva-background")
+            .is_some_and(|value| value == "1")
+        {
+            // Notification polls and automatic refreshes must not extend the idle timeout.
+            state.db.record_activity();
+        }
     }
 
-    state.db.record_activity();
     let mut resp = next.run(req).await;
     let resp_headers = resp.headers_mut();
     resp_headers.insert(
@@ -438,23 +491,37 @@ pub fn build_router(state: AppState) -> Router {
         .with_state(state)
 }
 
-fn inject_launch_token_into_html(html: &str, launch_token: &str) -> String {
-    let script = format!(
-        "<script>window.__DIGITVA_LAUNCH_TOKEN__={:?};</script>",
-        launch_token
-    );
-    if let Some(idx) = html.find("</head>") {
-        let mut out = String::with_capacity(html.len() + script.len());
+/// Adds the same browser bootstrap to every app HTML reply. The launcher provides the
+/// token in a URL fragment, which the browser never sends to the HTTP server.
+fn add_launch_bootstrap(html: &str) -> String {
+    const SCRIPT: &str = r##"<script>
+(() => {
+  const key = "digitva-launch";
+  const fragment = location.hash;
+  const supplied = /^#digitva-launch=([0-9a-f]{64})$/i.exec(fragment);
+  let token = supplied?.[1];
+  if (fragment.startsWith("#digitva-launch=")) {
+    history.replaceState(history.state, "", location.pathname + location.search);
+  }
+  try {
+    if (token) sessionStorage.setItem(key, token);
+    else token = sessionStorage.getItem(key);
+  } catch {}
+  if (token) window.__DIGITVA_LAUNCH_TOKEN__ = token;
+})();
+</script>"##;
+    if let Some(idx) = html.find("<head>").map(|idx| idx + "<head>".len()) {
+        let mut out = String::with_capacity(html.len() + SCRIPT.len());
         out.push_str(&html[..idx]);
-        out.push_str(&script);
+        out.push_str(SCRIPT);
         out.push_str(&html[idx..]);
         out
     } else {
-        format!("{script}{html}")
+        format!("{SCRIPT}{html}")
     }
 }
 
-fn content_type_for_path(path: &std::path::Path) -> &'static str {
+fn content_type_for_path(path: &FsPath) -> &'static str {
     match path
         .extension()
         .and_then(|e| e.to_str())
@@ -474,6 +541,34 @@ fn content_type_for_path(path: &std::path::Path) -> &'static str {
         "ttf" => "font/ttf",
         _ => "application/octet-stream",
     }
+}
+
+/// Checks the relative path after each route prefix is stripped, before joining it to a root.
+fn valid_asset_path(rel: &str) -> bool {
+    !rel.contains('\\')
+        && !rel.split('/').any(|part| part == "." || part == "..")
+        && FsPath::new(rel)
+            .components()
+            .all(|part| matches!(part, Component::Normal(_)))
+}
+
+/// Resolves a file beneath a canonical root. Symlinks that leave the root are refused.
+fn resolve_asset(root: &FsPath, rel: &str) -> Option<PathBuf> {
+    let path = root.join(rel).canonicalize().ok()?;
+    (path.starts_with(root) && path.is_file()).then_some(path)
+}
+
+/// Reads a packaged asset up to the station's 32 MiB limit.
+fn read_asset(path: &FsPath) -> std::io::Result<Vec<u8>> {
+    const MAX_ASSET_BYTES: u64 = 32 * 1024 * 1024;
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)?
+        .take(MAX_ASSET_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_ASSET_BYTES {
+        return Err(std::io::Error::other("Static asset exceeds size limit"));
+    }
+    Ok(bytes)
 }
 
 async fn handle_static_web(State(state): State<AppState>, req: Request) -> Response {
@@ -498,24 +593,19 @@ async fn handle_static_web(State(state): State<AppState>, req: Request) -> Respo
         headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
         return (StatusCode::FOUND, headers).into_response();
     }
-    let raw_rel = uri_path.trim_start_matches('/');
-    if raw_rel.contains("..") || raw_rel.contains('\\') {
+    let raw_rel = uri_path.strip_prefix('/').unwrap_or(uri_path);
+    if !valid_asset_path(raw_rel) {
         return (StatusCode::BAD_REQUEST, "Invalid path").into_response();
     }
     if let Some(static_rel) = raw_rel.strip_prefix("static/") {
-        for base in [
-            std::path::PathBuf::from("../app/static"),
-            std::path::PathBuf::from("./app/static"),
-            dist_dir.join("static"),
-        ] {
-            let static_cand = base.join(static_rel);
-            if static_cand.is_file() {
-                if let Ok(bytes) = std::fs::read(&static_cand) {
-                    let mime = content_type_for_path(&static_cand);
-                    let mut headers = HeaderMap::new();
-                    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(mime));
-                    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
-                    return (StatusCode::OK, headers, bytes).into_response();
+        if !valid_asset_path(static_rel) {
+            return (StatusCode::BAD_REQUEST, "Invalid path").into_response();
+        }
+        for base in &state.static_dirs {
+            if let Some(path) = resolve_asset(base, static_rel) {
+                if let Ok(bytes) = read_asset(&path) {
+                    let mime = content_type_for_path(FsPath::new(static_rel));
+                    return ([(header::CONTENT_TYPE, mime)], bytes).into_response();
                 }
             }
         }
@@ -524,45 +614,34 @@ async fn handle_static_web(State(state): State<AppState>, req: Request) -> Respo
     let rel = raw_rel
         .strip_prefix("app/")
         .unwrap_or_else(|| if raw_rel == "app" { "" } else { raw_rel });
+    if !valid_asset_path(rel) {
+        return (StatusCode::BAD_REQUEST, "Invalid path").into_response();
+    }
     let candidate = if rel.is_empty() {
-        dist_dir.join("index.html")
+        resolve_asset(dist_dir, "index.html")
+    } else if let Some(path) = resolve_asset(dist_dir, rel) {
+        Some(path)
+    } else if rel.starts_with("_expo/")
+        || rel.starts_with("assets/")
+        || FsPath::new(rel).extension().is_some()
+    {
+        return (StatusCode::NOT_FOUND, "Asset not found").into_response();
     } else {
-        let direct = dist_dir.join(rel);
-        if direct.is_file() {
-            direct
-        } else if rel.starts_with("_expo/")
-            || rel.starts_with("assets/")
-            || std::path::Path::new(rel).extension().is_some()
-        {
-            return (StatusCode::NOT_FOUND, "Asset not found").into_response();
-        } else {
-            let html_cand = dist_dir.join(format!("{rel}.html"));
-            if html_cand.is_file() {
-                html_cand
-            } else {
-                let index_cand = dist_dir.join(rel).join("index.html");
-                if index_cand.is_file() {
-                    index_cand
-                } else {
-                    dist_dir.join("index.html")
-                }
-            }
-        }
+        resolve_asset(dist_dir, &format!("{rel}.html"))
+            .or_else(|| resolve_asset(dist_dir, &format!("{rel}/index.html")))
+            .or_else(|| resolve_asset(dist_dir, "index.html"))
     };
 
-    let Ok(bytes) = std::fs::read(&candidate) else {
+    let Some((path, bytes)) = candidate.and_then(|path| read_asset(&path).ok().map(|bytes| (path, bytes))) else {
         return (StatusCode::NOT_FOUND, "Static bundle not found").into_response();
     };
-    let mime = content_type_for_path(&candidate);
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_static(mime));
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    let mime = content_type_for_path(&path);
+    let headers = [(header::CONTENT_TYPE, mime)];
     if mime.starts_with("text/html") {
         let html = String::from_utf8_lossy(&bytes);
-        let injected = inject_launch_token_into_html(&html, &state.launch_token);
-        return (StatusCode::OK, headers, injected).into_response();
+        return (headers, add_launch_bootstrap(&html)).into_response();
     }
-    (StatusCode::OK, headers, bytes).into_response()
+    (headers, bytes).into_response()
 }
 
 pub(crate) fn json_with_csrf(state: &AppState, status: StatusCode, body: Value) -> Response {
@@ -649,7 +728,14 @@ async fn handle_import_signed_station_config(
     body: Bytes,
 ) -> Response {
     let text = String::from_utf8_lossy(&body).to_string();
-    let raw_two_line = if let Ok(val) = serde_json::from_str::<Value>(&text) {
+    let json_body = serde_json::from_str::<Value>(&text).ok();
+    // The operator's confirmation of the server key fingerprint, needed on first import.
+    let confirmed_fingerprint = json_body
+        .as_ref()
+        .and_then(|val| val.get("confirm_server_key_fingerprint"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string);
+    let raw_two_line = if let Some(val) = json_body {
         val.get("signed_config")
             .or_else(|| val.get("station_config"))
             .or_else(|| val.get("raw"))
@@ -660,7 +746,10 @@ async fn handle_import_signed_station_config(
         text
     };
 
-    match state.db.import_signed_station_config(&raw_two_line) {
+    match state
+        .db
+        .import_signed_station_config(&raw_two_line, confirmed_fingerprint.as_deref())
+    {
         Ok(res) => json_with_csrf(&state, StatusCode::OK, res),
         Err((code, err_val)) => json_with_csrf(
             &state,
@@ -874,20 +963,21 @@ async fn handle_put_station_settings(
 }
 
 async fn handle_lock_station(State(state): State<AppState>) -> Response {
-    state.db.lock_store();
-    json_with_csrf(&state, StatusCode::OK, json!({ "locked": true }))
+    db_result(&state, state.db.lock_store().map(|()| json!({ "locked": true })))
+}
+
+#[derive(Deserialize)]
+struct UnlockStationInput {
+    member_id: Option<String>,
+    pin: String,
 }
 
 async fn handle_unlock_station(
     State(state): State<AppState>,
-    Json(body): Json<Value>,
+    Json(input): Json<UnlockStationInput>,
 ) -> Response {
-    let member_id = body
-        .get("member_id")
-        .and_then(Value::as_str)
-        .unwrap_or("roster-mo-1");
-    let pin = body.get("pin").and_then(Value::as_str).unwrap_or("");
-    match state.db.unlock_user_store(member_id, pin) {
+    let member_id = input.member_id.as_deref().unwrap_or("roster-mo-1");
+    match state.db.unlock_user_store(member_id, &input.pin) {
         Ok(()) => json_with_csrf(
             &state,
             StatusCode::OK,
@@ -968,21 +1058,23 @@ async fn handle_put_station_designations(
     }
 }
 
+#[derive(Deserialize)]
+struct ActingRoleInput {
+    member_id: Option<String>,
+    acting_role: Option<String>,
+    pin: Option<String>,
+}
+
 async fn handle_switch_acting_role(
     State(state): State<AppState>,
-    Json(body): Json<Value>,
+    Json(input): Json<ActingRoleInput>,
 ) -> Response {
-    let member_id = body
-        .get("member_id")
-        .and_then(Value::as_str)
-        .unwrap_or("roster-mo-1");
-    let acting_role = body.get("acting_role").and_then(Value::as_str);
-    let pin = body.get("pin").and_then(Value::as_str);
-
-    match state
-        .db
-        .switch_acting_role_with_pin(member_id, acting_role, pin)
-    {
+    let member_id = input.member_id.as_deref().unwrap_or("roster-mo-1");
+    match state.db.switch_acting_role_with_pin(
+        member_id,
+        input.acting_role.as_deref(),
+        input.pin.as_deref(),
+    ) {
         Ok(actor) => {
             let access = state.db.build_access_summary().unwrap_or_else(|_| json!(null));
             json_with_csrf(
@@ -2224,6 +2316,132 @@ mod tests {
     use axum::http::Request;
     use tower::ServiceExt;
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_station_web_assets_stay_in_their_roots_and_html_has_no_token() {
+        let root = std::env::temp_dir().join(format!("digitva-web-{}", uuid::Uuid::new_v4()));
+        let dist = root.join("dist");
+        std::fs::create_dir_all(dist.join("static")).unwrap();
+        std::fs::write(dist.join("index.html"), "<head></head>station index").unwrap();
+        std::fs::write(dist.join("app.js"), "station javascript").unwrap();
+        std::fs::write(dist.join("static/trial-picker.css"), "station css").unwrap();
+        let outside = root.join("outside.html");
+        std::fs::write(&outside, "outside marker").unwrap();
+        std::os::unix::fs::symlink(&outside, dist.join("escape.html")).unwrap();
+        std::os::unix::fs::symlink(&outside, dist.join("static/escape.html")).unwrap();
+        std::os::unix::fs::symlink(&outside, dist.join("fallback.html")).unwrap();
+
+        let state = AppState::new(OfflineDatabase::open_in_memory().unwrap())
+            .with_web_dist_dir(Some(dist.clone()));
+        let token = state.launch_token.clone();
+        let app = build_router(state);
+        let get = |path: &str| {
+            app.clone()
+                .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+        };
+        let redirect = get("/").await.unwrap();
+        assert_eq!(redirect.status(), StatusCode::FOUND);
+        assert_eq!(redirect.headers()[header::LOCATION], "/app/");
+
+        for (path, expected) in [
+            ("/app/", "station index"),
+            ("/app/fallback", "station index"),
+            ("/app/app.js", "station javascript"),
+            ("/static/trial-picker.css", "station css"),
+        ] {
+            let response = get(path).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{path}");
+            assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+            let body = axum::body::to_bytes(response.into_body(), 4096).await.unwrap();
+            let body = std::str::from_utf8(&body).unwrap();
+            assert!(body.contains(expected), "{path}");
+            assert!(!body.contains(&token), "{path}");
+            assert!(!body.contains("outside marker"), "{path}");
+            if expected == "station index" {
+                assert!(body.contains("#digitva-launch="), "{path}");
+            }
+        }
+
+        let absolute = outside.to_str().unwrap();
+        for (path, status) in [
+            (format!("/app/{absolute}"), StatusCode::BAD_REQUEST),
+            (format!("/static/{absolute}"), StatusCode::BAD_REQUEST),
+            ("/app/../outside.html".to_string(), StatusCode::BAD_REQUEST),
+            ("/app/escape.html".to_string(), StatusCode::NOT_FOUND),
+            ("/static/escape.html".to_string(), StatusCode::NOT_FOUND),
+        ] {
+            assert_eq!(get(&path).await.unwrap().status(), status, "{path}");
+        }
+        std::fs::remove_file(dist.join("index.html")).unwrap();
+        std::os::unix::fs::symlink(&outside, dist.join("index.html")).unwrap();
+        assert_eq!(get("/app/").await.unwrap().status(), StatusCode::NOT_FOUND);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_station_lock_blocks_case_requests_and_requires_the_active_members_pin() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let state = AppState::new(db.clone());
+        let token = state.launch_token.clone();
+        let app = build_router(state);
+        let request = |method: &str, path: &str, body: Value| {
+            app.clone().oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(path)
+                    .header("x-digitva-launch-token", &token)
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+        };
+        let lock = "/api/v1/station/lock";
+        let unlock = "/api/v1/station/unlock";
+        let acting_role = "/api/v1/station/acting-role";
+        let cases = "/api/v1/intake/cases";
+        let pin = json!({ "member_id": "roster-mo-1", "pin": "123456" });
+        assert_eq!(request("GET", cases, Value::Null).await.unwrap().status(), StatusCode::OK);
+        assert_eq!(request("POST", lock, Value::Null).await.unwrap().status(), StatusCode::CONFLICT);
+        assert_eq!(request("POST", unlock, pin.clone()).await.unwrap().status(), StatusCode::OK);
+        db.set_user_pin("roster-hs-1", "654321").unwrap();
+        // The first request after idle time must lock before counting as activity.
+        db.set_auto_lock_timeout_secs(0);
+        assert_eq!(request("GET", cases, Value::Null).await.unwrap().status(), StatusCode::LOCKED);
+        db.set_auto_lock_timeout_secs(900);
+
+        for (method, path) in [
+            ("GET", cases),
+            ("GET", "/api/v1/cases/export.csv"),
+            ("POST", "/api/v1/intake/deaths"),
+            ("POST", "/api/v1/station/roster"),
+        ] {
+            let response = request(method, path, Value::Null).await.unwrap();
+            assert_eq!(response.status(), StatusCode::LOCKED, "{method} {path}");
+        }
+        for path in ["/api/v1/health", "/api/v1/me/access", "/api/v1/station/roster"] {
+            assert_eq!(request("GET", path, Value::Null).await.unwrap().status(), StatusCode::OK);
+        }
+
+        for (path, member_id, supplied_pin, expected) in [
+            (unlock, "unknown", "123456", StatusCode::FORBIDDEN),
+            (unlock, "roster-hs-1", "654321", StatusCode::LOCKED),
+            (acting_role, "roster-hs-1", "654321", StatusCode::LOCKED),
+            (unlock, "roster-mo-1", "999999", StatusCode::UNAUTHORIZED),
+        ] {
+            let response = request("POST", path, json!({ "member_id": member_id, "pin": supplied_pin }))
+                .await.unwrap();
+            assert_eq!(response.status(), expected, "{path} {member_id}");
+            assert!(db.is_locked());
+        }
+        let bad_role = json!({ "member_id": "roster-mo-1", "pin": "123456", "acting_role": "invalid" });
+        assert_eq!(request("POST", acting_role, bad_role).await.unwrap().status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(db.is_locked());
+        assert_eq!(request("POST", acting_role, pin.clone()).await.unwrap().status(), StatusCode::OK);
+        assert_eq!(request("GET", cases, Value::Null).await.unwrap().status(), StatusCode::OK);
+        assert_eq!(request("POST", lock, Value::Null).await.unwrap().status(), StatusCode::OK);
+        assert_eq!(request("POST", unlock, pin).await.unwrap().status(), StatusCode::OK);
+    }
+
     #[tokio::test]
     async fn test_api_launch_token_host_origin_and_removed_routes() {
         let db = OfflineDatabase::open_in_memory().unwrap();
@@ -2466,7 +2684,8 @@ mod tests {
                 .join("../../../tests/fixtures/station_config/station_config.signed"),
         )
         .unwrap();
-        state.db.import_signed_station_config(&signed).unwrap();
+        let fp = state.db.import_signed_station_config(&signed, None).unwrap_err().1["server_key_fingerprint"].clone();
+        state.db.import_signed_station_config(&signed, fp.as_str()).unwrap();
         let locked = json_of(app.clone().oneshot(req("GET", Some(&tok), "")).await.unwrap()).await;
         assert_eq!(locked["modules_locked"], true);
         let resp = app.clone().oneshot(req("PUT", Some(&tok), r#"{"enabled_modules":[]}"#)).await.unwrap();
@@ -2503,7 +2722,9 @@ mod tests {
             )
         })
         .unwrap();
-        db.import_signed_station_config(&fixture_config_without_station_coding()).unwrap();
+        let signed = fixture_config_without_station_coding();
+        let fp = db.import_signed_station_config(&signed, None).unwrap_err().1["server_key_fingerprint"].clone();
+        db.import_signed_station_config(&signed, fp.as_str()).unwrap();
         db.with_conn(|conn| {
             conn.execute(
                 "INSERT INTO loc_va_submissions (va_sid, unique_id, project_id, payload_json, payload_fingerprint,

@@ -17,7 +17,7 @@ use crate::roster::{
     upsert_sandbox_roster_member, ActiveActorContext, StationRosterMember, StationRosterSnapshot,
     UpsertRosterMemberInput,
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use digitva_bundle::{
     build_bundle, sha256_hex, validate_bundle_record, verify_and_plan_receipt, ActingRole, BuiltBundle,
     BundleRecordEnvelope, BundleRecordPayload, CodingResultKind, CodingResultRecord,
@@ -332,6 +332,9 @@ impl CaseListQuery {
     }
 }
 
+/// Wrong PINs in a row before the station makes the member wait.
+const FREE_PIN_ATTEMPTS: i64 = 5;
+
 fn query_ids(conn: &Connection, sql: &str, args: &[&dyn rusqlite::ToSql]) -> Result<Vec<i64>, String> {
     let mut stmt = conn.prepare(sql).map_err(|e| e.to_string())?;
     let ids = stmt
@@ -531,13 +534,12 @@ pub struct IdentifierDuplicateWarning {
     pub message: String,
 }
 
-#[derive(Debug, Clone)]
-pub struct StoreLockState {
-    pub is_locked: bool,
-    pub unlocked_member_id: Option<String>,
-    pub last_activity_at: Instant,
-    pub auto_lock_timeout_secs: u64,
-    pub keystore_secret: [u8; 32],
+struct StoreLockState {
+    locked_member_id: Option<String>,
+    last_activity_at: Instant,
+    auto_lock_timeout_secs: u64,
+    keystore_secret: [u8; 32],
+    pin_epoch: Option<String>,
 }
 
 #[derive(Clone)]
@@ -556,11 +558,11 @@ impl OfflineDatabase {
             conn: Arc::new(Mutex::new(conn)),
             resource_dir: None,
             lock_state: Arc::new(Mutex::new(StoreLockState {
-                is_locked: false,
-                unlocked_member_id: None,
+                locked_member_id: None,
                 last_activity_at: Instant::now(),
                 auto_lock_timeout_secs: 900,
                 keystore_secret,
+                pin_epoch: None,
             })),
         };
         db.init_schema_and_defaults()?;
@@ -578,11 +580,12 @@ impl OfflineDatabase {
             conn: Arc::new(Mutex::new(conn)),
             resource_dir,
             lock_state: Arc::new(Mutex::new(StoreLockState {
-                is_locked: false,
-                unlocked_member_id: None,
+                locked_member_id: None,
                 last_activity_at: Instant::now(),
                 auto_lock_timeout_secs: 900,
                 keystore_secret,
+                // A trial restart generates a different verifier key.
+                pin_epoch: Some(format!("v1:{}:", Uuid::new_v4())),
             })),
         };
         db.init_schema_and_defaults()?;
@@ -626,11 +629,11 @@ impl OfflineDatabase {
             conn: Arc::new(Mutex::new(conn)),
             resource_dir,
             lock_state: Arc::new(Mutex::new(StoreLockState {
-                is_locked: false,
-                unlocked_member_id: Some(member_id.to_string()),
+                locked_member_id: None,
                 last_activity_at: Instant::now(),
                 auto_lock_timeout_secs: 900,
                 keystore_secret,
+                pin_epoch: None,
             })),
         };
         db.init_schema_and_defaults()?;
@@ -1126,35 +1129,22 @@ impl OfflineDatabase {
     // ========================================================================
 
     pub fn set_user_pin(&self, member_id: &str, pin: &str) -> Result<(), String> {
-        let keystore_secret = {
-            let ls = self.lock_state.lock().unwrap();
-            ls.keystore_secret
-        };
-        let key_hex = Self::derive_sqlcipher_key_hex(&keystore_secret, member_id, pin)?;
-        let mut h = Sha256::new();
-        h.update(key_hex.as_bytes());
-        let hash_hex = format!("{:x}", h.finalize());
-        let now = Utc::now().to_rfc3339();
+        let ls = self.lock_state.lock().unwrap();
+        if ls.locked_member_id.is_some() {
+            return Err("Station store is locked.".to_string());
+        }
         self.with_conn(|conn| {
-            conn.execute(
-                "INSERT INTO loc_user_pin_store (member_id, pin_key_hash_hex, failed_pin_attempts, wiped_at, updated_at)
-                 VALUES (?1, ?2, 0, NULL, ?3)
-                 ON CONFLICT(member_id) DO UPDATE SET
-                    pin_key_hash_hex = excluded.pin_key_hash_hex,
-                    failed_pin_attempts = 0,
-                    wiped_at = NULL,
-                    updated_at = excluded.updated_at",
-                params![member_id, hash_hex, now],
-            )
-            .map_err(|e| e.to_string())?;
-            Ok(())
+            let member_id = Self::pin_member_id(conn, member_id)
+                .map_err(|(_, body)| body["error"].as_str().unwrap_or_default().to_string())?;
+            let hash = Self::pin_hash(&ls, &member_id, pin)?;
+            Self::write_pin(conn, &member_id, &hash).map_err(|e| e.to_string())
         })
     }
 
-    pub fn lock_store(&self) {
+    /// Locks for the current actor only when that actor has a usable verifier.
+    pub fn lock_store(&self) -> Result<(), (u16, Value)> {
         let mut ls = self.lock_state.lock().unwrap();
-        ls.is_locked = true;
-        ls.unlocked_member_id = None;
+        self.try_lock_store(&mut ls)
     }
 
     pub fn set_auto_lock_timeout_secs(&self, secs: u64) {
@@ -1165,170 +1155,242 @@ impl OfflineDatabase {
     pub fn simulate_inactivity_secs(&self, secs: u64) {
         let mut ls = self.lock_state.lock().unwrap();
         if secs >= ls.auto_lock_timeout_secs {
-            ls.is_locked = true;
-            ls.unlocked_member_id = None;
+            let _ = self.try_lock_store(&mut ls);
         }
     }
 
     pub fn is_locked(&self) -> bool {
         let mut ls = self.lock_state.lock().unwrap();
-        if !ls.is_locked && ls.last_activity_at.elapsed().as_secs() >= ls.auto_lock_timeout_secs {
-            ls.is_locked = true;
-            ls.unlocked_member_id = None;
+        if ls.locked_member_id.is_none()
+            && ls.last_activity_at.elapsed().as_secs() >= ls.auto_lock_timeout_secs
+        {
+            if let Err((status, _)) = self.try_lock_store(&mut ls) {
+                return status != 409;
+            }
         }
-        ls.is_locked
+        ls.locked_member_id.is_some()
     }
 
     pub fn record_activity(&self) {
         let mut ls = self.lock_state.lock().unwrap();
-        ls.last_activity_at = Instant::now();
+        if ls.locked_member_id.is_none() {
+            ls.last_activity_at = Instant::now();
+        }
     }
 
-    pub fn unlock_user_store(&self, member_id: &str, pin: &str) -> Result<(), (u16, Value)> {
-        let keystore_secret = {
-            let ls = self.lock_state.lock().unwrap();
-            ls.keystore_secret
-        };
-        let derived_hex =
-            Self::derive_sqlcipher_key_hex(&keystore_secret, member_id, pin).map_err(|msg| {
-                (
-                    400,
-                    json!({ "error": msg, "code": "invalid_pin_format" }),
-                )
-            })?;
-        let mut h = Sha256::new();
-        h.update(derived_hex.as_bytes());
-        let candidate_hash = format!("{:x}", h.finalize());
-        let now = Utc::now().to_rfc3339();
-
-        let res = self.with_conn(|conn| {
-            let row: Option<(String, i64, Option<String>)> = conn
+    /// Records the actor that must authenticate on unlock, or reports why locking is unavailable.
+    fn try_lock_store(&self, ls: &mut StoreLockState) -> Result<(), (u16, Value)> {
+        if ls.locked_member_id.is_some() {
+            return Ok(());
+        }
+        self.with_conn(|conn| {
+            let member_id = get_active_actor(conn).member_id;
+            let hash: Option<String> = conn
                 .query_row(
-                    "SELECT pin_key_hash_hex, failed_pin_attempts, wiped_at FROM loc_user_pin_store WHERE member_id = ?1",
+                    "SELECT pin_key_hash_hex FROM loc_user_pin_store
+                     JOIN loc_station_roster USING (member_id)
+                     WHERE member_id = ?1 AND active = 1",
                     params![member_id],
-                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                    |row| row.get(0),
                 )
                 .optional()
-                .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
-
-            let Some((expected_hash, failed_attempts, wiped_at)) = row else {
-                // First time setting PIN for this member
-                conn.execute(
-                    "INSERT INTO loc_user_pin_store (member_id, pin_key_hash_hex, failed_pin_attempts, wiped_at, updated_at)
-                     VALUES (?1, ?2, 0, NULL, ?3)",
-                    params![member_id, candidate_hash, now],
-                )
-                .map_err(|e| (500, json!({ "error": e.to_string(), "code": "db_error" })))?;
-                return Ok(());
-            };
-
-            if wiped_at.is_some() || failed_attempts >= 5 {
+                .map_err(Self::pin_store_error)?;
+            if !hash.is_some_and(|hash| Self::pin_hash_is_current(ls, &hash)) {
                 return Err((
-                    403,
+                    409,
                     json!({
-                        "error": "User store has been wiped after 5 consecutive failed PIN attempts.",
-                        "code": "store_wiped_max_pin_attempts"
+                        "error": "Set a PIN for the active member before locking the station.",
+                        "code": "station_pin_not_configured"
                     }),
                 ));
             }
-
-            let matches: bool = expected_hash
-                .as_bytes()
-                .ct_eq(candidate_hash.as_bytes())
-                .into();
-            if matches {
-                conn.execute(
-                    "UPDATE loc_user_pin_store SET failed_pin_attempts = 0, updated_at = ?1 WHERE member_id = ?2",
-                    params![now, member_id],
-                )
-                .ok();
-                Ok(())
-            } else {
-                let new_attempts = failed_attempts + 1;
-                if new_attempts >= 5 {
-                    Self::wipe_user_store_records(conn, member_id, &now);
-                    Err((
-                        403,
-                        json!({
-                            "error": "Maximum failed PIN attempts reached; user local store has been wiped.",
-                            "code": "store_wiped_max_pin_attempts",
-                            "failed_attempts": new_attempts
-                        }),
-                    ))
-                } else {
-                    conn.execute(
-                        "UPDATE loc_user_pin_store SET failed_pin_attempts = ?1, updated_at = ?2 WHERE member_id = ?3",
-                        params![new_attempts, now, member_id],
-                    )
-                    .ok();
-                    Err((
-                        401,
-                        json!({
-                            "error": "Invalid PIN.",
-                            "code": "invalid_pin",
-                            "remaining_attempts": 5 - new_attempts
-                        }),
-                    ))
-                }
-            }
-        });
-
-        if res.is_ok() {
-            let mut ls = self.lock_state.lock().unwrap();
-            ls.is_locked = false;
-            ls.unlocked_member_id = Some(member_id.to_string());
-            ls.last_activity_at = Instant::now();
-        }
-        res
+            ls.locked_member_id = Some(member_id);
+            Ok(())
+        })
     }
 
-    fn wipe_user_store_records(conn: &Connection, member_id: &str, now: &str) {
-        conn.execute(
-            "DELETE FROM loc_coding_results WHERE actor_member_id = ?1",
-            params![member_id],
+    /// Resolves a PIN operation to an active roster member and a single canonical PIN key.
+    fn pin_member_id(conn: &Connection, member_id: &str) -> Result<String, (u16, Value)> {
+        let member_id = member_id.trim();
+        let provisioned_id = member_id.parse::<i64>().ok().map(|id| format!("user-{id}"));
+        conn.query_row(
+            "SELECT member_id FROM loc_station_roster
+             WHERE member_id IN (?1, ?2) AND active = 1
+             ORDER BY member_id = ?1 DESC LIMIT 1",
+            params![member_id, provisioned_id],
+            |row| row.get(0),
         )
-        .ok();
+        .optional()
+        .map_err(Self::pin_store_error)?
+        .ok_or_else(|| (403, json!({ "error": "Active roster member required.", "code": "invalid_pin_member" })))
+    }
+
+    /// Makes a verifier, tagged with the launch epoch for a trial file store.
+    fn pin_hash(ls: &StoreLockState, member_id: &str, pin: &str) -> Result<String, String> {
+        let key_hex = Self::derive_sqlcipher_key_hex(&ls.keystore_secret, member_id, pin)?;
+        let prefix = ls.pin_epoch.as_deref().unwrap_or("");
+        Ok(format!("{prefix}{:x}", Sha256::digest(key_hex.as_bytes())))
+    }
+
+    /// Rejects verifiers that cannot be checked with this store's key.
+    fn pin_hash_is_current(ls: &StoreLockState, hash: &str) -> bool {
+        hash.strip_prefix(ls.pin_epoch.as_deref().unwrap_or(""))
+            .is_some_and(|digest| digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit()))
+    }
+
+    /// Inserts or replaces a verifier and clears its previous attempt state.
+    fn write_pin(conn: &Connection, member_id: &str, hash: &str) -> rusqlite::Result<()> {
         conn.execute(
-            "DELETE FROM loc_va_submissions WHERE actor_member_id = ?1 OR allocated_coder = ?1",
-            params![member_id],
+            "INSERT INTO loc_user_pin_store (member_id, pin_key_hash_hex, failed_pin_attempts, wiped_at, updated_at)
+             VALUES (?1, ?2, 0, NULL, ?3)
+             ON CONFLICT(member_id) DO UPDATE SET
+                pin_key_hash_hex = excluded.pin_key_hash_hex,
+                failed_pin_attempts = 0,
+                wiped_at = NULL,
+                updated_at = excluded.updated_at",
+            params![member_id, hash, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
+    /// Logs storage failures while keeping SQLite details out of API responses.
+    fn pin_store_error(error: rusqlite::Error) -> (u16, Value) {
+        eprintln!("Station PIN store database error: {error}");
+        (500, json!({ "error": "Station PIN store unavailable.", "code": "db_error" }))
+    }
+
+    /// Verifies an active member's PIN. First enrolment and stale trial verifier
+    /// replacement are only possible while the station is unlocked.
+    fn verify_or_enroll_pin(
+        conn: &Connection,
+        ls: &StoreLockState,
+        member_id: &str,
+        pin: &str,
+    ) -> Result<(), (u16, Value)> {
+        if ls.locked_member_id.as_deref().is_some_and(|locked| locked != member_id) {
+            return Err((423, json!({
+                "error": "Unlock the station with the active member's PIN.",
+                "code": "station_locked"
+            })));
+        }
+        let candidate_hash = Self::pin_hash(ls, member_id, pin)
+            .map_err(|msg| (400, json!({ "error": msg, "code": "invalid_pin_format" })))?;
+        let row: Option<(String, i64, String)> = conn
+            .query_row(
+                "SELECT pin_key_hash_hex, failed_pin_attempts, updated_at FROM loc_user_pin_store WHERE member_id = ?1",
+                params![member_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()
+            .map_err(Self::pin_store_error)?;
+        let Some((expected_hash, failed_attempts, last_wrong_at)) =
+            row.filter(|(hash, _, _)| Self::pin_hash_is_current(ls, hash))
+        else {
+            if ls.locked_member_id.is_some() {
+                return Err((423, json!({
+                    "error": "Station store is locked.",
+                    "code": "station_locked"
+                })));
+            }
+            return Self::write_pin(conn, member_id, &candidate_hash).map_err(Self::pin_store_error);
+        };
+
+        let now_at = Utc::now();
+        let wait_secs = Self::pin_lockout_secs(failed_attempts);
+        if wait_secs > 0 {
+            // `updated_at` is the last wrong PIN while locked out: only a wrong PIN writes it then.
+            let elapsed = DateTime::parse_from_rfc3339(&last_wrong_at)
+                .map(|at| (now_at - at.with_timezone(&Utc)).num_seconds())
+                .unwrap_or(0);
+            if elapsed < wait_secs {
+                return Err(Self::pin_locked_out_error(failed_attempts, wait_secs - elapsed.max(0)));
+            }
+        }
+        let now = now_at.to_rfc3339();
+        if expected_hash.as_bytes().ct_eq(candidate_hash.as_bytes()).into() {
+            conn.execute(
+                "UPDATE loc_user_pin_store SET failed_pin_attempts = 0, updated_at = ?1 WHERE member_id = ?2",
+                params![now, member_id],
+            )
+            .map_err(Self::pin_store_error)?;
+            return Ok(());
+        }
+
+        let new_attempts = failed_attempts + 1;
+        let new_wait = Self::pin_lockout_secs(new_attempts);
+        Self::record_wrong_pin(conn, member_id, new_attempts, new_wait > 0, &now)
+            .map_err(Self::pin_store_error)?;
+        if new_wait > 0 {
+            return Err(Self::pin_locked_out_error(new_attempts, new_wait));
+        }
+        Err((
+            401,
+            json!({
+                "error": "Invalid PIN.",
+                "code": "invalid_pin",
+                "remaining_attempts": FREE_PIN_ATTEMPTS - new_attempts
+            }),
+        ))
+    }
+
+    /// Seconds a member must wait after `failed_attempts` wrong PINs in a row:
+    /// the first five are free, then 1, 5, 15 and 60 minutes, as on the phone.
+    fn pin_lockout_secs(failed_attempts: i64) -> i64 {
+        match failed_attempts - FREE_PIN_ATTEMPTS {
+            i64::MIN..=-1 => 0,
+            0 => 60,
+            1 => 5 * 60,
+            2 => 15 * 60,
+            _ => 60 * 60,
+        }
+    }
+
+    fn pin_locked_out_error(failed_attempts: i64, retry_after_secs: i64) -> (u16, Value) {
+        (
+            429,
+            json!({
+                "error": "Too many wrong PINs. Try again later.",
+                "code": "pin_locked_out",
+                "failed_attempts": failed_attempts,
+                "retry_after_secs": retry_after_secs
+            }),
         )
-        .ok();
-        conn.execute(
-            "DELETE FROM loc_va_drafts WHERE actor_member_id = ?1",
-            params![member_id],
-        )
-        .ok();
-        conn.execute(
-            "DELETE FROM loc_supervisor_corrections WHERE actor_member_id = ?1",
-            params![member_id],
-        )
-        .ok();
-        conn.execute(
-            "DELETE FROM consent_records WHERE actor_member_id = ?1 OR recorded_by = ?1",
-            params![member_id],
-        )
-        .ok();
-        conn.execute(
-            "DELETE FROM map_death_identifier WHERE death_id IN (SELECT death_id FROM loc_death_register WHERE actor_member_id = ?1 OR created_by = ?1)",
-            params![member_id],
-        )
-        .ok();
-        conn.execute(
-            "DELETE FROM loc_death_register WHERE actor_member_id = ?1 OR created_by = ?1",
-            params![member_id],
-        )
-        .ok();
-        conn.execute(
-            "UPDATE loc_user_pin_store SET failed_pin_attempts = 5, wiped_at = ?1, updated_at = ?1 WHERE member_id = ?2",
-            params![now, member_id],
-        )
-        .ok();
-        conn.execute(
-            "INSERT INTO loc_station_roster_audit (event_type, member_id, acting_role, detail_json, created_at)
-             VALUES ('user_store_wiped_max_pin_attempts', ?1, NULL, '{}', ?2)",
-            params![member_id, now],
-        )
-        .ok();
+    }
+
+    /// Stores the wrong-PIN count; a lockout writes its audit entry in the same transaction.
+    /// Never deletes records: wrong PINs only make the member wait.
+    fn record_wrong_pin(
+        conn: &Connection,
+        member_id: &str,
+        attempts: i64,
+        locked_out: bool,
+        now: &str,
+    ) -> rusqlite::Result<()> {
+        let tx = conn.unchecked_transaction()?;
+        tx.execute(
+            "UPDATE loc_user_pin_store SET failed_pin_attempts = ?1, updated_at = ?2 WHERE member_id = ?3",
+            params![attempts, now, member_id],
+        )?;
+        if locked_out {
+            tx.execute(
+                "INSERT INTO loc_station_roster_audit (action, target_member_id, actor_name, acting_role, created_at)
+                 VALUES ('pin_locked_out', ?1, 'Station PIN verifier', 'system', ?2)",
+                params![member_id, now],
+            )?;
+        }
+        tx.commit()
+    }
+
+    /// Unlocks for the member who locked the station, or verifies/enrols while already unlocked.
+    pub fn unlock_user_store(&self, member_id: &str, pin: &str) -> Result<(), (u16, Value)> {
+        let mut ls = self.lock_state.lock().unwrap();
+        self.with_conn(|conn| {
+            let member_id = Self::pin_member_id(conn, member_id)?;
+            Self::verify_or_enroll_pin(conn, &ls, &member_id, pin)
+        })?;
+        ls.locked_member_id = None;
+        ls.last_activity_at = Instant::now();
+        Ok(())
     }
 
     // ========================================================================
@@ -1358,20 +1420,40 @@ impl OfflineDatabase {
         acting_role: Option<&str>,
         pin: Option<&str>,
     ) -> Result<ActiveActorContext, (u16, Value)> {
-        if let Some(p) = pin {
-            self.unlock_user_store(member_id, p)?;
-        } else if self.is_locked() {
-            return Err((
-                423,
-                json!({
-                    "error": "Station store is locked; PIN is required to switch user or unlock.",
-                    "code": "station_locked"
-                }),
-            ));
+        let mut ls = self.lock_state.lock().unwrap();
+        if ls.locked_member_id.is_none()
+            && ls.last_activity_at.elapsed().as_secs() >= ls.auto_lock_timeout_secs
+        {
+            if let Err(error) = self.try_lock_store(&mut ls) {
+                if error.0 != 409 {
+                    return Err(error);
+                }
+            }
         }
-        self.record_activity();
-        self.switch_acting_role(member_id, acting_role)
-            .map_err(|msg| (422, json!({ "error": msg, "code": "invalid_acting_role" })))
+        let actor = self.with_conn(|conn| {
+            let member_id = match pin {
+                Some(pin) => {
+                    let member_id = Self::pin_member_id(conn, member_id)?;
+                    Self::verify_or_enroll_pin(conn, &ls, &member_id, pin)?;
+                    member_id
+                }
+                None if ls.locked_member_id.is_some() => {
+                    return Err((
+                        423,
+                        json!({
+                            "error": "Station store is locked; PIN is required to unlock.",
+                            "code": "station_locked"
+                        }),
+                    ));
+                }
+                None => member_id.to_string(),
+            };
+            switch_active_actor(conn, &member_id, acting_role)
+                .map_err(|msg| (422, json!({ "error": msg, "code": "invalid_acting_role" })))
+        })?;
+        ls.locked_member_id = None;
+        ls.last_activity_at = Instant::now();
+        Ok(actor)
     }
 
     pub fn upsert_roster_member(
@@ -1417,9 +1499,14 @@ impl OfflineDatabase {
     }
 
     /// Verify and apply a signed `.digitva-station.json` two-line station config file.
+    /// Verifies and applies a signed station config. On a station with no pinned server key,
+    /// `confirmed_server_key_fingerprint` must equal the config's signing key id (refused with
+    /// `409 server_key_unconfirmed`, carrying the fingerprint, otherwise); later imports verify
+    /// against the pinned key and ignore it.
     pub fn import_signed_station_config(
         &self,
         raw_two_line_text: &str,
+        confirmed_server_key_fingerprint: Option<&str>,
     ) -> Result<Value, (u16, Value)> {
         let current = self.get_station_config();
         type InForce = (Option<String>, Option<String>, Option<String>);
@@ -1518,6 +1605,21 @@ impl OfflineDatabase {
             instrument::check_form_options(&proj.project_id, options).map_err(|msg| {
                 (422, json!({ "error": msg, "code": "instrument_version_unsupported" }))
             })?;
+        }
+        // First import: nothing is pinned yet, so the file vouches for its own key. Pin it only
+        // after the operator has compared this fingerprint with the server's admin page.
+        let server_key_fingerprint = digitva_bundle::compute_signing_key_id(&preview.server_verifying_key);
+        if pinned_key.is_none()
+            && confirmed_server_key_fingerprint.map(str::trim) != Some(server_key_fingerprint.as_str())
+        {
+            return Err((
+                409,
+                json!({
+                    "error": "Confirm that this server key fingerprint matches the one shown on the server before importing.",
+                    "code": "server_key_unconfirmed",
+                    "server_key_fingerprint": server_key_fingerprint
+                }),
+            ));
         }
         let now = Utc::now().to_rfc3339();
         let vk_hex = hex::encode(preview.server_verifying_key);
@@ -1639,6 +1741,7 @@ impl OfflineDatabase {
             "mode": "provisioned",
             "station_mode": "provisioned",
             "custodian": cfg.custodian,
+            "server_key_fingerprint": server_key_fingerprint,
             "config_expires_at": cfg.expires_at,
             "purged_count": purged_count,
             "purged_ids": purged_ids,
@@ -1853,10 +1956,14 @@ impl OfflineDatabase {
                 let Ok(client_id) = Uuid::parse_str(&cid_str) else {
                     continue;
                 };
-                let death_uuid = cdid
-                    .as_deref()
-                    .and_then(|s| Uuid::parse_str(s).ok())
-                    .unwrap_or_else(Uuid::new_v4);
+                // A random death_ref would be refused by the server for good; hold it back.
+                let Some(death_uuid) = cdid.as_deref().and_then(|s| Uuid::parse_str(s).ok()) else {
+                    held_back.push(json!({
+                        "client_id": client_id,
+                        "reason": "Consent has no registration to refer to."
+                    }));
+                    continue;
+                };
                 let draft_uuid = cdraft.as_deref().and_then(|s| Uuid::parse_str(s).ok());
                 // No default notice: a consent without its served notice id cannot travel.
                 let Ok(notice_uuid) = Uuid::parse_str(&nv_id) else {
@@ -2069,7 +2176,13 @@ impl OfflineDatabase {
                 let Ok(client_id) = Uuid::parse_str(&cid_str) else {
                     continue;
                 };
-                let death_uuid = Uuid::parse_str(&cdid).unwrap_or_else(|_| Uuid::new_v4());
+                let Ok(death_uuid) = Uuid::parse_str(&cdid) else {
+                    held_back.push(json!({
+                        "client_id": client_id,
+                        "reason": "Correction has no registration to refer to."
+                    }));
+                    continue;
+                };
                 let pval: Value = serde_json::from_str(&pjson).unwrap_or_else(|_| json!({}));
                 let if_updated_at = pval
                     .get("if_updated_at")
@@ -2177,10 +2290,13 @@ impl OfflineDatabase {
                     .ok()
                     .flatten()
                 });
-                let death_uuid = client_death_id
-                    .as_deref()
-                    .and_then(|s| Uuid::parse_str(s).ok())
-                    .unwrap_or_else(Uuid::new_v4);
+                let Some(death_uuid) = client_death_id.as_deref().and_then(|s| Uuid::parse_str(s).ok()) else {
+                    held_back.push(json!({
+                        "client_id": client_id,
+                        "reason": "Interview has no registration to refer to."
+                    }));
+                    continue;
+                };
                 let answers_sha256 = sha256_hex(pjson.as_bytes());
                 let latest_consent = get_latest_consent_for_case(
                     conn,
@@ -2522,53 +2638,30 @@ impl OfflineDatabase {
             )
         })?;
 
-        // 1. Delete `deletable_client_ids` (accepted / duplicate / superseded) from local outbox
+        // 1. Delete `deletable_client_ids` (accepted / duplicate / superseded) from local outbox.
+        //    A registration or consent that a local draft or submission still refers to is
+        //    kept as `synced` so that interview can still name its case; it goes once the
+        //    interview has gone too.
         let deleted_count = self.with_conn(|conn| {
             let mut deleted = 0usize;
             for uuid in &plan.deletable_client_ids {
                 let cid = uuid.to_string();
                 let mut matched = 0usize;
-                matched += conn
-                    .execute("DELETE FROM consent_records WHERE consent_id = ?1", params![cid])
-                    .unwrap_or(0);
-                if let Some(did) = conn
-                    .query_row(
-                        "SELECT death_id FROM loc_death_register WHERE client_death_id = ?1",
-                        params![cid],
-                        |r| r.get::<_, i64>(0),
-                    )
-                    .optional()
-                    .ok()
-                    .flatten()
-                {
-                    conn.execute("DELETE FROM map_death_identifier WHERE death_id = ?1", params![did])
-                        .ok();
-                    matched += conn
-                        .execute("DELETE FROM loc_death_register WHERE death_id = ?1", params![did])
-                        .unwrap_or(0);
+                for sql in [
+                    "DELETE FROM loc_va_submissions WHERE draft_id = ?1",
+                    "DELETE FROM loc_va_drafts WHERE draft_id = ?1",
+                    "DELETE FROM loc_supervisor_corrections WHERE client_id = ?1",
+                    "DELETE FROM loc_coding_results WHERE client_id = ?1",
+                    "UPDATE consent_records SET sync_state = 'synced', sync_error_code = NULL WHERE consent_id = ?1",
+                    "UPDATE loc_death_register SET sync_state = 'synced', sync_error_code = NULL WHERE client_death_id = ?1",
+                ] {
+                    matched += conn.execute(sql, params![cid]).unwrap_or(0);
                 }
-                matched += conn
-                    .execute("DELETE FROM loc_va_submissions WHERE draft_id = ?1", params![cid])
-                    .unwrap_or(0);
-                matched += conn
-                    .execute("DELETE FROM loc_va_drafts WHERE draft_id = ?1", params![cid])
-                    .unwrap_or(0);
-                matched += conn
-                    .execute(
-                        "DELETE FROM loc_supervisor_corrections WHERE client_id = ?1",
-                        params![cid],
-                    )
-                    .unwrap_or(0);
-                matched += conn
-                    .execute(
-                        "DELETE FROM loc_coding_results WHERE client_id = ?1",
-                        params![cid],
-                    )
-                    .unwrap_or(0);
                 if matched > 0 {
                     deleted += 1;
                 }
             }
+            purge_unreferenced_synced_cases(conn);
             deleted
         });
 
@@ -6742,6 +6835,36 @@ impl OfflineDatabase {
     }
 }
 
+
+/// Removes accepted (`synced`) registrations and consents that no local draft or
+/// submission refers to any longer. Accepted records that an unfinished interview
+/// still names are kept so that interview can export with its real death_ref.
+fn purge_unreferenced_synced_cases(conn: &Connection) {
+    const CASE_IN_USE: &str = "(EXISTS (SELECT 1 FROM loc_va_drafts d WHERE d.death_id = {id})
+         OR EXISTS (SELECT 1 FROM loc_va_submissions s WHERE s.death_id = {id}))";
+    let reg_in_use = CASE_IN_USE.replace("{id}", "r.death_id");
+    let consent_case = "COALESCE(c.death_id, (SELECT r.death_id FROM loc_death_register r WHERE r.client_death_id = c.client_death_id))";
+    let consent_in_use = CASE_IN_USE.replace("{id}", consent_case);
+    conn.execute(
+        &format!("DELETE FROM consent_records AS c WHERE c.sync_state = 'synced' AND NOT {consent_in_use}"),
+        [],
+    )
+    .ok();
+    conn.execute(
+        &format!(
+            "DELETE FROM map_death_identifier WHERE death_id IN
+             (SELECT r.death_id FROM loc_death_register r WHERE r.sync_state = 'synced' AND NOT {reg_in_use})"
+        ),
+        [],
+    )
+    .ok();
+    conn.execute(
+        &format!("DELETE FROM loc_death_register AS r WHERE r.sync_state = 'synced' AND NOT {reg_in_use}"),
+        [],
+    )
+    .ok();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -7033,11 +7156,9 @@ mod tests {
     }
 
     #[test]
-    fn test_pin_lock_and_5_attempt_wipe() {
+    fn test_wrong_pins_lock_out_with_growing_wait_and_never_erase() {
         let db = OfflineDatabase::open_in_memory().unwrap();
         db.set_user_pin("roster-mo-1", "123456").unwrap();
-
-        // Register a case while unlocked
         let reg = json!({
             "project_id": "1",
             "site_id": "PHC01",
@@ -7046,26 +7167,101 @@ mod tests {
             "date_of_death": "2026-10-18"
         });
         db.register_death(&reg, "roster-mo-1").unwrap();
-        assert_eq!(db.list_cases(&CaseListQuery::default()).unwrap()["counts"]["total"], 1);
+        let total = || db.list_cases(&CaseListQuery::default()).unwrap()["counts"]["total"].clone();
+        assert_eq!(total(), 1);
 
-        // Lock store -> switching role without PIN fails with 423
-        db.lock_store();
-        assert!(db.is_locked());
+        db.lock_store().unwrap();
         let (code, _) = db
             .switch_acting_role_with_pin("roster-mo-1", Some("station_supervisor"), None)
             .unwrap_err();
         assert_eq!(code, 423);
 
-        // 4 wrong PIN attempts return 401; 5th wrong attempt wipes user store and returns 403
         for attempt in 1..=4 {
             let (status, body) = db.unlock_user_store("roster-mo-1", "999999").unwrap_err();
             assert_eq!(status, 401);
             assert_eq!(body["remaining_attempts"], 5 - attempt);
         }
-        let (status5, body5) = db.unlock_user_store("roster-mo-1", "999999").unwrap_err();
-        assert_eq!(status5, 403);
-        assert_eq!(body5["code"], "store_wiped_max_pin_attempts");
-        assert_eq!(db.list_cases(&CaseListQuery::default()).unwrap()["counts"]["total"], 0);
+        // The lockout and its audit entry commit together.
+        db.with_conn(|conn| conn.execute_batch(
+            "CREATE TRIGGER fail_pin_audit BEFORE INSERT ON loc_station_roster_audit
+             BEGIN SELECT RAISE(ABORT, 'test audit failure'); END;",
+        )).unwrap();
+        assert_eq!(db.unlock_user_store("roster-mo-1", "999999").unwrap_err().0, 500);
+        db.with_conn(|conn| conn.execute_batch("DROP TRIGGER fail_pin_audit")).unwrap();
+
+        let (status, body) = db.unlock_user_store("roster-mo-1", "999999").unwrap_err();
+        assert_eq!(status, 429);
+        assert_eq!(body["code"], "pin_locked_out");
+        assert_eq!(body["retry_after_secs"], 60);
+        // While locked out even the right PIN is not tried.
+        assert_eq!(db.unlock_user_store("roster-mo-1", "123456").unwrap_err().0, 429);
+        assert!(db.is_locked());
+
+        let age_last_wrong = |secs: i64| {
+            let at = (Utc::now() - chrono::Duration::seconds(secs)).to_rfc3339();
+            db.with_conn(|conn| {
+                conn.execute("UPDATE loc_user_pin_store SET updated_at = ?1", params![at])
+            })
+            .unwrap();
+        };
+        age_last_wrong(61);
+        let (status, body) = db.unlock_user_store("roster-mo-1", "999999").unwrap_err();
+        assert_eq!(status, 429);
+        assert_eq!(body["retry_after_secs"], 300);
+        age_last_wrong(301);
+        assert_eq!(db.unlock_user_store("roster-mo-1", "999999").unwrap_err().1["retry_after_secs"], 900);
+        age_last_wrong(901);
+        assert_eq!(db.unlock_user_store("roster-mo-1", "999999").unwrap_err().1["retry_after_secs"], 3600);
+        age_last_wrong(3601);
+        assert_eq!(db.unlock_user_store("roster-mo-1", "999999").unwrap_err().1["retry_after_secs"], 3600);
+        assert_eq!(total(), 1);
+
+        age_last_wrong(3601);
+        db.unlock_user_store("roster-mo-1", "123456").unwrap();
+        assert!(!db.is_locked());
+        assert_eq!(total(), 1);
+        let audits: i64 = db
+            .with_conn(|conn| conn.query_row(
+                "SELECT COUNT(*) FROM loc_station_roster_audit WHERE action = 'pin_locked_out'",
+                [],
+                |r| r.get(0),
+            ))
+            .unwrap();
+        assert_eq!(audits, 5);
+    }
+
+    #[test]
+    fn test_reopening_trial_db_reenrols_pin_without_wiping_cases() {
+        let path = temp_db_path("pin-restart");
+        let member = "roster-mo-1";
+        let db = OfflineDatabase::open_file(&path, None).unwrap();
+        db.unlock_user_store(member, "123456").unwrap();
+        db.register_death(
+            &json!({
+                "project_id": "1",
+                "site_id": "PHC01",
+                "deceased_name": "Trial case",
+                "deceased_sex": "male",
+                "date_of_death": "2026-10-18"
+            }),
+            member,
+        ).unwrap();
+        db.lock_store().unwrap();
+        for _ in 0..4 {
+            assert_eq!(db.unlock_user_store(member, "999999").unwrap_err().0, 401);
+        }
+        drop(db);
+
+        let db = OfflineDatabase::open_file(&path, None).unwrap();
+        db.simulate_inactivity_secs(900);
+        assert!(!db.is_locked());
+        assert_eq!(db.lock_store().unwrap_err().0, 409);
+        db.unlock_user_store(member, "654321").unwrap();
+        db.lock_store().unwrap();
+        db.unlock_user_store(member, "654321").unwrap();
+        assert_eq!(db.list_cases(&CaseListQuery::default()).unwrap()["counts"]["total"], 1);
+        drop(db);
+        remove_db_files(&path);
     }
 
     fn case_query(limit: Option<&str>, cursor: Option<&str>, registered: Option<&str>) -> CaseListQuery {
@@ -7422,6 +7618,16 @@ mod tests {
 
     /// A config for `device_id` in server project TST001, signed by `test_server_signing_key`,
     /// with one active death reporter + interviewer per `roster_user_ids` entry.
+    /// Imports a config the way the operator does: read the fingerprint, confirm it.
+    fn import_confirmed(db: &OfflineDatabase, raw: &str) -> Result<Value, (u16, Value)> {
+        match db.import_signed_station_config(raw, None) {
+            Err((409, body)) if body["code"] == "server_key_unconfirmed" => {
+                db.import_signed_station_config(raw, body["server_key_fingerprint"].as_str())
+            }
+            other => other,
+        }
+    }
+
     fn signed_test_station_config(
         device_id: &str,
         config_id: &str,
@@ -7451,7 +7657,7 @@ mod tests {
             "show_guidance": false,
             "web_intake_mode": "both",
             "instrument_version": instrument::composed_version(),
-            "definition_sha256": "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291"
+            "definition_sha256": "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d"
         })
     }
 
@@ -7651,7 +7857,7 @@ mod tests {
         let device_id = db.get_station_config().station_id;
         let signed_cfg =
             signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]);
-        let import_res = db.import_signed_station_config(&signed_cfg).unwrap();
+        let import_res = import_confirmed(&db, &signed_cfg).unwrap();
         assert_eq!(import_res["mode"], "provisioned");
         assert_eq!(import_res["device_id"], device_id.as_str());
 
@@ -7747,7 +7953,7 @@ mod tests {
                 .unwrap();
             assert_eq!(case["case"]["project_id"], "1");
         }
-        db.import_signed_station_config(&signed_test_station_config(
+        import_confirmed(&db, &signed_test_station_config(
             &device_id,
             CONFIG_A,
             "2026-10-20T00:00:00Z",
@@ -7775,7 +7981,7 @@ mod tests {
         for (consent_required, config_id) in [(false, CONFIG_A), (true, CONFIG_B)] {
             let db = OfflineDatabase::open_in_memory().unwrap();
             let device_id = db.get_station_config().station_id;
-            db.import_signed_station_config(&signed_test_station_config_consent(
+            import_confirmed(&db, &signed_test_station_config_consent(
                 &device_id, config_id, "2026-10-20T00:00:00Z", &[101], test_form_options(), consent_required,
             ))
             .unwrap();
@@ -7803,7 +8009,7 @@ mod tests {
     fn provisioned_db_without_consent_notice() -> OfflineDatabase {
         let db = OfflineDatabase::open_in_memory().unwrap();
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+        import_confirmed(&db, &signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
             .unwrap();
         db.with_conn(|conn| {
             conn.execute(
@@ -7855,7 +8061,7 @@ mod tests {
     fn test_consent_must_match_the_served_notice_version() {
         let db = OfflineDatabase::open_in_memory().unwrap();
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+        import_confirmed(&db, &signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
             .unwrap();
 
         let mismatches = [
@@ -7898,7 +8104,7 @@ mod tests {
     fn test_export_holds_back_an_invalid_record_and_sends_the_rest() {
         let db = OfflineDatabase::open_in_memory().unwrap();
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+        import_confirmed(&db, &signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
             .unwrap();
         let consent_id = Uuid::new_v4();
         let mut with_informant = tst001_registration(Some("Lakshmi"));
@@ -7946,7 +8152,7 @@ mod tests {
     fn test_export_with_every_record_held_back_is_refused_and_keeps_the_sequence() {
         let db = OfflineDatabase::open_in_memory().unwrap();
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+        import_confirmed(&db, &signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
             .unwrap();
         let consent_id = Uuid::new_v4();
         let mut body = tst001_registration(Some("Lakshmi"));
@@ -7979,7 +8185,7 @@ mod tests {
     fn test_coding_result_never_carries_a_step_one() {
         let db = OfflineDatabase::open_in_memory().unwrap();
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+        import_confirmed(&db, &signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
             .unwrap();
         // An older row may still hold a Step 1; the bundle must not carry it.
         let payload = json!({
@@ -8021,13 +8227,13 @@ mod tests {
             "2026-10-20T00:00:00Z",
             &[101],
         );
-        let (status, err) = db.import_signed_station_config(&other).unwrap_err();
+        let (status, err) = import_confirmed(&db, &other).unwrap_err();
         assert_eq!(status, 422);
         assert_eq!(err["code"], "invalid_station_config");
         assert_eq!(db.get_station_config().mode, "standalone");
 
         let current = signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101, 102]);
-        db.import_signed_station_config(&current).unwrap();
+        import_confirmed(&db, &current).unwrap();
         let mut active = active_roster_user_ids(&db);
         active.sort_unstable();
         assert_eq!(active, vec![101, 102]);
@@ -8036,7 +8242,7 @@ mod tests {
         // the same moment under another id.
         for (config_id, issued_at) in [(CONFIG_B, "2026-10-19T00:00:00Z"), (CONFIG_B, "2026-10-20T00:00:00Z")] {
             let older = signed_test_station_config(&device_id, config_id, issued_at, &[101]);
-            let (status, err) = db.import_signed_station_config(&older).unwrap_err();
+            let (status, err) = import_confirmed(&db, &older).unwrap_err();
             assert_eq!(status, 409);
             assert_eq!(err["code"], "station_config_superseded");
             let mut active = active_roster_user_ids(&db);
@@ -8045,9 +8251,9 @@ mod tests {
         }
 
         // Re-importing the config in force is idempotent; a newer one replaces it.
-        db.import_signed_station_config(&current).unwrap();
+        import_confirmed(&db, &current).unwrap();
         let newer = signed_test_station_config(&device_id, CONFIG_C, "2026-10-21T00:00:00Z", &[101]);
-        db.import_signed_station_config(&newer).unwrap();
+        import_confirmed(&db, &newer).unwrap();
         assert_eq!(active_roster_user_ids(&db), vec![101]);
     }
 
@@ -8065,7 +8271,7 @@ mod tests {
             .unwrap();
         });
 
-        let res = db.import_signed_station_config(&signed).unwrap();
+        let res = import_confirmed(&db, &signed).unwrap();
         assert_eq!(res["station_config_id"], "6f1c2b3a-4d5e-4f60-8a71-92b3c4d5e6f7");
         let provisioned: Vec<_> =
             db.get_roster().members.into_iter().filter(|m| m.source == "provisioned").collect();
@@ -8144,10 +8350,10 @@ mod tests {
             )
             .unwrap();
         });
-        db.import_signed_station_config(&labelled_fixture_station_config()).unwrap();
+        import_confirmed(&db, &labelled_fixture_station_config()).unwrap();
         // The server fixture's form policy passed the station's version and SHA-256 check.
         assert_eq!(db.form_options("TST001").unwrap()["definition_sha256"],
-                   "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291");
+                   "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d");
         assert_eq!(db.instrument_translations("WHO_2022_VA", "hi", Some("TST001")).unwrap()["version"], 6);
 
         // Active actor is user 7 acting as death reporter: offered exactly TS01 + its unit.
@@ -8323,7 +8529,7 @@ mod tests {
         assert_eq!(sandbox_def.sha256, sandbox["definition_sha256"].as_str().unwrap());
 
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config(
+        import_confirmed(&db, &signed_test_station_config(
             &device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101],
         ))
         .unwrap();
@@ -8333,7 +8539,7 @@ mod tests {
 
         // The definition's bytes hash to the issued sha; the disabled module is absent.
         let served = db.instrument_definition("WHO_2022_VA", "TST001", None).unwrap();
-        assert_eq!(served.sha256, "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291");
+        assert_eq!(served.sha256, "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d");
         assert_eq!(format!("{:x}", sha2::Sha256::digest(&served.body)), served.sha256);
         let body: Value = serde_json::from_slice(&served.body).unwrap();
         assert_eq!(body["extensions"], json!(["abha", "death_summary", "medical_records", "narration_language"]));
@@ -8387,7 +8593,7 @@ mod tests {
         let typical: Vec<String> = ["abha", "death_summary", "medical_records", "narration_language"].map(String::from).to_vec();
         db.update_station_settings(Some(&typical), None).unwrap();
         let options = db.form_options("1").unwrap();
-        assert_eq!(options["definition_sha256"], "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291");
+        assert_eq!(options["definition_sha256"], "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d");
         assert_ne!(options["definition_sha256"], all_sha);
         let served = db.instrument_definition("WHO_2022_VA", "1", None).unwrap();
         assert_eq!(served.sha256, options["definition_sha256"].as_str().unwrap());
@@ -8403,7 +8609,7 @@ mod tests {
         // An imported project policy governs modules: read-only, its values shown, the local
         // selection refused with 409. The coding mode stays local (the config carries none).
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+        import_confirmed(&db, &signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
             .unwrap();
         db.with_conn(|conn| conn.execute("UPDATE loc_station_config SET enabled_modules_json = '[]' WHERE id = 1", []))
             .unwrap();
@@ -8414,7 +8620,7 @@ mod tests {
         assert_eq!(enabled, ["abha", "death_summary", "medical_records", "narration_language"]);
         let (status, err) = db.update_station_settings(Some(&[]), None).unwrap_err();
         assert_eq!((status, err["code"].as_str()), (409, Some("policy_locked")));
-        assert_eq!(db.form_options("TST001").unwrap()["definition_sha256"], "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291");
+        assert_eq!(db.form_options("TST001").unwrap()["definition_sha256"], "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d");
         assert_eq!(db.update_station_settings(None, Some("icd10")).unwrap()["coding_mode"], "icd10");
     }
 
@@ -8425,28 +8631,28 @@ mod tests {
         let mut options = test_form_options();
         options["instrument_version"] = json!("2099010101-ffffffffff");
         let signed = signed_test_station_config_with(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101], options);
-        let (status, err) = db.import_signed_station_config(&signed).unwrap_err();
+        let (status, err) = import_confirmed(&db, &signed).unwrap_err();
         assert_eq!((status, err["code"].as_str()), (422, Some("instrument_version_unsupported")));
         assert!(err["error"].as_str().unwrap().contains("2099010101-ffffffffff"));
         assert_eq!(db.get_station_config().mode, "standalone");
 
         // A config issued before form policies existed is refused with its own code.
         let no_policy = signed_test_station_config_with(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101], Value::Null);
-        let (status, err) = db.import_signed_station_config(&no_policy).unwrap_err();
+        let (status, err) = import_confirmed(&db, &no_policy).unwrap_err();
         assert_eq!((status, err["code"].as_str()), (422, Some("form_policy_missing")));
 
         // A sha that is not this binary's slice is refused alike.
         let mut options = test_form_options();
         options["definition_sha256"] = json!("0".repeat(64));
         let signed = signed_test_station_config_with(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101], options);
-        assert_eq!(db.import_signed_station_config(&signed).unwrap_err().0, 422);
+        assert_eq!(import_confirmed(&db, &signed).unwrap_err().0, 422);
     }
 
     #[test]
     fn test_draft_autosave_keeps_the_definition_pin_and_the_bundle_carries_it() {
         let db = OfflineDatabase::open_in_memory().unwrap();
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config(
+        import_confirmed(&db, &signed_test_station_config(
             &device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101],
         ))
         .unwrap();
@@ -8474,7 +8680,7 @@ mod tests {
         assert!(fresh["envelope"].get("definitionSha256").is_none());
         assert_eq!(fresh["envelope"]["translation_version"], 0);
 
-        let sha = "88184fc7afb460b846ab16a40fc327f07047b02d56fd7a985900515a8df81291";
+        let sha = "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d";
         let pin = json!({
             "instrumentVersion": instrument::composed_version(),
             "definitionSha256": sha,
@@ -8531,6 +8737,131 @@ mod tests {
     }
 
     /// A submission row in `project_id`, as `submit_draft` leaves it.
+    #[test]
+    fn test_first_config_import_pins_the_server_key_only_after_the_fingerprint_is_confirmed() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        let signed = signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]);
+        let expected = digitva_bundle::compute_signing_key_id(&test_server_signing_key().public_key_bytes());
+        let pinned = || -> Option<String> {
+            db.with_conn(|conn| conn.query_row(
+                "SELECT server_verifying_key_hex FROM loc_station_config WHERE id = 1", [], |r| r.get(0),
+            ))
+            .unwrap()
+        };
+
+        for confirmation in [None, Some("0000000000000000"), Some("")] {
+            let (status, body) = db.import_signed_station_config(&signed, confirmation).unwrap_err();
+            assert_eq!((status, body["code"].as_str()), (409, Some("server_key_unconfirmed")));
+            assert_eq!(body["server_key_fingerprint"], expected.as_str());
+            assert_eq!(pinned(), None);
+            assert_eq!(db.get_station_config().mode, "standalone");
+        }
+
+        let res = db.import_signed_station_config(&signed, Some(&expected)).unwrap();
+        assert_eq!(res["server_key_fingerprint"], expected.as_str());
+        assert!(pinned().is_some());
+        // Once pinned, a later config verifies against the pin and needs no confirmation.
+        let newer = signed_test_station_config(&device_id, CONFIG_C, "2026-10-21T00:00:00Z", &[101]);
+        db.import_signed_station_config(&newer, None).unwrap();
+    }
+
+    #[test]
+    fn test_accepted_registration_stays_while_its_interview_is_unfinished() {
+        use digitva_bundle::{
+            format_signed_receipt, BundleReceiptReport, ReceiptRecordOutcome, RecordIngestOutcome, RecordType,
+        };
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        import_confirmed(&db, &signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101])).unwrap();
+        let death_uuid = Uuid::new_v4();
+        let draft_uuid = Uuid::new_v4();
+        let death_id: i64 = db.with_conn(|conn| {
+            conn.execute(
+                "INSERT INTO loc_death_register (client_death_id, unique_id, project_id, project_id_str,
+                    deceased_name, deceased_sex, date_of_death, created_at, updated_at)
+                 VALUES (?1, 'U-1', 'TST001', 'TST001', 'Case', 'male', '2026-10-18',
+                         '2026-10-21T09:00:00Z', '2026-10-21T09:00:00Z')",
+                params![death_uuid.to_string()],
+            )
+            .unwrap();
+            let id = conn.last_insert_rowid();
+            conn.execute(
+                "INSERT INTO loc_va_drafts (draft_id, unique_id, project_id, site_id, site_name, death_id, updated_at, created_at)
+                 VALUES (?1, 'U-1', 'TST001', 'PHC01', 'PHC', ?2, '2026-10-21T10:00:00Z', '2026-10-21T10:00:00Z')",
+                params![draft_uuid.to_string(), id],
+            )
+            .unwrap();
+            id
+        });
+        let receipt = |client_id, record_type, received_sha256: Option<String>| {
+            let report = BundleReceiptReport {
+                bundle_id: Uuid::new_v4(),
+                device_id: device_id.clone(),
+                kem_key_id: "tv1".to_string(),
+                status: "processed".to_string(),
+                counts: BTreeMap::new(),
+                missing_seq: vec![],
+                records: vec![ReceiptRecordOutcome {
+                    client_id,
+                    record_type,
+                    outcome: RecordIngestOutcome::Accepted,
+                    code: None,
+                    received_sha256,
+                    death_id: None,
+                    unique_id: None,
+                }],
+                purge: vec![],
+            };
+            format_signed_receipt(&report, &test_server_signing_key()).unwrap()
+        };
+        let registration = || -> Option<String> {
+            db.with_conn(|conn| conn.query_row(
+                "SELECT sync_state FROM loc_death_register WHERE death_id = ?1", params![death_id], |r| r.get(0),
+            ).optional())
+            .unwrap()
+        };
+
+        db.import_dvb_receipt(&receipt(death_uuid, RecordType::DeathRegistration, None)).unwrap();
+        assert_eq!(registration().as_deref(), Some("synced"));
+
+        // The finished interview still names its real case.
+        db.with_conn(|conn| conn.execute(
+            "INSERT INTO loc_va_submissions (va_sid, death_id, draft_id, unique_id, project_id, payload_json,
+                payload_fingerprint, submitted_at, updated_at)
+             VALUES ('VA-1', ?1, ?2, 'VA-1', 'TST001', '{}', 'fp', '2026-10-21T11:00:00Z', '2026-10-21T11:00:00Z')",
+            params![death_id, draft_uuid.to_string()],
+        ))
+        .unwrap();
+        let (built, _, held_back) = db.export_dvb_bundle().unwrap();
+        assert_eq!(held_back.len(), 0, "{held_back:?}");
+        // Records are sealed; with no random fallback left, being sent means the real death_ref.
+        assert!(built.items.iter().any(|item| item.client_id == draft_uuid));
+
+        // Accepting the interview lets the accepted registration go.
+        db.import_dvb_receipt(&receipt(draft_uuid, RecordType::InterviewSubmission, Some(sha256_hex(b"{}")))).unwrap();
+        assert_eq!(registration(), None);
+    }
+
+    #[test]
+    fn test_interview_without_its_registration_is_held_back() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        import_confirmed(&db, &signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101])).unwrap();
+        db.with_conn(|conn| conn.execute(
+            "INSERT INTO loc_va_submissions (va_sid, death_id, draft_id, unique_id, project_id, payload_json,
+                payload_fingerprint, submitted_at, updated_at)
+             VALUES ('VA-1', 42, ?1, 'VA-1', 'TST001', '{}', 'fp', '2026-10-21T11:00:00Z', '2026-10-21T11:00:00Z')",
+            params![Uuid::new_v4().to_string()],
+        ))
+        .unwrap();
+        let (status, err) = db.export_dvb_bundle().unwrap_err();
+        assert_eq!((status, err["code"].as_str()), (422, Some("records_held_back")));
+        let held_back = err["records_held_back"].as_array().unwrap();
+        assert_eq!(held_back.len(), 1, "{held_back:?}");
+        assert!(held_back[0]["reason"].as_str().unwrap().contains("registration"));
+    }
+
     fn insert_test_submission(db: &OfflineDatabase, va_sid: &str, project_id: &str, workflow_state: &str) {
         db.with_conn(|conn| {
             conn.execute(
@@ -8555,7 +8886,7 @@ mod tests {
             // The local choice differs from the default, so a lock that ignored it would show.
             db.update_station_settings(None, Some("icd10")).unwrap();
             let device_id = db.get_station_config().station_id;
-            db.import_signed_station_config(&signed_test_station_config_coding(&device_id, config)).unwrap();
+            import_confirmed(&db, &signed_test_station_config_coding(&device_id, config)).unwrap();
 
             let settings = db.station_settings();
             assert_eq!(settings["coding_mode"], shown, "{config:?}");
@@ -8578,7 +8909,7 @@ mod tests {
     fn test_null_coding_mode_hides_and_refuses_the_projects_coding() {
         let db = OfflineDatabase::open_in_memory().unwrap();
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config_coding(&device_id, Some(None))).unwrap();
+        import_confirmed(&db, &signed_test_station_config_coding(&device_id, Some(None))).unwrap();
         insert_test_submission(&db, "VA-SERVER", "TST001", "available_for_coding");
         insert_test_submission(&db, "VA-SANDBOX", "1", "available_for_coding");
         insert_test_submission(&db, "VA-SERVER-DONE", "TST001", "coded");
@@ -8597,7 +8928,7 @@ mod tests {
         // The same cases under an icd10 lock are listed and open in the simple workspace.
         let db = OfflineDatabase::open_in_memory().unwrap();
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config_coding(&device_id, Some(Some("icd10")))).unwrap();
+        import_confirmed(&db, &signed_test_station_config_coding(&device_id, Some(Some("icd10")))).unwrap();
         insert_test_submission(&db, "VA-SERVER", "TST001", "available_for_coding");
         assert!(db.check_station_coding("VA-SERVER").is_ok());
         assert_eq!(db.get_coder_queue(50, 0)["count"], 1);
@@ -8611,7 +8942,7 @@ mod tests {
         };
         let db = OfflineDatabase::open_in_memory().unwrap();
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config_coding(&device_id, Some(Some("icd11_doris")))).unwrap();
+        import_confirmed(&db, &signed_test_station_config_coding(&device_id, Some(Some("icd11_doris")))).unwrap();
         let ids: Vec<Uuid> = (0..3).map(|_| Uuid::new_v4()).collect();
         for (i, id) in ids.iter().enumerate() {
             let va_sid = format!("VA-{i}");
@@ -8694,7 +9025,7 @@ mod tests {
         };
         let db = OfflineDatabase::open_in_memory().unwrap();
         let device_id = db.get_station_config().station_id;
-        db.import_signed_station_config(&signed_test_station_config_coding(&device_id, Some(Some("icd11_doris")))).unwrap();
+        import_confirmed(&db, &signed_test_station_config_coding(&device_id, Some(Some("icd11_doris")))).unwrap();
         let (interview_id, coding_id, gone_id) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
         insert_test_submission(&db, "VA-1", "TST001", "coded");
         db.with_conn(|conn| {

@@ -64,14 +64,6 @@ function ProfileRow({ account, enrolled }: { account: Account; enrolled: boolean
         <TextLink label={t("signInAgainAction")} onPress={() => router.push({ pathname: "/sign-in", params: { userId: account.user_id } })} />
       ) : undefined}
     />
-    {/* Delete profile asks for the PIN or a password on the unlock screen (mobile-sign-in.md section 10). */}
-    <TextLink
-      testID="profile-delete"
-      size="sm"
-      tone="destructive"
-      label={t("profileDelete")}
-      onPress={() => router.push({ pathname: "/unlock", params: { userId: account.user_id, delete: "1" } })}
-    />
     </>
   );
 }

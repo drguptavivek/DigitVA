@@ -457,7 +457,10 @@ export default function Unlock() {
                   onPress={() => router.push({ pathname: "/sign-in", params: { userId: account.user_id, ...(canReset ? { resetPin: "1" } : { recover: "1" }) } })}
                 />
               )}
-              <TextLink testID="profile-delete" label={t("profileDelete")} tone="destructive" disabled={busy} onPress={() => { setError(""); setDeleting("auth"); }} />
+              {/* Rare and destructive: small, set apart at the very bottom (owner 2026-11-13). */}
+              <View style={{ marginTop: spacing.xl }}>
+                <TextLink testID="profile-delete" size="sm" label={t("profileDelete")} tone="destructive" disabled={busy} onPress={() => { setError(""); setDeleting("auth"); }} />
+              </View>
             </>
           )}
         </View>

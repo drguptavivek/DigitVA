@@ -22,7 +22,9 @@ export function useWhoNoConfirm({ onConfirmed, onReverted }: { onConfirmed: () =
 
   const onReady = useCallback((next: Session) => {
     session.current = next;
-    safe.current = next.getSnapshot().data;
+    // Native passes an inline onReady, so this runs again on every render: never take a No as the state to restore.
+    const data = next.getSnapshot().data;
+    if (!isRefused(data)) safe.current = data;
   }, []);
 
   const onChange = useCallback((data: SubmissionData): boolean => {

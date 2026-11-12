@@ -417,8 +417,9 @@ export default function Form() {
       setWhoRefused(true);
       void controller.current?.saveDraft().catch((error: unknown) => setMessage(errorText(error)));
     },
+    // The hold is not released here: it ends on the first non-No change (the restore itself), so a restore that
+    // re-emits the No cannot get it saved.
     onReverted: () => {
-      noHeld.current = false;
       void controller.current?.saveDraft().catch((error: unknown) => setMessage(errorText(error)));
     },
   });
@@ -1534,7 +1535,7 @@ export default function Form() {
           {...(serverProblems ? { serverProblems } : {})}
           onProblemsChange={setProblemCount}
           onChange={(data) => {
-            if (isRefused(data)) noHeld.current = true; // before the autosave that follows this change
+            noHeld.current = isRefused(data); // set before the autosave that follows this change; cleared by the first non-No one
             whoNo.onChange(data);
           }}
           autoSaveDraftOnChange

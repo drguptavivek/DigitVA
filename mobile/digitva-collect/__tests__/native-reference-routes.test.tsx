@@ -866,6 +866,83 @@ describe("native project-aware routes", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("closes the consent No dialog on Cancel and restores Yes with the other answers; Confirm refuses", async () => {
+    const id = "44444444-4444-4444-8444-444444444444";
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: id };
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Form />); });
+    await settle();
+    await settle();
+    const dialogs = () => tree!.root.findAll((node) => node.props["data-confirm"] === true && node.type === "section");
+    // A fake form session that, like the real one, re-fires onChange on replaceData and re-runs onReady on a re-render.
+    let data: Record<string, unknown> = { Id10007a: "female", Id10013: "yes" };
+    const session = {
+      getSnapshot: () => ({ data }),
+      replaceData: jest.fn((next: Record<string, unknown>) => {
+        data = next;
+        (mockFormProps.onChange as (d: unknown) => void)(next);
+      }),
+    };
+    const answer = (next: Record<string, unknown>) => {
+      data = next;
+      (mockFormProps.onChange as (d: unknown) => void)(next);
+    };
+    await act(async () => { (mockFormProps.onReady as (s: unknown) => void)(session); });
+
+    await act(async () => { answer({ Id10007a: "female", Id10013: "no" }); });
+    await act(async () => { (mockFormProps.onReady as (s: unknown) => void)(session); }); // re-render: must not adopt the No
+    expect(dialogs()).toHaveLength(1);
+    expect(mockConfirmProps).toMatchObject({ title: "whoNoConfirmTitle" });
+
+    await act(async () => { (mockConfirmProps!.onCancel as () => void)(); });
+    expect(dialogs()).toHaveLength(0);
+    expect(data).toEqual({ Id10007a: "female", Id10013: "yes" });
+
+    await act(async () => { answer({ Id10007a: "female", Id10013: "no" }); });
+    expect(dialogs()).toHaveLength(1);
+    await act(async () => { (mockConfirmProps!.onConfirm as () => void)(); });
+    await settle();
+    expect(dialogs()).toHaveLength(0);
+    expect(tree!.root.findAll((node) => node.type === "section" && node.props["data-form-version"] !== undefined)).toHaveLength(0); // refusal panel replaces the form
+    await act(async () => tree!.unmount());
+  });
+
+  it("never saves a consent No while it is awaiting confirmation, even when the Cancel restore re-emits it", async () => {
+    const id = "44444444-4444-4444-8444-444444444444";
+    mockParams = { userId: "u1", projectId: "P1", siteId: "S1", draftId: id };
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Form />); });
+    await settle();
+    await settle();
+    const innerSave = (jest.requireMock("../src/drafts").createDraftStore as jest.Mock).mock.results.at(-1)!.value.save as jest.Mock;
+    const store = mockFormProps.draftStore as { save: (d: unknown) => Promise<void> };
+    const change = (d: Record<string, unknown>) => (mockFormProps.onChange as (x: unknown) => void)(d);
+    let data: Record<string, unknown> = { Id10007a: "female", Id10013: "yes" };
+    let reEmitNo = true;
+    const session = {
+      getSnapshot: () => ({ data }),
+      // The first restore re-emits the No before the real data, as a stale subscriber would.
+      replaceData: (next: Record<string, unknown>) => {
+        if (reEmitNo) {
+          reEmitNo = false;
+          change({ ...next, Id10013: "no" });
+          void store.save({ id, data: { ...next, Id10013: "no" } }); // the autosave that follows it
+        }
+        data = next;
+        change(next);
+      },
+    };
+    await act(async () => { (mockFormProps.onReady as (s: unknown) => void)(session); });
+    await act(async () => { data = { ...data, Id10013: "no" }; change(data); });
+    await store.save({ id, data }); // autosave right after the No
+    expect(innerSave).not.toHaveBeenCalled();
+    await act(async () => { (mockConfirmProps!.onCancel as () => void)(); });
+    expect(innerSave).not.toHaveBeenCalled();
+    await store.save({ id, data: { Id10007a: "female", Id10013: "yes" } }); // the restored answers do save
+    expect(innerSave).toHaveBeenCalledTimes(1);
+    await act(async () => tree!.unmount());
+  });
+
   it("renders the welcome card before WhoVaForm on a new draft when intake_screen and intake_note are configured", async () => {
     const id = "44444444-4444-4444-8444-444444444444";
     const packData = pack() as ReturnType<typeof pack>;

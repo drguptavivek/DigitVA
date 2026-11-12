@@ -345,8 +345,8 @@ export default function InterviewScreen() {
       setWhoRefused(true);
       void controller?.saveDraft().catch(() => undefined);
     },
+    // The hold stays until the first non-No change, so nothing re-emitted by the cancel can send the No.
     onReverted: () => {
-      if (store instanceof ServerDraftStore) store.holdNo(false);
       setFormEpoch((n) => n + 1);
     },
   });

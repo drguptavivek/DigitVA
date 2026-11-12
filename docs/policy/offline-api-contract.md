@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-12
+last_updated: 2026-11-13
 ---
 
 # Offline API Contract v1
@@ -228,6 +228,7 @@ or over the limit. `implemented today` (server; app pending).
 | `GET /intake/consent-config?project_id=` | a roster user who may interview or register in the project | section 5.2 | 400 `invalid_request`, 403 `project_forbidden` | `no-store`; 120/min | `implemented today` (uncommitted, digitva-gb8w.3) |
 | `GET /intake/station-config` | the station's **own device bearer** only (device id from the session) | the signed two-line station config file of bundle spec 6.4, same bytes as the browser export; carries `roster`, `custodian`, `designations` (4.1) and `purge` (section 7) | 401; 403 `device_revoked`; 404 `not_found` (no config issued) | `ETag` / 304; 60/hour per device | `implemented today` (uncommitted, digitva-gb8w.4; `app/routes/api/station_config.py`; "issued" = a custodian and an active roster member set and a config issued; owner decision 5) |
 | `POST /auth/devices/current/signing-key` | station bearer | `{signing_public_key}`; 200 `{signing_key_id}` | 409 `conflict` (already set) | set once | `implemented today` (digitva-gb8w.5; a cookie gets 403 `device_session_required`, a bad key 400 `invalid_request` with `fields`; 10/min per IP) |
+| `POST /auth/profile-deletions` (Collect Plus; old APKs never call it) | device credentials, not a bearer: `{device_id, device_secret, user_id, unsent_count, loss_confirmed}`; `unsent_count` an int or `null` when unknown | 201 `{recorded: true}`: `device_profile_deleted` security event (ids, unsent known/count, confirmation) and that user's sessions on the device end; 200 `{recorded: false}` on a retry | 400 `invalid_request` (`fields`), 400 `confirmation_required` (null count without `loss_confirmed: true`), 401 `device_invalid`, 403 `profile_not_on_device` (user never signed in on this device), 409 `unsent_work` | idempotent per sign-in; 10/min per IP and per device | `implemented today` (`digitva-srqg`; [mobile-sign-in.md](mobile-sign-in.md) section 10) |
 | `POST /intake/bundles`, `POST /intake/bundles/validate`, `GET /intake/bundles/<bundle_id>`, `GET .../receipt` | the station's own bearer (`device_id` equal to the manifest's) or a browser uploader | bundle spec 5.1-5.6 | bundle spec 5.2 codes (section 8) | `bundle_id`; 50 MiB; 10/hour per device and per uploader | `implemented today` (uncommitted, digitva-gb8w.2; `app/routes/api/bundles.py`, `app/services/bundle_ingest_service.py`; [api-v1.md](../current-state/api-v1.md) "Offline bundle ingest") |
 | `GET /projects/<project_id>/station-config?device_id=` | none | admin, project PI or project data manager, browser: downloads the config in force. Issuing is a separate `POST` on the same path (CSRF, audited), so a GET never mints a config; custodian and roster: `PUT /projects/<id>/stations/<device_id>/custodian|roster` ([api-v1.md](../current-state/api-v1.md)) | 404 `not_found` (none issued) | | `not for devices`; `implemented today` (uncommitted, `digitva-gb8w.4`, `.8`) |
 
@@ -1190,6 +1191,14 @@ ignore the additive reply field; the server computes it without a new request ke
 | `refused` | `not_available` | no case of its own (a superseded copy), or the account is gone |
 | `refused` | an allocation code (`forbidden`, ...) | the import could not take the coder's allocation (scope, language, coding gates) |
 
+Upstream change after coding (owner 2026-11-12, `digitva-knu2`): a phone that
+holds no coding for a case (sent and deleted, or coded elsewhere) learns of a
+later ODK change from `GET /coding/history`. Each row carries the additive
+boolean `needs_recode`, true while the case is `finalized_upstream_changed`;
+the case must be coded again with the new data, and the phone shows the
+recode notice (`codingStaleRecode`) on it. Demo rows are always false. Old
+APKs ignore the field.
+
 `pending` is an acknowledgement of receipt: the phone may delete the
 interview and its coding row together only after both the matching interview
 receipt and the exact matching coding digest. A missing, malformed or different
@@ -1277,6 +1286,10 @@ included), attachments by the existing per-file `PUT`, resumable with backoff.
 3. The `expo-client.md` follow-up edit (S5b).
 
 ## Change log
+
+- 2026-11-13: `POST /auth/profile-deletions` (3.8, `digitva-srqg`), additive.
+- 2026-11-12: `needs_recode` on `GET /coding/history` rows (17,
+  `digitva-knu2`), additive.
 
 - 2026-10-21: v1 proposed.
 - 2026-11-06: data-collection gate (`digitva-jeyy`): 3.1a `/me/access`

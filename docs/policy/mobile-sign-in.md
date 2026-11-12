@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-07
+last_updated: 2026-11-13
 ---
 
 # Sign-in by Mobile Number
@@ -406,6 +406,33 @@ owner 2026-11-06, `digitva-kfi`).
   If skipped it is offered **once more** on a later PIN unlock, then never
   again; nothing is offered when an option is already on or the phone
   supports neither. Settings can turn either option on or off at any time.
+
+
+## 10. Profile recovery and deleting a profile (owner 2026-11-12, `digitva-srqg`)
+
+- **Recovery link, always.** The unlock screen shows a recovery link under
+  "Switch profile" for every profile, not only when a PIN reset copy exists.
+  - **With a reset copy:** the existing "Forgot PIN?" flow (section 9):
+    password sign-in for the same account, new PIN, local data kept.
+  - **Without a reset copy:** a password sign-in for the same account
+    (`POST /auth/sessions` with this device's id and secret) that is then
+    signed out (`DELETE /auth/sessions/current`). The server session ends;
+    the profile's encrypted local store stays on the phone untouched (never
+    deleted; it reopens if the PIN is remembered), so the phone can add
+    profiles or go standalone. Only that user's session on this device ends;
+    the device and other profiles' sessions are not touched.
+- **Delete profile** removes one profile and its data from the phone.
+  - Needs the profile's PIN or a password sign-in for the same account.
+  - Unsent count known and above zero: refused until the work is sent.
+  - Unsent count unknown (locked, no PIN): allowed only after the user types a
+    confirmation that any unsent work on the phone is lost.
+  - The phone reports the deletion (`POST /auth/profile-deletions`). The
+    server records a `device_profile_deleted` security event against the
+    device (user id, device id, time, whether the unsent count was known, the
+    count if known, that the confirmation was typed) and ends that user's
+    sessions on the device. No names, emails or case data are sent. A retry
+    records nothing new. The server refuses a known non-zero count and an
+    unknown count without the typed confirmation, mirroring the phone.
 
 
 ## Account device limit and decommissioning (`digitva-65m5`)

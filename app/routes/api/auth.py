@@ -342,6 +342,27 @@ def demo_signup():
     return jsonify({"user_id": str(user.user_id), "username": user.username}), 201
 
 
+@bp.post("/profile-deletions")
+@limiter.limit("10 per minute")
+@limiter.limit("10 per minute", key_func=_body_key("device_id"))
+def record_profile_deletion():
+    """The phone deleted one profile (docs/policy/mobile-sign-in.md section
+    10). Device credentials, not a bearer, so a retry after the sessions end
+    still answers: ``{device_id, device_secret, user_id, unsent_count (int or
+    null when unknown), loss_confirmed}``. 201 ``{recorded: true}``, 200
+    ``{recorded: false}`` on a retry; 400 ``invalid_request`` /
+    ``confirmation_required``, 401 ``device_invalid``, 403
+    ``profile_not_on_device``, 409 ``unsent_work``."""
+    p = _body()
+    recorded = devices.record_profile_deletion(
+        device_id=p.get("device_id"), device_secret=p.get("device_secret"),
+        user_id=p.get("user_id"), unsent_count=p.get("unsent_count"),
+        loss_confirmed=p.get("loss_confirmed", False),
+    )
+    db.session.commit()
+    return jsonify({"recorded": recorded}), 201 if recorded else 200
+
+
 @bp.post("/sessions/refresh")
 @limiter.limit("30 per minute")
 def refresh_session():

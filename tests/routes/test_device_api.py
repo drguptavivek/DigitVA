@@ -2627,3 +2627,89 @@ class DeviceApiTests(BaseTestCase):
                        refreshed["access_token"], refreshed["refresh_token"], PASSWORD, "wrong-password",
                        "device.interviewer@test.local", "Bina"):
             self.assertNotIn(secret, text)
+
+    # ── profile recovery and deletion (mobile-sign-in.md section 10) ──────
+
+    def _live(self, device, user):
+        return db.session.scalars(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.device_id == uuid.UUID(device["device_id"]),
+            AuthDeviceSession.user_id == user.user_id,
+            AuthDeviceSession.revoked_at.is_(None),
+        )).all()
+
+    def _delete_profile(self, device, user, **body):
+        return self.client.post(f"{API}/profile-deletions", json={
+            "device_id": device["device_id"], "device_secret": device["device_secret"],
+            "user_id": str(user.user_id), **body,
+        })
+
+    def _deletion_events(self, user):
+        return db.session.scalars(sa.select(AuthSecurityEvent).where(
+            AuthSecurityEvent.user_id == user.user_id,
+            AuthSecurityEvent.event_type == "device_profile_deleted",
+        )).all()
+
+    def test_recovery_without_reset_copy_signs_in_then_out_leaving_other_profiles(self):
+        device, mine = self._session()
+        _device, theirs = self._session(device, email="device.teammate@test.local")
+        # The forgotten-PIN profile signs in again with its password ...
+        _device, again = self._session(device)
+        self.assertEqual(len(self._live(device, self.interviewer)), 1)
+        # ... and signs out: its session ends, the teammate's does not.
+        self.assertEqual(self.client.delete(f"{API}/sessions/current", headers=self._bearer(again)).status_code, 204)
+        db.session.expire_all()
+        self.assertEqual(self._live(device, self.interviewer), [])
+        self.assertEqual(len(self._live(device, self.teammate)), 1)
+        self.assertEqual(self._refresh(theirs["refresh_token"]).status_code, 200)
+        self.assertIsNone(db.session.get(AuthDevice, uuid.UUID(device["device_id"])).revoked_at)
+
+    def test_profile_deletion_is_audited_ends_only_that_profile_and_is_idempotent(self):
+        device, _mine = self._session()
+        _device, _theirs = self._session(device, email="device.teammate@test.local")
+        response = self._delete_profile(device, self.interviewer, unsent_count=None, loss_confirmed=True)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(response.get_json(), {"recorded": True})
+        db.session.expire_all()
+        self.assertEqual(self._live(device, self.interviewer), [])
+        self.assertEqual(len(self._live(device, self.teammate)), 1)
+        events = self._deletion_events(self.interviewer)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].detail, {
+            "device_id": device["device_id"], "unsent_count_known": False, "unsent_count": None,
+            "loss_confirmed": True, "sessions_ended": 1,
+        })
+        retry = self._delete_profile(device, self.interviewer, unsent_count=None, loss_confirmed=True)
+        self.assertEqual(retry.status_code, 200)
+        self.assertEqual(retry.get_json(), {"recorded": False})
+        self.assertEqual(len(self._deletion_events(self.interviewer)), 1)
+        # Re-added and deleted again: a new record.
+        self._session(device)
+        self.assertEqual(self._delete_profile(device, self.interviewer, unsent_count=0).status_code, 201)
+        self.assertEqual(len(self._deletion_events(self.interviewer)), 2)
+
+    def test_profile_deletion_refuses_unsent_work_and_unconfirmed_unknown_count(self):
+        device, _mine = self._session()
+        response = self._delete_profile(device, self.interviewer, unsent_count=3)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (409, "unsent_work"))
+        response = self._delete_profile(device, self.interviewer, unsent_count=None)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (400, "confirmation_required"))
+        response = self._delete_profile(device, self.interviewer, unsent_count="2")
+        self.assertEqual((response.status_code, response.get_json()["code"]), (400, "invalid_request"))
+        db.session.expire_all()
+        self.assertEqual(len(self._live(device, self.interviewer)), 1)
+        self.assertEqual(self._deletion_events(self.interviewer), [])
+
+    def test_profile_deletion_refuses_another_device_and_bad_credentials(self):
+        device, _mine = self._session()
+        other_device = self._enrol()
+        response = self._delete_profile(other_device, self.interviewer, unsent_count=0)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (403, "profile_not_on_device"))
+        response = self._delete_profile(device, self.teammate, unsent_count=0)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (403, "profile_not_on_device"))
+        response = self._delete_profile({**device, "device_secret": "wrong"}, self.interviewer, unsent_count=0)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (401, "device_invalid"))
+        response = self.client.post(f"{API}/profile-deletions", json={"user_id": str(self.interviewer.user_id)})
+        self.assertEqual(response.status_code, 401)
+        db.session.expire_all()
+        self.assertEqual(len(self._live(device, self.interviewer)), 1)
+        self.assertEqual(self._deletion_events(self.interviewer), [])

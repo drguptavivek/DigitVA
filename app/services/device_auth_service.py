@@ -56,6 +56,7 @@ from app.models import (
     AuthDeviceEnrolmentCode,
     AuthDeviceSession,
     AuthDeviceSigningKey,
+    AuthSecurityEvent,
     AuthStationConfig,
     AuthStationCustodian,
     VaAccessRoles,
@@ -923,6 +924,76 @@ def decommission_account_device(user_id, device_id, actor: VaUsers) -> int:
         detail={"device_id": str(parsed_device_id), "sessions_ended": len(sessions)},
     )
     return len(sessions)
+
+
+def record_profile_deletion(*, device_id, device_secret, user_id, unsent_count, loss_confirmed) -> bool:
+    """Audit the phone deleting *user_id*'s profile and end their sessions on
+    the device (docs/policy/mobile-sign-in.md section 10).
+
+    Device-authenticated (a revoked device may still report). *unsent_count*
+    is an int, or None when the phone could not count (locked profile);
+    None needs *loss_confirmed* True. Returns False when a retry found the
+    deletion already recorded and nothing live to end. Raises
+    DeviceAuthError. Caller commits."""
+    device = _device_by_secret(device_id, device_secret)
+    try:
+        user_uuid = uuid.UUID(str(user_id))
+    except (ValueError, TypeError, AttributeError):
+        raise DeviceAuthError("user_id is not valid.", "invalid_request", 400, fields=["user_id"])
+    if unsent_count is not None and (
+        isinstance(unsent_count, bool) or not isinstance(unsent_count, int) or not 0 <= unsent_count <= 100_000
+    ):
+        raise DeviceAuthError("unsent_count is not valid.", "invalid_request", 400, fields=["unsent_count"])
+    if not isinstance(loss_confirmed, bool):
+        raise DeviceAuthError("loss_confirmed must be true or false.", "invalid_request", 400, fields=["loss_confirmed"])
+    if unsent_count:
+        raise DeviceAuthError("Send this profile's work before deleting it.", "unsent_work", 409)
+    if unsent_count is None and not loss_confirmed:
+        raise DeviceAuthError("Confirm that unsent work will be lost.", "confirmation_required", 400)
+
+    latest_session_at = db.session.scalar(
+        sa.select(sa.func.max(AuthDeviceSession.created_at)).where(
+            AuthDeviceSession.device_id == device.device_id,
+            AuthDeviceSession.user_id == user_uuid,
+        )
+    )
+    if latest_session_at is None:  # never signed in here: not this phone's profile
+        raise DeviceAuthError("This profile is not on this device.", "profile_not_on_device", 403)
+
+    sessions = db.session.scalars(
+        sa.select(AuthDeviceSession)
+        .where(
+            AuthDeviceSession.device_id == device.device_id,
+            AuthDeviceSession.user_id == user_uuid,
+            AuthDeviceSession.revoked_at.is_(None),
+        )
+        .with_for_update()
+    ).all()
+    if not sessions:
+        already = db.session.scalar(
+            sa.select(AuthSecurityEvent.id).where(
+                AuthSecurityEvent.user_id == user_uuid,
+                AuthSecurityEvent.event_type == "device_profile_deleted",
+                AuthSecurityEvent.occurred_at >= latest_session_at,
+                AuthSecurityEvent.detail["device_id"].astext == str(device.device_id),
+            ).limit(1)
+        )
+        if already is not None:
+            return False
+    for session in sessions:
+        _revoke(session, "profile_deleted")
+    record_security_event(
+        user_id=user_uuid, event_type="device_profile_deleted",
+        detail={
+            "device_id": str(device.device_id),
+            "unsent_count_known": unsent_count is not None,
+            "unsent_count": unsent_count,
+            "loss_confirmed": loss_confirmed,
+            "sessions_ended": len(sessions),
+        },
+    )
+    log.info("device profile deleted | device=%s | user=%s", device.device_id, user_uuid)
+    return True
 
 
 def open_session(*, device_id, device_secret, email, password) -> tuple[IssuedTokens, VaUsers]:

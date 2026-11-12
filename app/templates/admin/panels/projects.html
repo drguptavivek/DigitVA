@@ -963,6 +963,13 @@
   markTouched(socialAutopsyEnabledInput, 'social_autopsy_enabled');
   markTouched(reviewerSocialAutopsyEnabledInput, 'reviewer_social_autopsy_enabled');
 
+  // Reviewer Social Autopsy is effective only while the project collects the
+  // social_autopsy layer (the coder switch); the stored value is kept.
+  function syncReviewerSocialAutopsy() {
+    reviewerSocialAutopsyEnabledInput.disabled = !socialAutopsyEnabledInput.checked;
+  }
+  socialAutopsyEnabledInput.addEventListener('change', syncReviewerSocialAutopsy);
+
   function readWebIntakeOptions() {
     // Every catalogue must be in hand: a partially rendered form would send a
     // narrowed list built from whichever fetch happened to succeed.
@@ -1145,6 +1152,7 @@
     structureModeInput.value = project.project_structure_mode || 'sites';
     socialAutopsyEnabledInput.checked = project.social_autopsy_enabled !== false;
     reviewerSocialAutopsyEnabledInput.checked = project.reviewer_social_autopsy_enabled !== false;
+    syncReviewerSocialAutopsy();
     demoTrainingEnabledInput.checked = !!project.demo_training_enabled;
     homeKpisIncludedInput.checked = !!project.home_kpis_included;
     selfCodingEnabledInput.checked = !!project.self_coding_enabled;

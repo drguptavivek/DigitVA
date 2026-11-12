@@ -23,6 +23,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
+from app.services.case_content_service import social_autopsy_enabled
 from app.services.social_autopsy_analysis_service import (
     SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
     social_autopsy_option_set,
@@ -86,7 +87,7 @@ def save_social_autopsy(va_sid: str):
 
     project = get_project_for_submission(va_sid)
     if is_reviewer_session:
-        if project is not None and not project.reviewer_social_autopsy_enabled:
+        if project is not None and not social_autopsy_enabled(project, "vareview"):
             return _error(
                 "Reviewer Social Autopsy is disabled for this project.", 403, "forbidden"
             )

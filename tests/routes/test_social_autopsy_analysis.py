@@ -246,6 +246,45 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
             "Coder Social Autopsy is disabled for this project.",
         )
 
+    def test_reviewer_save_rejected_when_the_layer_is_not_collected(self):
+        """Reviewer switch on, coder switch (the layer) off: refused, and the
+        stored reviewer value is left as it was."""
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.social_autopsy_enabled = False
+        project.reviewer_social_autopsy_enabled = True
+        db.session.add(
+            VaAllocations(
+                va_sid=self.social_sid,
+                va_allocated_to=self.reviewer_user.user_id,
+                va_allocation_for=VaAllocation.reviewing,
+                va_allocation_status=VaStatuses.active,
+            )
+        )
+        db.session.commit()
+
+        self._login(self.reviewer_id)
+        resp = self.client.post(
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
+            json={
+                "va_actiontype": "vastartreviewing",
+                "selected_options": [
+                    {"delay_level": "delay_1_decision", "option_code": "recognition"},
+                    {"delay_level": "delay_2_reaching", "option_code": "financial_barrier"},
+                    {"delay_level": "delay_3_receiving", "option_code": "delay_in_referral"},
+                ],
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(
+            resp.get_json()["error"],
+            "Reviewer Social Autopsy is disabled for this project.",
+        )
+        self.assertTrue(
+            db.session.get(VaProjectMaster, self.BASE_PROJECT_ID).reviewer_social_autopsy_enabled
+        )
+
     def test_reviewer_can_save_social_autopsy_with_active_reviewing_allocation(self):
         project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
         project.reviewer_social_autopsy_enabled = True

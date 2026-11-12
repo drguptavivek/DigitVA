@@ -227,6 +227,7 @@ def _doris_prefill_snapshot(project, who_image_digest, submission, certificate) 
 
 
 def _reviewer_social_autopsy_required(va_sid: str, submission: VaSubmissions) -> bool:
+    from app.services.case_content_service import social_autopsy_enabled
     from app.services.category_rendering_service import (
         get_category_rendering_service,
         get_visible_category_codes,
@@ -238,7 +239,7 @@ def _reviewer_social_autopsy_required(va_sid: str, submission: VaSubmissions) ->
     )
 
     project = get_project_for_submission(va_sid)
-    if not project or not project.reviewer_social_autopsy_enabled:
+    if not project or not social_autopsy_enabled(project, "vareview"):
         return False
 
     active_payload = get_active_payload_version(va_sid)

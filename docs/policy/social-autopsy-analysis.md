@@ -3,7 +3,7 @@ title: Social Autopsy Analysis Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-05-04
+last_updated: 2026-11-12
 ---
 
 # Social Autopsy Analysis Policy
@@ -29,6 +29,15 @@ Current baseline:
 - when `social_autopsy_enabled = false`, the mapped `social_autopsy` category
   may still render its synced submission fields, but the app-owned Social
   Autopsy analysis form must not be shown
+- Social Autopsy coding and reviewing are effectively off when the project
+  does not collect the `social_autopsy` form layer (owner 2026-11-12,
+  `digitva-sapb`). The layer is derived from `social_autopsy_enabled`
+  (`enabled_extensions`, see va-form-project-configuration.md section 1), so
+  reviewer Social Autopsy is effective only when both
+  `social_autopsy_enabled` and `reviewer_social_autopsy_enabled` are true.
+  The stored reviewer value is kept untouched; project settings show the
+  reviewer switch disabled while the coder switch is off, and saves that
+  still send it are accepted, never refused
 - it is available in coder-facing coding flows when coder Social Autopsy is
   enabled, and reviewer-facing review flows when reviewer Social Autopsy is
   enabled

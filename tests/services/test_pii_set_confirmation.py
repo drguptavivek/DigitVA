@@ -294,3 +294,28 @@ class PiiSetCacheVersionTests(BaseTestCase):
             after.confirmed,
             "removing the only owned flagged row must unconfirm the set",
         )
+
+
+class EquityCasteExportTests(BaseTestCase):
+    """Only the equity caste / ethnicity answer is personal data (digitva-vii1)."""
+
+    def test_social_group_omitted_other_equity_answers_kept(self):
+        confirmed = PiiSetStatus(
+            confirmed=True, field_ids=frozenset({"Id10017"}), owned_flagged_count=1
+        )
+        payload = {
+            "Id10017": "Jane",
+            "social_group": "sc",
+            "residence_type": "rural",
+            "vulnerable_group": "migrant disability",
+        }
+        # Present before.
+        self.assertIn("social_group", payload)
+
+        kept = _filter_export_payload(
+            payload, form_id="TF01", pii_status_by_form={"TF01": confirmed}
+        )
+        self.assertNotIn("Id10017", kept)
+        self.assertNotIn("social_group", kept)
+        self.assertEqual(kept["residence_type"], "rural")
+        self.assertEqual(kept["vulnerable_group"], "migrant disability")

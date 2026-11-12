@@ -358,11 +358,19 @@ def get_display_initial_assessment(va_sid: str):
 
 
 def social_autopsy_enabled(project, va_action: str = "vacode") -> bool:
-    """Return whether the app-owned Social Autopsy analysis form is enabled."""
+    """Return whether the app-owned Social Autopsy analysis form is enabled.
+
+    The project collects the ``social_autopsy`` layer only while
+    ``social_autopsy_enabled`` is on (``enabled_extensions``), so reviewer
+    Social Autopsy needs both switches; the stored reviewer value is kept
+    (docs/policy/social-autopsy-analysis.md).
+    """
     if project is None:
         return True
     if va_action == "vareview":
-        return bool(project.reviewer_social_autopsy_enabled)
+        return bool(
+            project.social_autopsy_enabled and project.reviewer_social_autopsy_enabled
+        )
     return bool(project.social_autopsy_enabled)
 
 

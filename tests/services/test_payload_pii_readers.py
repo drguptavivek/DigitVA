@@ -232,7 +232,9 @@ class ReaderSitesTests(SplitReaderBase):
     def test_reviewer_checks_use_the_joined_payload(self):
         sub, _ = self._split_case("uuid:prd-reviewer")
         seen = []
-        project = SimpleNamespace(reviewer_social_autopsy_enabled=True)
+        project = SimpleNamespace(
+            social_autopsy_enabled=True, reviewer_social_autopsy_enabled=True
+        )
         with (
             mock.patch("app.services.coding_service.get_project_for_submission", return_value=project),
             mock.patch(

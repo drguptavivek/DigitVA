@@ -1219,6 +1219,9 @@ CSV_EXPORT_OMIT_PAYLOAD_FIELDS = frozenset(
         "ds_im3",
         "ds_im4",
         "ds_im5",
+        # Equity caste / ethnicity: the one equity answer that is personal
+        # data (owner 2026-11-12, docs/policy/digitva-who-form-overrides.md).
+        "social_group",
     }
 )
 

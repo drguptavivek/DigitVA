@@ -3,7 +3,7 @@ title: DigitVA overrides and extensions to the WHO VA form
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-12
 ---
 
 # DigitVA overrides and extensions to the WHO VA form
@@ -158,6 +158,13 @@ The equity layer serves projects in any country.
    - A project can switch the question off.
    - It does not replace WHO `Id10053` (ethnicity, free text), which stays
      as WHO has it.
+   - **Personal data (owner 2026-11-12, `digitva-vii1`).** Among the equity
+     answers only `social_group` (caste / ethnicity) is personal data. Every
+     export that omits names and identifiers also omits `social_group`
+     (`CSV_EXPORT_OMIT_PAYLOAD_FIELDS`), and a viewer without PII access does
+     not see it; the other equity answers (`residence_type`,
+     `vulnerable_group` and the rest) export normally. Equity reports stay
+     aggregate as above.
 3. **`vulnerable_group`** (`select_multiple`): did any of these apply to the
    deceased? The categories follow the UN "leave no one behind" groups:
    - `disability`: a person with a disability (physical, sensory,

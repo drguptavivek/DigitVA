@@ -510,10 +510,17 @@ class VaCaseApiTests(BaseTestCase):
     def test_the_reviewer_social_autopsy_follows_the_reviewer_switch(self):
         self._mode(nqa=True)
         sid = self._reviewing_case()
-        self._set_project(social_autopsy_enabled=False, reviewer_social_autopsy_enabled=True)
+        self._set_project(social_autopsy_enabled=True, reviewer_social_autopsy_enabled=True)
         body = self._workspace(sid, mode="reviewing", user=self.reviewer_id)
         self.assertEqual(body["social_autopsy"]["questions"], SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS)
         self.assertEqual(body["narrative_qa"]["fields"], NARRATIVE_QA_FIELDS)
+        # The project does not collect the social_autopsy layer: reviewer SA
+        # is off whatever its own stored switch says (digitva-sapb).
+        self._set_project(social_autopsy_enabled=False, reviewer_social_autopsy_enabled=True)
+        body = self._workspace(sid, mode="reviewing", user=self.reviewer_id)
+        self.assertIn("social_autopsy", body)
+        self.assertIsNone(body["social_autopsy"])
+        self.assertFalse(body["case"]["social_autopsy_enabled"])
         self._set_project(social_autopsy_enabled=True, reviewer_social_autopsy_enabled=False)
         body = self._workspace(sid, mode="reviewing", user=self.reviewer_id)
         self.assertIn("social_autopsy", body)

@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-08
+last_updated: 2026-11-12
 ---
 
 # Workflow And Permissions
@@ -971,7 +971,8 @@ read-only is built by `digitva-0wc` stage 2 (next subsection).
   session.
 - Redaction: for a viewer `should_redact_pii` decides, the section render
   strips the confirmed PII set plus `CSV_EXPORT_OMIT_PAYLOAD_FIELDS`
-  (`SubmitterName`, instance identifiers, narration images and audio), and
+  (`SubmitterName`, instance identifiers, narration images and audio, the
+  equity `social_group` answer), and
   an unconfirmed PII set withholds the whole payload. `collaborator_pii`
   sees everything.
 - Attachments (both routes) and `GET /api/v1/workflow/events/<va_sid>`

@@ -8,7 +8,8 @@ import java.io.File
 
 /**
  * The engine's lifecycle and calls. Runs in the ":icd11" service process, on its worker thread only (see Icd11Service):
- * init once per process, failure sticky until that process restarts. The engine's error payloads can hold stack traces
+ * init once per process, failure sticky until that process restarts. After [MAX_INIT_FAILURES] failed inits in a row on one
+ * app build, later processes answer "init_blocked" at once instead of spending ~18 s failing again; [init] with retry runs it anyway. The engine's error payloads can hold stack traces
  * and certificate text, so they are neither logged nor returned: callers get a status or a code.
  *
  * Every init runs behind the dead proxy: engine and WHO data are packaged together, and runtime downloads are disabled.
@@ -22,14 +23,18 @@ internal class EngineHost(private val context: Context, private val progress: (p
   private fun fail(code: String, copyMs: Double = 0.0, initMs: Double = 0.0, totalMs: Double = 0.0) =
     mapOf("ok" to false, "error" to code, "copyMs" to copyMs, "initMs" to initMs, "ms" to totalMs, "cached" to false)
 
-  fun init(): Map<String, Any?> {
-    initResult?.let { return it + ("cached" to true) + ("ms" to 0.0) }
+  /** [retry]: the user asked again, so run an init that earlier failures blocked (see the class comment). */
+  fun init(retry: Boolean = false): Map<String, Any?> {
+    initResult?.let { if (!(retry && it["error"] == "init_blocked")) return it + ("cached" to true) + ("ms" to 0.0) }
     val start = System.nanoTime()
     // Trace sections (Perfetto, scripts/android-trace.sh) use fixed names only; each ends in finally.
     Trace.beginSection("icd11.init")
     val result = try {
       if (!EngineJni.loadShim()) return fail("unavailable").also { initResult = it }
       val record = EngineData.setupRecord(context)
+      @Suppress("DEPRECATION") val build = context.packageManager.getPackageInfo(context.packageName, 0).lastUpdateTime
+      val failures = EngineData.priorFailures(record, build)
+      if (failures >= MAX_INIT_FAILURES && !retry) return fail("init_blocked").also { initResult = it }
       // A setup that started and never finished: start from the packaged copies.
       val interrupted = record?.optString("state") == "attempt"
       if (interrupted) EngineData.discard(context)
@@ -51,7 +56,10 @@ internal class EngineHost(private val context: Context, private val progress: (p
       if (recordSetup) EngineData.markAttempt(context)
       val lib = File(context.applicationInfo.nativeLibraryDir, "libdigitva_icd11.so")
       // load refuses a library without digitva_icd11_call (a stale engine pin): "load_failed", so the app reports the engine unavailable.
-      if (!lib.exists() || EngineJni.load(lib.path) != 0) {
+      val loaded = if (lib.exists()) EngineJni.load(lib.path) else -1
+      if (loaded != 0) {
+        // The code only (EngineJni.load): 3 is a library without digitva_icd11_call, i.e. a stale staged engine.
+        Log.w(TAG, "engine load failed: code $loaded")
         fail("load_failed", copyMs, 0.0, millis(start))
       } else {
         progress("engine", -1)
@@ -59,11 +67,13 @@ internal class EngineHost(private val context: Context, private val progress: (p
         val code = EngineJni.initEngine(File(root, "bundle").path, data.path)
         val initMs = millis(initStart)
         if (code != 0) {
-          // Derived files may be half written; start from clean data after a restart.
-          EngineData.discard(context)
+          // Derived files may be half written: start from clean data once. A failure on freshly copied data is not the data's
+          // fault, so later ones keep it and the next process skips the ~47 MB copy.
+          EngineData.markFailed(context, failures + 1, build)
+          if (failures == 0) EngineData.discard(context)
           fail("init_failed", copyMs, initMs, millis(start))
         } else {
-          if (recordSetup || repair.repaired.isNotEmpty()) EngineData.writeRecord(context)
+          if (recordSetup || record?.optString("state") == "failed" || repair.repaired.isNotEmpty()) EngineData.writeRecord(context)
           val setup = EngineData.summary("shipped", emptyMap())
           progress("ready", 100)
           mapOf("ok" to true, "copyMs" to copyMs, "initMs" to initMs, "ms" to millis(start), "cached" to false, "phases" to phases(root), "setup" to setup)
@@ -121,20 +131,21 @@ internal class EngineHost(private val context: Context, private val progress: (p
 
   private companion object {
     const val TAG = "DigitvaIcd11"
+    const val MAX_INIT_FAILURES = 3
     val PHASES_FORMAT = Regex("[a-z]+=[0-9]+( [a-z]+=[0-9]+)*")
   }
 }
 
 /**
- * The result map of one call (see [EngineHost.call]): [invoke] runs the engine and fills status[0]; [initialised] is whether the
- * init succeeded. Android-free so the JVM unit tests can run it.
+ * The result map of one call (see [EngineHost.call]): [invoke] runs the engine on [input] as UTF-8 bytes and fills status[0];
+ * [initialised] is whether the init succeeded. Android-free so the JVM unit tests can run it.
  */
-internal fun callResult(initialised: Boolean, op: String, input: String, invoke: (String, String, IntArray) -> ByteArray?): Map<String, Any?> {
+internal fun callResult(initialised: Boolean, op: String, input: String, invoke: (String, ByteArray, IntArray) -> ByteArray?): Map<String, Any?> {
   if (!Icd11Service.OP_NAME.matches(op)) return mapOf("ok" to false, "error" to "bad_op", "status" to 0, "nativeMs" to 0.0)
   if (!initialised) return mapOf("ok" to false, "error" to "not_initialized", "status" to 503, "nativeMs" to 0.0)
   val status = IntArray(1)
   val start = System.nanoTime()
-  val bytes = invoke(op, input, status)
+  val bytes = invoke(op, input.toByteArray(Charsets.UTF_8), status)
   val nativeMs = (System.nanoTime() - start) / 1_000_000.0
   if (bytes == null || status[0] !in 200..299) {
     // The body of a failed call may echo the input or a stack trace: drop it.

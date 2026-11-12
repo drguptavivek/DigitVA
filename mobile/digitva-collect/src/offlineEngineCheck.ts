@@ -89,7 +89,8 @@ export async function runEngineCheck(engine: OfflineEngine, onStep: (step: Check
     push({ name: "available", ok: false, ms: 0, note: "unavailable" });
     return steps;
   }
-  const init: EngineInit = await engine.init();
+  // An explicit check: runs even when repeated failures block the automatic init.
+  const init: EngineInit = await (engine.retry ? engine.retry() : engine.init());
   push({
     name: "init",
     ok: init.ok,

@@ -72,6 +72,12 @@ static void f_set_bytes(JNIEnv *e, jbyteArray a, jsize start, jsize len, const j
   struct fake_bytes *b = (struct fake_bytes *)a;
   memcpy(b->data + start, buf, len);
 }
+/* callOp's arguments are a byte array (UTF-8); a test passes a fake_str there, so its text is the array's contents. */
+static jsize f_array_len(JNIEnv *e, jarray a) { (void)e; return (jsize)strlen(((struct fake_str *)a)->utf); }
+static void f_get_bytes(JNIEnv *e, jbyteArray a, jsize start, jsize len, jbyte *buf) {
+  (void)e;
+  memcpy(buf, ((struct fake_str *)a)->utf + start, len);
+}
 static void f_set_ints(JNIEnv *e, jintArray a, jsize start, jsize len, const jint *buf) {
   (void)e;
   memcpy(((struct fake_ints *)a)->v + start, buf, len * sizeof(jint));
@@ -84,7 +90,7 @@ static const struct JNINativeInterface *table_ptr = &table;
 /* --- the shim's functions --- */
 typedef jint (*load_t)(JNIEnv *, jclass, jstring);
 typedef jint (*init_t)(JNIEnv *, jclass, jstring, jstring);
-typedef jbyteArray (*callop_t)(JNIEnv *, jclass, jstring, jstring, jintArray);
+typedef jbyteArray (*callop_t)(JNIEnv *, jclass, jstring, jbyteArray, jintArray);
 static load_t jload; static init_t jinit; static callop_t jcallop;
 
 static int failures;
@@ -119,6 +125,7 @@ int main(int argc, char **argv) {
   int expect_load = atoi(argv[5]);
   table.GetStringUTFChars = f_get; table.ReleaseStringUTFChars = f_release; table.NewByteArray = f_new_bytes;
   table.SetByteArrayRegion = f_set_bytes; table.SetIntArrayRegion = f_set_ints;
+  table.GetArrayLength = f_array_len; table.GetByteArrayRegion = f_get_bytes;
 
   void *shim = dlopen(shim_path, RTLD_NOW);
   if (!shim) { fprintf(stderr, "dlopen shim: %s\n", dlerror()); return 98; }
@@ -227,7 +234,6 @@ int main(int argc, char **argv) {
   BAD(unreadable_in);
   st.v[0] = -9;
   check(jcallop(ENV, NULL, unreadable_in, args_q, (jintArray)&st) == NULL && st.v[0] == -9, "callOp with an unreadable op string is NULL, status untouched", "");
-  check(jcallop(ENV, NULL, op_search, unreadable_in, (jintArray)&st) == NULL && st.v[0] == -9, "callOp with unreadable arguments is NULL, status untouched", "");
 
   /* a failed array allocation */
   fail_new_array = 1; st.v[0] = -1;

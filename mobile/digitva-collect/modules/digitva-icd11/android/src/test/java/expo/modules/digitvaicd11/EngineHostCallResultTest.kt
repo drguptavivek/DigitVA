@@ -31,10 +31,22 @@ class EngineHostCallResultTest {
     val seen = mutableListOf<String>()
     callResult(true, "foundation_entity", """{"id":"1"}""") { op, json, _ ->
       seen += op
-      seen += json
+      seen += String(json, Charsets.UTF_8)
       null
     }
     assertEquals(listOf("foundation_entity", """{"id":"1"}"""), seen)
+  }
+
+  @Test fun inputOutsideTheBmpReachesTheEngineAsStandardUtf8() {
+    var sent = ByteArray(0)
+    callResult(true, "search", "{\"q\":\"\uD835\uDC00\"}") { _, json, _ ->
+      sent = json
+      null
+    }
+    val expected = byteArrayOf(0xF0.toByte(), 0x9D.toByte(), 0x90.toByte(), 0x80.toByte()) // U+1D400, not ED A0 B5 ED B0 80
+    val q = sent.copyOfRange(6, 10)
+    assertTrue(q.contentEquals(expected))
+    assertEquals(12, sent.size)
   }
 
   @Test fun aFailedCallDropsTheBodyAndKeepsTheStatus() {

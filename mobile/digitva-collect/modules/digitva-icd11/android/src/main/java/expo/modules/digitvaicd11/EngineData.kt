@@ -16,7 +16,8 @@ import java.io.IOException
  *
  * The setup record is filesDir/icd11-<DATA_VERSION>.setup.json, beside the versioned dir rather than inside it, so
  * discarding a failed engine's data keeps the record. Its "state" is "attempt" (a setup started and did not finish)
- * or "shipped" (the packaged WHO files are current). No record means a fresh install or a data reset.
+ * or "shipped" (the packaged WHO files are current) or "failed" (the engine's init returned an error "failures" times in a
+ * row on the app build installed at "build", PackageInfo.lastUpdateTime). No record means a fresh install or a data reset.
  */
 internal object EngineData {
   /** Bump when the staged data changes: a new version dir is copied and older ones are deleted. */
@@ -94,6 +95,20 @@ internal object EngineData {
   fun writeRecord(context: Context) {
     writeAtomic(setupFile(context), JSONObject().put("state", "shipped").put("files", JSONArray()).toString())
   }
+
+  /** Records one more failed engine init on [build]; see [priorFailures]. */
+  fun markFailed(context: Context, failures: Int, build: Long) {
+    writeAtomic(setupFile(context), failedRecord(failures, build).toString())
+  }
+
+  fun failedRecord(failures: Int, build: Long): JSONObject = JSONObject().put("state", "failed").put("failures", failures).put("build", build)
+
+  /**
+   * Consecutive failed inits recorded for [build]. 0 for any other state, or when the app was updated since (a new build may
+   * carry the fix), so an update always gets a fresh try.
+   */
+  fun priorFailures(record: JSONObject?, build: Long): Int =
+    if (record?.optString("state") == "failed" && record.optLong("build") == build) record.optInt("failures") else 0
 
   /** The shipped WHO files and expected sizes from the APK's manifest. Throws if the build has none. */
   fun shippedWho(context: Context): Map<String, WhoFile> {

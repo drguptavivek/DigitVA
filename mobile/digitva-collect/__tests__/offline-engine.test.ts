@@ -348,3 +348,32 @@ describe("afterInteractionsOrTimeout", () => {
     expect(task).not.toHaveBeenCalled();
   });
 });
+
+describe("offlineEngine retry (init after repeated failures)", () => {
+  it("asks the native retry, which a blocked plain init does not", async () => {
+    const blocked = { ok: false, error: "init_blocked", copyMs: 0, initMs: 0, ms: 0, cached: false };
+    const init = jest.fn(async () => blocked);
+    const retryInit = jest.fn(async () => ({ ok: true, copyMs: 0, initMs: 20, ms: 20, cached: false }));
+    const engine = createOfflineEngine(fakeNative({ init, retryInit }));
+    expect(await engine.init()).toMatchObject({ ok: false, error: "init_blocked" });
+    expect(await engine.retry!()).toMatchObject({ ok: true });
+    expect(retryInit).toHaveBeenCalledTimes(1);
+    expect(await engine.retry!()).toMatchObject({ ok: true, cached: true });
+    expect(retryInit).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to init on a native module without retryInit", async () => {
+    const init = jest.fn(async () => ({ ok: true, copyMs: 0, initMs: 1, ms: 1, cached: false }));
+    expect(await createOfflineEngine(fakeNative({ init })).retry!()).toMatchObject({ ok: true });
+    expect(init).toHaveBeenCalledTimes(1);
+  });
+
+  it("is what the engine check runs", async () => {
+    const init = jest.fn(async () => ({ ok: false, error: "init_blocked", copyMs: 0, initMs: 0, ms: 0, cached: false }));
+    const retryInit = jest.fn(async () => ({ ok: false, error: "init_failed", copyMs: 0, initMs: 0, ms: 0, cached: false }));
+    const steps = await runEngineCheck(createOfflineEngine(fakeNative({ init, retryInit })));
+    expect(retryInit).toHaveBeenCalledTimes(1);
+    expect(init).not.toHaveBeenCalled();
+    expect(steps[steps.length - 1]).toMatchObject({ name: "init", ok: false, note: "init_failed" });
+  });
+});

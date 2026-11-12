@@ -39,8 +39,9 @@ internal object EngineJni {
   @JvmStatic external fun initEngine(bundleDir: String, dataDir: String): Int
 
   /**
-   * One call: op name and JSON arguments (the bridge's `digitva_icd11_call`; Bridge.cs holds the list of ops). Null when no engine
-   * is loaded or it returns nothing; status[0] receives the engine's status.
+   * One call: op name and JSON arguments as UTF-8 bytes (the bridge's `digitva_icd11_call`; Bridge.cs holds the list of ops). Bytes,
+   * not a String, because JNI strings are Modified UTF-8 and would turn a character outside the BMP into U+FFFD. Null when no engine
+   * is loaded or it returns nothing; status[0] receives the engine's status. The result is UTF-8 bytes.
    */
-  @JvmStatic external fun callOp(op: String, json: String, status: IntArray): ByteArray?
+  @JvmStatic external fun callOp(op: String, json: ByteArray, status: IntArray): ByteArray?
 }

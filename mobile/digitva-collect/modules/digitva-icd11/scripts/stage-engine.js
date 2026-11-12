@@ -143,6 +143,10 @@ function stageEngine({ moduleDir = MODULE_DIR, env = process.env } = {}) {
     const main = path.join(moduleDir, "android", "src", "main");
     const assets = path.join(main, "assets", "digitva-icd11");
     copyIfChanged(path.join(source, ENGINE_LIB), path.join(main, "jniLibs", "arm64-v8a", "libdigitva_icd11.so"));
+    // The shim refuses such a library at run time (load_failed, digitva-rih6); say so now instead of after an install.
+    if (!fs.readFileSync(path.join(source, ENGINE_LIB)).includes("digitva_icd11_call")) {
+      console.warn(`Collect Plus: ${ENGINE_LIB} has no digitva_icd11_call (an engine before 2026.10.29); the app will report load_failed. Stage the pinned archive instead.`);
+    }
     const who = stageData(source, assets, ".bin");
     return { source, assets, who };
   });

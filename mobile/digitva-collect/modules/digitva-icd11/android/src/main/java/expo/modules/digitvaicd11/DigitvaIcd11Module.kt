@@ -164,6 +164,9 @@ class DigitvaIcd11Module : Module() {
 
     AsyncFunction("init") { promise: Promise -> send(Icd11Service.OP_INIT, "", promise) }
 
+    // A user-requested init: runs even after repeated failures made plain inits answer "init_blocked".
+    AsyncFunction("retryInit") { promise: Promise -> send(Icd11Service.OP_INIT, "retry", promise) }
+
     // Explicit "Update WHO files": one init in a new engine process that may fetch WHO files, when online.
     AsyncFunction("updateWhoFiles") { promise: Promise -> send(Icd11Service.OP_UPDATE, "", promise) }
 

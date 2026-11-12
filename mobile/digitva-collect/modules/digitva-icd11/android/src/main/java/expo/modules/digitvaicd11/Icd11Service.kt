@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong
  * OP_UPDATE is retained for source compatibility but always returns bundled_only without disturbing the running engine.
  *
  * Messages: what = OP_INIT, OP_CALL or OP_UPDATE, arg1 = request id echoed in the reply, data["input"] = request text (the
- * JSON arguments of an OP_CALL) and, for OP_CALL, data["op"] = the bridge's op name (search, codeinfo, entity, ...); replyTo
+ * JSON arguments of an OP_CALL; "retry" on an OP_INIT runs an init that repeated failures blocked) and, for OP_CALL, data["op"] = the bridge's op name (search, codeinfo, entity, ...); replyTo
  * receives the result as a Bundle. While an init runs, the worker also sends WHAT_PROGRESS bundles (phase, percent) to the same
  * replyTo; the app routes them to the icd11Progress event and never resolves a promise from them.
  */
@@ -54,7 +54,8 @@ class Icd11Service : Service() {
       }
       if (op == OP_INIT) {
         progressTo = replyTo
-        jobs.submitInit(Runnable { answer(replyTo, op, id) { host.init() } })
+        val retry = input == "retry"
+        jobs.submitInit(Runnable { answer(replyTo, op, id) { host.init(retry) } })
         return
       }
       val name = if (op == OP_CALL) msg.data.getString("op").orEmpty() else ""

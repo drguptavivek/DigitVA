@@ -63,6 +63,8 @@ export interface NativeInit {
 export interface NativeEngine {
   isAvailable(): Promise<boolean>;
   init(): Promise<NativeInit>;
+  /** An init the user asked for: runs even when repeated failures made `init` answer "init_blocked". Older builds lack it. */
+  retryInit?(): Promise<NativeInit>;
   /** Ends the engine process and fetches WHO files in a new one, when online; "no_connection" otherwise. */
   updateWhoFiles(): Promise<NativeInit>;
   /** `input` is the JSON object of named arguments of `op` (see the bridge's Dispatch); the reply `text` is WHO's REST JSON. */
@@ -111,6 +113,8 @@ export type EngineResult =
 export interface OfflineEngine {
   available(): Promise<boolean>;
   init(): Promise<EngineInit>;
+  /** `init` for an explicit user action (engine check, Try again): not refused by earlier failures ("init_blocked"). */
+  retry?(): Promise<EngineInit>;
   /**
    * The background warm-up: asks the native side even when this wrapper thinks the engine is ready, because Android
    * may have ended the engine process alone. A live, initialised engine answers at once as cached (EngineHost.init), so
@@ -165,6 +169,14 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
   function init(): Promise<EngineInit> {
     if (ready) return Promise.resolve({ ...ready, ms: 0, cached: true });
     inflight ??= runInit(() => native!.init()).finally(() => {
+      inflight = undefined;
+    });
+    return inflight;
+  }
+
+  function retry(): Promise<EngineInit> {
+    if (ready || !native?.retryInit) return init();
+    inflight ??= runInit(() => native.retryInit!()).finally(() => {
       inflight = undefined;
     });
     return inflight;
@@ -237,6 +249,7 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
       }
     },
     init,
+    retry,
     warm,
     updateWhoFiles,
     call: run,

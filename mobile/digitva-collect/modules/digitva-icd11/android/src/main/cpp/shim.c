@@ -7,6 +7,7 @@
  * so the app reports the engine unavailable instead of running it half-way. The APK always ships this shim, the Kotlin and the
  * JS built in the same CI run as the staged engine, so a mismatch can only come from a stale pin.
  * Calls are serialized by the Kotlin side (one worker thread); nothing here is thread-safe on its own.
+ * Text crosses as UTF-8 both ways: call arguments in a byte array, results out as one (take_result).
  * Engine error text can hold stack traces and certificate content: it is never logged or returned from here.
  */
 #include <jni.h>
@@ -62,20 +63,27 @@ static jbyteArray take_result(JNIEnv *env, char *out) {
   return arr;
 }
 
-/* Runs one call (op name + JSON arguments). Fills status[0]. NULL when the engine is not loaded or returns nothing. */
-JNIEXPORT jbyteArray JNICALL Java_expo_modules_digitvaicd11_EngineJni_callOp(JNIEnv *env, jclass cls, jstring op, jstring json, jintArray status) {
+/*
+ * Runs one call (op name + JSON arguments). Fills status[0]. NULL when the engine is not loaded, out of memory, or the engine
+ * returns nothing. `json` arrives as standard UTF-8 bytes from Kotlin: GetStringUTFChars would hand over Modified UTF-8, where
+ * a character outside the BMP is two 3-byte surrogates that the bridge decodes as U+FFFD. `op` is ASCII (Kotlin checks its shape).
+ */
+JNIEXPORT jbyteArray JNICALL Java_expo_modules_digitvaicd11_EngineJni_callOp(JNIEnv *env, jclass cls, jstring op, jbyteArray json, jintArray status) {
   if (!engine) return NULL;
+  jsize n = (*env)->GetArrayLength(env, json);
+  char *j = malloc((size_t)n + 1);
+  if (!j) return NULL;
+  (*env)->GetByteArrayRegion(env, json, 0, n, (jbyte *)j);
+  j[n] = 0;
   const char *o = (*env)->GetStringUTFChars(env, op, 0);
-  const char *j = (*env)->GetStringUTFChars(env, json, 0);
-  if (!o || !j) {
-    if (o) (*env)->ReleaseStringUTFChars(env, op, o);
-    if (j) (*env)->ReleaseStringUTFChars(env, json, j);
+  if (!o) {
+    free(j);
     return NULL;
   }
   int st = 0;
   char *out = p_callop(o, j, &st);
   (*env)->ReleaseStringUTFChars(env, op, o);
-  (*env)->ReleaseStringUTFChars(env, json, j);
+  free(j);
   jint st_out = st;
   (*env)->SetIntArrayRegion(env, status, 0, 1, &st_out);
   return take_result(env, out);

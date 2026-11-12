@@ -35,7 +35,7 @@ import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API, isSmartVaTarget, parseAccessSummary, type AccessSummary, type SmartVaTarget } from "./api";
-import { authedRawRequest, authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
+import { authedRawRequest, authedRequest, sendQueuedProfileDeletions, SessionRevokedError, SignInRequiredError } from "./auth";
 import { identifierFieldErrors, type IdentifierType } from "./identifiers";
 import {
   acknowledgeRegistration,
@@ -826,6 +826,8 @@ export async function syncInterviewer(
   // (not a local purge) decides what happens to it.
   const uploads = await uploadQueuedWork(userId, db, { onSuperseded, onServerKept, onCanCodeNow });
   let { sent, failed } = uploads;
+  // Device-level, not this interviewer's: deletion reports of profiles already removed from the phone (auth.ts).
+  await sendQueuedProfileDeletions().catch(() => undefined);
   const { supersededUniqueIds, serverKeptUploads, canCodeNowUniqueIds, codingOutcomes } = uploads;
   const draftConflictIds: string[] = [];
 

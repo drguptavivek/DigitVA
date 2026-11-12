@@ -30,9 +30,14 @@ const mockOrder: string[] = [];
 const mockForgetDevice = jest.fn(async (..._args: unknown[]) => void mockOrder.push("forget"));
 const mockStoredPinLength = jest.fn<Promise<number | null>, []>(async () => null);
 const mockRecordPinLength = jest.fn(async (..._args: unknown[]) => undefined);
-let mockParams: { userId?: string; refresh?: string; enableBiometric?: string; enableScreenLock?: string; resetPin?: string; reset?: string } = { userId: "u1", refresh: "1" };
+let mockParams: { userId?: string; refresh?: string; enableBiometric?: string; enableScreenLock?: string; resetPin?: string; reset?: string; recover?: string; deleteProfile?: string; delete?: string } = { userId: "u1", refresh: "1" };
 let mockSignedOut = false;
 const mockRedirect = jest.fn();
+const mockRecoverSignOut = jest.fn(async (..._args: unknown[]): Promise<void> => undefined);
+const mockVerifyPasswordForDelete = jest.fn(async (..._args: unknown[]): Promise<void> => undefined);
+const mockDeleteProfile = jest.fn(async (..._args: unknown[]): Promise<void> => undefined);
+const mockUnsentWorkCount = jest.fn<Promise<number | undefined>, []>(async () => 0);
+let mockDeleteGrant = false;
 
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
@@ -56,13 +61,20 @@ jest.mock("../src/auth", () => ({
   wipeInterviewer: (...args: unknown[]) => mockWipeInterviewer(...args),
   loadActiveSlot: jest.fn(async () => mockSlot),
   loadDevice: jest.fn(async () => ({ server: "http://localhost:8051" })),
-  unlockInterviewer: (...args: Parameters<typeof mockUnlockInterviewer>) => mockUnlockInterviewer(...args)
+  unlockInterviewer: (...args: Parameters<typeof mockUnlockInterviewer>) => mockUnlockInterviewer(...args),
+  recoverSignOut: (...args: unknown[]) => mockRecoverSignOut(...args),
+  verifyPasswordForDelete: (...args: unknown[]) => mockVerifyPasswordForDelete(...args),
+  hasProfileDeleteGrant: () => mockDeleteGrant,
+  deleteProfile: (...args: unknown[]) => mockDeleteProfile(...args),
+  WrongAccountError: class WrongAccountError extends Error {},
+  ProfileDeleteRefusedError: class ProfileDeleteRefusedError extends Error {}
 }));
 jest.mock("../src/interviewerDb", () => ({
   isUnlocked: () => mockIsUnlocked(),
   hasInterviewerStore: () => mockHasInterviewerStore(),
   createInterviewerDb: (...args: Parameters<typeof mockCreateInterviewerDb>) => mockCreateInterviewerDb(...args),
-  resetInterviewerPin: (...args: unknown[]) => mockResetInterviewerPin(...args)
+  resetInterviewerPin: (...args: unknown[]) => mockResetInterviewerPin(...args),
+  unsentWorkCount: () => mockUnsentWorkCount()
 }));
 jest.mock("../src/vault", () => ({
   biometricKind: async () => "fingerprint",
@@ -159,6 +171,8 @@ describe("native login refresh handoff", () => {
     jest.clearAllMocks();
     mockParams = { userId: "u1", refresh: "1" };
     mockSignedOut = false;
+    mockDeleteGrant = false;
+    mockUnsentWorkCount.mockResolvedValue(0);
     mockSlot = "active";
     mockIsUnlocked.mockReturnValue(false);
     mockHasInterviewerStore.mockResolvedValue(true);
@@ -721,5 +735,129 @@ describe("native login refresh handoff", () => {
     await act(async () => tree!.root.findByProps({ "data-label": "pinSave" }).props.onClick());
     expect(mockRecordPinLength).toHaveBeenCalledWith("u1", 6);
     await act(async () => tree!.unmount());
+  });
+
+  describe("recovery link and Delete profile (mobile-sign-in.md section 10)", () => {
+    async function render(element: React.ReactElement) {
+      let tree: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(element);
+      });
+      await settle();
+      return tree!;
+    }
+    const label = (tree: ReturnType<typeof create>, key: string) => tree.root.findAllByProps({ "data-label": key });
+
+    it("with a reset copy the recovery link is Forgot PIN (reset flow)", async () => {
+      mockParams = { userId: "u1" };
+      mockPinUnlockState.mockResolvedValueOnce({ failures: 0, lockedMs: 0, canReset: true });
+      const tree = await render(<Unlock />);
+      expect(label(tree, "pinForgotSignOut")).toHaveLength(0);
+      await act(async () => label(tree, "pinForgot")[0].props.onClick());
+      expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/sign-in", params: { userId: "u1", resetPin: "1" } });
+      await act(async () => tree.unmount());
+    });
+
+    it("without a reset copy the recovery link signs in and out, keeping the store", async () => {
+      mockParams = { userId: "u1" };
+      const tree = await render(<Unlock />);
+      expect(label(tree, "pinForgot")).toHaveLength(0);
+      await act(async () => label(tree, "pinForgotSignOut")[0].props.onClick());
+      expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/sign-in", params: { userId: "u1", recover: "1" } });
+      await act(async () => tree.unmount());
+
+      mockParams = { userId: "u1", recover: "1" };
+      const signIn = await render(<SignIn />);
+      act(() => input(signIn, "email")!.props.onChangeText("worker@example.org"));
+      act(() => input(signIn, "password")!.props.onChangeText("secret"));
+      await act(async () => label(signIn, "signIn")[0].props.onClick());
+      expect(mockRecoverSignOut).toHaveBeenCalledWith("u1", "worker@example.org", "secret");
+      expect(mockSignIn).not.toHaveBeenCalled();
+      expect(mockWipeInterviewer).not.toHaveBeenCalled();
+      expect(mockRouter.replace).toHaveBeenCalledWith("/");
+      await act(async () => signIn.unmount());
+    });
+
+    it("a standalone profile has no password recovery link", async () => {
+      mockParams = { userId: "u1" };
+      mockAccount.standalone = true;
+      try {
+        const tree = await render(<Unlock />);
+        expect(label(tree, "profileDelete").length).toBeGreaterThan(0);
+        expect(label(tree, "pinForgotSignOut")).toHaveLength(0);
+        await act(async () => tree.unmount());
+      } finally {
+        delete mockAccount.standalone;
+      }
+    });
+
+    it("refuses to delete when the PIN shows unsent work", async () => {
+      mockParams = { userId: "u1" };
+      mockUnsentWorkCount.mockResolvedValue(2);
+      const tree = await render(<Unlock />);
+      await act(async () => label(tree, "profileDelete")[0].props.onClick());
+      act(() => editableInputs(tree)[0].props.onChangeText("123456"));
+      await act(async () => label(tree, "unlock")[0].props.onClick());
+      expect(tree.root.findAllByProps({ testID: "profile-delete-refused" }).length).toBeGreaterThan(0);
+      expect(label(tree, "profileDeleteConfirm")).toHaveLength(0);
+      expect(mockDeleteProfile).not.toHaveBeenCalled();
+      expect(mockUnlocked).not.toHaveBeenCalled();
+      const grant = jest.requireActual("../src/pinResetGrant") as typeof import("../src/pinResetGrant");
+      grant.allowProfileDelete("u1");
+      await act(async () => label(tree, "cancel")[0].props.onClick());
+      expect(mockLockNow).toHaveBeenCalled();
+      expect(grant.hasProfileDeleteGrant("u1")).toBe(false);
+      await act(async () => tree.unmount());
+    });
+
+    it("deletes with the PIN when nothing is unsent, no typed word needed", async () => {
+      mockParams = { userId: "u1", delete: "1" };
+      const tree = await render(<Unlock />);
+      act(() => editableInputs(tree)[0].props.onChangeText("123456"));
+      await act(async () => label(tree, "unlock")[0].props.onClick());
+      expect(tree.root.findAllByProps({ testID: "profile-delete-confirm-input" })).toHaveLength(0);
+      await act(async () => label(tree, "profileDeleteConfirm")[0].props.onClick());
+      expect(mockDeleteProfile).toHaveBeenCalledWith("u1", 0, false);
+      expect(mockRouter.replace).toHaveBeenCalledWith("/");
+      await act(async () => tree.unmount());
+    });
+
+    it("after a password check the unknown count needs the typed word", async () => {
+      mockParams = { userId: "u1", deleteProfile: "1" };
+      const signIn = await render(<SignIn />);
+      act(() => input(signIn, "email")!.props.onChangeText("worker@example.org"));
+      act(() => input(signIn, "password")!.props.onChangeText("secret"));
+      await act(async () => label(signIn, "signIn")[0].props.onClick());
+      expect(mockVerifyPasswordForDelete).toHaveBeenCalledWith("u1", "worker@example.org", "secret");
+      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", delete: "1" } });
+      await act(async () => signIn.unmount());
+
+      mockParams = { userId: "u1", delete: "1" };
+      mockDeleteGrant = true;
+      mockUnsentWorkCount.mockResolvedValue(undefined);
+      const tree = await render(<Unlock />);
+      const confirm = () => label(tree, "profileDeleteConfirm")[0];
+      expect(confirm().props.disabled).toBe(true);
+      const field = () => tree.root.findAll((node) => node.props.testID === "profile-delete-confirm-input" && typeof node.props.onChangeText === "function")[0];
+      act(() => field().props.onChangeText("delet"));
+      expect(confirm().props.disabled).toBe(true);
+      act(() => field().props.onChangeText("profileDeleteWord"));
+      expect(confirm().props.disabled).toBe(false);
+      await act(async () => confirm().props.onClick());
+      expect(mockDeleteProfile).toHaveBeenCalledWith("u1", null, true);
+      await act(async () => tree.unmount());
+    });
+
+    it("shows the server's refusal and stays on the screen", async () => {
+      mockParams = { userId: "u1", delete: "1" };
+      mockDeleteProfile.mockRejectedValueOnce(new ApiError(409, "unsent_work"));
+      const tree = await render(<Unlock />);
+      act(() => editableInputs(tree)[0].props.onChangeText("123456"));
+      await act(async () => label(tree, "unlock")[0].props.onClick());
+      await act(async () => label(tree, "profileDeleteConfirm")[0].props.onClick());
+      expect(tree.root.findAll((node) => node.props.children === "profileDeleteRefused").length).toBeGreaterThan(0);
+      expect(mockRouter.replace).not.toHaveBeenCalledWith("/");
+      await act(async () => tree.unmount());
+    });
   });
 });

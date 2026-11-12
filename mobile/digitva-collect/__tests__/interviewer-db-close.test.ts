@@ -8,7 +8,7 @@ jest.mock("../src/drafts", () => ({ migrate: jest.fn(async () => undefined), cou
 jest.mock("../src/mediaFiles", () => ({ wipeMediaCache: jest.fn() }));
 jest.mock("../src/unsentWork", () => ({ summariseWork: jest.fn() }));
 jest.mock("../src/accountStoreIdentity", () => ({ assertAccountStoreModeSafe: jest.fn(async () => undefined) }));
-jest.mock("../src/pinResetGrant", () => ({ clearPinResetGrant: jest.fn(), hasPinResetGrant: jest.fn(), takePinResetGrant: jest.fn() }));
+jest.mock("../src/pinResetGrant", () => ({ clearPinResetGrant: jest.fn(), clearProfileDeleteGrant: jest.fn(), hasPinResetGrant: jest.fn(), takePinResetGrant: jest.fn() }));
 jest.mock("../src/vault", () => ({
   createStoreSecret: jest.fn(async () => "s"),
   newDataKey: jest.fn(async () => "k"),
@@ -111,4 +111,12 @@ test("a failed native close keeps the handle so the next lockAll retries and clo
   await expect(lockAll()).resolves.toBeUndefined();
   expect(native.closeAsync).toHaveBeenCalledTimes(2);
   await expect(db.execAsync("after")).rejects.toBeInstanceOf(StoreLockedError);
+});
+
+test("lockAll drops every Delete profile password grant with the PIN reset grant", async () => {
+  const grants = jest.requireMock("../src/pinResetGrant") as { clearPinResetGrant: jest.Mock; clearProfileDeleteGrant: jest.Mock };
+  grants.clearProfileDeleteGrant.mockClear();
+  await lockAll();
+  expect(grants.clearPinResetGrant).toHaveBeenCalled();
+  expect(grants.clearProfileDeleteGrant).toHaveBeenCalledWith();
 });

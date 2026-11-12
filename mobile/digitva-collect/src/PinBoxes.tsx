@@ -7,6 +7,8 @@
  * has the focus ring.
  * `onFilled` fires when typing fills the last box, and bumping `focusSignal` focuses the first empty box, so a
  * parent moves on to the next row only once this one is full (Set PIN's Confirm row).
+ * Development builds add one plain field (testID `pin-input`) that takes the whole PIN typed at once: test drivers
+ * type faster than focus moves between boxes, and the boxes read a digit landing in a filled box as a correction.
  */
 import { useEffect, useRef, useState } from "react";
 import { Animated, Pressable, TextInput, View, type NativeSyntheticEvent, type TextInputKeyPressEventData } from "react-native";
@@ -125,6 +127,18 @@ export function PinBoxes({
           />
         ))}
       </Animated.View>
+      {__DEV__ ? (
+        <TextInput
+          testID="pin-input"
+          accessibilityLabel={`${label} (dev)`}
+          keyboardType="number-pad"
+          autoComplete="off"
+          importantForAutofill="no"
+          style={{ width: 44, height: 44, opacity: 0.2 }}
+          value=""
+          onChangeText={(text) => change(applyPinInput("", 0, text.length === 1 ? valueRef.current + text : text))}
+        />
+      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={shown ? t("pinHide") : t("pinShow")}

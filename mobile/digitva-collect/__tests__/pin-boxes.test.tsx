@@ -54,6 +54,18 @@ const boxes = (tree: ReactTestRenderer) =>
   );
 
 describe("PinBoxes", () => {
+  it("development builds take a fast-typed or whole PIN in the pin-input field", async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = create(<Harness />);
+    });
+    const fast = () => tree.root.findAll((node) => node.props.testID === "pin-input" && typeof node.props.onChangeText === "function")[0];
+    for (const digit of "1234") act(() => fast().props.onChangeText(digit));
+    expect(boxes(tree).map((box) => box.props.value).join("")).toBe("1234");
+    act(() => fast().props.onChangeText("987654"));
+    expect(boxes(tree).map((box) => box.props.value).join("")).toBe("987654");
+  });
+
   it("renders six masked numeric boxes, the first focused at once", async () => {
     let tree!: ReactTestRenderer;
     await act(async () => {

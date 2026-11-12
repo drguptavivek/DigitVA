@@ -5,17 +5,24 @@
  * password and then sets a new PIN, keeping the interviews (pin-setup reset; digitva-kfi).
  * An interviewer with no PIN yet goes to PIN setup. A signed-out profile goes
  * to sign-in instead: its PIN alone never opens the kept store.
+ * Under "Switch profile" a recovery link always shows for a server profile (docs/policy/mobile-sign-in.md section 10):
+ * "Forgot PIN?" when a reset copy exists, else a password sign-in that signs the profile out and keeps its store.
+ * "Delete profile" (also `?delete=1` from the profiles list) needs the PIN or a password check (sign-in
+ * `deleteProfile=1`, a memory-only grant): a known unsent count above zero refuses; an unknown one needs the
+ * typed confirmation. A signed-out or unlocked profile stays here while deleting instead of redirecting.
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Text, View } from "react-native";
 
 import { ConfirmDialog } from "../ConfirmDialog";
+import { clearProfileDeleteGrant } from "../pinResetGrant";
 
 import { useAppState } from "../AppState";
-import { unlockInterviewer, wipeInterviewer } from "../auth";
+import { ApiError } from "../api";
+import { deleteProfile, hasProfileDeleteGrant, ProfileDeleteRefusedError, unlockInterviewer, wipeInterviewer } from "../auth";
 import { t } from "../i18n";
-import { hasInterviewerStore, isUnlocked, resetMissingStore } from "../interviewerDb";
+import { hasInterviewerStore, isUnlocked, resetMissingStore, unsentWorkCount } from "../interviewerDb";
 import { homeRoute } from "../standalone/home";
 import { PIN_BOXES, PinBoxes } from "../PinBoxes";
 import { controls, spacing, useTheme } from "../theme";
@@ -45,12 +52,16 @@ export default function Unlock() {
   const { ui, typography } = useTheme();
   const bioKind = useBiometricKind();
   const router = useRouter();
-  const { userId, refresh, enableBiometric: enableBiometricParam, enableScreenLock: enableScreenLockParam } =
-    useLocalSearchParams<{ userId: string; refresh?: string; enableBiometric?: string; enableScreenLock?: string }>();
+  const { userId, refresh, enableBiometric: enableBiometricParam, enableScreenLock: enableScreenLockParam, delete: deleteParam } =
+    useLocalSearchParams<{ userId: string; refresh?: string; enableBiometric?: string; enableScreenLock?: string; delete?: string }>();
   const enabling = enableBiometricParam === "1" || enableScreenLockParam === "1";
   const { accounts, reload, unlocked, lockNow } = useAppState();
   const account = accounts.find((a) => a.user_id === userId);
-  const signedOut = account?.signed_out === true;
+  // Delete profile: undefined = not deleting; "auth" = waiting for the PIN or password; a number or null = the
+  // unsent count after the check (null: unknown, the store stayed locked).
+  const [deleting, setDeleting] = useState<"auth" | number | null | undefined>(deleteParam === "1" ? "auth" : undefined);
+  const [deleteWord, setDeleteWord] = useState("");
+  const signedOut = account?.signed_out === true && deleting === undefined;
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [storeMissing, setStoreMissing] = useState(false);
@@ -112,6 +123,33 @@ export default function Unlock() {
     }
   };
 
+  const closeDelete = () => {
+    setDeleting(undefined);
+    setDeleteWord("");
+    if (userId) clearProfileDeleteGrant(userId);
+    setError("");
+    // A PIN check opened the store without marking it unlocked: close it again.
+    void lockNow().catch(() => undefined);
+  };
+  const confirmDelete = async () => {
+    if (!userId || deleting === undefined || deleting === "auth") return;
+    setBusy(true);
+    setError("");
+    try {
+      await deleteProfile(userId, deleting, deleting === null);
+      await reload();
+      router.replace("/");
+    } catch (caught) {
+      setError(
+        caught instanceof ProfileDeleteRefusedError || (caught instanceof ApiError && caught.code === "unsent_work")
+          ? t("profileDeleteRefused")
+          : caught instanceof ApiError && (caught.status === 400 || caught.status === 409) ? t("profileDeleteServerRefused") : t("errGeneric"),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const toWorklist = useCallback(
     () => router.replace({ pathname: homeRoute(account), params: { userId: userId ?? "", ...(refresh === "1" ? { refresh: "1" } : {}) } }),
     [router, userId, refresh, account]
@@ -131,6 +169,12 @@ export default function Unlock() {
           }
         }
         const result = await unlockInterviewer(userId, candidate);
+        if (result.ok && deleting !== undefined) {
+          // The PIN is the check; the now-open store gives the count. Not marked unlocked: Cancel locks it again.
+          setPin("");
+          setDeleting((await unsentWorkCount(userId)) ?? null);
+          return;
+        }
         if (result.ok) {
           let setupFailed = false;
           try {
@@ -174,7 +218,7 @@ export default function Unlock() {
         setBusy(false);
       }
     },
-    [userId, signedOut, enableBiometricParam, enableScreenLockParam, enabling, unlocked, toWorklist, reload, router, lockNow, showLock]
+    [userId, signedOut, deleting, enableBiometricParam, enableScreenLockParam, enabling, unlocked, toWorklist, reload, router, lockNow, showLock]
   );
 
   const tryBiometric = useCallback(async () => {
@@ -202,7 +246,13 @@ export default function Unlock() {
   useEffect(() => {
     // Signed out: no biometric or screen-lock prompt; the render below sends it to sign-in.
     if (!userId || signedOut) return;
-    if (isUnlocked(userId) && !enabling) {
+    // Opened to delete (the first render's value): no redirect and no automatic prompt.
+    const deletingAtOpen = deleting !== undefined;
+    if (deletingAtOpen && hasProfileDeleteGrant(userId)) {
+      // Back from the password check (sign-in deleteProfile=1): the count is known only if the store is open.
+      void unsentWorkCount(userId).then((count) => setDeleting(count ?? null));
+    }
+    if (isUnlocked(userId) && !enabling && !deletingAtOpen) {
       toWorklist();
       return;
     }
@@ -210,6 +260,7 @@ export default function Unlock() {
     void (async () => {
       try {
         if (!(await hasInterviewerStore(userId))) {
+          if (deletingAtOpen) return;
           router.replace({ pathname: "/pin-setup", params: { userId, ...(refresh === "1" ? { refresh: "1" } : {}) } });
           return;
         }
@@ -227,7 +278,7 @@ export default function Unlock() {
         }
         const length = await storedPinLength(userId);
         if (active && length !== null && length > PIN_BOXES) setLongPin(true);
-        if (enabling || state.lockedMs) return;
+        if (enabling || state.lockedMs || deletingAtOpen) return;
         if (bio) await tryBiometric();
         else if (lock) await tryScreenLock();
       } catch {
@@ -271,6 +322,43 @@ export default function Unlock() {
       </Screen>
     );
   }
+  if (deleting !== undefined && deleting !== "auth") {
+    const word = t("profileDeleteWord");
+    const typed = deleteWord.trim().toLowerCase() === word.toLowerCase();
+    return (
+      <Screen title={t("profileDeleteTitle")}>
+        <Text testID="unlock-name" style={{ ...typography.body, color: ui.foreground }}>{account.name}</Text>
+        {deleting !== null && deleting > 0 ? (
+          <Notice tone="error" testID="profile-delete-refused">{t("profileDeleteUnsent", { count: deleting })}</Notice>
+        ) : (
+          <>
+            <Text style={styles.text}>{t(deleting === null ? "profileDeleteBodyUnknown" : "profileDeleteBody")}</Text>
+            {deleting === null ? (
+              <TextField
+                testID="profile-delete-confirm-input"
+                accessibilityLabel={t("pinErasePrompt", { word })}
+                placeholder={t("pinErasePrompt", { word })}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                value={deleteWord}
+                onChangeText={setDeleteWord}
+              />
+            ) : null}
+            {error ? <Notice tone="error">{error}</Notice> : null}
+            <Button
+              testID="profile-delete-confirm"
+              kind="danger"
+              label={t("profileDeleteConfirm")}
+              loading={busy}
+              disabled={busy || (deleting === null && !typed)}
+              onPress={() => void confirmDelete()}
+            />
+          </>
+        )}
+        <TextLink label={t("cancel")} disabled={busy} onPress={closeDelete} />
+      </Screen>
+    );
+  }
   // One heading per screen (the "Unlock" title): the profile name is a body line in ink over one line saying what
   // to do. Rhythm measured to the links' text, not their 44pt boxes: boxes 12pt to "My PIN is longer", that link
   // 24pt to Unlock, Unlock 24pt to Switch profile (the "longer PIN" link belongs to the boxes).
@@ -283,11 +371,11 @@ export default function Unlock() {
   const linkOffsetAbove = (rhythm: number) => rhythm - (linkBox + glyphShift);
   const linkOffsetBelow = (rhythm: number) => rhythm - (linkBox - glyphShift);
   return (
-    <Screen title={t("unlockTitle")}>
+    <Screen title={t(deleting ? "profileDeleteTitle" : "unlockTitle")}>
       <View style={{ gap: spacing.lg }}>
         <View style={{ gap: spacing.xxs }}>
           <Text testID="unlock-name" style={{ ...typography.body, color: ui.foreground }}>{account.name}</Text>
-          <Text style={styles.muted}>{t("unlockSubtitle")}</Text>
+          <Text style={styles.muted}>{t(deleting ? "profileDeleteAuth" : "unlockSubtitle")}</Text>
         </View>
         <View style={{ gap: spacing.sm }}>
           {longPin ? (
@@ -325,11 +413,11 @@ export default function Unlock() {
             <Button kind="secondary" label={t("screenLockEnable")} disabled={busy || locked} onPress={() => void tryScreenLock()} />
           ) : null}
           {/* A standalone account has no password, and a store that never unlocked on this version has no reset copy. */}
-          {canReset && !account.standalone ? (
+          {deleting && !account.standalone ? (
             <TextLink
-              label={t("pinForgot")}
+              label={t("profileDeleteWithPassword")}
               disabled={busy}
-              onPress={() => router.push({ pathname: "/sign-in", params: { userId: account.user_id, resetPin: "1" } })}
+              onPress={() => router.push({ pathname: "/sign-in", params: { userId: account.user_id, deleteProfile: "1" } })}
             />
           ) : null}
           {eraseOffered ? <TextLink label={t("pinForgotStandalone")} disabled={busy} onPress={() => setErasing(true)} /> : null}
@@ -354,9 +442,24 @@ export default function Unlock() {
             </ConfirmDialog>
           ) : null}
           {/* The accounts list: while locked, Home is behind this lock, so the way out is to another profile. */}
-          <View testID="switch-profile-link" style={{ marginTop: linkOffsetAbove(spacing.lg) - spacing.sm }}>
-            <TextLink label={t("switchInterviewer")} onPress={() => router.replace("/")} />
-          </View>
+          {deleting ? <TextLink label={t("cancel")} disabled={busy} onPress={closeDelete} /> : (
+            <>
+              <View testID="switch-profile-link" style={{ marginTop: linkOffsetAbove(spacing.lg) - spacing.sm }}>
+                <TextLink label={t("switchInterviewer")} onPress={() => router.replace("/")} />
+              </View>
+              {/* Always, for a server profile (section 10): with a reset copy "Forgot PIN?", else sign in and sign out,
+                  keeping the store. A standalone profile has no password; its erase offer is above. */}
+              {account.standalone ? null : (
+                <TextLink
+                  testID="unlock-recover"
+                  label={t(canReset ? "pinForgot" : "pinForgotSignOut")}
+                  disabled={busy}
+                  onPress={() => router.push({ pathname: "/sign-in", params: { userId: account.user_id, ...(canReset ? { resetPin: "1" } : { recover: "1" }) } })}
+                />
+              )}
+              <TextLink testID="profile-delete" label={t("profileDelete")} tone="destructive" disabled={busy} onPress={() => { setError(""); setDeleting("auth"); }} />
+            </>
+          )}
         </View>
       </View>
     </Screen>

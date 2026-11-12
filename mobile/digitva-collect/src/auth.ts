@@ -31,7 +31,7 @@ import { Platform } from "react-native";
 
 import { APP_VERSION } from "./appVersion";
 import { stableAccessJson } from "./accessKey";
-import { allowPinReset } from "./pinResetGrant";
+import { allowPinReset, allowProfileDelete, clearProfileDeleteGrant, hasProfileDeleteGrant } from "./pinResetGrant";
 import {
   accessCapabilities,
   ApiError,
@@ -1223,4 +1223,180 @@ export async function acceptDeviceTerms(userId: string): Promise<void> {
     body: { accept_terms: true },
   });
   await setTermsRequired(userId, false);
+}
+
+/** The slot whose account list holds `userId`, or undefined when neither does. */
+async function slotHolding(userId: string): Promise<Slot | undefined> {
+  for (const slot of ["active", "demo"] as const) {
+    if ((await loadAccounts(slot)).some((account) => account.user_id === userId)) return slot;
+  }
+  return undefined;
+}
+
+/** Thrown when a password sign-in names a different account than the profile it was meant for. */
+export class WrongAccountError extends Error {
+  constructor() {
+    super("wrong_account");
+    this.name = "WrongAccountError";
+  }
+}
+
+/**
+ * Check a password for `userId` on this device (docs/policy/mobile-sign-in.md section 10): POST /auth/sessions with
+ * the slot's device credentials, then end that session at once (DELETE /auth/sessions/current). Stores nothing:
+ * no tokens, no account change, no store opened. Throws ApiError for a refused sign-in and WrongAccountError when
+ * the credentials belong to another account (whose fresh session is ended too).
+ */
+async function verifyPassword(userId: string, identifier: string, password: string): Promise<void> {
+  const slot = await slotHolding(userId);
+  const device = slot && (await loadDevice(slot));
+  const secret = slot && (await loadDeviceSecret(slot));
+  if (!device || !secret) throw new Error("not_enrolled");
+  const { body } = await requestJson<SessionBody>(device.server, `${AUTH_API}/sessions`, {
+    method: "POST",
+    body: { device_id: device.device_id, device_secret: secret, email: identifier, password, app_version: APP_VERSION },
+  });
+  try {
+    await requestJson(device.server, `${AUTH_API}/sessions/current`, { method: "DELETE", token: body.access_token });
+  } catch {
+    // Best effort, as endServerSession: the session is short-lived and holds no tokens on this phone.
+  }
+  if (String(body.user?.user_id) !== userId) throw new WrongAccountError();
+}
+
+/**
+ * Recovery for a locked profile with no PIN reset copy: a password sign-in for the same account, then that
+ * session is signed out. The encrypted store stays untouched; the profile is listed as signed out (so the phone
+ * can add profiles or go standalone, standaloneModeAvailable) and its PIN still opens the data after a sign-in.
+ */
+export async function recoverSignOut(userId: string, identifier: string, password: string): Promise<void> {
+  await verifyPassword(userId, identifier, password);
+  await serializeAccountStorage(async () => {
+    await assertAccountStoreIdentitySafe(userId);
+    await SecureStore.deleteItemAsync(tokensKey(userId), OPTIONS);
+    await updateAccountsOf(userId, (accounts) =>
+      accounts.map((a) => (a.user_id === userId ? { ...a, needs_sign_in: true, signed_out: true } : a)),
+    );
+    for (const listener of accountListeners) listener();
+  });
+}
+
+/** Password check before Delete profile: on success the unlock screen may delete `userId` within the window. */
+export async function verifyPasswordForDelete(userId: string, identifier: string, password: string): Promise<void> {
+  await verifyPassword(userId, identifier, password);
+  allowProfileDelete(userId);
+}
+
+export { hasProfileDeleteGrant, PROFILE_DELETE_WINDOW_MS } from "./pinResetGrant";
+
+/** Refused locally before anything is deleted or sent: unsent work, or an unknown count without the typed confirmation. */
+export class ProfileDeleteRefusedError extends Error {
+  constructor(public readonly code: "unsent_work" | "confirmation_required" | "not_verified") {
+    super(code);
+    this.name = "ProfileDeleteRefusedError";
+  }
+}
+
+/** A deletion report not yet accepted, kept in device-level storage (outside every profile's store). */
+interface QueuedProfileDeletion {
+  slot: Slot;
+  device_id: string;
+  user_id: string;
+  unsent_count: number | null;
+  loss_confirmed: boolean;
+}
+const PROFILE_DELETIONS_KEY = "profile_deletions";
+const loadQueuedDeletions = async () => (await readJson<QueuedProfileDeletion[]>(PROFILE_DELETIONS_KEY)) ?? [];
+
+/**
+ * Send one report with the device credentials. "done" on 200/201 and on a reply that can never succeed for this
+ * report (404 older server, 401/403: device or profile unknown there), "retry" offline, on 429 and on 5xx; 400 and
+ * 409 throw the ApiError (the server refused the deletion).
+ */
+async function sendDeletionReport(report: QueuedProfileDeletion): Promise<"done" | "retry"> {
+  const device = await loadDevice(report.slot);
+  const secret = await loadDeviceSecret(report.slot);
+  // The device was forgotten or re-enrolled: its credentials are gone, nothing can carry this report.
+  if (!device || !secret || device.device_id !== report.device_id) return "done";
+  try {
+    await requestJson(device.server, `${AUTH_API}/profile-deletions`, {
+      method: "POST",
+      body: {
+        device_id: report.device_id,
+        device_secret: secret,
+        user_id: report.user_id,
+        unsent_count: report.unsent_count,
+        loss_confirmed: report.loss_confirmed,
+      },
+    });
+    return "done";
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status === 429 || error.status >= 500) return "retry";
+    if (error.status === 400 || error.status === 409) throw error;
+    return "done";
+  }
+}
+
+const sameReport = (a: QueuedProfileDeletion, b: QueuedProfileDeletion) => a.user_id === b.user_id && a.device_id === b.device_id;
+
+/** Change the queue under the account-storage lock (never held across a network call); empty deletes the key. */
+function updateQueuedDeletions(change: (queued: QueuedProfileDeletion[]) => QueuedProfileDeletion[]): Promise<void> {
+  return serializeAccountStorage(async () => {
+    const next = change(await loadQueuedDeletions());
+    if (next.length) await writeJson(PROFILE_DELETIONS_KEY, next);
+    else await SecureStore.deleteItemAsync(PROFILE_DELETIONS_KEY, OPTIONS);
+  });
+}
+
+/**
+ * Delete profile (docs/policy/mobile-sign-in.md section 10). Allowed only after a check: the store is open (a PIN
+ * unlock; its count is re-read here and wins over `unsentCount`) or a password grant (hasProfileDeleteGrant).
+ * Refuses a non-zero count and a null count without `lossConfirmed`. A server profile is reported first: a 400/409
+ * refusal throws the ApiError and deletes nothing; offline or 5xx deletes anyway and queues the report for
+ * sendQueuedProfileDeletions. Then wipeInterviewer removes this profile only. A standalone profile sends nothing.
+ */
+export async function deleteProfile(userId: string, unsentCount: number | null, lossConfirmed: boolean): Promise<void> {
+  const { unsentWorkCount } = require("./interviewerDb") as typeof import("./interviewerDb");
+  const storeCount = await unsentWorkCount(userId);
+  if (storeCount === undefined && !hasProfileDeleteGrant(userId)) throw new ProfileDeleteRefusedError("not_verified");
+  const count = storeCount ?? unsentCount;
+  if (count !== null && count > 0) throw new ProfileDeleteRefusedError("unsent_work");
+  if (count === null && !lossConfirmed) throw new ProfileDeleteRefusedError("confirmation_required");
+  const slot = await slotHolding(userId);
+  const account = slot && (await loadAccounts(slot)).find((a) => a.user_id === userId);
+  const device = slot && (await loadDevice(slot));
+  if (account && !account.standalone && slot && device) {
+    const report: QueuedProfileDeletion = {
+      slot,
+      device_id: device.device_id,
+      user_id: userId,
+      unsent_count: count,
+      loss_confirmed: count === null && lossConfirmed,
+    };
+    if ((await sendDeletionReport(report)) === "retry") {
+      await updateQueuedDeletions((queued) => [...queued.filter((q) => !sameReport(q, report)), report]);
+    }
+  }
+  clearProfileDeleteGrant(userId);
+  await wipeInterviewer(userId);
+  for (const listener of accountListeners) listener();
+}
+
+/**
+ * Resend queued deletion reports (called on each sync). Reads a snapshot, sends without the lock, then removes
+ * only the accepted or dropped entries (by user and device) from the queue as it is then, so a report queued
+ * meanwhile is kept. A 400/409 on a resend drops the report: the profile is already gone from this phone.
+ */
+export async function sendQueuedProfileDeletions(): Promise<void> {
+  const snapshot = await serializeAccountStorage(loadQueuedDeletions);
+  if (!snapshot.length) return;
+  const finished: QueuedProfileDeletion[] = [];
+  for (const report of snapshot) {
+    try {
+      if ((await sendDeletionReport(report)) === "done") finished.push(report);
+    } catch {
+      finished.push(report); // refused for good
+    }
+  }
+  if (finished.length) await updateQueuedDeletions((queued) => queued.filter((q) => !finished.some((f) => sameReport(f, q))));
 }

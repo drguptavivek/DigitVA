@@ -32,3 +32,24 @@ export function takePinResetGrant(userId: string, now = Date.now()): boolean {
   grants.delete(userId);
   return valid;
 }
+
+/** How long a password check allows deleting that profile (Delete profile, mobile-sign-in.md section 10). */
+export const PROFILE_DELETE_WINDOW_MS = 2 * 60_000;
+const deleteGrants = new Map<string, number>();
+
+export function allowProfileDelete(userId: string, now = Date.now()): void {
+  deleteGrants.set(userId, now + PROFILE_DELETE_WINDOW_MS);
+}
+
+/** Drop one profile's delete grant, or every one: on lock, on leaving the delete flow, after a delete. */
+export function clearProfileDeleteGrant(userId?: string): void {
+  if (userId === undefined) deleteGrants.clear();
+  else deleteGrants.delete(userId);
+}
+
+/** True while the delete grant is unexpired; an expired one is dropped. */
+export function hasProfileDeleteGrant(userId: string, now = Date.now()): boolean {
+  const until = deleteGrants.get(userId);
+  if (until !== undefined && now > until) deleteGrants.delete(userId);
+  return until !== undefined && now <= until;
+}

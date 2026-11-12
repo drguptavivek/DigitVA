@@ -5,7 +5,7 @@ import { Linking, Text, View } from "react-native";
 
 import { ApiError } from "../api";
 import { useAppState } from "../AppState";
-import { forgetDevice, loadActiveSlot, loadDevice, signIn, type Slot } from "../auth";
+import { forgetDevice, loadActiveSlot, loadDevice, recoverSignOut, signIn, verifyPasswordForDelete, WrongAccountError, type Slot } from "../auth";
 import { normalizeUsername } from "../demoRules";
 import { isDemoServer } from "../enrolment";
 import { t } from "../i18n";
@@ -23,7 +23,10 @@ export default function SignIn() {
   const styles = useUiStyles();
   const router = useRouter();
   // "Sign in again" names the account it came from; signIn never wipes a store. `resetPin` comes from "Forgot PIN?".
-  const { userId, resetPin } = useLocalSearchParams<{ userId?: string; resetPin?: string }>();
+  // `recover` (no reset copy) and `deleteProfile` check the password for `userId` only and store no session
+  // (docs/policy/mobile-sign-in.md section 10).
+  const { userId, resetPin, recover, deleteProfile } =
+    useLocalSearchParams<{ userId?: string; resetPin?: string; recover?: string; deleteProfile?: string }>();
   const { reload, accounts, device, lockNow } = useAppState();
   // The public demo signs in by username and has no code or password-reset links.
   const demo = isDemoServer(device?.server, __DEV__, process.env.EXPO_PUBLIC_DEMO_SERVER);
@@ -58,6 +61,17 @@ export default function SignIn() {
     let slot: Slot | undefined;
     try {
       slot = await loadActiveSlot();
+      if (userId && recover === "1") {
+        await recoverSignOut(userId, submittedIdentifier, password);
+        await reload();
+        router.replace("/");
+        return;
+      }
+      if (userId && deleteProfile === "1") {
+        await verifyPasswordForDelete(userId, submittedIdentifier, password);
+        router.replace({ pathname: "/unlock", params: { userId, delete: "1" } });
+        return;
+      }
       const account = await signIn(submittedIdentifier, password, slot, { forPinReset: resetPin === "1" && !!userId });
       await reload();
       // Forgot PIN: a new PIN only for the account that just signed in (interviewerDb.resetInterviewerPin checks it too).
@@ -74,7 +88,7 @@ export default function SignIn() {
         await forgetDevice(slot);
         await reload();
       }
-      setError(errorText(caught));
+      setError(caught instanceof WrongAccountError ? t("signInWrongAccount") : errorText(caught));
     } finally {
       setBusy(false);
     }

@@ -24,7 +24,7 @@ import { countUnsentWork, countUnsentWorkByKind, migrate, type Db, type UnsentWo
 import { wipeMediaCache } from "./mediaFiles";
 import { summariseWork, type WorkSummary } from "./unsentWork";
 import { assertAccountStoreModeSafe } from "./accountStoreIdentity";
-import { clearPinResetGrant, hasPinResetGrant, takePinResetGrant } from "./pinResetGrant";
+import { clearPinResetGrant, clearProfileDeleteGrant, hasPinResetGrant, takePinResetGrant } from "./pinResetGrant";
 import {
   buildPassphrase,
   checkedDataKey,
@@ -345,6 +345,7 @@ async function resetInterviewerPinOnce(userId: string, pin: string): Promise<voi
 /** Close every unlocked database and drop the handles, after any unlock in flight has settled. */
 export async function lockAll(): Promise<void> {
   clearPinResetGrant();
+  clearProfileDeleteGrant();
   await Promise.allSettled([...opening]);
   const failures: unknown[] = [];
   await Promise.all([...unlocked.entries()].map(async ([userId, db]) => {

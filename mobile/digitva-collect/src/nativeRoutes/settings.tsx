@@ -12,6 +12,8 @@
  * restore: src/standalone/DataActions.tsx), which moved off the standalone home (digitva-axim).
  */
 import { useRouter } from "expo-router";
+
+import { goHome } from "../goHome";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Constants from "expo-constants";
 import { canUseBiometricAuthentication } from "expo-secure-store";
@@ -210,6 +212,8 @@ export default function NativeSettings() {
         setError(t("errGeneric"));
         return;
       }
+      // The PIN screen goes on a fresh stack: Back must not reach the pre-lock screens.
+      goHome(router);
       router.push({ pathname: "/unlock", params: { userId, enableBiometric: "1" } });
     } catch {
       setError(t("errGeneric"));
@@ -226,6 +230,7 @@ export default function NativeSettings() {
         setError(t("errGeneric"));
         return;
       }
+      goHome(router);
       router.push({ pathname: "/unlock", params: { userId, enableScreenLock: "1" } });
     } catch {
       setError(t("errGeneric"));
@@ -250,7 +255,7 @@ export default function NativeSettings() {
       await reload();
       // Settings sits above Home, so Home's redirect to /enrol would not run. Demo re-enrols
       // through Try the demo: a QR enrolment there would fill the Active slot instead.
-      router.replace(slot === "demo" ? "/demo" : "/enrol");
+      goHome(router, slot === "demo" ? "/demo" : "/enrol");
     } catch (caught) {
       setError(caught instanceof Error && caught.message === "unsent_work" ? t("reEnrolBlocked") : t("errGeneric"));
     } finally {
@@ -453,7 +458,7 @@ export default function NativeSettings() {
       toast.show({ kind: "success", text: t("deleteAccountDone") });
       setDeletePassword(undefined);
       await reload();
-      router.replace("/");
+      goHome(router);
     } catch (caught) {
       setError(deleteErrorText(caught));
     } finally {

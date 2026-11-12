@@ -11,7 +11,7 @@ import {
   type WhoVaSession,
 } from "@drguptavivek/who-2022-va/native";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { goHome } from "../goHome";
+import { goHome, RedirectHome } from "../goHome";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -478,7 +478,7 @@ export default function Revision() {
   if (loaded && loaded.accessVersion !== lockVersion) {
     return <ActivityIndicator style={{ flex: 1 }} />;
   }
-  if (!account) return <Redirect href="/" />;
+  if (!account) return <RedirectHome />;
   if (!isUnlocked(account.user_id)) {
     return <Redirect href={{ pathname: "/unlock", params: { userId: account.user_id } }} />;
   }
@@ -486,7 +486,7 @@ export default function Revision() {
     return message ? (
       <Screen title={t("revisionTitle")}>
         <Text style={styles.error}>{message}</Text>
-        <Button kind="secondary" label={t("home")} onPress={() => router.replace({ pathname: "/worklist", params: { userId: account.user_id } })} />
+        <Button kind="secondary" label={t("home")} onPress={() => router.dismissTo({ pathname: "/worklist", params: { userId: account.user_id } })} />
       </Screen>
     ) : <ActivityIndicator style={{ flex: 1 }} />;
   }
@@ -532,7 +532,7 @@ export default function Revision() {
         <Text style={styles.error}>{messageText}</Text>
         {message ? <Text style={styles.muted}>{message}</Text> : null}
         <Row>
-          <Button kind="secondary" label={t("home")} onPress={() => router.replace({ pathname: "/worklist", params: { userId } })} />
+          <Button kind="secondary" label={t("home")} onPress={() => router.dismissTo({ pathname: "/worklist", params: { userId } })} />
           {canEdit ? (
             <Button kind="secondary" label={t("reviseInterview")} loading={busy} disabled={busy} onPress={() => void editAttention()} />
           ) : null}
@@ -541,7 +541,7 @@ export default function Revision() {
             messageText,
             [
               { text: t("cancel"), style: "cancel" },
-              { text: t("discard"), style: "destructive", onPress: () => void discardRevision(current.db, current.row.draft_id).then(() => { if (isCurrentRevision(current.generation)) router.replace({ pathname: "/worklist", params: { userId } }); }).catch(() => { if (isCurrentRevision(current.generation)) setMessage(t("revisionRetry")); }) },
+              { text: t("discard"), style: "destructive", onPress: () => void discardRevision(current.db, current.row.draft_id).then(() => { if (isCurrentRevision(current.generation)) router.dismissTo({ pathname: "/worklist", params: { userId } }); }).catch(() => { if (isCurrentRevision(current.generation)) setMessage(t("revisionRetry")); }) },
             ],
           )} />
         </Row>
@@ -554,7 +554,7 @@ export default function Revision() {
         <ActivityIndicator />
         {message ? <Text style={styles.error}>{message}</Text> : null}
         {message ? <Button kind="secondary" label={t("refresh")} onPress={() => setLoadAttempt((attempt) => attempt + 1)} /> : null}
-        <Button kind="secondary" label={t("home")} onPress={() => router.replace({ pathname: "/worklist", params: { userId: account.user_id } })} />
+        <Button kind="secondary" label={t("home")} onPress={() => router.dismissTo({ pathname: "/worklist", params: { userId: account.user_id } })} />
       </Screen>
     );
   }
@@ -616,7 +616,7 @@ export default function Revision() {
       }
       await queueRevision(current.db, current.row.draft_id, reason, completion);
       if (!isCurrentRevision(current.generation)) return;
-      router.replace({ pathname: "/worklist", params: { userId } });
+      router.dismissTo({ pathname: "/worklist", params: { userId } });
     } catch (error) {
       if (!isCurrentRevision(current.generation)) return;
       if (error instanceof Error && error.message === "consent_required") {
@@ -654,7 +654,7 @@ export default function Revision() {
 
   function goToWorklist() {
     leaveGuard.release();
-    router.replace({ pathname: "/worklist", params: { userId } });
+    router.dismissTo({ pathname: "/worklist", params: { userId } });
   }
 
   /** Flush first; a failed save asks before leaving so typed answers are never dropped silently. */

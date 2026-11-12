@@ -4,7 +4,8 @@ import { act, create } from "react-test-renderer";
 jest.mock("expo-router", () => ({
   Redirect: () => null,
   useLocalSearchParams: () => ({ vaSid: "VA-1", mode: "coding" }),
-  useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+  useRouter: () => ({ push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn(), dismissAll: jest.fn(), canDismiss: () => false }),
+  useFocusEffect: () => undefined,
 }));
 jest.mock("../src/AppState", () => ({
   useAppState: () => ({ accounts: [{ user_id: "coder-1", coding_access: true, server: "https://va.example" }] }),

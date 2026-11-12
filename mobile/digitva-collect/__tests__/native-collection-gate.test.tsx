@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 let mockPathname = "/case";
 let mockParams: Record<string, string> = { userId: "worker" };
-const mockRouter = { replace: jest.fn(), push: jest.fn() };
+const mockRouter = { replace: jest.fn(), push: jest.fn(), dismissTo: jest.fn(), dismissAll: jest.fn(), canDismiss: () => false };
 const mockUnsentCount = jest.fn<Promise<number | undefined>, [string]>(async () => 0);
 let mockUnlocked = true;
 let mockCodingEnabled = true;
@@ -204,7 +204,8 @@ it("blocks direct online coding when coding access is absent", async () => {
   mockState.accounts = [{ user_id: "worker", name: "Worker", coding_access: false }];
   let tree!: ReturnType<typeof create>;
   await act(async () => { tree = create(<NativeCollectionGate>coding workspace</NativeCollectionGate>); });
-  expect(tree.toJSON()).toMatchObject({ type: "redirect", props: { href: "/" } });
+  expect(JSON.stringify(tree.toJSON())).not.toContain("coding workspace");
+  expect(mockRouter.replace).toHaveBeenCalledWith("/");
   await act(async () => tree.unmount());
 });
 
@@ -425,4 +426,22 @@ describe("an account with unsent work and no collection session", () => {
     await act(async () => tree.root.findByProps({ label: "sendUnsent" }).props.onPress());
     expect(mockUpload).toHaveBeenCalledWith("worker", {});
   });
+});
+
+it.each([
+  ["/case", { collection_access: true }],
+  ["/register", { registration_access: true }],
+  ["/worklist", { collection_access: true }],
+  ["/coding", { coding_access: true }],
+])("sends a locked account's %s screen (reached by Back after a lock) to the PIN screen, never its data", async (pathname, access) => {
+  mockPathname = pathname;
+  mockState.accounts = [{ user_id: "worker", name: "Worker", ...access }];
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<NativeCollectionGate>account data</NativeCollectionGate>); });
+  expect(JSON.stringify(tree.toJSON())).toContain("account data");
+  mockUnlocked = false;
+  await act(async () => tree.update(<NativeCollectionGate>account data</NativeCollectionGate>));
+  expect(JSON.stringify(tree.toJSON())).not.toContain("account data");
+  expect(tree.toJSON()).toMatchObject({ type: "redirect", props: { href: { pathname: "/unlock", params: { userId: "worker" } } } });
+  await act(async () => tree.unmount());
 });

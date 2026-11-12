@@ -4,7 +4,7 @@ import { act, create } from "react-test-renderer";
 const mockAccount = { user_id: "u1", name: "Interviewer" };
 const mockAccounts = [mockAccount];
 const mockDb = {};
-const mockRouter = { push: jest.fn(), replace: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn(), dismissTo: jest.fn(), dismissAll: jest.fn(), canDismiss: () => false };
 const mockParams: Record<string, string> = {
   userId: "u1",
   draftId: "draft-1",
@@ -415,7 +415,7 @@ describe("native submitted-interview revisions", () => {
     await settle();
 
     expect(mockQueue).toHaveBeenCalledWith(mockDb, "draft-1", "interviewer_correction", { valid: true, issues: [] });
-    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
   });
 
   it("flushes the encrypted revision before queueing and requires a reason", async () => {
@@ -447,7 +447,7 @@ describe("native submitted-interview revisions", () => {
 
     expect(order).toEqual(["flush", "queue"]);
     expect(mockQueue).toHaveBeenCalledWith(mockDb, "draft-1", "interviewer_correction", completion);
-    expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
   });
 
   it("requires consent before queueing and keeps the revision editable", async () => {
@@ -668,7 +668,7 @@ describe("native submitted-interview revisions", () => {
       await press(tree, "back");
       await settle();
       expect(mockSaveDraft).toHaveBeenCalledTimes(2);
-      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+      expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
     });
 
     it("hardware back flushes the open answer and leaves through the worklist", async () => {
@@ -680,7 +680,7 @@ describe("native submitted-interview revisions", () => {
       await settle();
       expect(event.preventDefault).toHaveBeenCalled();
       expect(mockSaveDraft).toHaveBeenCalledTimes(1);
-      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+      expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
       await act(async () => tree.unmount());
     });
 
@@ -699,7 +699,7 @@ describe("native submitted-interview revisions", () => {
       await act(async () => { mockHardwareBack(); });
       await settle();
       await act(async () => { (mockConfirmProps!.onConfirm as () => void)(); });
-      expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
+      expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1" } });
       await act(async () => tree.unmount());
     });
 

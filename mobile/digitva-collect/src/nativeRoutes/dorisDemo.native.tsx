@@ -107,7 +107,7 @@ export default function DorisDemo() {
     return (
       <Screen title={t("icd11DorisDisabledTitle")}>
         <Text accessibilityRole="alert" style={styles.text}>{t("dorisDemoDisabledBody")}</Text>
-        <Button label={t("icd11DorisOpenSettings")} onPress={() => router.push("/settings")} />
+        <Button label={t("icd11DorisOpenSettings")} onPress={() => router.dismissTo("/settings")} />
       </Screen>
     );
   }

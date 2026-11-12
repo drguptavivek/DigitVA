@@ -1100,7 +1100,7 @@ export default function Register() {
           hydrated.current = false;
         }
         if (!current()) return;
-        router.replace({
+        router.dismissTo({
           pathname: "/worklist",
           params: {
             userId: account.user_id,

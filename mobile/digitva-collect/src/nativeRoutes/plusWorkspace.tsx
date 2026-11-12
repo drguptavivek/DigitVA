@@ -4,8 +4,10 @@
  * bearer session. The plain build uses it for coding only; review stays Plus (src/nativeRouteScreens.native.tsx).
  * DORIS still goes to the server here; the offline engine is wired in by phase B.
  */
-import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { goHome, RedirectHome } from "../goHome";
 import { Text } from "react-native";
 
 import { useAppState } from "../AppState";
@@ -47,6 +49,13 @@ function usePlusUserId(mode: WorkspaceMode): string | undefined {
 
 function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
   const router = useRouter();
+  // The workspace exits by popping back to this queue, so a return to focus (not the first) reloads it.
+  const [returns, setReturns] = useState(0);
+  const focusedOnce = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (focusedOnce.current) setReturns((n) => n + 1);
+    focusedOnce.current = true;
+  }, []));
   const { initialHistory } = useLocalSearchParams<Params>();
   const styles = useUiStyles();
   const icd11Preference = useIcd11DorisPreference();
@@ -123,13 +132,13 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
   }, [account?.access_blocked, account?.access_removed, account?.coding_access, account?.coding_history_access, account?.needs_sign_in, account?.server,
     account?.signed_out, account?.standalone, account?.terms_required, mode, userId]);
 
-  if (!userId || !account || !request || !api) return <Redirect href="/" />;
+  if (!userId || !account || !request || !api) return <RedirectHome />;
   if (!isUnlocked(userId)) return <Redirect href={{ pathname: "/unlock", params: { userId } }} />;
   const allowed = mode === "view" || (mode === "reviewing" ? account.reviewing_access : account.coding_access);
   if (!allowed) {
     return <Screen title={t("workspaceTitle")}>
       <Text accessibilityRole="alert" style={styles.text}>{t("serverForbidden")}</Text>
-      <Button kind="secondary" label={t("home")} onPress={() => router.replace("/")} />
+      <Button kind="secondary" label={t("home")} onPress={() => goHome(router)} />
     </Screen>;
   }
 
@@ -140,11 +149,11 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
       api={api}
       serverOrigin={account.server ?? undefined}
       icd11DorisEnabled={icd11Preference.enabled}
-      onIcd11DorisOpenSettings={() => router.push({ pathname: "/settings", params: { userId } })}
+      onIcd11DorisOpenSettings={() => router.dismissTo({ pathname: "/settings", params: { userId } })}
       assertIcd11DorisEnabled={async () => {
         if (!await isIcd11DorisEnabled()) throw new Error("icd11_doris_disabled");
       }}
-      onExit={() => router.replace({ pathname: mode === "reviewing" ? "/reviewing" : "/coding", params: { userId } })}
+      onExit={() => router.dismissTo({ pathname: mode === "reviewing" ? "/reviewing" : "/coding", params: { userId } })}
       renderDoris={(workspace, onSaved, onDone, guardedApi) => <DorisPanel
         workspace={workspace}
         api={guardedApi}
@@ -156,12 +165,13 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
       renderMedia={(attachmentPath) => <AttachmentMedia identity={identity} attachmentPath={attachmentPath} userId={userId} />}
     />;
   }
-  if (mode === "view") return <Redirect href="/" />;
+  if (mode === "view") return <RedirectHome />;
   return <QueueScreen
     api={api}
     mode={mode}
     onOpen={(identity) => router.push({ pathname: "/workspace", params: { userId, vaSid: identity.vaSid, mode: identity.mode } })}
-    onExit={() => router.replace("/")}
+    onExit={() => goHome(router)}
+    reloadKey={returns}
     initialView={first(initialHistory) === "1" ? { allProjects: false, showHistory: true, offset: 0 } : undefined}
     historyCache={historyContext?.cache}
     historyIdentity={historyContext?.identity}

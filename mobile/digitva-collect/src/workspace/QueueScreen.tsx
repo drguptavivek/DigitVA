@@ -250,6 +250,7 @@ export function QueueScreen({
   Shell,
   historyCache,
   historyIdentity,
+  reloadKey,
 }: {
   api: WorkspaceApi;
   mode: "coding" | "reviewing";
@@ -264,6 +265,8 @@ export function QueueScreen({
   /** Native only; web leaves this unset. */
   historyCache?: CodingHistoryCache;
   historyIdentity?: CodingHistoryIdentity;
+  /** Native only: a change reloads the page (the route bumps it when the queue regains focus). */
+  reloadKey?: number;
 }) {
   const ActiveShell = Shell ?? Screen;
   // Phone presentation only (round-6 Q1-Q8); the browser keeps its own look.
@@ -503,6 +506,13 @@ export function QueueScreen({
       generation.current += 1;
     };
   }, [load, refresh]);
+
+  const lastReloadKey = useRef(reloadKey);
+  useEffect(() => {
+    if (reloadKey === lastReloadKey.current) return;
+    lastReloadKey.current = reloadKey;
+    setRefresh((n) => n + 1);
+  }, [reloadKey]);
 
   useEffect(() => {
     let previous = AppState.currentState;

@@ -12,6 +12,8 @@
  * typed confirmation. A signed-out or unlocked profile stays here while deleting instead of redirecting.
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+
+import { goHome } from "../goHome";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Text, View } from "react-native";
 
@@ -206,7 +208,7 @@ export default function Unlock() {
           // Only a revoke wipes (nothing unsent was left); wrong PINs never do.
           Alert.alert(t("sessionRevoked"));
           await reload();
-          router.replace("/");
+          goHome(router);
           return;
         }
         setFailures(result.failures);

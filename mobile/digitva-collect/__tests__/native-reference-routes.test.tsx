@@ -30,7 +30,7 @@ const mockDeathRegistrationAccess = {
     },
   }],
 };
-const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
+const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn(), dismissTo: jest.fn(), dismissAll: jest.fn(), canDismiss: () => false };
 const mockReload = jest.fn();
 const mockChooseUiLocale = jest.fn(async () => undefined);
 let mockParams: {
@@ -2669,7 +2669,7 @@ describe("respondent consent in the interview form", () => {
       await settle();
       expect(drafts().deleteUnsentDraft).toHaveBeenCalledWith(expect.anything(), FORM_ID);
       expect(mockToast).toHaveBeenCalledWith({ kind: "success", text: "deleteDraftDone" });
-      expect(mockRouter.replace).toHaveBeenCalledWith(expect.objectContaining({ pathname: "/worklist" }));
+      expect(mockRouter.dismissTo).toHaveBeenCalledWith(expect.objectContaining({ pathname: "/worklist" }));
       await act(async () => tree.unmount());
     });
 

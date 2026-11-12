@@ -101,11 +101,11 @@ export default function EngineCheck() {
   if (!appState.ready) return <Screen title="Offline engine check"><Text style={styles.muted}>Checking account access…</Text></Screen>;
   if (!accountAllowed) return <Screen title="Offline engine check">
     <Text accessibilityRole="alert" style={styles.text}>This account does not have offline coding access.</Text>
-    <Button label="Settings" onPress={() => router.push({ pathname: "/settings", params: { userId: account?.user_id ?? requestedUserId } })} />
+    <Button label="Settings" onPress={() => router.dismissTo({ pathname: "/settings", params: { userId: account?.user_id ?? requestedUserId } })} />
   </Screen>;
   if (!preference.enabled) return <Screen title={t("icd11DorisDisabledTitle")}>
     <Text accessibilityRole="alert" style={styles.text}>{t("icd11DorisDisabledBody")}</Text>
-    <Button label={t("icd11DorisOpenSettings")} onPress={() => router.push({ pathname: "/settings", params: { userId: account?.user_id ?? requestedUserId } })} />
+    <Button label={t("icd11DorisOpenSettings")} onPress={() => router.dismissTo({ pathname: "/settings", params: { userId: account?.user_id ?? requestedUserId } })} />
   </Screen>;
   return (
     <Screen title="Offline engine check">

@@ -29,6 +29,8 @@ import {
 import { randomUUID } from "expo-crypto";
 import { formUiTranslations, useFormPackRevision } from "../uiPacks";
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+
+import { goHome } from "../goHome";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -465,7 +467,7 @@ export default function Form() {
           ) {
             await reload();
             if (active && generation === loadGeneration.current) {
-              router.replace("/");
+              goHome(router);
             }
           } else {
             setBlockedReferenceData(true);
@@ -852,7 +854,7 @@ export default function Form() {
         ) {
           await reload();
           if (active && generation === loadGeneration.current) {
-            router.replace("/");
+            goHome(router);
           }
           return;
         }
@@ -989,7 +991,7 @@ export default function Form() {
           error instanceof SignInRequiredError
         ) {
           await reload();
-          if (active) router.replace("/");
+          if (active) goHome(router);
           return;
         }
         if (active) {
@@ -1305,7 +1307,7 @@ export default function Form() {
       return;
     }
     toast.show({ kind: "success", text: t("deleteDraftDone") });
-    router.replace(account!.standalone
+    router.dismissTo(account!.standalone
       ? { pathname: "/standalone", params: { userId: account!.user_id } }
       : { pathname: "/worklist", params: { userId: account!.user_id, view: "interviews", filter: "drafts" } });
   }

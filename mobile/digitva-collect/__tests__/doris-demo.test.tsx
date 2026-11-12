@@ -12,7 +12,7 @@ import { act, create } from "react-test-renderer";
 const mockPlus = jest.fn(() => true);
 jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlus() }));
 
-const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn(), dismissTo: jest.fn(), dismissAll: jest.fn(), canDismiss: () => false };
 jest.mock("expo-router", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {
@@ -363,7 +363,7 @@ describe("the screen", () => {
     const root = await render(<DorisDemo />);
     expect(dump(root)).toContain("dorisDemoDisabledBody");
     await press(root, "icd11DorisOpenSettings");
-    expect(mockRouter.push).toHaveBeenCalledWith("/settings");
+    expect(mockRouter.dismissTo).toHaveBeenCalledWith("/settings");
     expect(mockInit).not.toHaveBeenCalled();
     expect(mockPanelProps).toBeUndefined();
   });

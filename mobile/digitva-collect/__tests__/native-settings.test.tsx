@@ -3,7 +3,7 @@ import React from "react";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import type { UpdateResult } from "../src/updateCheck";
 
-const mockRouter = { replace: jest.fn(), push: jest.fn(), back: jest.fn() };
+const mockRouter = { replace: jest.fn(), push: jest.fn(), back: jest.fn(), dismissTo: jest.fn(), dismissAll: jest.fn(), canDismiss: () => false };
 const mockReload = jest.fn(async () => undefined);
 const mockLockNow = jest.fn(async () => true);
 const mockChooseLocale = jest.fn(async () => undefined);

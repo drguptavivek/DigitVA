@@ -1,5 +1,5 @@
 import { Redirect, useGlobalSearchParams, usePathname, useRouter } from "expo-router";
-import { goHome } from "./goHome";
+import { goHome, RedirectHome } from "./goHome";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
@@ -195,29 +195,34 @@ export default function NativeCollectionGate({
   }
   if (!COLLECTION_ROUTES.has(pathname) && !REGISTRATION_ROUTES.has(pathname) && pathname !== WORKLIST_ROUTE &&
       pathname !== OFFLINE_CODING_ROUTE && pathname !== ENGINE_CHECK_ROUTE && !needsCoding && !needsReviewing) return children;
-  if (!userId || !account) return <Redirect href="/" />;
+  if (!userId || !account) return <RedirectHome />;
+  // An account screen reached by Back after a lock, sign-out or revoke must not show its data. The gate re-renders
+  // with the app state, so a lock (lockVersion bump) re-checks it.
+  const open = (screen: ReactNode) => isUnlocked(userId)
+    ? screen
+    : <Redirect href={{ pathname: "/unlock", params: { userId } }} />;
   if (pathname === WORKLIST_ROUTE && account.standalone) {
     const routeView = firstParam((routeParams as { view?: string | string[] } | undefined)?.view) ?? firstParam(params.view);
     return <Redirect href={{ pathname: "/standalone", params: { userId, ...(routeView === "interviews" ? { view: routeView } : {}) } }} />;
   }
   if (pathname === OFFLINE_CODING_ROUTE || pathname === ENGINE_CHECK_ROUTE) {
-    if (!isPlusVariant() || !offlineCapability) return <Redirect href="/" />;
+    if (!isPlusVariant() || !offlineCapability) return <RedirectHome />;
     if (!isUnlocked(userId)) return <Redirect href={{ pathname: "/unlock", params: { userId } }} />;
     return children;
   }
   if (needsCoding || needsReviewing) {
     if (account.needs_sign_in || account.terms_required || account.access_blocked) return <NativePendingWorkspace userId={userId} />;
-    if (needsCoding && canUseOnlineCoding(account)) return children;
-    if (needsReviewing && account.reviewing_access === true) return children;
-    return <Redirect href="/" />;
+    if (needsCoding && canUseOnlineCoding(account)) return open(children);
+    if (needsReviewing && account.reviewing_access === true) return open(children);
+    return <RedirectHome />;
   }
   if (account.needs_sign_in || account.terms_required || account.access_blocked) return <NativePendingWorkspace userId={userId} />;
   if (pathname === WORKLIST_ROUTE && (account.coding_access || account.reviewing_access) &&
       account.collection_access !== true && account.registration_access !== true) return <NativePendingWorkspace userId={userId} />;
-  if (COLLECTION_ROUTES.has(pathname) && account.collection_access === true) return guarded(children);
-  if (REGISTRATION_ROUTES.has(pathname) && account.registration_access === true) return guarded(children);
+  if (COLLECTION_ROUTES.has(pathname) && account.collection_access === true) return open(guarded(children));
+  if (REGISTRATION_ROUTES.has(pathname) && account.registration_access === true) return open(guarded(children));
   if (pathname === WORKLIST_ROUTE &&
-      (account.collection_access === true || account.registration_access === true)) return children;
+      (account.collection_access === true || account.registration_access === true)) return open(children);
   if (COLLECTION_ROUTES.has(pathname) && account.collection_access === false) {
     return <NativePendingWorkspace userId={userId} />;
   }

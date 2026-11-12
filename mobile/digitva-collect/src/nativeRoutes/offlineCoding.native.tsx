@@ -920,7 +920,7 @@ export default function OfflineCoding() {
   if (!canEnterCoding) {
     return <Screen title={t("icd11DorisDisabledTitle")}>
       <Text accessibilityRole="alert" style={styles.text}>{t("icd11DorisDisabledBody")}</Text>
-      <Button label={t("icd11DorisOpenSettings")} onPress={() => router.push({ pathname: "/settings", params: { userId } })} />
+      <Button label={t("icd11DorisOpenSettings")} onPress={() => router.dismissTo({ pathname: "/settings", params: { userId } })} />
       <Button kind="secondary" label={t("icd11DorisGoBack")} onPress={() => {
         setSelected(null);
         setReloadTick((tick) => tick + 1);

@@ -2402,9 +2402,12 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
         if not isinstance(answers, dict):
             raise WebIntakeError(f"Section {name!r} must be an object of answers.")
         check_device_answers(answers)
+        row = existing.get(name)
         if name != DEVICE_SECTION:
             browser_keys.update(answers)
-        row = existing.get(name)
+            # An answer the browser cleared is null or gone from the section it
+            # had saved: it must beat the phone's value for the same question.
+            browser_keys.update((row.data or {}) if row is not None else ())
         answers = stored_answers(_enforce_locked(answers, locked, row.data if row is not None else None))
         if row is None:
             row = VaWebIntakeDraftSection(draft_id=draft.draft_id, section_name=name, data=answers)
@@ -2419,8 +2422,6 @@ def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict |
         # A browser save over a phone-won draft is no longer the phone's
         # content, and its answers beat the phone's for the same questions
         # (no section merge: web-intake.md "Parallel interviews").
-        # ponytail: an answer the browser *cleared* is absent from its section,
-        # so the phone's old value for it survives; clear it by key if that bites.
         draft.answers_sha256 = None
         if device_row is not None and browser_keys & set(device_row.data or {}):
             device_row.data = {k: v for k, v in device_row.data.items() if k not in browser_keys}

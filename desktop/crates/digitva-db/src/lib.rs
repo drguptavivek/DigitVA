@@ -20,6 +20,7 @@ use crate::roster::{
 use chrono::{DateTime, Utc};
 use digitva_bundle::{
     build_bundle, sha256_hex, validate_bundle_record, verify_and_plan_receipt, ActingRole, BuiltBundle,
+    BundleError, RecordType, BUNDLE_MAX_CORRECTIONS, BUNDLE_MAX_RECORDS,
     BundleRecordEnvelope, BundleRecordPayload, CodingResultKind, CodingResultRecord,
     ConsentDecision, ConsentMode, ConsentPurposeGrant, ConsentRecord, DeathCorrectionRecord,
     DeathRef, DeathRegistrationRecord, RecordIngestOutcome, IdentifiersSetRecord, InterviewCompletion,
@@ -2535,24 +2536,48 @@ impl OfflineDatabase {
             ));
         }
 
-        let built = build_bundle(
-            &verified,
-            &signing_key,
-            &cfg.station_id,
-            next_seq,
-            STATION_APP_VERSION,
-            Utc::now(),
-            &records,
-        )
-        .map_err(|e| {
-            (
-                422,
-                json!({
-                    "error": e.to_string(),
-                    "code": "bundle_build_failed"
-                }),
-            )
-        })?;
+        // Over the bundle limits, export a prefix and leave the rest pending for the next
+        // export. Records are ordered so a record's consent and registration come before it,
+        // so a prefix never strands a dependent. Nothing is deleted until the receipt names it.
+        let mut keep = 0usize;
+        let mut corrections = 0usize;
+        for rec in records.iter().take(BUNDLE_MAX_RECORDS) {
+            if matches!(
+                rec.record_type(),
+                RecordType::DeathCorrection | RecordType::IdentifiersSet
+            ) {
+                if corrections == BUNDLE_MAX_CORRECTIONS {
+                    break;
+                }
+                corrections += 1;
+            }
+            keep += 1;
+        }
+        // The byte limit is only known after sealing: halve the chunk until it fits.
+        let built = loop {
+            match build_bundle(
+                &verified,
+                &signing_key,
+                &cfg.station_id,
+                next_seq,
+                STATION_APP_VERSION,
+                Utc::now(),
+                &records[..keep],
+            ) {
+                Err(BundleError::SizeLimitExceeded(_)) if keep > 1 => keep = keep.div_ceil(2),
+                other => {
+                    break other.map_err(|e| {
+                        (
+                            422,
+                            json!({
+                                "error": e.to_string(),
+                                "code": "bundle_build_failed"
+                            }),
+                        )
+                    })?
+                }
+            }
+        };
 
         self.with_conn(|conn| {
             conn.execute(
@@ -8098,6 +8123,27 @@ mod tests {
         assert_eq!((vid, sha), (test_notice_vid().to_string(), sha256_hex(TEST_NOTICE_TEXT.as_bytes())));
         let (built, _, held_back) = db.export_dvb_bundle().unwrap();
         assert_eq!((built.items.len(), held_back.len()), (2, 0));
+    }
+
+    #[test]
+    fn test_export_chunks_past_the_record_limit_and_leaves_the_rest_pending() {
+        let db = OfflineDatabase::open_in_memory().unwrap();
+        let device_id = db.get_station_config().station_id;
+        import_confirmed(&db, &signed_test_station_config(&device_id, CONFIG_A, "2026-10-20T00:00:00Z", &[101]))
+            .unwrap();
+        for _ in 0..(BUNDLE_MAX_RECORDS + 3) {
+            db.register_death(&tst001_registration(None), "user-101").unwrap();
+        }
+        let (built, _, _) = db.export_dvb_bundle().unwrap();
+        assert_eq!(built.items.len(), BUNDLE_MAX_RECORDS);
+        // Nothing was deleted or marked: the three left over are still pending.
+        let pending: i64 = db.with_conn(|conn| {
+            conn.query_row("SELECT COUNT(*) FROM loc_death_register WHERE sync_state = 'pending'", [], |r| r.get(0))
+                .unwrap()
+        });
+        assert_eq!(pending as usize, BUNDLE_MAX_RECORDS + 3);
+        let (next, _, _) = db.export_dvb_bundle().unwrap();
+        assert_eq!(next.items.len(), BUNDLE_MAX_RECORDS);
     }
 
     #[test]

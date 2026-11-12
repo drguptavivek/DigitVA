@@ -35,7 +35,7 @@ export const BACKUP_FORMAT = "digitva-collect-backup";
 export const BACKUP_VERSION = 1;
 export const MIN_PASSPHRASE_LENGTH = 12;
 
-export type BackupErrorCode = "passphrase_short" | "bad_passphrase_or_file" | "unsupported_backup" | "newer_local" | "wrong_account";
+export type BackupErrorCode = "passphrase_short" | "bad_passphrase_or_file" | "unsupported_backup" | "newer_local" | "wrong_account" | "backup_unverified";
 export class BackupError extends Error {
   constructor(readonly code: BackupErrorCode, readonly count = 0) {
     super(code);
@@ -98,14 +98,30 @@ async function writeBackup(db: Db, userId: string, passphrase: string, now: Date
   return file;
 }
 
+/** Re-open the written file with the passphrase and read its header back; on failure delete it and throw backup_unverified. */
+async function verifyBackup(db: Db, file: ReturnType<typeof cacheFile>, passphrase: string): Promise<void> {
+  try {
+    await db.runAsync("ATTACH DATABASE ? AS bak KEY ?", [sqlitePath(file.uri), passphrase]);
+    const row = await db.getFirstAsync<{ value: string }>("SELECT value FROM bak.backup_info WHERE key = 'format'", []);
+    if (row?.value !== BACKUP_FORMAT) throw new Error("header_mismatch");
+  } catch {
+    await detach(db);
+    removeFile(file.uri);
+    throw new BackupError("backup_unverified");
+  }
+  await detach(db);
+}
+
 /**
- * Back up the whole store under `passphrase`, share the file, delete it, and record `standalone:last_backup_at`.
- * The time is written once the share sheet has been shown and returned without error; the app cannot see whether
- * the person actually saved the file.
+ * Back up the whole store under `passphrase`, read the file back, share it, delete it, and record
+ * `standalone:last_backup_at`. A file that cannot be read back is never shared and no time is recorded. The time is
+ * written once the share sheet has been shown and returned without error; the app cannot see whether the person
+ * actually saved the file.
  */
 export async function backupAndShare(db: Db, userId: string, passphrase: string, now = new Date()): Promise<void> {
   if (!passphraseValid(passphrase)) throw new BackupError("passphrase_short");
   const file = await writeBackup(db, userId, passphrase, now);
+  await verifyBackup(db, file, passphrase);
   await shareAndDelete(file, "application/octet-stream");
   if (isStandaloneId(userId)) await setMeta(db, LAST_BACKUP_META_KEY, now.toISOString());
 }
@@ -119,7 +135,8 @@ async function commonColumns(db: Db, table: string): Promise<string[]> {
 }
 
 /**
- * Restore a picked backup (a cache copy from the document picker, which is deleted afterwards) into the unlocked
+ * Restore a picked backup (a cache copy from the document picker, which is deleted afterwards, except after
+ * newer_local: it is kept for the confirmed retry, and the caller deletes it if the person cancels) into the unlocked
  * store of the account `userId`. Throws BackupError: bad_passphrase_or_file (wrong passphrase or
  * damaged file, indistinguishable by design), unsupported_backup, newer_local (standalone only: `count` local
  * records are newer than the backup's; call again with confirmOverwrite to replace them), wrong_account (the file
@@ -128,6 +145,7 @@ async function commonColumns(db: Db, table: string): Promise<string[]> {
 export async function restoreBackup(db: Db, userId: string, fileUri: string, passphrase: string, confirmOverwrite = false): Promise<RestoreResult> {
   const standalone = isStandaloneId(userId);
   const target = standaloneProjectId(userId);
+  let keepFile = false;
   try {
     let info: Record<string, string>;
     try {
@@ -146,7 +164,10 @@ export async function restoreBackup(db: Db, userId: string, fileUri: string, pas
       "SELECT COUNT(*) AS n FROM main.drafts m JOIN bak.drafts b ON b.id = m.id WHERE b.project_id = ? AND m.updated_at > b.updated_at",
       [source],
     );
-    if (newer && newer.n > 0 && !confirmOverwrite) throw new BackupError("newer_local", newer.n);
+    if (newer && newer.n > 0 && !confirmOverwrite) {
+      keepFile = true;
+      throw new BackupError("newer_local", newer.n);
+    }
 
     const total = (await db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM bak.drafts WHERE project_id = ?", [source]))?.n ?? 0;
     const fresh = (await db.getFirstAsync<{ n: number }>(
@@ -174,7 +195,7 @@ export async function restoreBackup(db: Db, userId: string, fileUri: string, pas
     return { restored: confirmOverwrite ? total : fresh, skipped: confirmOverwrite ? 0 : total - fresh };
   } finally {
     await detach(db);
-    removeFile(fileUri);
+    if (!keepFile) removeFile(fileUri);
   }
 }
 

@@ -679,6 +679,22 @@ class IntakeAttachmentTests(BaseTestCase):
             MapCaseTransition.death_id == uuid.UUID(draft["death_id"]))).all()
         self.assertIn("draft_attachments_deleted", actions)
 
+    def test_a_refused_submit_on_a_case_a_teammate_closed_deletes_its_uploaded_files(self):
+        from app.models import VaDeathRegister
+        self._login(self.interviewer_id)
+        draft = self._start_draft()
+        self.assertEqual(self._put(draft["draft_id"], uuid.uuid4(), JPEG).status_code, 201)
+        self.assertEqual(len(self._stored_files()), 1)
+        death = db.session.get(VaDeathRegister, uuid.UUID(draft["death_id"]))
+        death.status = "cancelled"  # the case closed meanwhile
+        db.session.commit()
+
+        late = self._submit(draft["draft_id"], {"Id10013": "no"})
+
+        self.assertEqual(late.status_code, 200, late.get_json())
+        self.assertIs(late.get_json()["superseded"], True)
+        self.assertEqual(self._stored_files(), [])
+
     def test_a_file_linked_to_a_submission_is_not_deleted_by_cleanup(self):
         self._login(self.interviewer_id)
         draft = self._start_draft()

@@ -23,6 +23,8 @@ set +a
 : "${POSTGRES_DB:?POSTGRES_DB is missing in .env}"
 
 mkdir -p "$OUT_DIR"
+# The dump holds every record: owner-only from creation, not just after.
+umask 077
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 DUMP_FILE="pg_dump_${POSTGRES_DB}_${TS}.dump"
@@ -37,6 +39,7 @@ docker compose exec -T "$DB_SERVICE" sh -lc \
 
 echo "==> Copying dump to host: $LOCAL_PATH"
 docker compose cp "$DB_SERVICE:$CONTAINER_TMP" "$LOCAL_PATH"
+chmod 600 "$LOCAL_PATH"
 
 echo "==> Cleaning container temp file"
 docker compose exec -T "$DB_SERVICE" rm -f "$CONTAINER_TMP"

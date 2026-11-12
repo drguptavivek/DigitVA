@@ -280,6 +280,8 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
     def test_a_unit_writer_finds_the_people_it_manages_and_no_one_else(self):
         inside = self.users["reviewer_c1"]
         outside = self.users["reviewer_ta"]
+        inside.phone = "9876500002"
+        db.session.flush()
         for actor in ("dm_c1", "incharge_c1"):
             with self.subTest(actor=actor):
                 self._as(actor)
@@ -289,12 +291,14 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
                 emails = {u["email"] for u in found}
                 self.assertIn(inside.email, emails)
                 self.assertNotIn(outside.email, emails)
-                for user in found:
-                    self.assertNotIn("phone", user)
+                # In reach: full phone (owner 2026-11-12, digitva-8z9m).
+                row = next(u for u in found if u["email"] == inside.email)
+                self.assertEqual(row["phone"], "9876500002")
                 detail = self.client.get(f"/data-management/api/users/{inside.user_id}")
                 self.assertEqual(detail.status_code, 200)
                 self.assertEqual(detail.get_json()["user"]["email"], inside.email)
-                self.assertNotIn("phone", detail.get_json()["user"])
+                self.assertEqual(detail.get_json()["user"]["phone"], "9876500002")
+                self.assertNotIn("landing_page", detail.get_json()["user"])
                 self.assertEqual(
                     self.client.get(f"/data-management/api/users/{outside.user_id}").status_code, 404)
 
@@ -314,7 +318,7 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
         inside.phone = "9876500001"
         db.session.flush()
         # A unit writer (dm_c1) may update job_title on a user holding a grant it manages,
-        # and the response redacts phone, landing_page, and is_admin.
+        # and the response keeps the in-reach phone but redacts landing_page and is_admin.
         self._as("dm_c1")
         updated = self.client.put(
             f"/data-management/api/users/{inside.user_id}",
@@ -324,7 +328,8 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(updated.status_code, 200, updated.get_json())
         user_payload = updated.get_json()["user"]
         self.assertEqual(user_payload["job_title"], "Medical Officer")
-        for key in ("phone", "landing_page", "is_admin"):
+        self.assertEqual(user_payload["phone"], "9876500001")
+        for key in ("landing_page", "is_admin"):
             self.assertNotIn(key, user_payload)
         # A wide writer on another project (dm_sp) may see the user in search,
         # but cannot mutate job_title or languages of a user holding no grant it manages.

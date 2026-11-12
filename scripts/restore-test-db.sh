@@ -5,8 +5,16 @@
 #   ./scripts/restore-test-db.sh
 #
 # Requires: docker compose stack to be up (at least minerva_db_service).
+#
+# DESTRUCTIVE: replaces the whole "minerva" dev database. Type the DB name at the
+# prompt, or run non-interactively with CONFIRM_RESTORE=minerva. Refuses a
+# staging/production-looking target unless ALLOW_REMOTE_RESTORE=1.
 
 set -e
+
+# shellcheck disable=SC1091
+. "$(dirname "$0")/lib/restore-guard.sh"
+restore_guard "minerva" "localhost" || exit 1
 
 SQL_FILE="private/test_data.sql"
 INITIAL_MIGRATION="a395774fa312"

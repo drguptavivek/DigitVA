@@ -3,7 +3,7 @@ title: Installation
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-19
+last_updated: 2026-11-12
 ---
 
 # Installation
@@ -142,6 +142,9 @@ Creates: admin user, WHO_2022_VA form type, field + choice mappings. No submissi
 ```
 
 Resets the DB schema → restores test data → runs migrations → seeds testadmin.
+It replaces the whole dev database, so it asks you to type the DB name; for non-interactive
+runs set `CONFIRM_RESTORE=minerva`. A staging/production-looking target is refused unless
+`ALLOW_REMOTE_RESTORE=1` (guard: `scripts/lib/restore-guard.sh`, check: `bash scripts/lib/test-restore-guard.sh`).
 
 Test data includes:
 - 5 sites with 1,081 total forms (474 coded, 607 remaining)

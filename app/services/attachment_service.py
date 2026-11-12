@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import sqlalchemy as sa
+from sqlalchemy.orm import Session
 from flask import abort, current_app, g, redirect, send_file, stream_with_context
 from werkzeug.utils import secure_filename
 
@@ -1468,9 +1469,13 @@ def ingest_download(
             os.makedirs(media_dir, exist_ok=True)
             final_path = os.path.join(media_dir, resolved_name)
             if is_audio:
-                local_path = _convert_amr_to_mp3(
-                    temp_path, va_form_id, output_path=final_path
-                )
+                # Convert beside the target and replace atomically: a failed
+                # conversion must never delete an existing MP3 at final_path.
+                tmp_mp3 = os.path.join(media_dir, f".tmp_{uuid.uuid4().hex}.mp3")
+                cleanup_paths.add(tmp_mp3)
+                _convert_amr_to_mp3(temp_path, va_form_id, output_path=tmp_mp3)
+                os.replace(tmp_mp3, final_path)
+                local_path = final_path
             else:
                 os.replace(temp_path, final_path)
                 local_path = final_path
@@ -1579,17 +1584,10 @@ def discard_ingest_temp_file(temp_path: str | None) -> None:
         log.warning("attachment ingest: temp cleanup failed", exc_info=True)
 
 
-def cleanup_superseded(*, stale_paths=(), stale_objects=()) -> None:
-    """Remove blobs a fresh ingest has replaced, after the rows are flushed.
-
-    ``stale_paths`` are ``(old_local_path, new_local_path)`` pairs and
-    ``stale_objects`` are ``(form_id, old_storage_name)`` pairs for rows whose
-    blob lives in the object store. In both cases the row already points at the
-    new blob, and the old one is removed only when no live row still references
-    it. A failure is logged and left alone: the blob becomes an orphan that
-    ``attachment integrity`` reports, and it never fails a sync.
-    """
-    seen_paths = set()
+def _unreferenced_blobs(stale_paths, stale_objects) -> tuple[list, list]:
+    """The old blobs from ``cleanup_superseded``'s arguments that no live row
+    still references (deduplicated), read from the database now."""
+    paths, seen_paths = [], set()
     for old_local_path, new_local_path in stale_paths or ():
         if (
             not old_local_path
@@ -1606,24 +1604,11 @@ def cleanup_superseded(*, stale_paths=(), stale_objects=()) -> None:
                 VaSubmissionAttachments.exists_on_odk.is_(True),
             )
         )
-        if in_use and int(in_use) > 0:
-            continue
-        try:
-            remove_local_file_if_present(old_local_path)
-        except OSError:
-            log.warning(
-                "Could not remove stale attachment file: %s", old_local_path, exc_info=True
-            )
+        if not (in_use and int(in_use) > 0):
+            paths.append(old_local_path)
 
-    if not stale_objects:
-        return
-    from app.services.attachment_store import StoreTarget, get_attachment_store
-
-    store = get_attachment_store()
-    if store.name != STORE_STATE_S3:
-        return
-    seen_objects = set()
-    for va_form_id, old_storage_name in stale_objects:
+    objects, seen_objects = [], set()
+    for va_form_id, old_storage_name in stale_objects or ():
         if not old_storage_name or (va_form_id, old_storage_name) in seen_objects:
             continue
         seen_objects.add((va_form_id, old_storage_name))
@@ -1635,8 +1620,28 @@ def cleanup_superseded(*, stale_paths=(), stale_objects=()) -> None:
                 VaSubmissionAttachments.exists_on_odk.is_(True),
             )
         )
-        if in_use and int(in_use) > 0:
-            continue
+        if not (in_use and int(in_use) > 0):
+            objects.append((va_form_id, old_storage_name))
+    return paths, objects
+
+
+def _remove_blobs(paths, objects) -> None:
+    """Delete the given blobs; a failure is logged and left as an orphan."""
+    for old_local_path in paths:
+        try:
+            remove_local_file_if_present(old_local_path)
+        except OSError:
+            log.warning(
+                "Could not remove stale attachment file: %s", old_local_path, exc_info=True
+            )
+    if not objects:
+        return
+    from app.services.attachment_store import StoreTarget, get_attachment_store
+
+    store = get_attachment_store()
+    if store.name != STORE_STATE_S3:
+        return
+    for va_form_id, old_storage_name in objects:
         try:
             store.delete(
                 StoreTarget(va_form_id=va_form_id, storage_name=old_storage_name)
@@ -1646,6 +1651,47 @@ def cleanup_superseded(*, stale_paths=(), stale_objects=()) -> None:
                 "Could not remove a superseded attachment object for form %s | storage_name=%s",
                 va_form_id, old_storage_name, exc_info=True,
             )
+
+
+def cleanup_superseded(*, stale_paths=(), stale_objects=()) -> None:
+    """Remove blobs a fresh ingest has replaced, after the rows are flushed.
+
+    ``stale_paths`` are ``(old_local_path, new_local_path)`` pairs and
+    ``stale_objects`` are ``(form_id, old_storage_name)`` pairs for rows whose
+    blob lives in the object store. In both cases the row already points at the
+    new blob, and the old one is removed only when no live row still references
+    it. A failure is logged and left alone: the blob becomes an orphan that
+    ``attachment integrity`` reports, and it never fails a sync.
+    """
+    _remove_blobs(*_unreferenced_blobs(stale_paths, stale_objects))
+
+
+def cleanup_superseded_after_commit(*, stale_paths=(), stale_objects=()) -> None:
+    """``cleanup_superseded`` once the surrounding transaction has committed.
+
+    The rows point at the new blobs only inside the open transaction; removing
+    the old blob first would lose it if that transaction rolls back. The
+    in-use check runs now (SQL is not allowed after a commit); on rollback the
+    pending removal is dropped and the old blobs stay.
+    """
+    paths, objects = _unreferenced_blobs(stale_paths, stale_objects)
+    if paths or objects:
+        db.session().info.setdefault(_SUPERSEDED_AFTER_COMMIT, []).append((paths, objects))
+
+
+_SUPERSEDED_AFTER_COMMIT = "attachment_superseded_after_commit"
+
+
+@sa.event.listens_for(Session, "after_commit")
+def _run_superseded_cleanups(session):
+    for paths, objects in session.info.pop(_SUPERSEDED_AFTER_COMMIT, ()):
+        _remove_blobs(paths, objects)
+
+
+@sa.event.listens_for(Session, "after_soft_rollback")
+def _drop_superseded_cleanups(session, previous_transaction):
+    if previous_transaction.parent is None:
+        session.info.pop(_SUPERSEDED_AFTER_COMMIT, None)
 
 
 # ---------------------------------------------------------------------------

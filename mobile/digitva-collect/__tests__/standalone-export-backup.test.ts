@@ -284,6 +284,28 @@ describe("encrypted backup", () => {
     expect(mockShared).toHaveLength(0);
   });
 
+  it("keeps the picked file for the confirmed retry and records no backup time when the read-back fails", async () => {
+    const source = await seeded(USER_A);
+    const uri = await backupFile(source);
+    const target = cipherDb();
+    await migrate(target);
+    await initConsentTables(target);
+    await insertDraft(target, USER_B, "d1", { Id10019: "local newer" }, "2026-10-26T00:00:00Z");
+    await expect(restoreBackup(target, USER_B, uri, PASS)).rejects.toMatchObject({ code: "newer_local" });
+    expect(fs.existsSync(uri.replace("file://", ""))).toBe(true); // kept for the retry
+    expect(await restoreBackup(target, USER_B, uri, PASS, true)).toEqual({ restored: 1, skipped: 0 });
+    expect(fs.existsSync(uri.replace("file://", ""))).toBe(false); // gone once the retry finished
+
+    const db = await seeded(USER_A);
+    const real = db.getFirstAsync;
+    db.getFirstAsync = (async (sql: string, params: never) => (sql.includes("bak.backup_info") ? null : real(sql, params))) as Db["getFirstAsync"];
+    mockShared.length = 0;
+    await expect(backupAndShare(db, USER_A, PASS, new Date("2026-10-21T00:00:00Z"))).rejects.toMatchObject({ code: "backup_unverified" });
+    expect(await getMeta<string>(db, LAST_BACKUP_META_KEY)).toBeUndefined();
+    expect(mockShared).toHaveLength(0);
+    expect(fs.readdirSync(mockDir).filter((n) => n.endsWith(".dvbak"))).toEqual([]);
+  });
+
   it("round-trips onto another standalone account, re-pointing rows, and clears the reminder", async () => {
     const source = await seeded(USER_A);
     const now = new Date("2026-10-27T00:00:00Z");

@@ -44,7 +44,7 @@ export interface StandaloneCounts {
   interviews: number;
   /** Coding results that go with them. */
   codings: number;
-  /** Coded interviews whose answers changed after coding: the interview is sent, its coding is not. */
+  /** Coded interviews whose answers changed after coding: sent with the coding marked stale, kept for the recode. */
   staleDraftIds: string[];
   /** Interviews held after a refusal (shown on the home, sent again only on request). */
   held: number;
@@ -53,22 +53,32 @@ export interface StandaloneCounts {
 /** Counts for the offer; codings are judged by the same rule the push applies (offlineCodingBody). */
 export async function standaloneCounts(db: Db, clientDeviceUuid: string): Promise<StandaloneCounts> {
   // ponytail: reads every completed envelope to hash it; a standalone pilot phone holds hundreds at most.
-  const [items, consents, codingRows, heldRow] = await Promise.all([
+  const [items, consents, codingRows, heldRow, leftRows] = await Promise.all([
     completedDrafts(db),
     loadConsents(db),
     db.getAllAsync<OfflineCodingRow>("SELECT * FROM offline_coding", []),
     db.getFirstAsync<{ n: number }>("SELECT COUNT(*) AS n FROM drafts WHERE upload_issue IS NOT NULL", []),
+    db.getAllAsync<{ key: string; value: string }>("SELECT key, value FROM meta WHERE key LIKE 'coding-left:%'", []),
   ]);
+  // The answers hash the server already holds for an interview whose stale coding waits for the recode (sync.ts).
+  const left = new Map(leftRows.map((meta) => [meta.key.slice("coding-left:".length), JSON.parse(meta.value) as string]));
   const coding = new Map(codingRows.map((row) => [row.client_draft_id, row]));
   const counts: StandaloneCounts = { interviews: 0, codings: 0, staleDraftIds: [], held: Number(heldRow?.n ?? 0) };
   for (const item of items) {
     if (!isUploadable(item.draft.data, item.completion)) continue;
-    counts.interviews += 1;
     const row = coding.get(item.id);
-    if (!row) continue;
+    if (!row) {
+      counts.interviews += 1;
+      continue;
+    }
     const { answersHash } = await sentAnswers(item, consents);
-    if (offlineCodingBody(row, answersHash, clientDeviceUuid)) counts.codings += 1;
-    else if (row.ucod_code && isCodingStale(row, answersHash)) counts.staleDraftIds.push(item.id);
+    const fresh = offlineCodingBody(row, answersHash, clientDeviceUuid) !== null;
+    const stale = !fresh && !!row.ucod_code && isCodingStale(row, answersHash);
+    if (stale) counts.staleDraftIds.push(item.id);
+    // Already sent with its stale coding: nothing more goes until the recode.
+    if (stale && left.get(item.id) === answersHash) continue;
+    counts.interviews += 1;
+    if (fresh) counts.codings += 1;
   }
   return counts;
 }
@@ -125,15 +135,9 @@ export function profileSnapshot(profile: OfflineProfile | null): StandalonePush[
   };
 }
 
-/** A coding the server did not use (or the phone did not send because it was stale), for the user to read. */
+/** A coding the server did not use (a stale one: coded_version_superseded until the recode), for the user to read. */
 export { codingNotices, dismissCodingNotices };
 export type { CodingNotice };
-
-async function addCodingNotices(db: Db, notices: CodingNotice[]): Promise<void> {
-  if (!notices.length) return;
-  const existing = await codingNotices(db);
-  await setMeta(db, "standalone:coding_notices", [...notices, ...existing].slice(0, 50));
-}
 
 /**
  * Send the adopted store's completed interviews (with their offline coding) as the adopted account. Throws
@@ -157,11 +161,6 @@ export async function pushStandaloneRecords(db: Db): Promise<UploadResult> {
       orgCode: orgCodeClaim(profile?.org_code),
     },
   });
-  const at = new Date().toISOString();
-  await addCodingNotices(db, [
-    // Not sent: the server would have refused it the same way (coded_version_superseded).
-    ...(result.staleCodingDraftIds ?? []).map((draftId) => ({ draftId, code: "coded_version_superseded", at })),
-  ]);
   return result;
 }
 

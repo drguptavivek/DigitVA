@@ -221,7 +221,7 @@ Who they find depends on their grants:
   institutes attached to districts it covers. Holders of grants within the
   caller's own units come back with full email and phone, which the caller
   needs to manage them (owner, 2026-11-12, `digitva-9xn9.22`). Mentoring-
-  institute staff come back with no contact details. Anyone outside that
+  institute staff outside that reach come back with no phone. Anyone outside that
   reach is found only through the exact email or mobile lookup below.
 
 **Find by exact email or mobile, then add (digitva-i0zb).** A unit writer who needs

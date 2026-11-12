@@ -231,6 +231,26 @@ class LocalIngestTests(AttachmentLifecycleBase):
         self.assertEqual(result.state_values["derivative_mime_type"], svc.DERIVATIVE_MIME_TYPE)
         self.assertEqual(result.state_values["derivative_source_validator"], '"amr-etag"')
 
+    def test_a_failed_repair_conversion_keeps_the_existing_mp3(self):
+        name = uuid.uuid4().hex + ".mp3"
+        existing = os.path.join(svc._form_media_dir(self.FORM_ID), name)
+        os.makedirs(os.path.dirname(existing), exist_ok=True)
+        with open(existing, "wb") as handle:
+            handle.write(b"old-mp3")
+
+        with patch.object(svc.subprocess, "check_output", side_effect=OSError("no soxi")), \
+                patch.object(svc.subprocess, "run", side_effect=OSError("sox failed")):
+            with self.assertRaises(svc.AmrConversionError):
+                svc.ingest_download(
+                    va_sid="sid-r", va_form_id=self.FORM_ID, filename="narration.amr",
+                    temp_path=self._temp_with(b"amr-bytes"), mime_type="audio/amr",
+                    etag='"e"', downloaded_at=_DOWNLOADED_AT, storage_name=name,
+                )
+
+        with open(existing, "rb") as handle:
+            self.assertEqual(handle.read(), b"old-mp3")
+        self.assertEqual(self._media_files(), [name])
+
     def test_a_failed_conversion_leaves_no_object_and_no_temp_file(self):
         temp_path = self._temp_with(b"amr-bytes")
 
@@ -250,6 +270,22 @@ class LocalIngestTests(AttachmentLifecycleBase):
 
         self.assertEqual(self._media_files(), [])
         self.assertFalse(os.path.exists(temp_path))
+
+    def test_cleanup_after_commit_waits_for_commit_and_is_dropped_on_rollback(self):
+        paths = []
+        for name in ("a.jpg", "b.jpg"):
+            path = os.path.join(self._tmp_dir.name, name)
+            with open(path, "wb") as handle:
+                handle.write(b"x")
+            paths.append(path)
+        svc.cleanup_superseded_after_commit(stale_paths=[(paths[0], "/new/a.jpg")])
+        self.assertTrue(os.path.exists(paths[0]))  # not before the commit
+        db.session.rollback()
+        self.assertTrue(os.path.exists(paths[0]))  # a rollback keeps the old blob
+        svc.cleanup_superseded_after_commit(stale_paths=[(paths[1], "/new/b.jpg")])
+        db.session.commit()
+        self.assertFalse(os.path.exists(paths[1]))
+        self.assertTrue(os.path.exists(paths[0]))  # the dropped cleanup never fires
 
     def test_cleanup_superseded_removes_only_unreferenced_local_files(self):
         sub = self._submission()

@@ -108,6 +108,26 @@ class TestOpenSubmissionRepairService(unittest.TestCase):
         mock_attachments.assert_not_called()
         mock_smartva.assert_not_called()
 
+    def test_an_empty_odk_fetch_never_writes_the_stored_payload_back(self):
+        plan = {"SID-1": {"instance_id": "uuid:one", "needs_metadata": False,
+                          "needs_attachments": False, "needs_smartva": False}}
+        pkg = "app.services.open_submission_repair_service"
+        with self.app.app_context(), \
+            patch(f"{pkg}.db.session.get", side_effect=self._db_get), \
+            patch(f"{pkg}.db.session.commit"), \
+            patch(f"{pkg}._build_repair_map_for_form", return_value=(plan, {})), \
+            patch(f"{pkg}._load_payload_rows", return_value=[("SID-1", {"KEY": "uuid:one", "Id10017": "stripped"})]), \
+            patch(f"{pkg}._get_single_form_odk_client", return_value=object()), \
+            patch(f"{pkg}._release_read_transaction"), \
+            patch(f"{pkg}.va_odk_fetch_submissions_by_ids", return_value=[]), \
+            patch(f"{pkg}._attach_all_odk_comments", side_effect=lambda _f, subs, **_k: subs), \
+            patch(f"{pkg}._finalize_enriched_submissions_for_form", return_value=0) as finalize, \
+            patch(f"{pkg}._refresh_batch_plan_after_enrichment", return_value=(plan, {}, 0)), \
+            patch(f"{pkg}._advance_workflow_after_current_payload_repair"):
+            repair_submission_for_coding_open("SID-1")
+
+        self.assertEqual(finalize.call_args.args[1], [])
+
     def test_repairs_attachments_and_smartva_for_one_submission(self):
         initial_plan = {
             "SID-1": {

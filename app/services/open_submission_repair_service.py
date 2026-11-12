@@ -191,8 +191,12 @@ def repair_submission_current_payload(
             for submission in fetched_submissions
             if submission.get("sid")
         }
-        payload = raw_by_sid.get(va_sid) or payload_by_sid.get(va_sid) or {}
-        if payload:
+        # Only a fresh ODK fetch is written back: the stored payload may be
+        # PII-stripped (PAYLOAD_PII_SPLIT_ENABLED) and must not replace itself.
+        payload = raw_by_sid.get(va_sid) or {}
+        if not payload:
+            log.warning("OpenSubmissionRepair [%s]: ODK fetch returned nothing; payload left as stored", va_sid)
+        else:
             raw_submissions.append(dict(payload))
 
         enriched_count = _finalize_enriched_submissions_for_form(

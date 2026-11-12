@@ -218,7 +218,8 @@ def _dm_user_json(user) -> dict:
     inside its reach (``users_in_caller_reach``); outside it, email and phone
     masked and no landing page, keeping the profile fields it may edit
     (languages, job title). A unit writer gets the old shape: no phone,
-    landing page or admin flag (dm-user-grant-management.md, digitva-9xn9.22)."""
+    landing page or admin flag, but the phone of an account in its reach
+    (dm-user-grant-management.md, digitva-9xn9.22, digitva-8z9m)."""
     if _is_wide_writer():
         in_reach = user.user_id in users_in_caller_reach([user.user_id])
         user_json = _serialize_user(user)
@@ -232,6 +233,8 @@ def _dm_user_json(user) -> dict:
     user_json = _serialize_user(user)
     for key in ("phone", "landing_page", "is_admin"):
         user_json.pop(key, None)
+    if user.user_id in users_in_caller_reach([user.user_id]):
+        user_json["phone"] = user.phone
     return user_json
 
 
@@ -690,7 +693,7 @@ def manage_users():
     if not _is_wide_writer():
         # A unit writer (unit data manager, In-charge) finds the holders of
         # grants it may manage and the staff of mentoring institutes attached
-        # to districts it covers; no one else, and no phone (the old shape).
+        # to districts it covers; no one else. Phone only for holders in its reach.
         staff, truncated = mentors.dm_visible_mentor_staff(
             current_user.user_id, query, include_inactive, limit=_USER_SEARCH_LIMIT
         )
@@ -702,6 +705,7 @@ def manage_users():
         for user in managed[:_USER_SEARCH_LIMIT]:
             found.setdefault(user.user_id, (user, []))
         rows = sorted(found.values(), key=lambda row: (row[0].email or "", row[0].name))[:_USER_SEARCH_LIMIT]
+        in_reach = users_in_caller_reach(u.user_id for u, _ in rows)  # one query
         return jsonify({"users": [
             {
                 "user_id": str(u.user_id),
@@ -710,6 +714,7 @@ def manage_users():
                 "job_title": u.job_title,
                 "status": u.user_status.value,
                 "institutes": codes,
+                **({"phone": u.phone} if u.user_id in in_reach else {}),
             }
             for u, codes in rows
         ], "truncated": truncated or len(found) > _USER_SEARCH_LIMIT})

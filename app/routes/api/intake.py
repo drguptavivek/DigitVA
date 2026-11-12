@@ -1109,7 +1109,10 @@ def submit_draft(draft_id):
     submission = intake_svc.submit_draft(draft, current_user, completion=p.get("completion") or {})
     if submission is None:
         # A teammate's complete submission won: this copy is kept, not routed.
+        # A refused copy's uploads were queued for deletion; remove them after
+        # the commit (objects another submission row holds are kept).
         db.session.commit()
+        attachments_svc.delete_committed_blobs()
         return jsonify(
             {"va_sid": None, "draft": intake_svc.serialize_draft(draft), "superseded": True, "validation_err": None,
              "can_code_now": False}

@@ -418,3 +418,73 @@ class TestNarrativeQaRoute(BaseTestCase):
 
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         self.assertEqual(self._nqa_count(coder.user_id), 1)
+
+
+class TestNarrativeQaReleaseRace(TestNarrativeQaRoute):
+    """A release landing between the early allocation check and the save."""
+
+    def _release_during_lock(self):
+        from unittest.mock import patch
+
+        from app.services import coding_allocation_service as svc
+
+        real = svc.lock_coding_submission
+
+        def release_then_lock(va_sid):
+            db.session.execute(
+                db.update(VaAllocations)
+                .where(VaAllocations.va_sid == va_sid)
+                .values(va_allocation_status=VaStatuses.deactive)
+            )
+            db.session.commit()
+            return real(va_sid)
+
+        # The route imports the name, the sweep and helper use the module's.
+        from contextlib import ExitStack
+
+        stack = ExitStack()
+        stack.enter_context(patch.object(svc, "lock_coding_submission", release_then_lock))
+        stack.enter_context(
+            patch("app.routes.api.nqa.lock_coding_submission", release_then_lock)
+        )
+        return stack
+
+    def test_save_after_release_is_refused_and_writes_nothing(self):
+        self._login(self.base_admin_id)
+        with self._release_during_lock():
+            response = self.client.post(
+                f"/api/v1/va/{self.sid}/narrative-qa",
+                json={
+                    "va_actiontype": "vastartcoding",
+                    "length": 2, "pos_symptoms": 2, "neg_symptoms": 1,
+                    "chronology": 1, "doc_review": 1, "comorbidity": 1,
+                },
+                headers=self._csrf_headers(),
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["code"], "no_allocation")
+        rows = db.session.scalars(
+            db.select(VaNarrativeAssessment).where(
+                VaNarrativeAssessment.va_sid == self.sid,
+                VaNarrativeAssessment.va_nqa_status == VaStatuses.active,
+            )
+        ).all()
+        self.assertEqual(rows, [])
+
+    def test_reviewer_sweep_skips_an_allocation_released_while_waiting(self):
+        from datetime import timedelta
+
+        from app.services.coding_allocation_service import release_stale_reviewer_allocations
+
+        alloc = VaAllocations(
+            va_sid=self.sid,
+            va_allocated_to=self.base_admin_user.user_id,
+            va_allocation_for=VaAllocation.reviewing,
+            va_allocation_status=VaStatuses.active,
+        )
+        db.session.add(alloc)
+        db.session.flush()
+        alloc.va_allocation_createdat = datetime.now() - timedelta(hours=5)
+        db.session.commit()
+        with self._release_during_lock():
+            self.assertEqual(release_stale_reviewer_allocations(timeout_hours=1), 0)

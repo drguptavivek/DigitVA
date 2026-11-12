@@ -10,6 +10,7 @@ built and no AWS endpoint is contacted.
 
 import io
 import os
+import tempfile
 from unittest import mock
 
 from app.models import VaDbBackup
@@ -214,3 +215,52 @@ class DailyTimeParsingTests(BaseTestCase):
         for value in (None, "", "nonsense", "25:00", "01:75", "1"):
             self.assertEqual(backup_tasks.parse_daily_time(value), default, value)
 
+
+
+class TestS3ChecksumSidecar(BaseTestCase):
+    """download_db_backup on an S3-like store with a blank database."""
+
+    def setUp(self):
+        super().setUp()
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp_dir.cleanup)
+        self.app.config["DB_BACKUP_TMP_DIR"] = self.tmp_dir.name
+        self.body = b"dump-bytes"
+        self.objects = {"p/x.dump": self.body}
+
+        objects = self.objects
+
+        class FakeS3:
+            name = "s3"
+
+            def get_key(self, key, dest):
+                if key not in objects:
+                    raise svc.AttachmentStoreError("missing")
+                with open(dest, "wb") as handle:
+                    handle.write(objects[key])
+                return len(objects[key])
+
+        patcher = mock.patch.object(svc, "get_attachment_store", return_value=FakeS3())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.dest = os.path.join(self.tmp_dir.name, "out.dump")
+
+    def test_verifies_from_the_sidecar_without_a_database_row(self):
+        import hashlib
+
+        self.objects["p/x.dump.sha256"] = hashlib.sha256(self.body).hexdigest().encode()
+        result = svc.download_db_backup("p/x.dump", self.dest)
+        self.assertEqual(result["size_bytes"], len(self.body))
+
+    def test_a_sidecar_mismatch_removes_the_file(self):
+        self.objects["p/x.dump.sha256"] = b"0" * 64
+        with self.assertRaises(svc.DbBackupError):
+            svc.download_db_backup("p/x.dump", self.dest)
+        self.assertFalse(os.path.exists(self.dest))
+
+    def test_no_checksum_is_refused_unless_allowed(self):
+        with self.assertRaises(svc.DbBackupError):
+            svc.download_db_backup("p/x.dump", self.dest)
+        self.assertFalse(os.path.exists(self.dest))
+        svc.download_db_backup("p/x.dump", self.dest, allow_unverified=True)
+        self.assertTrue(os.path.exists(self.dest))

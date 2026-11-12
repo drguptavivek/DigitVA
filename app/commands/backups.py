@@ -104,19 +104,27 @@ def db_list(limit):
 @backups_group.command("db-download")
 @click.argument("object_key")
 @click.argument("dest_path", type=click.Path())
-def db_download(object_key, dest_path):
+@click.option(
+    "--allow-unverified",
+    is_flag=True,
+    help="Keep the download even when no checksum exists for it.",
+)
+def db_download(object_key, dest_path, allow_unverified):
     """Fetch OBJECT_KEY out of the store to DEST_PATH, verifying its sha256.
 
-    Refuses a key this app has no recorded checksum for, and removes the file
-    on a mismatch, so what lands on disk is always a dump DigitVA made.
+    Refuses a key with no recorded checksum (database row or the .sha256 object
+    beside an S3 dump) unless --allow-unverified, and removes the file on a
+    mismatch, so what lands on disk is always a dump DigitVA made.
     """
     try:
-        result = svc.download_db_backup(object_key, dest_path)
+        result = svc.download_db_backup(
+            object_key, dest_path, allow_unverified=allow_unverified
+        )
     except svc.DbBackupError as exc:
         raise click.ClickException(str(exc)) from exc
     click.echo(
         f"db-download: {result['path']} ({result['size_bytes']} bytes, "
-        f"sha256 verified)"
+        f"{'sha256 verified' if not allow_unverified else 'sha256 computed'})"
     )
 
 

@@ -380,18 +380,40 @@ describe("stale coding", () => {
     expect(noRules.pack_versions).toEqual(engine);
   });
 
-  it("does not send a coding whose answers changed afterwards, sends the interview, and says why", async () => {
+  it("sends a stale coding marked stale, keeps the draft until the recode is taken, then deletes it (digitva-fowp)", async () => {
     const db = await standaloneStore();
+    const codedHash = (await draftAnswersSha256(db, DRAFT))!;
     // Reopened and edited after coding.
     await createDraftStore(db, { projectId: STANDALONE, siteId: "standalone", binding: { projectId: STANDALONE } }).save(draft({ ...ANSWERS, Id10019: "male" }));
     await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    const answersHash = (await draftAnswersSha256(db, DRAFT))!;
+    expect(answersHash).not.toBe(codedHash);
     expect(await standaloneCounts(db, DEVICE_UUID)).toMatchObject({ interviews: 1, codings: 0, staleDraftIds: [DRAFT] });
 
-    server((call) => accepted(call));
-    const result = await pushStandaloneRecords(db);
-    expect(submissionCalls()[0].body).not.toHaveProperty("offline_coding");
-    expect(result).toMatchObject({ sent: 1, staleCodingDraftIds: [DRAFT], codingOutcomes: [] });
-    expect(await kept(db)).toEqual(ALL_GONE);
+    // The server keeps a coding on older answers refused coded_version_superseded.
+    server((call) => {
+      const sent = call.body?.offline_coding as { coded_answers_sha256?: string } | undefined;
+      return accepted(call, sent?.coded_answers_sha256 === call.body?.answers_sha256
+        ? { status: "pending", code: "not_ready" } : { status: "refused", code: "coded_version_superseded" });
+    });
+    const first = await pushStandaloneRecords(db);
+    expect(submissionCalls()[0].body?.offline_coding).toMatchObject({ coded_answers_sha256: codedHash, conclusive_cod: "BA41.Z" });
+    expect(first).toMatchObject({ sent: 1, codingOutcomes: [{ draftId: DRAFT, status: "refused", code: "coded_version_superseded" }] });
+    expect(await kept(db)).toEqual(ALL_KEPT);
     expect((await codingNotices(db)).map((notice) => notice.code)).toEqual(["coded_version_superseded"]);
+    // Waiting for the recode: not offered again, and the next push sends nothing.
+    expect(await standaloneCounts(db, DEVICE_UUID)).toMatchObject({ interviews: 0, staleDraftIds: [DRAFT] });
+    await expect(pushStandaloneRecords(db)).resolves.toMatchObject({ sent: 0, failed: 0 });
+    expect(submissionCalls()).toHaveLength(1);
+
+    // Recoded on the final answers: sent, taken, and the draft and coding go.
+    await saveOfflineCoding(db, await codingRow(db, { answers_sha256: answersHash, updated_at: "2026-10-02T00:00:00Z" }));
+    expect(await standaloneCounts(db, DEVICE_UUID)).toMatchObject({ interviews: 1, codings: 1, staleDraftIds: [] });
+    await expect(pushStandaloneRecords(db)).resolves.toMatchObject({ sent: 1, codingOutcomes: [{ draftId: DRAFT, status: "pending" }] });
+    expect(submissionCalls()).toHaveLength(2);
+    expect(submissionCalls()[1].body?.offline_coding).toMatchObject({ coded_answers_sha256: answersHash });
+    expect(await kept(db)).toEqual(ALL_GONE);
+    expect(await getMeta(db, `coding-left:${DRAFT}`)).toBeUndefined();
+    expect(await codingNotices(db)).toEqual([]);
   });
 });

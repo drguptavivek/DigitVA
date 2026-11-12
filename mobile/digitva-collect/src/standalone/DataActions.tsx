@@ -15,6 +15,7 @@ import { spacing } from "../theme";
 import { Button, errorText, ListRow, PasswordInput, Separator, ThemedSwitch, useUiStyles } from "../ui";
 import { BackupError, backupAndShare, passphraseValid, restoreBackup } from "./backup";
 import { exportAndShare, type ExportFormat } from "./export";
+import { removeFile } from "../mediaFiles";
 import { sweepExportLeftovers } from "./shareFile";
 
 type Panel = "export" | "backup" | "restore" | null;
@@ -40,7 +41,7 @@ export function DataActions({ db, userId, onChanged, exportAllowed = true }: { d
       setMessage(await work());
     } catch (caught) {
       if (caught instanceof BackupError) {
-        setMessage(caught.code === "passphrase_short" ? t("dataPassphraseShort") : caught.code === "unsupported_backup" ? t("dataRestoreUnsupported") : caught.code === "wrong_account" ? t("dataRestoreWrongAccount") : t("dataRestoreBad"));
+        setMessage(caught.code === "passphrase_short" ? t("dataPassphraseShort") : caught.code === "unsupported_backup" ? t("dataRestoreUnsupported") : caught.code === "wrong_account" ? t("dataRestoreWrongAccount") : caught.code === "backup_unverified" ? t("dataBackupUnverified") : t("dataRestoreBad"));
       } else {
         setMessage(errorText(caught));
       }
@@ -128,7 +129,7 @@ export function DataActions({ db, userId, onChanged, exportAllowed = true }: { d
               confirmLabel={t("dataRestoreReplace")}
               destructive
               onConfirm={() => void doRestore(pendingFile.uri, true)}
-              onCancel={() => setPendingFile(null)}
+              onCancel={() => { removeFile(pendingFile.uri); setPendingFile(null); }}
             />
           ) : null}
         </View>

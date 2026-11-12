@@ -77,6 +77,28 @@ def lock_coding_submission(va_sid: str) -> VaSubmissions | None:
     return submission
 
 
+def lock_and_confirm_active_allocation(va_sid: str, user_id, allocation_for) -> bool:
+    """Lock the case, then report whether *user_id* still holds an active
+    *allocation_for* allocation on it.
+
+    A save that checked the allocation before waiting on a release would write
+    a stale active row; callers check again here after the lock and refuse the
+    save when this returns False.
+    """
+    lock_coding_submission(va_sid)
+    return (
+        db.session.scalar(
+            sa.select(VaAllocations.va_allocation_id).where(
+                VaAllocations.va_sid == va_sid,
+                VaAllocations.va_allocated_to == user_id,
+                VaAllocations.va_allocation_for == allocation_for,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+            )
+        )
+        is not None
+    )
+
+
 class ActiveAllocationHeld(Exception):
     """The user already holds an active allocation of this kind: a concurrent
     request of theirs inserted first (digitva-igq7)."""
@@ -470,7 +492,24 @@ def release_stale_reviewer_allocations(timeout_hours: int = 1) -> int:
     ).all()
 
     released = 0
-    for record in stale_allocations:
+    for stale in stale_allocations:
+        # Lock the case, then recheck: the reviewer may have finished or
+        # released while this sweep waited, and a stale row must not be
+        # released over a completed review.
+        lock_coding_submission(stale.va_sid)
+        record = db.session.scalar(
+            sa.select(VaAllocations)
+            .where(
+                VaAllocations.va_allocation_id == stale.va_allocation_id,
+                VaAllocations.va_allocation_status == VaStatuses.active,
+                VaAllocations.va_allocation_for == VaAllocation.reviewing,
+                VaAllocations.va_allocation_createdat < cutoff,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if record is None:
+            continue
         _release_reviewer_allocation(
             record,
             cause="timeout",

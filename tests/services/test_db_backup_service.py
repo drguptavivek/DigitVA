@@ -336,7 +336,9 @@ class S3BackupTests(S3BackupBase):
         self.assertEqual(outcome.status, VaDbBackup.STATUS_SUCCESS, outcome.error_code)
         self.assertEqual(outcome.store, "s3")
         self.assertTrue(outcome.object_key.startswith(svc.dump_key_prefix()))
-        self.assertEqual(self._keys(), {outcome.object_key})
+        self.assertEqual(
+            self._keys(), {outcome.object_key, outcome.object_key + svc.CHECKSUM_SUFFIX}
+        )
 
         head = self.store.head_key(outcome.object_key)
         self.assertEqual(int(head["ContentLength"]), outcome.size_bytes)

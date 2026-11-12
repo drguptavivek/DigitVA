@@ -346,8 +346,10 @@ export async function keepRegistrationConsentForCase(db: Db, clientDeathId: stri
  * first, then the registration is deleted, then the case stored: if the app
  * dies in between, the registration is resent, answered 200 with the same
  * case, and the steps run again; never a draft left pointing at nothing.
+ * `sentFields` are the fields that were sent: if the interviewer saved an edit while the send was in flight the
+ * stored fields differ, so the registration is kept (still pending, with its consent) and the edit is resent.
  */
-export async function acknowledgeRegistration(db: Db, clientDeathId: string, row: CaseDetail): Promise<void> {
+export async function acknowledgeRegistration(db: Db, clientDeathId: string, row: CaseDetail, sentFields?: unknown): Promise<void> {
   if (!isCaseDetail(row)) throw new Error("invalid_case_detail");
   const registration = await getRegistration(db, clientDeathId);
   if (!registration || registration.project_id !== row.project_id) throw new Error("project_mismatch");
@@ -362,9 +364,15 @@ export async function acknowledgeRegistration(db: Db, clientDeathId: string, row
     row.project_id,
     clientDeathId
   ]);
-  await db.runAsync("DELETE FROM registrations WHERE client_death_id = ?", [clientDeathId]);
-  await db.runAsync("DELETE FROM meta WHERE key = ?", [refusalKey(clientDeathId)]);
-  await keepRegistrationConsentForCase(db, clientDeathId, row.death_id);
+  const deleted = await db.runAsync(
+    sentFields === undefined ? "DELETE FROM registrations WHERE client_death_id = ?" : "DELETE FROM registrations WHERE client_death_id = ? AND fields = ?",
+    sentFields === undefined ? [clientDeathId] : [clientDeathId, JSON.stringify(sentFields)]
+  );
+  const edited = sentFields !== undefined && !(deleted && typeof deleted === "object" && "changes" in deleted && Number(deleted.changes) === 1);
+  if (!edited) {
+    await db.runAsync("DELETE FROM meta WHERE key = ?", [refusalKey(clientDeathId)]);
+    await keepRegistrationConsentForCase(db, clientDeathId, row.death_id);
+  }
   if (isActiveCaseState(row.state)) await upsertCase(db, row);
   else await deleteCase(db, row.project_id, row.death_id);
 }

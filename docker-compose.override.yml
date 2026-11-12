@@ -13,11 +13,12 @@ services:
     ports:
       - "8051:5000"
     # Dev only: the parallel test suite (pytest -n 4) runs in this container,
-    # and four workers do not fit in the 1g production limit.
+    # and four workers do not fit in the 1g production limit; 3g was hit
+    # (OOM-killed workers) once the suite passed ~7,500 tests.
     deploy:
       resources:
         limits:
-          memory: 3g
+          memory: 8g
     entrypoint: []
     command: >
       bash -c "

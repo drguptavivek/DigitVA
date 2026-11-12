@@ -397,8 +397,6 @@ export interface UploadResult {
   canCodeNowUniqueIds: string[];
   /** The server's verdict on each offline coding sent, for enrolled and standalone pushes alike. */
   codingOutcomes: OfflineCodingOutcome[];
-  /** Standalone push only: the drafts whose coding was stale and therefore was not sent. */
-  staleCodingDraftIds?: string[];
 }
 
 /**
@@ -409,8 +407,9 @@ export interface UploadResult {
  *
  * With `standalone`, `db` is a standalone store and `userId` the enrolled
  * account it was adopted into: each interview goes to that project and site
- * with the contract 17 `standalone` object and, when fresh, its offline
- * coding; the draft and its coding are deleted together on the 2xx only.
+ * with the contract 17 `standalone` object and its offline
+ * coding (a stale one too, kept by the server for recode); the draft and its coding are deleted together on
+ * the 2xx only, except after a stale coding, when they stay until the recode is sent (digitva-fowp).
  */
 export async function uploadQueuedWork(
   userId: string,
@@ -424,7 +423,6 @@ export async function uploadQueuedWork(
 ): Promise<UploadResult> {
   const { onSuperseded, onServerKept, onCanCodeNow, standalone } = callbacks;
   const codingOutcomes: OfflineCodingOutcome[] = [];
-  const staleCodingDraftIds: string[] = [];
   let enrolledDeviceUuid: string | null | undefined;
   let sent = 0;
   let failed = 0;
@@ -488,7 +486,7 @@ export async function uploadQueuedWork(
         }
       });
       if (!isCaseDetail(body?.case) || body.case.project_id !== reg.project_id) throw new Error("invalid_case_detail");
-      await acknowledgeRegistration(db, reg.client_death_id, body.case);
+      await acknowledgeRegistration(db, reg.client_death_id, body.case, fields);
       await clearSendError(db, reg.client_death_id);
       sent += 1;
     } catch (error) {
@@ -591,17 +589,18 @@ export async function uploadQueuedWork(
     let coding: ReturnType<typeof offlineCodingBody> = null;
     try {
       const deviceUuid = standalone ? standalone.clientDeviceUuid : row ? await currentEnrolledDeviceUuid() : null;
-      coding = row && deviceUuid ? offlineCodingBody(row, sentHash, deviceUuid, !standalone) : null;
+      coding = row && deviceUuid ? offlineCodingBody(row, sentHash, deviceUuid, true) : null;
       // A coding revision the server refused outright is not sent again until the coder changes it.
       if (!standalone && row && await getMeta<string>(db, codingRefusedKey(item.id)) === row.updated_at) coding = null;
     } catch {
       coding = null;
     }
-    // Enrolled only: an older coding sent with these newer answers, which the server keeps as stale.
+    // An older coding sent with these newer answers, which the server keeps as stale until the recode.
     let codingStale = !!coding && coding.coded_answers_sha256 !== sentHash;
     // The interview is never withheld for its coding (owner, digitva-9cll.14). One the server already holds at these
     // answers, whose coding is still not sendable or already sent stale, waits on the phone for the coder's recode.
-    if (!standalone && row && (!coding || codingStale) && await getMeta<string>(db, codingLeftKey(item.id)) === sentHash) {
+    // A standalone interview waits only for a stale coding (digitva-fowp): one with no sendable coding is done.
+    if (row && (standalone ? codingStale : !coding || codingStale) && await getMeta<string>(db, codingLeftKey(item.id)) === sentHash) {
       await clearSendError(db, item.id);
       continue draftLoop;
     }
@@ -610,7 +609,6 @@ export async function uploadQueuedWork(
       standaloneFields = { offline_coding: coding };
     }
     if (standalone) {
-      if (row?.ucod_code && isCodingStale(row, sentHash)) staleCodingDraftIds.push(item.id);
       codingSent = coding !== null;
       standaloneFields = {
         standalone: {
@@ -747,7 +745,7 @@ export async function uploadQueuedWork(
         }
       }
       await purgeTerminalAcknowledgement(db, item.project_id, acknowledgement.body);
-      if (row && !standalone && (!codingSent || codingStale)) {
+      if (row && (standalone ? codingStale : !codingSent || codingStale)) {
         // Sent without its coding, or with a stale one: the draft and coding stay for the coder, and the next sync
         // sends the recoded final (with these answers, which the server accepts as a resend and lets replace it).
         await setMeta(db, codingLeftKey(item.id), answersHash);
@@ -812,7 +810,6 @@ export async function uploadQueuedWork(
   return {
     sent, failed, supersededUniqueIds, serverKeptUploads, canCodeNowUniqueIds,
     codingOutcomes,
-    ...(standalone ? { staleCodingDraftIds } : {}),
   };
 }
 

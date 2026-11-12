@@ -656,6 +656,26 @@ class WebIntakeServiceTests(BaseTestCase):
             envelope["data"], {"Id10013": "yes", "Id10019": "male", "Id10020": "2024"}
         )
 
+    def test_a_browser_cleared_answer_beats_the_phones_value_for_it(self):
+        draft = intake_svc.start_draft(
+            self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID
+        )
+        intake_svc.save_draft_sections(draft, sections={"background": {"Id10019": "female", "Id10020": "2024"}})
+        # A phone save landed meanwhile and brought its own copy of both answers.
+        intake_svc.save_draft_sections(
+            draft, sections={intake_svc.DEVICE_SECTION: {"Id10019": "female", "Id10020": "1999", "Id10021": "x"}}
+        )
+        rows = {r.section_name: r.data for r in draft.sections}
+        self.assertEqual(rows["device"]["Id10020"], "1999")  # subject present before it is cleared
+
+        # The browser clears Id10020: the key is absent from the section it saves.
+        intake_svc.save_draft_sections(draft, sections={"background": {"Id10019": "female"}})
+
+        rows = {r.section_name: r.data for r in draft.sections}
+        self.assertNotIn("Id10020", rows["device"])
+        self.assertEqual(rows["device"]["Id10021"], "x")  # an answer it never saved is kept
+        self.assertNotIn("Id10020", intake_svc.load_draft_envelope(draft)["data"])
+
     def test_coding_timeline_is_separate_bounded_and_first_event_wins(self):
         draft = intake_svc.start_draft(
             self.interviewer, project_id=self.PROJECT_ID, site_id=self.SITE_ID

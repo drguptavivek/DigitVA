@@ -40,7 +40,7 @@ from app.services.attachment_service import (
     STORE_STATE_LOCAL,
     STORE_STATE_S3,
     attachment_present,
-    cleanup_superseded,
+    cleanup_superseded_after_commit,
     discard_ingest_temp_file,
     generate_storage_name,
     ingest_download,
@@ -782,7 +782,7 @@ def va_odk_sync_form_attachments(
         )
 
     db.session.flush()
-    cleanup_superseded(stale_paths=stale_paths, stale_objects=stale_objects)
+    cleanup_superseded_after_commit(stale_paths=stale_paths, stale_objects=stale_objects)
     return totals
 
 
@@ -833,7 +833,7 @@ def va_odk_sync_submission_attachments(
         va_form_id=va_form.form_id, stale_objects=stale_objects,
     )
     db.session.flush()
-    cleanup_superseded(stale_paths=stale_paths, stale_objects=stale_objects)
+    cleanup_superseded_after_commit(stale_paths=stale_paths, stale_objects=stale_objects)
     return {
         "downloaded": result.downloaded,
         "skipped": result.skipped,

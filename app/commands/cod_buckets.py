@@ -34,13 +34,14 @@ from app.services.cod_bucket_materialization import all_scheme_ids, rebuild_sche
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 
 
-def _snapshot_before_cli_reimport(scheme_code: str) -> None:
+def _snapshot_before_cli_reimport(scheme_code: str, *, commit: bool = True) -> None:
     """Snapshot an existing scheme before a CLI re-import replaces it.
 
     Fresh install (scheme absent) skips this entirely -- nothing to lose yet.
     Commits immediately: unlike the admin reset route, nothing here shares a
     transaction with the import that follows, so the snapshot must be durable
-    on its own before that import runs.
+    on its own before that import runs. With `commit=False` the caller commits
+    it together with the change it guards.
     """
     existing = get_cod_bucket_scheme(scheme_code)
     if existing is None:
@@ -49,7 +50,8 @@ def _snapshot_before_cli_reimport(scheme_code: str) -> None:
         scheme=existing,
         reason=VaCodBucketSchemeSnapshot.REASON_CLI_IMPORT,
     )
-    db.session.commit()
+    if commit:
+        db.session.commit()
     click.echo(f"Snapshot {snapshot.snapshot_id} saved before re-import.")
 
 
@@ -145,6 +147,8 @@ def generate_icd11(scheme_code, release, apply_changes, report_dir, seed_csv):
     if not apply_changes:
         click.echo("Dry run: nothing written to the database (use --apply).")
         return
+    # Same transaction as the replacement: both land or neither does.
+    _snapshot_before_cli_reimport(scheme_code, commit=False)
     scheme = apply_icd11_generation(result)
     click.echo(
         f"Applied: {scheme.scheme_code} icd11_method={scheme.icd11_method} "

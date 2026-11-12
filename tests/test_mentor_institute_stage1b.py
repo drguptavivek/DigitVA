@@ -252,6 +252,7 @@ class DataManagerMentorGrantTests(Stage1bBase):
             {one.email: ["MC1"], two.email: ["MC2"]},  # not three (D02 only), not outsider
         )
         for user in users:
+            # Mentoring staff hold no grant in the DM's reach: still no phone key.
             self.assertEqual(
                 set(user), {"user_id", "name", "email", "status", "institutes", "job_title"}
             )

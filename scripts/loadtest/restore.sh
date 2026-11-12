@@ -3,8 +3,15 @@
 # pre-test backup (single transaction: a failed restore rolls back), then
 # migrates, purges the Celery queue and restarts. Staging only, owner's go.
 # usage: restore.sh <backup key, e.g. db-backups/minerva/pg_dump_minerva_<ts>.dump>
+# Needs ALLOW_REMOTE_RESTORE=1 and CONFIRM_RESTORE=<db name> (scripts/lib/restore-guard.sh,
+# so run it from a repo checkout, not a lone copy).
 KEY="${1:?usage: restore.sh <backup key>}"
 U=$(docker inspect minerva_app --format '{{range .Config.Env}}{{println .}}{{end}}' | grep '^DATABASE_URL=' | cut -d= -f2-)
+# shellcheck disable=SC1091
+. "$(dirname "$0")/../lib/restore-guard.sh"
+DB_NAME=$(printf '%s' "$U" | sed -E 's#^[^:]+://[^/]*/([^?]*).*#\1#')
+DB_HOST=$(printf '%s' "$U" | sed -E 's#^[^:]+://([^@/]*@)?([^:/]*).*#\2#')
+restore_guard "$DB_NAME" "$DB_HOST" remote || exit 1
 IMG=$(docker inspect minerva_app --format '{{.Config.Image}}')
 docker exec minerva_app uv run --no-sync flask backups db-download "$KEY" /tmp/lt_restore.dump | tail -1 && docker cp minerva_app:/tmp/lt_restore.dump /tmp/lt_restore.dump && docker exec minerva_app rm -f /tmp/lt_restore.dump || exit 1
 docker stop minerva_celery_beat minerva_celery_worker minerva_app >/dev/null && echo stopped

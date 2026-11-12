@@ -34,6 +34,10 @@ from app.services.payload_bound_coding_artifact_service import (
 from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
 )
+from app.services.coding_allocation_service import (
+    lock_and_confirm_active_allocation,
+    lock_coding_submission,
+)
 from app.services.authz import Action, can
 from app.services.coding_service import get_project_for_submission
 from app.utils.va_permission.va_permission_11_require_coding_access import require_coding_access
@@ -142,6 +146,18 @@ def save_social_autopsy(va_sid: str):
             missing_delay_levels=missing_delay_levels,
         )
 
+    # Lock the case, then recheck access: a release may have landed since the
+    # check above, and saving now would leave a stale active row.
+    if is_reviewer_session:
+        still_allowed = lock_and_confirm_active_allocation(
+            va_sid, current_user.user_id, VaAllocation.reviewing
+        )
+    else:
+        lock_coding_submission(va_sid)
+        still_allowed = require_coding_access(va_sid) is None
+    if not still_allowed:
+        db.session.rollback()
+        return _error("Active allocation required.", 403, "no_allocation")
     _, active_payload_version = get_submission_with_current_payload(
         va_sid,
         for_update=True,

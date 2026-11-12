@@ -23,6 +23,7 @@ jest.mock("expo-secure-store", () => ({
 jest.mock("../src/interviewerDb", () => ({ deleteInterviewerDb: jest.fn(async () => undefined) }));
 
 import {
+  acknowledgeRegistration,
   cleanRegistration,
   getCase,
   isCaseDetail,
@@ -45,7 +46,7 @@ import {
   type CaseRow,
   type RegistrationFields
 } from "../src/cases";
-import { createDraftStore, getDraftRow, markCompleted, migrate, type Db } from "../src/drafts";
+import { createDraftStore, getDraftRow, getMeta, markCompleted, migrate, type Db } from "../src/drafts";
 import { getCachedIdentifierTypes, refreshCases, refreshIdentifierTypes, registersDeaths, syncInterviewer } from "../src/sync";
 
 const SERVER = "http://10.0.2.2:8051";
@@ -449,6 +450,34 @@ describe("sync queue", () => {
       unique_ids: ["U-dddd"],
       client_draft_ids: [DRAFT]
     });
+  });
+});
+
+describe("registration edited while its send is in flight", () => {
+  it("keeps the edited registration and its consent when the ack arrives (sync path)", async () => {
+    const db = await freshDb();
+    await saveRegistration(db, { project_id: PROJECT, client_death_id: REG, site_id: "S1", org_unit_id: "u1", fields });
+    await db.runAsync("INSERT INTO meta (key, value) VALUES (?, ?)", [`consent:reg:${REG}`, JSON.stringify({ envelope: { decision: "granted" } })]);
+    const edited = { ...fields, informant_name: "Sita Devi" };
+    mockServer(accepting());
+    const serve = globalThis.fetch;
+    globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url).endsWith("/deaths")) await saveRegistration(db, { project_id: PROJECT, client_death_id: REG, site_id: "S1", org_unit_id: "u1", fields: edited });
+      return serve(url, init);
+    }) as typeof fetch;
+    await syncInterviewer(USER, db);
+    const kept = await getRegistration(db, REG);
+    expect(kept?.fields).toMatchObject({ informant_name: "Sita Devi" }); // subject present
+    expect(kept?.state).toBe("pending");
+    expect(await getMeta<{ envelope: { decision: string } }>(db, `consent:reg:${REG}`)).toMatchObject({ envelope: { decision: "granted" } });
+  });
+
+  it("deletes the registration when the stored fields are the sent ones", async () => {
+    const db = await freshDb();
+    await saveRegistration(db, { project_id: PROJECT, client_death_id: REG, site_id: "S1", org_unit_id: "u1", fields });
+    expect(await getRegistration(db, REG)).toBeDefined();
+    await acknowledgeRegistration(db, REG, caseRow(DEATH) as CaseDetail, fields);
+    expect(await getRegistration(db, REG)).toBeUndefined();
   });
 });
 

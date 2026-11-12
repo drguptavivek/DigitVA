@@ -152,3 +152,57 @@ class CodBucketsCliTestCase(BaseTestCase):
             )
         )
         self.assertEqual(snapshot_count, 0)
+
+
+class GenerateIcd11SnapshotTestCase(CodBucketsCliTestCase):
+    """`generate-icd11 --apply` replaces ICD-11 rows, so it snapshots first."""
+
+    def _invoke_generate(self, *extra):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        fake = SimpleNamespace(
+            scheme_code=SCHEME_CODE_WHO_2022_VA_2026,
+            release="2026-01",
+            mappings=[],
+            unmapped=[],
+            cause_counts={},
+            review_count=lambda kind: 0,
+        )
+        with patch("app.commands.cod_buckets.generate_icd11_buckets", return_value=fake), patch(
+            "app.commands.cod_buckets.write_icd11_generation_report", return_value=[]
+        ):
+            return self.runner.invoke(
+                args=["cod-buckets", "generate-icd11", "--scheme", SCHEME_CODE_WHO_2022_VA_2026, *extra]
+            )
+
+    def _snapshot_count(self):
+        return db.session.scalar(
+            sa.select(sa.func.count()).select_from(VaCodBucketSchemeSnapshot).where(
+                VaCodBucketSchemeSnapshot.scheme_code == SCHEME_CODE_WHO_2022_VA_2026,
+                VaCodBucketSchemeSnapshot.reason == VaCodBucketSchemeSnapshot.REASON_CLI_IMPORT,
+            )
+        )
+
+    def test_apply_snapshots_the_scheme_first(self):
+        self.runner.invoke(
+            args=["cod-buckets", "import-who-2022-va-2026", "--path", self._make_who_2022_va_2026_workbook()]
+        )
+        before = self._snapshot_count()
+
+        result = self._invoke_generate("--apply")
+
+        self.assertEqual(result.exit_code, 0, repr(result.exception))
+        self.assertIn("saved before re-import.", result.output)
+        self.assertEqual(self._snapshot_count(), before + 1)
+
+    def test_dry_run_takes_no_snapshot(self):
+        self.runner.invoke(
+            args=["cod-buckets", "import-who-2022-va-2026", "--path", self._make_who_2022_va_2026_workbook()]
+        )
+        before = self._snapshot_count()
+
+        result = self._invoke_generate()
+
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(self._snapshot_count(), before)

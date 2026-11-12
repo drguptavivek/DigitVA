@@ -27,6 +27,7 @@ Runbook and retention: ``docs/current-state/backup.md``.
 from __future__ import annotations
 
 import hashlib
+import io
 import logging
 import os
 import re
@@ -71,6 +72,10 @@ OVERVIEW_LIMIT = 10
 DUMP_NAME_RE = re.compile(r"^pg_dump_.+_(\d{8}T\d{6}Z)\.dump$")
 
 DUMP_CONTENT_TYPE = "application/octet-stream"
+
+# The checksum is also stored beside each S3 dump, because a restore onto a
+# blank database cannot read it from the va_db_backups row it is replacing.
+CHECKSUM_SUFFIX = ".sha256"
 
 # Short failure categories written to ``error_code`` and shown to an admin.
 # Never a path, a key, a connection string or a message from pg_dump.
@@ -174,7 +179,9 @@ def create_db_backup(*, triggered_by: str, user_id=None) -> BackupOutcome:
             return _record_failure(row, str(exc))
 
         if store.name == ATTACHMENT_STORE_S3:
-            error_code = _upload_and_verify(store, object_key, tmp_path, size_bytes, md5)
+            error_code = _upload_and_verify(
+                store, object_key, tmp_path, size_bytes, md5, sha256
+            )
         else:
             object_key = _dump_filename(started)
             error_code = _place_local(tmp_path, object_key)
@@ -301,13 +308,22 @@ def db_backup_overview() -> dict:
     }
 
 
-def download_db_backup(key: str, dest_path: str) -> dict:
+_NO_CHECKSUM = (
+    "No recorded checksum for that backup key, so its bytes cannot be "
+    "verified. Pass --allow-unverified only if you trust its provenance."
+)
+
+
+def download_db_backup(
+    key: str, dest_path: str, *, allow_unverified: bool = False
+) -> dict:
     """Fetch one dump out of the store to ``dest_path`` and verify its sha256.
 
     ``key`` is an ``object_key`` exactly as ``db_backup_overview`` reports it.
-    The checksum is the one recorded when the dump was made: a dump this app
-    has no record of cannot be verified, so it is refused rather than handed to
-    a restore that would trust it. A mismatch removes the downloaded file.
+    The checksum is the one recorded when the dump was made: the database row
+    when present, else the ``.sha256`` object stored beside an S3 dump (the only
+    source on a blank database). A dump with neither cannot be verified, so it
+    is refused unless ``allow_unverified`` is set. A mismatch removes the file.
 
     Returns ``{"path", "size_bytes", "sha256"}``; raises ``DbBackupError`` with
     a message an operator can act on.
@@ -328,16 +344,14 @@ def download_db_backup(key: str, dest_path: str) -> dict:
         .order_by(VaDbBackup.started_at.desc())
         .limit(1)
     ).first()
-    if recorded is None:
-        raise DbBackupError(
-            "No recorded checksum for that backup key, so its bytes cannot be "
-            "verified. Restore it by hand only if you trust its provenance."
-        )
-
     dest_path = os.path.abspath(dest_path)
     os.makedirs(os.path.dirname(dest_path) or ".", exist_ok=True)
 
     store = get_attachment_store()
+    # Only an S3 dump can have a checksum outside the database; refuse the rest
+    # before fetching anything.
+    if recorded is None and store.name != ATTACHMENT_STORE_S3 and not allow_unverified:
+        raise DbBackupError(_NO_CHECKSUM)
     try:
         if store.name == ATTACHMENT_STORE_S3:
             store.get_key(key, dest_path)
@@ -347,14 +361,38 @@ def download_db_backup(key: str, dest_path: str) -> dict:
         _remove_quietly(dest_path)
         raise DbBackupError("Could not read that backup from the store.") from exc
 
+    expected = recorded.sha256 if recorded is not None else None
+    if expected is None and store.name == ATTACHMENT_STORE_S3:
+        expected = _read_sidecar_checksum(store, key)
+    if expected is None and not allow_unverified:
+        _remove_quietly(dest_path)
+        raise DbBackupError(_NO_CHECKSUM)
+
     size_bytes, sha256 = _hash_file(dest_path)
-    if sha256 != recorded.sha256:
+    if expected is not None and sha256 != expected:
         _remove_quietly(dest_path)
         raise DbBackupError(
             "Checksum mismatch: the downloaded dump does not match the sha256 "
             "recorded when it was created. The file has been removed."
         )
     return {"path": dest_path, "size_bytes": size_bytes, "sha256": sha256}
+
+
+def _read_sidecar_checksum(store, key: str) -> str | None:
+    """The sha256 stored beside an S3 dump, or None when absent or malformed."""
+    tmp_path = os.path.join(
+        current_app.config["DB_BACKUP_TMP_DIR"], f".sha_{uuid.uuid4().hex}"
+    )
+    os.makedirs(os.path.dirname(tmp_path), exist_ok=True)
+    try:
+        store.get_key(key + CHECKSUM_SUFFIX, tmp_path)
+        with open(tmp_path, "r", encoding="ascii") as handle:
+            value = handle.read(200).strip().lower()
+    except (AttachmentStoreError, OSError, UnicodeDecodeError):
+        return None
+    finally:
+        _remove_quietly(tmp_path)
+    return value if re.fullmatch(r"[0-9a-f]{64}", value) else None
 
 
 # ---------------------------------------------------------------------------
@@ -495,7 +533,9 @@ def _tail(stderr_file, limit: int = 500) -> str:
 # Placing the dump
 # ---------------------------------------------------------------------------
 
-def _upload_and_verify(store, object_key, tmp_path, size_bytes, md5) -> str | None:
+def _upload_and_verify(
+    store, object_key, tmp_path, size_bytes, md5, sha256
+) -> str | None:
     """Put the dump in the bucket and confirm it arrived whole.
 
     Returns None on success or a short error code. On any failure the object is
@@ -526,6 +566,18 @@ def _upload_and_verify(store, object_key, tmp_path, size_bytes, md5) -> str | No
         log.error("db backup: uploaded object did not verify by ETag")
         _delete_quietly(store, object_key)
         return ERROR_VERIFY_MISMATCH
+
+    try:
+        store.put_key(
+            object_key + CHECKSUM_SUFFIX,
+            io.BytesIO(sha256.encode("ascii")),
+            content_type="text/plain",
+        )
+    except Exception:  # noqa: BLE001 - a dump nobody can verify is not a backup
+        log.warning("db backup: could not store the checksum", exc_info=True)
+        _delete_quietly(store, object_key)
+        _delete_quietly(store, object_key + CHECKSUM_SUFFIX)
+        return ERROR_UPLOAD_FAILED
     return None
 
 
@@ -575,6 +627,7 @@ def _delete_dump(store, key: str) -> bool:
     try:
         if store.name == ATTACHMENT_STORE_S3:
             store.delete_key(key)
+            _delete_quietly(store, key + CHECKSUM_SUFFIX)
         else:
             os.remove(os.path.join(current_app.config["DB_BACKUP_LOCAL_DIR"], key))
     except FileNotFoundError:

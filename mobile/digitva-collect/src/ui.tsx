@@ -870,12 +870,15 @@ export function errorText(error: unknown): string {
   if (error instanceof AlreadyEnrolledError) return t("errAlreadyEnrolled");
   if (error instanceof AccountStoreCollisionError) return t("accountStoreCollision");
   if (error instanceof NotInSlotError) return t("errSlotChanged");
+  if (error instanceof Error && error.message === "workspace_stale") return t("workspaceStale");
   if (error instanceof ApiError) {
     if (error.code === "device_limit") return t("deviceLimit");
     if (error.code === "enrolment_invalid") return t("errEnrolInvalid");
     if (error.code === "csrf_failed") return t("csrfRefreshed");
     if (error.code === "cookie_session_required") return t("loginRequiredAction");
     if (error.code === "maintenance") return t("serverUnavailable");
+    // A proxy's maintenance page is HTML, which the client reports as redirected_response.
+    if (error.code === "redirected_response" && [502, 503, 504].includes(error.status)) return t("serverUnavailable");
     if (error.code === "forbidden" || error.code === "project_forbidden") return t("serverForbidden");
     if (error.code === "password_change_required" || error.code === "terms_required") return t("termsRequired");
     if (error.code === "no_interviewer_grant") return t("errNoGrant");

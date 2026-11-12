@@ -148,6 +148,7 @@ export function codingServerStatusText(item: Pick<CoderHistoryCase, "server_stat
   if (item.server_status === "pending") return t("codingServerPending");
   if (item.server_status !== "refused") return null;
   const code = item.server_code ?? "";
+  if (code === "coded_version_superseded") return t("codingStaleRecode");
   const key = `codingRefused_${code}` as StringKey;
   // t() answers the key itself for a code this release has no words for.
   const known = /^[a-z_]+$/.test(code) ? t(key) : key;

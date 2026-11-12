@@ -22,6 +22,17 @@ describe("errorText sign-in refusals", () => {
   });
 });
 
+describe("errorText maintenance and stale workspace", () => {
+  it("shows the server-unavailable text for an HTML 502/503/504, not for other redirected responses", () => {
+    for (const status of [502, 503, 504]) expect(errorText(new ApiError(status, "redirected_response"))).toBe(en.serverUnavailable);
+    expect(errorText(new ApiError(200, "redirected_response"))).toContain(en.errGeneric);
+  });
+  it("tells the coder a stale workspace changed", () => {
+    expect(errorText(new Error("workspace_stale"))).toBe(en.workspaceStale);
+    expect(hi.workspaceStale).toBeTruthy();
+  });
+});
+
 describe("errorReference", () => {
   it("describes an ApiError with code, method and masked path", () => {
     const e = new ApiError(502, "bad_gateway");

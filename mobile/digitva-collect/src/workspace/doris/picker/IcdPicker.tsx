@@ -1,3 +1,4 @@
+import { t as tr } from "../../../i18n";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -201,7 +202,7 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
       }
       if (mine !== token.current) return;
       setItems(found);
-      setStatus({ text: cut ? "Showing the first 20 matches. Refine the search to see others." : found.length ? "Choose a result." : "No matching conditions." });
+      setStatus({ text: cut ? "Showing the first 20 matches. Refine the search to see others." : found.length ? "Choose a result." : tr("icdNoMatchingConditions") });
       // A first result that needs postcoordination opens its builder without a tap, and without moving the list.
       const first = found[0];
       if (first && needsBuild(first) && !notFinal(first)) routeToBuild(first, false);

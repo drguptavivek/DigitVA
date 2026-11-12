@@ -1,3 +1,4 @@
+import { t } from "../../../i18n";
 import { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 
@@ -79,7 +80,7 @@ export function ScopedSearch({ label, subtreeUris, post, isActive, onChoose, onA
             <OptionRow key={`${item.code}:${item.uri}`} selected={isActive(item.code)} disabled={checking} accessibilityLabel={`${item.code} ${item.title}`} onPress={() => void choose(item)}>
               {`${item.code} — ${item.title}`}
             </OptionRow>
-          )) : <Muted>No matches in this axis.</Muted>}
+          )) : <Muted>{t("icdNoMatchesInAxis")}</Muted>}
           {results.truncated ? <Muted>Showing the first 20 matches. Refine the search to narrow them.</Muted> : null}
         </View>
       ) : null}

@@ -137,7 +137,10 @@ describe("stage-engine source selection", () => {
     expect(host).not.toMatch(/loadOpenSsl|initWithBudget|isOnline\(/);
     expect(host.indexOf("      guardNetwork()")).toBeLessThan(host.indexOf("EngineJni.initEngine("));
     expect(service).toContain('mapOf("ok" to false, "error" to "bundled_only")');
-    expect(service).not.toMatch(/requestRefresh|refreshWhoFiles|Process\.killProcess/);
+    expect(service).not.toMatch(/requestRefresh|refreshWhoFiles/);
+    // The one process exit is the idle release (digitva-xhz7): after the last client unbinds, never for an update.
+    expect(service.match(/Process\.killProcess/g)).toHaveLength(1);
+    expect(service).toMatch(/override fun onDestroy\(\) \{\n    super\.onDestroy\(\)\n    Process\.killProcess/);
   });
 
   it("keeps the engine diagnostic run and removes the WHO update action", () => {

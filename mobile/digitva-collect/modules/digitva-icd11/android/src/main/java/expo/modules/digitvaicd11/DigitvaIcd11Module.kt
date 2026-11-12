@@ -121,6 +121,22 @@ class DigitvaIcd11Module : Module() {
     appContext.reactContext?.let { EngineData.takeRefresh(it) }
   }
 
+  /**
+   * Unbinds the engine process when nothing is pending, queued or binding (digitva-xhz7). The service was only bound, so
+   * the unbind destroys it and Icd11Service.onDestroy ends the process. Main thread. False: busy, try later.
+   */
+  private fun release(): Boolean {
+    if (!idle(pending.size, queued.size, binding)) return false
+    if (service == null) return true
+    try {
+      appContext.reactContext?.unbindService(connection)
+    } catch (_: IllegalArgumentException) {
+      // Not bound any more.
+    }
+    service = null
+    return true
+  }
+
   private fun send(op: Int, input: String, promise: Promise, name: String? = null) {
     val context = appContext.reactContext ?: throw Exceptions.ReactContextLost()
     val id = nextId.getAndIncrement()
@@ -170,6 +186,9 @@ class DigitvaIcd11Module : Module() {
     // Explicit "Update WHO files": one init in a new engine process that may fetch WHO files, when online.
     AsyncFunction("updateWhoFiles") { promise: Promise -> send(Icd11Service.OP_UPDATE, "", promise) }
 
+    // Stops an idle engine process; false while a request is pending. The next request starts it again.
+    AsyncFunction("release") { promise: Promise -> mainHandler.post { promise.resolve(release()) } }
+
     // `op` is the bridge's op name and `input` the JSON object of its arguments. Only the name's shape is checked here: the bridge
     // owns the list of ops and answers an unknown one with status 400.
     AsyncFunction("call") { op: String, input: String, promise: Promise ->
@@ -177,3 +196,6 @@ class DigitvaIcd11Module : Module() {
     }
   }
 }
+
+/** Whether the engine connection can be released: no request pending, none queued for a binding, no binding under way. */
+internal fun idle(pending: Int, queued: Int, binding: Boolean): Boolean = pending == 0 && queued == 0 && !binding

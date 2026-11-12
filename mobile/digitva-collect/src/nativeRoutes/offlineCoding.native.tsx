@@ -8,6 +8,7 @@
  * in this phase, and the workspace makes no server call (docs/policy/doris-cod-workflow.md, "Offline coding workspace").
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { useEngineScreen } from "../engineIdle";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
@@ -867,6 +868,7 @@ function OfflineCaseList({ db, onOpen, account }: { db: Db; onOpen: (clientDraft
 
 export default function OfflineCoding() {
   const router = useRouter();
+  useEngineScreen();
   const styles = useUiStyles();
   const { caseId } = useLocalSearchParams<Params>();
   const { accounts } = useAppState();

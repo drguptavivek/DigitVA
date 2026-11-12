@@ -4,6 +4,7 @@
  * profiling run drives it and samples `dumpsys meminfo` before and after.
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import { useEngineScreen } from "../engineIdle";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
@@ -21,6 +22,7 @@ import { Button, Screen, useUiStyles } from "../ui";
 
 export default function EngineCheck() {
   const router = useRouter();
+  useEngineScreen();
   const styles = useUiStyles();
   const { ui } = useTheme();
   const verdict = (ok: boolean) => ({ color: ok ? ui.success : ui.destructiveText });

@@ -20,6 +20,7 @@ jest.mock("expo-router", () => {
     Redirect: ({ href }: { href: string }) => ReactActual.createElement("redirect", { href }),
     useLocalSearchParams: () => mockParams,
     useRouter: () => mockRouter,
+    useFocusEffect: () => undefined,
   };
 });
 

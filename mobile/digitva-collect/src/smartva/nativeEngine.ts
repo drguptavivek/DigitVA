@@ -6,12 +6,16 @@ export interface NativeSmartvaModule {
   isAvailable(): Promise<boolean>;
   init(): Promise<{ ok: boolean; error?: string; version?: string; ms?: number }>;
   score(requestJson: string): Promise<{ ok: boolean; error?: string; text?: string; ms?: number; nativeMs?: number; version?: string }>;
+  /** Unbinds and stops the SmartVA process when no request is pending; false while one is. Absent on iOS and older builds. */
+  release?(): Promise<boolean>;
 }
 
 export interface OfflineSmartvaEngine {
   available(): Promise<boolean>;
   init(): Promise<{ ok: boolean; error?: string; version?: string; ms: number }>;
   score(request: SmartVaRequest): Promise<{ ok: boolean; error?: string; text?: string; ms: number; nativeMs?: number; version?: string }>;
+  /** Stops the SmartVA process when idle (digitva-xhz7); false while a request is pending. True where it cannot stop. */
+  release?(): Promise<boolean>;
 }
 
 type Clock = () => number;
@@ -100,6 +104,17 @@ export function createOfflineSmartvaEngine(
       return initialize();
     },
     score,
+    async release() {
+      if (initFlight) return false;
+      if (!native?.release) return true;
+      try {
+        const released = await native.release();
+        if (released) readyVersion = undefined;
+        return released;
+      } catch {
+        return false;
+      }
+    },
   };
 }
 

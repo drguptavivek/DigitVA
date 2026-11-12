@@ -20,6 +20,9 @@ public class DigitvaSmartvaModule: Module {
 
     AsyncFunction("isAvailable") { () -> Bool in true }
 
+    // The engine runs in-process and cannot unload: nothing to stop (Android ends its process, digitva-xhz7).
+    AsyncFunction("release") { () -> Bool in true }
+
     AsyncFunction("init") { (promise: Promise) in
       self.queue.submit { promise.resolve(self.initialize()) }
     }

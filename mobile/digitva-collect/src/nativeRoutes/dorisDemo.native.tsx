@@ -5,6 +5,7 @@
  * the engine takes about 20 seconds; the device-wide ICD-11 / DORIS switch (Settings) is respected.
  */
 import { useRouter } from "expo-router";
+import { useEngineScreen } from "../engineIdle";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
@@ -92,6 +93,7 @@ function Demo() {
 
 export default function DorisDemo() {
   const router = useRouter();
+  useEngineScreen();
   const styles = useUiStyles();
   const preference = useIcd11DorisPreference();
   // Turning the switch on in Settings must not start the engine as a side effect: if it was off on entry, wait for Continue.

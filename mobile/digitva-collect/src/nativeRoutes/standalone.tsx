@@ -9,6 +9,7 @@
  */
 import { randomUUID } from "expo-crypto";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useEngineScreen } from "../engineIdle";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
@@ -92,6 +93,8 @@ export default function StandaloneHome() {
   // does not wait ~18 s; on each visit it also restarts an engine Android ended. Off unless ICD-11/DORIS coding is on.
   const warmEngine = pickedTab === "pending" && (records ?? []).some((r) => tabOf(r) === "pending");
   useFocusEffect(useCallback(() => (warmEngine ? scheduleEngineWarmUp() : undefined), [warmEngine]));
+  // The warm-up started an engine: leaving this tab starts its idle countdown like a coding screen.
+  useEngineScreen(warmEngine);
 
   if (!account?.standalone) return <Redirect href="/" />;
   if (!isUnlocked(account.user_id)) return <Redirect href={{ pathname: "/unlock", params: { userId: account.user_id } }} />;

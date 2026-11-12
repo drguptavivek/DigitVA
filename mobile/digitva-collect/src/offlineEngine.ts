@@ -69,6 +69,8 @@ export interface NativeEngine {
   updateWhoFiles(): Promise<NativeInit>;
   /** `input` is the JSON object of named arguments of `op` (see the bridge's Dispatch); the reply `text` is WHO's REST JSON. */
   call(op: EngineOp, input: string): Promise<{ ok: boolean; error?: string; status: number; text?: string; nativeMs: number }>;
+  /** Unbinds and stops the engine process when no request is pending; false while one is. Absent on iOS and older builds. */
+  release?(): Promise<boolean>;
   addListener?(event: "icd11Progress", listener: (progress: { phase: string; percent: number }) => void): { remove(): void };
 }
 
@@ -135,6 +137,11 @@ export interface OfflineEngine {
   /** `certificate` is the DORIS certificate JSON object the server's process endpoint takes. */
   doris(certificate: unknown): Promise<EngineResult>;
   codedit(certificate: unknown): Promise<EngineResult>;
+  /**
+   * Stops the engine process when it is idle (digitva-xhz7): false while an init or call is pending. The next use starts
+   * it again with a full init. True without stopping anything where the module cannot (iOS, older builds).
+   */
+  release?(): Promise<boolean>;
   /** Progress of the init while it runs (copy, setup, engine, ready). Returns the unsubscribe. */
   onProgress(listener: (progress: EngineProgress) => void): () => void;
 }
@@ -222,6 +229,18 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
     return native!.call(op, input);
   }
 
+  async function release(): Promise<boolean> {
+    if (inflight) return false;
+    if (!native?.release) return true;
+    try {
+      const released = await native.release();
+      if (released) ready = undefined;
+      return released;
+    } catch {
+      return false;
+    }
+  }
+
   async function run(op: EngineOp, args: Record<string, unknown>): Promise<EngineResult> {
     const start = now();
     if (!native) return { ok: false, error: "unavailable", ms: 0 };
@@ -252,6 +271,7 @@ export function createOfflineEngine(native: NativeEngine | null | undefined, now
     retry,
     warm,
     updateWhoFiles,
+    release,
     call: run,
     search: (q, options) => run("search", { q, ...options }),
     codeinfo: (code, options) => run("codeinfo", { code, ...options }),

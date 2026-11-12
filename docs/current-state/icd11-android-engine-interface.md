@@ -210,10 +210,26 @@ Source: `DigitvaIcd11Module.kt`.
 | `call(op, input)` | `op`: the op name (`"search"`, `"codeinfo"`, `"entity"`, `"foundation_entity"`, `"doris"`, `"codedit"`); `input`: the JSON text of its arguments | call map (layer 3) | `ERR_ICD11_OP` op name of the wrong shape; `ERR_ICD11_PROCESS` engine process stopped |
 | event `icd11Progress` | — | `{phase, percent}` during init | — |
 
+| `release()` | — | `true` when the engine process was stopped (or none was bound); `false` while a request is pending, queued or binding | — |
 The module binds the service on first use, queues messages until it is
 bound, and fails every pending request when the process dies.
 
 ## Layer 5: `OfflineEngine` (`src/offlineEngine.ts`)
+
+**Idle release (digitva-xhz7).** The service is bound only, never started, so
+`release()` unbinding the last client destroys it, and `Icd11Service.onDestroy`
+ends the `:icd11` process to return the engine's memory. The SmartVA module
+(`DigitvaSmartva.release()`, `SmartvaService.onDestroy`) does the same for
+`:smartva`. `src/engineIdle.ts` drives both: the coding screens (offline
+coding, the Plus workspace and queue, engine check, DORIS demo, and the
+standalone Pending tab while it warms the engine) register on focus; 10
+minutes after the last one blurs it calls `release()` on both, and tries again
+every minute while either refuses because a call is pending. A refocus cancels
+the countdown; app background does not change it. The next use binds a new
+process and runs a full init (5-18 s). The 3-failure `init_blocked` count lives
+in the setup record on disk, so it survives a release. On iOS both engines are
+in-process and `release()` is a no-op answering `true`; JS treats a module
+without `release` (older builds) the same way.
 
 `offlineEngine()` returns the process-wide engine; every method returns
 `{ok:false, error:"icd11_doris_disabled"}` while the ICD-11 / DORIS preference
@@ -234,6 +250,7 @@ is off, and `{ok:false, error:"unavailable"}` on web and in the plain build.
 | `updateWhoFiles()` | — | `EngineInit` |
 
 `EngineResult` = `{ok:true, data: <parsed JSON>, status, ms, nativeMs}` or
+| `release()` | — | `boolean`: `false` while an init is in flight or native refuses; on `true` the next use inits again. Not gated by the preference |
 `{ok:false, error, status?, ms}` with `error` one of `engine_status`,
 `not_initialized`, `bad_json` (reply not JSON), `native_error`,
 `unavailable`, `icd11_doris_disabled`, or the init error after a failed

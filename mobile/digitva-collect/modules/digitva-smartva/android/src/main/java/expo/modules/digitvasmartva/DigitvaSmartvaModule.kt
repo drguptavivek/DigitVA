@@ -112,6 +112,19 @@ class DigitvaSmartvaModule : Module() {
     try { appContext.reactContext?.unbindService(connection) } catch (_: IllegalArgumentException) { }
   }
 
+  /**
+   * Unbinds the SmartVA process when nothing is pending or queued (digitva-xhz7); the unbind destroys the bound-only
+   * service and SmartvaService.onDestroy ends the process. Main thread. False: busy, try later.
+   */
+  private fun release(): Boolean {
+    if (pending.isNotEmpty() || queued.isNotEmpty()) return false
+    if (!binding) return true
+    unbind()
+    service = null
+    binding = false
+    return true
+  }
+
   private fun dispatch(message: Message) {
     try {
       service?.send(message) ?: run { queued.addLast(message) }
@@ -159,6 +172,8 @@ class DigitvaSmartvaModule : Module() {
     }
 
     AsyncFunction("init") { promise: Promise -> send(SmartvaService.OP_INIT, "", promise) }
+    // Stops an idle SmartVA process; false while a request is pending. The next request starts it again.
+    AsyncFunction("release") { promise: Promise -> main.post { promise.resolve(release()) } }
     AsyncFunction("score") { request: String, promise: Promise -> send(SmartvaService.OP_SCORE, request, promise) }
   }
 }

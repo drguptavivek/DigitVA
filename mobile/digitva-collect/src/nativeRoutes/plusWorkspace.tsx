@@ -5,6 +5,7 @@
  * DORIS still goes to the server here; the offline engine is wired in by phase B.
  */
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useEngineScreen } from "../engineIdle";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { goHome, RedirectHome } from "../goHome";
@@ -49,6 +50,7 @@ function usePlusUserId(mode: WorkspaceMode): string | undefined {
 
 function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
   const router = useRouter();
+  useEngineScreen();
   // The workspace exits by popping back to this queue, so a return to focus (not the first) reloads it.
   const [returns, setReturns] = useState(0);
   const focusedOnce = useRef(false);

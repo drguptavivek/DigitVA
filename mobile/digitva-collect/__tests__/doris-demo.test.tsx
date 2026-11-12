@@ -18,6 +18,7 @@ jest.mock("expo-router", () => {
   return {
     Redirect: ({ href }: { href: string }) => ReactActual.createElement("redirect", { href }),
     useRouter: () => mockRouter,
+    useFocusEffect: () => undefined,
   };
 });
 

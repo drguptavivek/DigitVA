@@ -8,6 +8,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.Message
 import android.os.Messenger
+import android.os.Process
 import android.os.TransactionTooLargeException
 import java.util.concurrent.PriorityBlockingQueue
 import java.util.concurrent.atomic.AtomicLong
@@ -70,6 +71,15 @@ class Icd11Service : Service() {
   }
 
   override fun onBind(intent: Intent?): IBinder = messenger.binder
+
+  /**
+   * The last client unbound (the app released an idle engine, digitva-xhz7, or the app process died). The engine cannot
+   * unload, so end this process to return its memory; the next bind starts a new one with a full init.
+   */
+  override fun onDestroy() {
+    super.onDestroy()
+    Process.killProcess(Process.myPid())
+  }
 
   /** Runs [work] and replies with its map. Any throwable becomes a generic code: engine text never leaves the process. */
   private fun answer(replyTo: Messenger, op: Int, id: Int, work: () -> Map<String, Any?>) =

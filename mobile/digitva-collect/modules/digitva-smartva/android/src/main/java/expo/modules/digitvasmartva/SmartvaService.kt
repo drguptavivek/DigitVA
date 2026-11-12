@@ -8,6 +8,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.Message
 import android.os.Messenger
+import android.os.Process
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -42,6 +43,8 @@ class SmartvaService : Service() {
   override fun onDestroy() {
     worker.shutdownNow()
     super.onDestroy()
+    // The last client unbound (released when idle, digitva-xhz7, or the app died): end the process to free the engine.
+    Process.killProcess(Process.myPid())
   }
 
   private fun initialize(): Map<String, Any?> {

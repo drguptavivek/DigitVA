@@ -39,6 +39,9 @@ public class DigitvaIcd11Module: Module {
       EngineData.packaged() != nil
     }
 
+    // The engine runs in-process and cannot unload: nothing to stop (Android ends its process, digitva-xhz7).
+    AsyncFunction("release") { () -> Bool in true }
+
     AsyncFunction("init") { (promise: Promise) in
       self.onWorker(promise) { $0.initEngine() }
     }

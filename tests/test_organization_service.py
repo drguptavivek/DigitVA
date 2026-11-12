@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 import sqlalchemy as sa
 
 from app import db
-from app.models import MasOrgUnit, VaProjectMaster, VaStatuses
+from app.models import MasOrgUnit, VaProjectMaster, VaStatuses, VaUsers
 from app.services import organization_service as org
 from tests.base import BaseTestCase
 
@@ -429,6 +429,57 @@ class OrganizationServiceTests(BaseTestCase):
         plan5 = org.import_organization(self.OTHER, broken, dry_run=False)
         self.assertFalse(plan5.applied)
         self.assertTrue(plan5.errors and "units row" in plan5.errors[0])
+
+    def test_import_blank_cell_leaves_existing_worker_link_and_unit_fields(self):
+        d, c, p, s = self._seed_tree()
+        cadres = {cd.cadre_code: cd for cd in org.list_cadres(self.PROJECT)}
+        user = VaUsers(
+            name="Mobile Only", email=None, phone="9876500001", mobile_login="9876500001",
+            user_status=VaStatuses.active, permission={}, landing_page="coder",
+            pw_reset_t_and_c=False, email_verified=False, vacode_language=["en"],
+        )
+        user.set_password("UnusedPassword123!")
+        db.session.add(user)
+        db.session.flush()
+        w = org.create_worker(self.PROJECT, org_unit_id=p.org_unit_id, cadre_id=cadres["MO"].cadre_id,
+                              worker_code="MO01", worker_name="Dr One", phone="9999", user=user)
+        org.update_unit(self.PROJECT, p.org_unit_id, address="1 Main Road", phone="0123")
+        user_id = user.user_id
+
+        # Export, edit an unrelated field (the name), re-import.
+        sheets = org.parse_organization_workbook(io.BytesIO(org.export_organization_xlsx(self.PROJECT)))
+        for row in sheets["workers"]:
+            row["worker_name"] = "Dr Renamed"
+        plan = org.import_organization(self.PROJECT, sheets, dry_run=False)
+        self.assertEqual(plan.errors, [])
+        db.session.refresh(w)
+        self.assertEqual(w.worker_name, "Dr Renamed")
+        self.assertEqual(w.user_id, user_id)
+        self.assertEqual(w.phone, "9999")
+
+        # Units file with blank cells, then with the columns absent.
+        blank = {"unit_code": "P01", "unit_name": "PHC One", "level_code": "phc", "parent_code": "C01"}
+        for extra in (
+            dict(address="", phone="", latitude="", longitude="", google_maps_url=""),
+            {},
+        ):
+            plan = org.import_organization(self.PROJECT, {"units": [{**blank, **extra}]}, dry_run=False)
+            self.assertEqual(plan.errors, [])
+            unit = db.session.get(MasOrgUnit, p.org_unit_id)
+            db.session.refresh(unit)
+            self.assertEqual((unit.address, unit.phone), ("1 Main Road", "0123"))
+            self.assertEqual(str(unit.latitude), "12.500000")
+            self.assertEqual(str(unit.longitude), "77.250000")
+            self.assertEqual(unit.google_maps_url, "https://maps.app.goo.gl/x")
+
+        # A non-blank value still updates.
+        org.import_organization(
+            self.PROJECT, {"units": [{**blank, "address": "2 New Road", "latitude": "10.5"}]}, dry_run=False
+        )
+        unit = db.session.get(MasOrgUnit, p.org_unit_id)
+        db.session.refresh(unit)
+        self.assertEqual(unit.address, "2 New Road")
+        self.assertEqual(str(unit.latitude), "10.500000")
 
     def test_odk_choices_and_csv_exports(self):
         self._seed_tree()

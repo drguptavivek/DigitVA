@@ -432,6 +432,13 @@ project-setup editors only; changes are audited like other unit edits.
   when the operator sets `deactivate_missing`.
 - Every import runs as a dry run first. A single invalid row aborts the
   whole import; nothing is written.
+- On an existing unit or worker, a blank or absent cell in an optional
+  column means "leave as is": unit `address`, `phone`, `latitude`,
+  `longitude`, `google_maps_url`, `remarks`; worker `phone`, `user_email`,
+  `remarks`. This keeps an export, edit, re-upload round trip from unlinking
+  workers whose account has no email (mobile-only sign-in). Clearing a link
+  or field is an explicit edit in the UI or API, not a workbook cell. New
+  rows are created as supplied; required fields are still validated.
 - Boolean import columns accept true/false, 1/0, yes/no, y/n and t/f
   (case insensitive). Blank `is_active` keeps an existing row's state;
   explicit false also deactivates newly created levels, cadres and workers.

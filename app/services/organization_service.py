@@ -2469,6 +2469,20 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
     return deferred
 
 
+def _without_blank(fields: dict, optional: tuple) -> dict:
+    """Drop optional fields whose workbook cell is blank or absent.
+
+    On an existing row a blank cell means "leave as is": the parser cannot
+    tell a blank cell from a missing column, and the export leaves e.g.
+    ``user_email`` blank for mobile-only accounts, so passing it through
+    would unlink or wipe data. Clearing stays an explicit UI/API action.
+    """
+    return {
+        k: v for k, v in fields.items()
+        if k not in optional or (v is not None and str(v).strip() != "")
+    }
+
+
 def _import_units(project_id, rows, plan, deactivate_missing):
     if rows is None:
         return
@@ -2517,7 +2531,9 @@ def _import_units(project_id, rows, plan, deactivate_missing):
                     org_level_id=level.org_level_id,
                     allow_unplaced=True,
                     **placement,
-                    **fields,
+                    **_without_blank(
+                        fields, ("address", "phone", "latitude", "longitude", "google_maps_url", "remarks")
+                    ),
                 )
                 if active is True:
                     update_fields["is_active"] = True
@@ -2613,7 +2629,7 @@ def _import_workers(project_id, rows, plan, deactivate_missing):
                     org_unit_id=unit_id,
                     cadre_id=cadre.cadre_id,
                     is_active=is_active if is_active is not None else existing[code]["is_active"],
-                    **fields,
+                    **_without_blank(fields, ("phone", "user", "remarks")),
                 )
                 plan.updates["workers"].append(code)
             else:

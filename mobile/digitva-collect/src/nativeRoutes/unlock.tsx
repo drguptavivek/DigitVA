@@ -206,7 +206,7 @@ export default function Unlock() {
         setShake((n) => n + 1);
         if (result.wipe) {
           // Only a revoke wipes (nothing unsent was left); wrong PINs never do.
-          Alert.alert(t("sessionRevoked"));
+          Alert.alert("", t("sessionRevoked")); // As the body: a title line truncates on Android.
           await reload();
           goHome(router);
           return;

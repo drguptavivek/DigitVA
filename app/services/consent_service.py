@@ -924,7 +924,8 @@ def _fill_from_settings(project_id: str, text: str, purposes: list[dict]) -> tup
     spellings; policy: respondent-consent-notice-draft.md "Seed text for
     Project Setup"). Called only when a version is saved, never when one is
     shown, so a record's stored text and hash stay what the respondent heard.
-    An unset or empty ``PUBLIC_*`` setting leaves its placeholder as it is; ``, [PHONE]``
+    An unset or empty ``PUBLIC_*`` setting reads as the DIGITVA Team and
+    info@causeofdeathindia.com (owner 2026-11-13: no bracket is left); ``, [PHONE]``
     goes, as there is no phone setting. The retention, district-team and
     mentoring-institution lines are always filled (digitva-7amd.26): from the
     project's consent settings, else the policy's defaults. The demo project on
@@ -938,14 +939,20 @@ def _fill_from_settings(project_id: str, text: str, purposes: list[dict]) -> tup
         (PROJECT_NAME_PLACEHOLDER, db.session.get(VaProjectMaster, project_id).project_name),
         (", [PHONE]", ""), (", [फ़ोन]", ""),
     ]
-    if org:
-        fills.append(("[ORGANISATION]", org))
-    if email:
-        fills += [("[DELETION AND EXCLUSION EMAIL]", email), ("[डेटा मिटाने और बाहर रखने का ईमेल]", email),
-                  ("[EMAIL, PHONE]", email), ("[ईमेल, फ़ोन]", email)]
-    if officer and email:
+    # Owner 2026-11-13: no notice keeps a bracket; an unset PUBLIC_* setting reads as the DIGITVA Team
+    # (the settings themselves stay empty: PUBLIC_CONTACT_EMAIL also turns on the /contact form).
+    hindi = any("\u0900" <= ch <= "\u097f" for ch in text)
+    team = DEFAULT_TEAM_HI if hindi else DEFAULT_TEAM_EN
+    email = email or DEFAULT_CONTACT_EMAIL
+    fills.append(("[ORGANISATION]", org or team))
+    fills += [("[DELETION AND EXCLUSION EMAIL]", email), ("[डेटा मिटाने और बाहर रखने का ईमेल]", email),
+              ("[EMAIL, PHONE]", email), ("[ईमेल, फ़ोन]", email)]
+    if officer:
         fills += [("[DATA PROTECTION OFFICER]", f"the Grievance Officer, {officer} ({email})"),
                   ("[डेटा संरक्षण अधिकारी]", f"शिकायत अधिकारी, {officer} ({email})")]
+    else:
+        fills += [("[DATA PROTECTION OFFICER]", f"the {DEFAULT_TEAM_EN} ({email})"),
+                  ("[डेटा संरक्षण अधिकारी]", f"{DEFAULT_TEAM_HI} ({email})")]
     # Imported here: public_demo_service seeds notices through this module.
     from app.services.public_demo_service import is_demo_project
 
@@ -980,11 +987,11 @@ def _fill_from_settings(project_id: str, text: str, purposes: list[dict]) -> tup
         ("[RETENTION PERIOD AND WHAT HAPPENS AFTER]", _retention_sentence(retention_days, action, False)),
         ("[रखने की अवधि और उसके बाद क्या होगा]", _retention_sentence(retention_days, action, True)),
         ("[DISTRICT CONTACT NAME, EMAIL, PHONE]",
-         district[0] if len(district) == 1 else "the health worker who visits you will give you their name and phone number"),
+         district[0] if len(district) == 1 else f"the {DEFAULT_TEAM_EN}, {DEFAULT_CONTACT_EMAIL}"),
         ("[ज़िला संपर्क का नाम, ईमेल, फ़ोन]",
-         district[0] if len(district) == 1 else "आपसे मिलने आने वाले स्वास्थ्यकर्मी आपको अपना नाम और फ़ोन नंबर बताएँगे"),
-        ("[INSTITUTION NAME, EMAIL, PHONE]", mentor or "through the central team below"),
-        ("[संस्थान का नाम, ईमेल, फ़ोन]", mentor or "नीचे दिए केंद्रीय टीम के माध्यम से"),
+         district[0] if len(district) == 1 else f"{DEFAULT_TEAM_HI}, {DEFAULT_CONTACT_EMAIL}"),
+        ("[INSTITUTION NAME, EMAIL, PHONE]", mentor or f"the {DEFAULT_TEAM_EN}, {DEFAULT_CONTACT_EMAIL}"),
+        ("[संस्थान का नाम, ईमेल, फ़ोन]", mentor or f"{DEFAULT_TEAM_HI}, {DEFAULT_CONTACT_EMAIL}"),
     ]
     # Stored texts are NFC (create_notice_version), so match the NFC spelling, in the
     # replacements too, or a second fill would see its own text as changed.
@@ -997,6 +1004,10 @@ def _fill_from_settings(project_id: str, text: str, purposes: list[dict]) -> tup
         return value
 
     return fill(text), [{**purpose, "label": fill(purpose["label"])} for purpose in purposes]
+
+
+DEFAULT_TEAM_EN, DEFAULT_TEAM_HI = "DIGITVA Team", "DIGITVA टीम"
+DEFAULT_CONTACT_EMAIL = "info@causeofdeathindia.com"
 
 
 def seed_notice_versions(user, project_id: str) -> list[MasConsentNoticeVersion]:
@@ -1019,6 +1030,23 @@ def seed_notice_versions(user, project_id: str) -> list[MasConsentNoticeVersion]
             "purposes": purposes, "allowed_modes": SEED_ALLOWED_MODES,
         }))
     return rows
+
+
+def apply_default_consent(user, project_id: str) -> str:
+    """Consent on, with the app's default notice (English and Hindi, gaps filled
+    from the project's contact settings) when the project has none. A notice or
+    setting someone already changed is left as it is. Called when a project is
+    created (policy: respondent-consent-notice-draft.md, "New projects").
+    Returns a one-line summary; ``ConsentError`` propagates so a caller's
+    transaction can fail."""
+    has_notice = db.session.scalar(sa.select(MasConsentNoticeVersion.notice_version_id).where(
+        MasConsentNoticeVersion.project_id == project_id,
+        MasConsentNoticeVersion.source == "project").limit(1))
+    if not has_notice:
+        seed_notice_versions(user, project_id)
+    if not get_consent_config(project_id)["consent_required"]:
+        save_settings(user, project_id, {"consent_required": True})
+    return "default notice seeded, required" if not has_notice else "notice already in place, required"
 
 
 def fill_notice_versions(user, project_id: str) -> list[MasConsentNoticeVersion]:

@@ -22,7 +22,8 @@ from flask_wtf.csrf import generate_csrf
 
 from app import db, limiter
 from app.decorators import role_required
-from app.services import collection_gate, collection_hold
+from app.services import collection_gate, collection_hold, consent_service
+from app.services.consent_service import ConsentError
 from app.services.odk_case_service import ODK_SYNC_USER_ID
 from app.services.project_country_service import parse_project_country, project_country
 from app.utils.va_smartva.va_smartva_06_smartvacountries import smartva_allowed_countries as _SMARTVA_COUNTRIES
@@ -1651,6 +1652,14 @@ def admin_create_project():
         **form_option_updates,
     )
     db.session.add(project)
+    # New projects require respondent consent with the default notice
+    # (policy: respondent-consent-notice-draft.md, "New projects").
+    db.session.flush()
+    try:
+        consent_service.apply_default_consent(current_user, project_id)
+    except ConsentError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), exc.status_code)
     if project_structure_mode == "organization":
         # Web forms are materialized per project-site, so an organization
         # project gets one automatic site. Policy:

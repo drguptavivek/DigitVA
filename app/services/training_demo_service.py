@@ -38,7 +38,6 @@ from app.models import (
     MasCadre,
     MasConsentNoticeVersion,
     MasOrgUnit,
-    MasProjectConsentSettings,
     MasTrainingSession,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -313,13 +312,7 @@ def setup_training_project(actor: VaUsers | None = None) -> dict[str, int | bool
             if project.web_intake_intake_note == "":
                 project.web_intake_intake_note = None
         resolved_actor = _resolve_setup_admin(actor)
-        if not consent_service.active_versions(TRAINING_PROJECT_ID):
-            consent_service.seed_notice_versions(resolved_actor, TRAINING_PROJECT_ID)
-        settings = db.session.get(MasProjectConsentSettings, TRAINING_PROJECT_ID)
-        if settings is None or not settings.consent_required:
-            consent_service.save_settings(
-                resolved_actor, TRAINING_PROJECT_ID, {"consent_required": True}
-            )
+        consent_service.apply_default_consent(resolved_actor, TRAINING_PROJECT_ID)
         org.ensure_organization_site(TRAINING_PROJECT_ID)
         org.seed_default_organization(TRAINING_PROJECT_ID)
         levels = {level.level_code: level for level in org.list_levels(TRAINING_PROJECT_ID)}

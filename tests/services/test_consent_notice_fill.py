@@ -32,11 +32,11 @@ ONE_YEAR = {
           "मृत्यु के बारे में उत्तर इन विवरणों के बिना हमेशा रखे जाते हैं।",
 }
 HEALTH_WORKER = {
-    "en": "Your district team: the health worker who visits you will give you their name and phone number.",
-    "hi": "आपकी ज़िला टीम: आपसे मिलने आने वाले स्वास्थ्यकर्मी आपको अपना नाम और फ़ोन नंबर बताएँगे।",
+    "en": "Your district team: the DIGITVA Team, info@causeofdeathindia.com.",
+    "hi": "आपकी ज़िला टीम: DIGITVA टीम, info@causeofdeathindia.com।",
 }
-CENTRAL = {"en": "The mentoring institution: through the central team below.",
-           "hi": "मार्गदर्शक संस्थान: नीचे दिए केंद्रीय टीम के माध्यम से।"}
+CENTRAL = {"en": "The mentoring institution: the DIGITVA Team, info@causeofdeathindia.com.",
+           "hi": "मार्गदर्शक संस्थान: DIGITVA टीम, info@causeofdeathindia.com।"}
 DISTRICT_UNIT_1, DISTRICT_UNIT_2 = "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
 EMPTY = {"PUBLIC_ORG_NAME": "", "PUBLIC_CONTACT_EMAIL": "", "PUBLIC_GRIEVANCE_OFFICER": ""}
 
@@ -146,36 +146,22 @@ class ConsentNoticeFillTests(BaseTestCase):
         self.assertIn(ONE_YEAR["en"], rows["en"].text)
         self.assertNotIn("public demo", rows["en"].text)
 
-    def test_unset_settings_leave_their_placeholders_and_the_phone_goes(self):
-        # An officer without an email is not enough to fill the officer line.
+    def test_unset_settings_read_as_the_digitva_team_and_leave_no_bracket(self):
+        # Owner 2026-11-13: no PUBLIC_* setting and no project contacts still leaves no placeholder.
         rows = self._seed(self.PROJECT, **{**EMPTY, "PUBLIC_GRIEVANCE_OFFICER": "Dr A B"})
-        for language, row in rows.items():
-            # Only the three digitva-7amd.26 defaults are filled when no PUBLIC_* setting is.
-            expected = (SEED_TEXT[language].replace("[PROJECT NAME]", "Fill CNF01")
-                        .replace(", [PHONE]", "").replace(", [फ़ोन]", ""))
-            for placeholder in ("[RETENTION PERIOD AND WHAT HAPPENS AFTER]", "[रखने की अवधि और उसके बाद क्या होगा]"):
-                expected = expected.replace(placeholder, ONE_YEAR[language])
-            expected = (expected.replace("[DISTRICT CONTACT NAME, EMAIL, PHONE]", HEALTH_WORKER["en"].split(": ")[1][:-1])
-                        .replace("[ज़िला संपर्क का नाम, ईमेल, फ़ोन]", HEALTH_WORKER["hi"].split(": ")[1][:-1])
-                        .replace("[INSTITUTION NAME, EMAIL, PHONE]", CENTRAL["en"].split(": ")[1][:-1])
-                        .replace("[संस्थान का नाम, ईमेल, फ़ोन]", CENTRAL["hi"].split(": ")[1][:-1]))
-            self.assertEqual(row.text, expected)
-            self.assertEqual([(p["code"], p["label"]) for p in row.purposes],
-                             sorted((p["code"], p["label"]) for p in SEED_PURPOSES[language]))
-        self.assertIn("[DATA PROTECTION OFFICER]", rows["en"].text)
-        self.assertIn("Deletion or exclusion of your data: [DELETION AND EXCLUSION EMAIL]. Quote", rows["en"].text)
-        self.assertIn("[ORGANISATION]", rows["hi"].text)
-        self.assertIn("[डेटा मिटाने और बाहर रखने का ईमेल]। आपको", rows["hi"].text)
         for row in rows.values():
+            self.assertEqual(PLACEHOLDER.findall(row.text), [])
+            self.assertIn("info@causeofdeathindia.com", row.text)
             self.assertNotIn("[PHONE]", row.text)
-            self.assertNotIn("[फ़ोन]", row.text)
-            # "[EMAIL, PHONE]" is not cut by the phone drop.
-            self.assertTrue("[EMAIL, PHONE]" in row.text or "[ईमेल, फ़ोन]" in row.text)
-
-    # ── Project Setup: Fill from settings ──────────────────────────────────
+        self.assertIn("Programs on systems controlled by DIGITVA Team in India", rows["en"].text)
+        self.assertIn("complain to the Grievance Officer, Dr A B (info@causeofdeathindia.com)", rows["en"].text)
+        self.assertIn("Deletion or exclusion of your data: info@causeofdeathindia.com. Quote", rows["en"].text)
+        self.assertIn("DIGITVA टीम", rows["hi"].text)
 
     def test_fill_saves_a_new_audited_version_and_leaves_the_old_one(self):
-        old = self._seed(self.PROJECT, **EMPTY)
+        # A notice saved before the defaults existed, with its brackets still in it.
+        with patch("app.services.consent_service._fill_from_settings", lambda _p, text, purposes: (text, purposes)):
+            old = self._seed(self.PROJECT, **EMPTY)
         db.session.commit()
         before = {row.notice_version_id: (row.text, row.text_sha256, row.purposes) for row in old.values()}
         url = f"/api/v1/projects/{self.PROJECT}/consent-notices/fill"

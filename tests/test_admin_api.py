@@ -588,6 +588,49 @@ class AdminApiTests(BaseTestCase):
         self.assertIn(self.project_id, project_ids)
         self.assertIn(self.other_project_id, project_ids)
 
+    def test_new_project_requires_consent_with_the_default_notice(self):
+        from app.services import consent_service
+
+        self._login(self.admin_user_id)
+        resp = self.client.post(
+            "/admin/api/projects",
+            json={"project_id": "PRJ998", "project_name": "Consent Default", "project_nickname": "CD"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(resp.status_code, 201)
+        config = consent_service.get_consent_config("PRJ998")
+        self.assertTrue(config["consent_required"])
+        self.assertEqual(sorted(v["language"] for v in config["notice_versions"]), ["en", "hi"])
+
+    def test_default_consent_leaves_a_project_with_its_own_notice_alone(self):
+        from app.services import consent_service
+
+        admin = db.session.get(VaUsers, self.admin_user.user_id)
+        consent_service.seed_notice_versions(admin, self.project_id)
+        before = [v.notice_version_id for v in consent_service.active_versions(self.project_id)]
+        self.assertEqual(len(before), 2)
+        self.assertEqual(
+            consent_service.apply_default_consent(admin, self.project_id),
+            "notice already in place, required",
+        )
+        config = consent_service.get_consent_config(self.project_id)
+        self.assertTrue(config["consent_required"])
+        self.assertEqual([v.notice_version_id for v in consent_service.active_versions(self.project_id)], before)
+
+    def test_consent_error_at_project_creation_adds_no_project(self):
+        from app.services.consent_service import ConsentError
+
+        self._login(self.admin_user_id)
+        with patch("app.routes.admin.consent_service.apply_default_consent",
+                   side_effect=ConsentError("boom", "conflict", 409, fields=[])):
+            resp = self.client.post(
+                "/admin/api/projects",
+                json={"project_id": "PRJ997", "project_name": "Fails", "project_nickname": "F"},
+                headers=self._csrf_headers(),
+            )
+        self.assertEqual(resp.status_code, 409)
+        self.assertIsNone(db.session.get(VaProjectMaster, "PRJ997"))
+
     def test_admin_can_create_and_edit_project_master(self):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()

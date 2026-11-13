@@ -3,7 +3,7 @@ title: Respondent Consent Notice, Draft Text
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-12
+last_updated: 2026-11-13
 ---
 
 # Respondent Consent Notice, Draft Text
@@ -507,6 +507,24 @@ and "Fill from settings" write these defaults where a setting is missing:
   you their name and phone number."
 - **Mentoring institution.** The consent settings' mentoring institution when
   set; otherwise "The mentoring institution: through the central team below."
+
+## New projects (owner 2026-11-13)
+
+Every new project, including test, training and demo projects, is created
+with respondent consent required and the app's default notice (the English
+and Hindi seed above, gaps filled from the project's contact settings),
+in the same transaction as the project row. A failure to set this up fails
+the creation. Projects that already exist are not changed; a notice or
+setting someone has edited is never overwritten. The one exception is a
+system-created project with no admin to act as (the synthetic organization
+demo, `organization-demo seed`), which is not covered until it has one.
+
+No saved notice keeps a bracketed placeholder. A gap with no project contact
+or server setting (`PUBLIC_ORG_NAME`, `PUBLIC_CONTACT_EMAIL`,
+`PUBLIC_GRIEVANCE_OFFICER`) reads as the DIGITVA Team (Hindi: DIGITVA टीम)
+and info@causeofdeathindia.com. Because nothing is left to fill, "Fill from
+settings" cannot later fill these lines: a project that sets its contacts
+after its notice is seeded edits the notice to save a new version.
 
 ## Notes for the project and legal review
 

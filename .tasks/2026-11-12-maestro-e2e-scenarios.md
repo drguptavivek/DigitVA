@@ -454,3 +454,11 @@ Not the same as WHO `Id10013` (interview consent): the DPDP flow is the responde
   flow files.
 - Old APKs show "The selected code does not match its WHO URI." for the
   non-leaf refusal (same 422 `INVALID_SELECTION`); not tested in Maestro.
+
+## Owner decisions 2026-11-13 (suite structure)
+
+- Order: happy paths first, each green twice: (1) interviewer full interview with consent, sent; (2) reporter registers, interviewer completes from To do after sync; (3) coder codes on the COD Assessment tab (last tab; the case opens on the first data tab); (4) supervisor sees the sent case. Then the user pool, access removed, conflicts.
+- Coding modes need two projects: TST001 masked two-step, NQA off, SA off; TST002 single-step, NQA on, SA on. NQA and SA checked through online coding only (offline gap digitva-p8uj).
+- One user pool per run, created and enrolled once at the start, sized to what the flows use. Main users are never signed out, PIN-reset, deleted or revoked. Spares: reporter (sign-out), interviewer (PIN reset), coder (delete profile), interviewer (access removed and restored). The wrapper fails a flow that signs out or deletes a main profile.
+- Conflicts use main users, with the other actor played through the server by the wrapper: two interviewers on one case, draft edited on two devices, two coders on one case, stale coding, supervisor reopen (only what is decided; digitva-1b50 open).
+- Every run clears the app's data first; teardown is scoped to the run (--run).

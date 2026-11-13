@@ -227,7 +227,7 @@
   "profileDeleteTitle": "Delete profile",
   "profileDeleteAuth": "Enter the PIN, or sign in with the password, to delete this profile from this phone.",
   "profileDeleteWithPassword": "Use password instead",
-  "profileDeleteBody": "This profile and its data are removed from this phone. Nothing is waiting to be sent. Your account and the interviews already sent stay on the server.",
+  "profileDeleteBody": "Deleting removes this profile and its data from this phone. Nothing is waiting to be sent. Your account and the interviews already sent stay on the server.",
   "profileDeleteBodyUnknown": "The PIN was not used, so this phone cannot tell whether anything is waiting to be sent. Any interviews on this phone that were not sent are lost for good. Your account and the interviews already sent stay on the server.",
   "profileDeleteWord": "DELETE",
   "profileDeleteConfirm": "Delete profile",

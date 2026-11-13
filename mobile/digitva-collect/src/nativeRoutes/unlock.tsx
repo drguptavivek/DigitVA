@@ -354,10 +354,13 @@ export default function Unlock() {
               loading={busy}
               disabled={busy || (deleting === null && !typed)}
               onPress={() => void confirmDelete()}
+              // The kit's destructive variant is red text; a filled red reads as the one irreversible action here.
+              style={{ backgroundColor: ui.destructive, borderColor: ui.destructive }}
+              labelColor={ui.destructiveForeground}
             />
           </>
         )}
-        <TextLink label={t("cancel")} disabled={busy} onPress={closeDelete} />
+        <Button kind="secondary" label={t("cancel")} disabled={busy} onPress={closeDelete} />
       </Screen>
     );
   }

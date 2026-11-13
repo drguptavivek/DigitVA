@@ -165,11 +165,14 @@ export function Button({
   expanded,
   selected,
   style,
+  labelColor,
   testID
 }: {
   label: string;
   onPress: () => void;
   testID?: string;
+  /** Overrides the variant's label colour (paired with a `style` fill). */
+  labelColor?: string;
   kind?: "primary" | "secondary" | "danger";
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -214,9 +217,9 @@ export function Button({
         style
       ]}
     >
-      <Text style={[styles.buttonText, { color: tone.fg }]}>{label}</Text>
+      <Text style={[styles.buttonText, { color: labelColor ?? tone.fg }]}>{label}</Text>
       {/* Absolute, so the button keeps its width while busy. */}
-      {loading ? <ActivityIndicator size="small" color={tone.fg} style={styles.buttonSpinner} /> : null}
+      {loading ? <ActivityIndicator size="small" color={labelColor ?? tone.fg} style={styles.buttonSpinner} /> : null}
     </Pressable>
   );
 }

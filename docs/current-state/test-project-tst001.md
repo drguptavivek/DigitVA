@@ -130,6 +130,16 @@ project-scope `coder` and `reviewer` grants in SADEMO (classical, sites, random 
 written by the seed directly because the user import is organization-only.
 The SADEMO grant is skipped when that project does not exist.
 
+## Test mentoring institute (TSTMI01)
+
+`flask seed test-project` also creates, once, the institute `TSTMI01` ("Test
+Mentoring Institute") and attaches it to DH01 of TST001 and TST002 through
+`mentor_institute_service` (`create_institute`, `attach_district`; audited,
+idempotent, a deactivated institute or link is reactivated). It adds no
+members: roster users such as `test.mo.dh01` are not made institute staff (the
+guard would then refuse their non-mentor grants), and a hand-made institute
+such as AIIMS01 is never touched. `e2e-users create` refuses to run without it.
+
 ## E2E users (Maestro runs)
 
 Phones allow three live devices per account, so Maestro runs use throwaway
@@ -137,10 +147,10 @@ accounts instead of the roster above (debug or testing app only; there is no
 staging opt-in):
 
 - `flask seed e2e-users create` needs TST001 (`flask seed test-project`). It
-  creates ten accounts `e2e.<run>.<key>@digitva.test`. Single-role keys:
+  creates eleven accounts `e2e.<run>.<key>@digitva.test`. Single-role keys:
   `interviewer` and `interviewer2` (SC01 CHO), `coder` and `coder2` (project),
   `reporter` (death_reporter, SC01 ANM), `supervisor` (interview_supervisor,
-  PHC01 MO), `reviewer` (project), `datamgr` (data_manager, project), `interviewer_t2` (interviewer, SC01 CHO, TST002 only). `all` holds coder, reviewer and data_manager at project
+  PHC01 MO), `reviewer` (project), `datamgr` (data_manager, project), `interviewer_t2` (interviewer, SC01 CHO, TST002 only), `mentor` (staff of the test mentoring institute TSTMI01, `coder` and `reviewer` unit grants at DH01 on both projects; the mentor guard allows only those non-PII unit-scope roles inside an attached district, and it is added to the institute before its grants are written). `all` holds coder, reviewer and data_manager at project
   scope, death_reporter and interviewer at SC01 (ANM) and interview_supervisor
   at PHC01 (MO). `all`, `coder` and `coder2` also hold a coder grant on TST002. Grants go
   through the project user import and `grants.log`, actor testadmin. One random
@@ -149,7 +159,7 @@ staging opt-in):
 - `flask seed e2e-users teardown [--run <id>] [--older-than-hours N]` revokes
   every unrevoked device any matched account has a session on
   (`device_auth_service.revoke_device`, actor testadmin, reason
-  `e2e_teardown`), revokes their TST001 and TST002 grants and cancels their open TST002 cases too (admin users-grid revoke, logged in grants.log), bumps the session version (ends web and device sessions)
+  `e2e_teardown`), revokes their TST001 and TST002 grants and cancels their open TST002 cases too (admin users-grid revoke, logged in grants.log), removes the mentor's TSTMI01 membership (`mentor_institute_service.remove_member`, audited, after the grants are revoked), bumps the session version (ends web and device sessions)
   and deactivates the accounts. Rows and their work stay. Idempotent.
   Revoking a device ends every session on it, including a non-e2e account
   signed in on the same phone.

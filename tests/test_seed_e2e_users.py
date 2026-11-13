@@ -12,6 +12,8 @@ from app.models import (
     AuthDevice,
     AuthDeviceSession,
     AuthSecurityEvent,
+    MapMentorInstituteUser,
+    MasMentorInstitute,
     MasOrgUnit,
     VaStatuses,
     VaUserAccessGrants,
@@ -49,11 +51,20 @@ class SeedE2eUsersTests(BaseTestCase):
                    sa.or_(VaUserAccessGrants.project_id == project_id, MasOrgUnit.project_id == project_id))
         ).all(), key=lambda r: (r.role.value, r.unit_code or ""))
 
+    def _members(self, email):
+        return db.session.scalars(
+            sa.select(MasMentorInstitute.institute_code)
+            .join(MapMentorInstituteUser, MapMentorInstituteUser.institute_id == MasMentorInstitute.institute_id)
+            .join(VaUsers, VaUsers.user_id == MapMentorInstituteUser.user_id)
+            .where(VaUsers.email == email, MapMentorInstituteUser.is_active.is_(True))
+        ).all()
+
     def test_create_writes_users_grants_and_a_private_file_without_echoing_the_password(self):
         result, creds = self._create()
         users = creds["users"]
         self.assertEqual(set(users), {"all", "interviewer", "interviewer2", "coder",
-                                "coder2", "reporter", "supervisor", "reviewer", "datamgr", "interviewer_t2"})
+                                "coder2", "reporter", "supervisor", "reviewer", "datamgr", "interviewer_t2",
+                                "mentor"})
         self.assertNotIn(creds["password"], result.output)
         self.assertIn(self.out, result.output)
         self.assertEqual(os.stat(self.out).st_mode & 0o777, 0o600)
@@ -84,6 +95,12 @@ class SeedE2eUsersTests(BaseTestCase):
                          [("interviewer", "SC01")])
         self.assertEqual(self._grants(users["interviewer_t2"]), [])
         self.assertEqual(self._grants(users["reviewer"], TEST_PROJECT_2_ID), [])
+
+        # The mentor is TSTMI01 staff with coder and reviewer at DH01 on both projects.
+        self.assertEqual(self._members(users["mentor"]), ["TSTMI01"])
+        for project_id in (TEST_PROJECT_ID, TEST_PROJECT_2_ID):
+            self.assertEqual([(r.role.value, r.unit_code) for r in self._grants(users["mentor"], project_id)],
+                             [("coder", "DH01"), ("reviewer", "DH01")], project_id)
 
         # A second run gets fresh accounts.
         _result, second = self._create()
@@ -118,8 +135,8 @@ class SeedE2eUsersTests(BaseTestCase):
         for email in creds["users"].values():
             u = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == email))
             self.assertEqual(u.user_status, VaStatuses.deactive)
-        self.assertIn("10 deactivated", first.output)
-        self.assertIn("18 revoked", first.output)
+        self.assertIn("11 deactivated", first.output)
+        self.assertIn("22 revoked", first.output)
         for email in creds["users"].values():
             for project_id in (TEST_PROJECT_ID, TEST_PROJECT_2_ID):
                 self.assertEqual(self._grants(email, project_id), [])
@@ -127,7 +144,10 @@ class SeedE2eUsersTests(BaseTestCase):
                                     .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
                                     .where(VaUsers.email.in_(list(creds["users"].values())),
                                            VaUserAccessGrants.grant_status == VaStatuses.deactive))
-        self.assertEqual(revoked, 18)
+        self.assertEqual(revoked, 22)
+
+        self.assertEqual(self._members(creds["users"]["mentor"]), [])
+        self.assertIn("mentors    1 institute membership(s) removed", first.output)
 
         again = self.runner.invoke(args=["seed", "e2e-users", "teardown"])
         self.assertEqual(again.exit_code, 0, again.output)

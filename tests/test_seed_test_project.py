@@ -137,6 +137,47 @@ class SeedTestProjectTests(BaseTestCase):
         )
         self.assertEqual(workers, len({spec[0] for spec in _TST_USERS if spec[2]}))
 
+    def test_test_institute_is_created_once_attached_to_both_dh01s_and_leaves_others_alone(self):
+        from app.models import MapMentorInstituteOrgUnit, MapMentorInstituteUser, MasMentorInstitute
+        from app.services import mentor_institute_service as mentors
+
+        # A hand-made institute with a member, as AIIMS01 on dev: must be untouched.
+        runner = self.app.test_cli_runner()
+        self.assertEqual(runner.invoke(args=["seed", "test-project"]).exit_code, 0)
+        mentors.create_institute("HANDMI01", "Hand made")
+        db.session.commit()
+
+        def state():
+            institutes = db.session.scalars(
+                sa.select(MasMentorInstitute.institute_code).order_by(MasMentorInstitute.institute_code)
+            ).all()
+            links = db.session.execute(
+                sa.select(MasMentorInstitute.institute_code, MasOrgUnit.project_id, MasOrgUnit.unit_code)
+                .join(MapMentorInstituteOrgUnit,
+                      MapMentorInstituteOrgUnit.institute_id == MasMentorInstitute.institute_id)
+                .join(MasOrgUnit, MasOrgUnit.org_unit_id == MapMentorInstituteOrgUnit.org_unit_id)
+                .where(MapMentorInstituteOrgUnit.is_active.is_(True))
+                .order_by(MasOrgUnit.project_id)
+            ).all()
+            members = db.session.scalar(sa.select(sa.func.count()).select_from(MapMentorInstituteUser))
+            return institutes, [tuple(r) for r in links], members
+
+        institutes, links, members = state()
+        self.assertEqual(institutes, ["HANDMI01", "TSTMI01"])
+        self.assertEqual(
+            links, [("TSTMI01", TEST_PROJECT_ID, "DH01"), ("TSTMI01", TEST_PROJECT_2_ID, "DH01")]
+        )
+        self.assertEqual(members, 0)
+        self.assertEqual(
+            db.session.scalar(sa.select(MasMentorInstitute.institute_name).where(
+                MasMentorInstitute.institute_code == "TSTMI01")),
+            "Test Mentoring Institute",
+        )
+        again = runner.invoke(args=["seed", "test-project"])
+        self.assertEqual(again.exit_code, 0, again.output)
+        self.assertEqual(state(), (institutes, links, members))
+        self.assertIn("TSTMI01 already in place", again.output)
+
     def test_tst002_is_single_step_with_nqa_and_social_autopsy_and_a_rerun_changes_nothing(self):
         from app.services.consent_service import get_consent_config
 

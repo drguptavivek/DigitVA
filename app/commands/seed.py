@@ -406,6 +406,13 @@ _TST_PROJECTS = (
 _TST_CLASSICAL_GRANTS = (("test.all", "SADEMO", "coder"), ("test.all", "SADEMO", "reviewer"))
 
 
+#: The test mentoring institute every test project's DH01 is attached to (owner
+#: decision 2026-11-13); kept apart from any hand-made institute such as AIIMS01.
+_TST_INSTITUTE_CODE = "TSTMI01"
+_TST_INSTITUTE_NAME = "Test Mentoring Institute"
+_TST_INSTITUTE_DISTRICT = "DH01"
+
+
 def _tst_email(local: str) -> str:
     return f"{local}@digitva.com"
 
@@ -593,6 +600,8 @@ def _build_test_project(org, user_import, actor, spec: dict, *, staging: bool) -
             org.set_unit_active(project_id, unit.org_unit_id, True)
         units[code] = unit
 
+    summary["mentoring"] = _ensure_test_institute(units, project_id, actor.user_id)
+
     cadres = {c.cadre_code: c for c in org.list_cadres(project_id, include_inactive=True)}
     for code in {cadre_code for *_rest, cadre_code, _roles in roster if cadre_code}:
         if not cadres[code].is_active:
@@ -765,6 +774,39 @@ def _build_test_project(org, user_import, actor, spec: dict, *, staging: bool) -
     return summary
 
 
+def _ensure_test_institute(units, project_id, actor_user_id) -> str:
+    """Create TSTMI01 if missing, reactivate it, and attach it to DH01 of *project_id*.
+
+    Goes through mentor_institute_service so every change is audited; a rerun
+    that finds everything in place writes and logs nothing. Caller commits.
+    """
+    from app.models import MapMentorInstituteOrgUnit, MasMentorInstitute
+    from app.services import mentor_institute_service as mentors
+
+    institute = db.session.scalar(sa.select(MasMentorInstitute).where(
+        MasMentorInstitute.institute_code == _TST_INSTITUTE_CODE
+    ))
+    done = []
+    if institute is None:
+        institute = mentors.create_institute(
+            _TST_INSTITUTE_CODE, _TST_INSTITUTE_NAME, actor_user_id=actor_user_id
+        )
+        done.append("created")
+    elif not institute.is_active:
+        mentors.set_institute_active(_TST_INSTITUTE_CODE, True, actor_user_id=actor_user_id)
+        done.append("reactivated")
+    link = db.session.get(
+        MapMentorInstituteOrgUnit,
+        (institute.institute_id, units[_TST_INSTITUTE_DISTRICT].org_unit_id),
+    )
+    if link is None or not link.is_active:
+        mentors.attach_district(
+            _TST_INSTITUTE_CODE, project_id, _TST_INSTITUTE_DISTRICT, actor_user_id=actor_user_id
+        )
+        done.append(f"attached to {_TST_INSTITUTE_DISTRICT}")
+    return f"{_TST_INSTITUTE_CODE} " + (", ".join(done) if done else "already in place")
+
+
 def _log_test_project_grants(audit, actor_user_id, project_id=TEST_PROJECT_ID) -> None:
     """grants.log lines for what the import wrote, as the import route writes them."""
     from app.logging.va_logger import log_grant_action
@@ -780,6 +822,7 @@ def _log_test_project_grants(audit, actor_user_id, project_id=TEST_PROJECT_ID) -
 
 #: (role key, landing_page, unit_code, cadre_code, roles) for one e2e run on
 #: TST001. "all" mirrors test.all; the unit rows need a cadre the grid permits.
+_E2E_MENTOR_ROLES = ("coder", "reviewer")
 _E2E_ROSTER = (
     ("all", "coder", None, None, ("coder", "reviewer", "data_manager")),
     ("all", "coder", "SC01", "ANM", ("death_reporter", "interviewer")),
@@ -793,6 +836,9 @@ _E2E_ROSTER = (
     ("supervisor", "intake", "PHC01", "MO", ("interview_supervisor",)),
     ("reviewer", "coder", None, None, ("reviewer",)),
     ("datamgr", "data_manager", None, None, ("data_manager",)),
+    # Mentoring-institute staff (TSTMI01) at the district: the mentor guard allows
+    # only unit-scope coder/reviewer/coding_tester/collaborator inside DH01.
+    ("mentor", "coder", "DH01", "MO", _E2E_MENTOR_ROLES),
 )
 #: The same shape for TST002 (single-step coding): the coders, and one
 #: interviewer so the suite can create TST002 cases.
@@ -801,6 +847,7 @@ _E2E_ROSTER_T2 = (
     ("coder", "coder", None, None, ("coder",)),
     ("coder2", "coder", None, None, ("coder",)),
     ("interviewer_t2", "intake", "SC01", "CHO", ("interviewer",)),
+    ("mentor", "coder", "DH01", "MO", _E2E_MENTOR_ROLES),
 )
 _E2E_PROJECTS = ((TEST_PROJECT_ID, _E2E_ROSTER), (TEST_PROJECT_2_ID, _E2E_ROSTER_T2))
 _E2E_DOMAIN = "digitva.test"
@@ -852,6 +899,14 @@ def e2e_users_create(out_path):
     for project_id, _roster in _E2E_PROJECTS:
         if db.session.get(VaProjectMaster, project_id) is None:
             raise click.ClickException(f"{project_id} missing; run `flask seed test-project` first.")
+    from app.models import MasMentorInstitute
+    from app.services import mentor_institute_service as mentors
+
+    if db.session.scalar(sa.select(MasMentorInstitute.institute_id).where(
+        MasMentorInstitute.institute_code == _TST_INSTITUTE_CODE,
+        MasMentorInstitute.is_active.is_(True),
+    )) is None:
+        raise click.ClickException(f"{_TST_INSTITUTE_CODE} missing; run `flask seed test-project` first.")
     _seed_admin()
     actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
     run_id = datetime.now(UTC).strftime("%y%m%d%H%M") + secrets.token_hex(2)
@@ -878,6 +933,10 @@ def e2e_users_create(out_path):
             db.session.add(user)
             emails[key] = user.email
         db.session.flush()
+        # Staff first: the grant guard checks membership when the import writes.
+        mentors.add_member(
+            _TST_INSTITUTE_CODE, emails["mentor"], actor_user_id=actor.user_id
+        )
         audit = []
         for project_id, roster in _E2E_PROJECTS:
             # Workers: the person-holds-cadre-at-unit record the unit grants pair with.
@@ -982,6 +1041,19 @@ def e2e_users_teardown(run_id, older_than_hours):
                 raise click.ClickException(f"{project_id}: {exc}")
             changed_by_project[project_id] += changed
     changed_grants = [g for grants in changed_by_project.values() for g in grants]
+    # Institute membership, after the grants are revoked (and audited) so the
+    # lapsing-grant sweep in remove_member finds nothing left to deactivate.
+    from app.models import MapMentorInstituteUser, MasMentorInstitute
+    from app.services import mentor_institute_service as mentors
+
+    members = db.session.execute(
+        sa.select(MasMentorInstitute.institute_code, VaUsers.email)
+        .join(MapMentorInstituteUser, MapMentorInstituteUser.institute_id == MasMentorInstitute.institute_id)
+        .join(VaUsers, VaUsers.user_id == MapMentorInstituteUser.user_id)
+        .where(MapMentorInstituteUser.is_active.is_(True), VaUsers.user_id.in_(user_ids))
+    ).all() if user_ids else []
+    for institute_code, email in members:
+        mentors.remove_member(institute_code, email, actor_user_id=actor.user_id)
     # Cases the accounts registered or started, still open: cancelled through the case
     # transition path (audited, rows kept), so the To do lists do not fill with test cases.
     # Refused cases have no cancel transition and are left as they are.
@@ -1016,6 +1088,7 @@ def e2e_users_teardown(run_id, older_than_hours):
     click.echo(f"  matched    {len(users)} e2e account(s)")
     click.echo(f"  devices    {len(devices)} revoked, {ended} session(s) ended")
     click.echo(f"  grants     {len(changed_grants)} revoked")
+    click.echo(f"  mentors    {len(members)} institute membership(s) removed")
     click.echo(f"  users      {deactivated} deactivated")
     click.echo(f"  cases      {cancelled} of {len(open_cases)} open case(s) cancelled")
 

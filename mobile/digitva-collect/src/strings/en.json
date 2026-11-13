@@ -880,7 +880,7 @@
   "icdNoMatchesInAxis": "No matches in this axis.",
   "icd11Citation": "International Classification of Diseases, Eleventh Revision (ICD-11), World Health Organization (WHO) 2019/2021 https://icd.who.int/browse11. Licensed under Creative Commons Attribution-NoDerivatives 3.0 IGO licence (CC BY-ND 3.0 IGO).",
   "digitvaAddition": "DigitVA addition — not from WHO",
-  "accessRemovedKept": "Your access was removed. Work not yet sent stays on this phone, encrypted. Contact your supervisor.",
+  "accessRemovedKept": "Your access was removed. Work not yet sent stays on this phone, encrypted. Contact your supervisor, and sign in again once your access is restored.",
   "accessRemovedUnsent": "Access removed — {count} items not sent. Contact your supervisor.",
   "accessRemovedLocked": "Access removed. Unlock this account to see what has not been sent, and contact your supervisor.",
   "signInAgainAction": "Sign in again",

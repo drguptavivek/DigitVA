@@ -34,7 +34,10 @@ export default function NativeTermsGate({ children }: { children: ReactNode }) {
   }, [appError, errorBlocking, clearError, toast]);
   useEffect(() => {
     if (!backgroundError || gateActive) return;
-    toast.show({ kind: "error", text: t("backgroundRefreshFailed"), detail: backgroundError });
+    // A revoked device is not a passing failure: say so as the headline, not under "Could not refresh".
+    // ponytail: matched by its text, as AppState keeps only the message; carry the code if more cases need this.
+    const revoked = backgroundError === t("errDeviceRevoked");
+    toast.show({ kind: "error", text: revoked ? backgroundError : t("backgroundRefreshFailed"), detail: revoked ? undefined : backgroundError });
     dismissBackgroundError?.();
   }, [backgroundError, gateActive, dismissBackgroundError, toast]);
 

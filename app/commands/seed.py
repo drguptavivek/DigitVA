@@ -454,9 +454,11 @@ def seed_test_project(staging, actor_email):
     else:
         _seed_admin()
         actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
+    from app.services.consent_service import ConsentError
+
     try:
         summary = _build_test_project(org, user_import, actor, staging=staging)
-    except (org.OrganizationError, user_import.ProjectUserImportError, ValueError) as exc:
+    except (org.OrganizationError, user_import.ProjectUserImportError, ConsentError, ValueError) as exc:
         db.session.rollback()
         raise click.ClickException(f"{TEST_PROJECT_ID}: {exc}")
     db.session.commit()
@@ -711,9 +713,27 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
                            project_id=project_id), action))
         written += 1
     summary["grants"] = f"{written} written, {total - written} already in place"
+    summary["consent"] = _seed_test_project_consent(actor, TEST_PROJECT_ID)
     summary["audit"] = audit
     summary["actor_user_id"] = actor.user_id
     return summary
+
+
+def _seed_test_project_consent(actor, project_id: str) -> str:
+    """Consent on, with the app's default notice (English and Hindi, gaps filled
+    from the project's contact settings) when the project has none. A notice or
+    setting someone already changed is left as it is."""
+    from app.models import MasConsentNoticeVersion
+    from app.services import consent_service
+
+    has_notice = db.session.scalar(sa.select(MasConsentNoticeVersion.notice_version_id).where(
+        MasConsentNoticeVersion.project_id == project_id,
+        MasConsentNoticeVersion.source == "project").limit(1))
+    if not has_notice:
+        consent_service.seed_notice_versions(actor, project_id)
+    if not consent_service.get_consent_config(project_id)["consent_required"]:
+        consent_service.save_settings(actor, project_id, {"consent_required": True})
+    return "default notice seeded, required" if not has_notice else "notice already in place, required"
 
 
 def _log_test_project_grants(audit, actor_user_id) -> None:

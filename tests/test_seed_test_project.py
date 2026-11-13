@@ -74,6 +74,13 @@ class SeedTestProjectTests(BaseTestCase):
         self.assertEqual(second.exit_code, 0, second.output)
         after_second = self._grants()
 
+        # Consent on TST001 itself (not the last project the grant loop saw), default notice once.
+        from app.services.consent_service import get_consent_config
+        consent = get_consent_config(TEST_PROJECT_ID)
+        self.assertTrue(consent["consent_required"])
+        self.assertEqual(sorted(v["language"] for v in consent["notice_versions"]), ["en", "hi"])
+        self.assertIn("consent    notice already in place", second.output)
+
         readiness = assess_web_intake_readiness(TEST_PROJECT_ID)
         self.assertTrue(readiness["ready"], readiness["checks"])
 

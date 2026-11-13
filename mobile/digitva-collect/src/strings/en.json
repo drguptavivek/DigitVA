@@ -1325,7 +1325,7 @@
   "homeLastEdited": "{name}, last edited {time}",
   "homeResumeDraft": "Resume draft",
   "homeStartInterview": "Start an interview",
-  "homeStartHint": "Nothing in progress. Start the next interview.",
+  "homeStartHint": "Choose a reported death for interview in To do, or start a new interview.",
   "homeUnsent": "Unsent",
   "homeNeedVisit": "need a visit",
   "homeSendNow": "Send now",

@@ -1325,7 +1325,7 @@
   "homeLastEdited": "{name}, अंतिम बार {time} पर बदला गया",
   "homeResumeDraft": "ड्राफ्ट जारी रखें",
   "homeStartInterview": "साक्षात्कार शुरू करें",
-  "homeStartHint": "कुछ भी अधूरा नहीं है। अगला साक्षात्कार शुरू करें।",
+  "homeStartHint": "साक्षात्कार के लिए 'करना है' में से कोई दर्ज मृत्यु चुनें, या नया साक्षात्कार शुरू करें।",
   "homeUnsent": "अनभेजे",
   "homeNeedVisit": "मुलाकात बाकी",
   "homeSendNow": "अभी भेजें",

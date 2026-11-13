@@ -207,6 +207,7 @@ export function HomeView(p: HomeViewProps) {
               </Text>
               {count > 1 ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{t("homeDraftsMany", { count })}</Text> : null}
               <Button testID="home-next-primary" kind={nextKind} label={t("homeResumeDraft")} onPress={() => p.onResume(latest)} />
+              {p.canStart ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{t("homeStartHint")}</Text> : null}
               {p.canStart ? <Button kind="secondary" label={t("newInterview")} disabled={Boolean(p.startClosed)} onPress={p.onStart} /> : null}
             </>
           ) : (

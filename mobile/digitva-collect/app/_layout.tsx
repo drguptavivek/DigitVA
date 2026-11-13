@@ -2,7 +2,7 @@ import { Stack } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { ActivityIndicator, Dimensions, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Dimensions, LogBox, Platform, Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -22,6 +22,12 @@ import { ModeBanner } from "../src/nativeShell/ModeBanner";
 import NativeIcd11DorisFirstLaunchGate from "../src/NativeIcd11DorisFirstLaunchGate";
 import { useDemoDocumentTitle } from "../src/DemoBadge";
 import { installPerformanceTelemetryLifecycle } from "../src/performanceTelemetry";
+
+// The debug build's warning toast ("Open debugger to view warnings") covers the bottom strip of every screen and
+// swallows taps there (tab bar, last choices, Next). Warnings still reach Metro and the debugger; a fatal error
+// still shows its full-screen report. Release builds have no LogBox.
+if (__DEV__) LogBox.ignoreAllLogs();
+
 if (Platform.OS === "android") require("../src/notificationTask");
 let notificationRegistrationWarningShown = false;
 

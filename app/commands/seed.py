@@ -324,6 +324,7 @@ def _seed_test_users():
 # Roster, tree and grid: docs/current-state/test-project-tst001.md.
 
 TEST_PROJECT_ID = "TST001"
+TEST_PROJECT_2_ID = "TST002"
 TEST_PROJECT_PASSWORD = "Aiims@123"
 
 # ICD-11 pairs with DORIS entry (the project check constraint).
@@ -387,6 +388,19 @@ _TST_USERS = (
     ("test.all", "coder", "PHC01", "MO", ("interview_supervisor",)),
 )
 
+#: Projects the command builds, in order; the first is the one whose summary
+#: prints without a heading. masked_cod_required false is single-step coding.
+#: narrative_qa_enabled turns the narrative quality assessment on;
+#: social_autopsy_enabled also adds the social_autopsy form layer the
+#: questionnaire collects (enabled_extensions derives from it), and the
+#: reviewer switch follows it. classical_grants: the SADEMO grants below.
+_TST_PROJECTS = (
+    {"project_id": TEST_PROJECT_ID, "name": "Intake Test", "masked_cod_required": True,
+     "narrative_qa_enabled": False, "social_autopsy_enabled": False, "classical_grants": True},
+    {"project_id": TEST_PROJECT_2_ID, "name": "Intake Test (single-step)", "masked_cod_required": False,
+     "narrative_qa_enabled": True, "social_autopsy_enabled": True, "classical_grants": False},
+)
+
 #: (email local part, existing classical project, role): project-scope grants
 #: in sites projects, written when the project exists (e.g. SADEMO in dev).
 _TST_CLASSICAL_GRANTS = (("test.all", "SADEMO", "coder"), ("test.all", "SADEMO", "reviewer"))
@@ -410,7 +424,8 @@ def _tst_email(local: str) -> str:
     help="Staging only: an active global admin recorded as the actor of every grant.",
 )
 def seed_test_project(staging, actor_email):
-    """Build test project TST001 with its tree, grid and a user in every role.
+    """Build test projects TST001 (masked two-step coding) and TST002 (single-step,
+    narrative QA and social autopsy on), each with tree, grid and a user in every role.
 
     Dev/staging only, never part of `seed run`. Idempotent: existing rows are
     found by natural key and reactivated, never deleted or duplicated;
@@ -456,21 +471,29 @@ def seed_test_project(staging, actor_email):
         actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
     from app.services.consent_service import ConsentError
 
-    try:
-        summary = _build_test_project(org, user_import, actor, staging=staging)
-    except (org.OrganizationError, user_import.ProjectUserImportError, ConsentError, ValueError) as exc:
-        db.session.rollback()
-        raise click.ClickException(f"{TEST_PROJECT_ID}: {exc}")
+    summaries = []
+    for spec in _TST_PROJECTS:
+        try:
+            summaries.append(_build_test_project(org, user_import, actor, spec, staging=staging))
+        except (org.OrganizationError, user_import.ProjectUserImportError, ConsentError, ValueError) as exc:
+            db.session.rollback()
+            raise click.ClickException(f"{spec['project_id']}: {exc}")
     db.session.commit()
-    _log_test_project_grants(summary.pop("audit"), summary.pop("actor_user_id"))
-    for key, value in summary.items():
-        click.echo(f"  {key:10s} {value}")
+    for spec, summary in zip(_TST_PROJECTS, summaries):
+        _log_test_project_grants(summary.pop("audit"), summary.pop("actor_user_id"), spec["project_id"])
+        if spec["project_id"] != TEST_PROJECT_ID:
+            click.echo(f"{spec['project_id']}")
+        for key, value in summary.items():
+            click.echo(f"  {key:10s} {value}")
 
 
-def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
+def _build_test_project(org, user_import, actor, spec: dict, *, staging: bool) -> dict:
     """Write everything in the caller's transaction; return counts for the summary.
 
-    *actor* is the global admin recorded on the import and audit. *staging*
+    *spec* is one _TST_PROJECTS entry (id, names, coding mode, NQA and Social
+    Autopsy switches); it applies only when the project is created, so a
+    rerun keeps values set by hand. *actor* is the global admin recorded on
+    the import and audit. *staging*
     drops project_pi from the roster (and any user left with no role), the
     testadmin PI grant and the SADEMO grant, and gives new users a random
     password instead of TEST_PROJECT_PASSWORD.
@@ -480,7 +503,9 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
         VaStatuses, VaUserAccessGrants, VaUsers,
     )
     from app.routes.admin import _project_has_in_progress_coding, _with_web_project_defaults
+    from app.services import mentor_institute_service
 
+    project_id = spec["project_id"]
     summary = {}
     roster = _TST_USERS
     if staging:
@@ -493,23 +518,26 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
 
     # Project: created as the Projects panel creates a web organization
     # project, then given its automatic site and web form.
-    project = db.session.get(VaProjectMaster, TEST_PROJECT_ID)
+    project = db.session.get(VaProjectMaster, project_id)
     if project is None:
         defaults = _with_web_project_defaults({})
         form_type_id = defaults.pop("web_intake_form_type_id", None)
+        defaults.pop("social_autopsy_enabled", None)  # the spec sets it
         project = VaProjectMaster(
-            project_id=TEST_PROJECT_ID,
-            project_code=TEST_PROJECT_ID,
-            project_name="Intake Test",
-            project_nickname="Intake Test",
+            project_id=project_id,
+            project_code=project_id,
+            project_name=spec["name"],
+            project_nickname=spec["name"],
             project_status=VaStatuses.active,
             project_structure_mode="organization",
             web_intake_mode="both",
             web_intake_form_type_id=uuid.UUID(form_type_id) if form_type_id else None,
             icd_classification=_TST_ICD_CLASSIFICATION,
             cod_entry_mode=_TST_COD_ENTRY_MODE,
-            masked_cod_required=True,
-            reviewer_social_autopsy_enabled=False,
+            masked_cod_required=spec["masked_cod_required"],
+            narrative_qa_enabled=spec["narrative_qa_enabled"],
+            social_autopsy_enabled=spec["social_autopsy_enabled"],
+            reviewer_social_autopsy_enabled=spec["social_autopsy_enabled"],
             **defaults,
         )
         db.session.add(project)
@@ -523,7 +551,7 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
         if (project.icd_classification, project.cod_entry_mode) != (
             _TST_ICD_CLASSIFICATION, _TST_COD_ENTRY_MODE,
         ):
-            if _project_has_in_progress_coding(TEST_PROJECT_ID):
+            if _project_has_in_progress_coding(project_id):
                 summary["cod"] = (
                     f"kept {project.icd_classification}/{project.cod_entry_mode} "
                     "(coding in progress)"
@@ -532,12 +560,12 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
                 project.icd_classification = _TST_ICD_CLASSIFICATION
                 project.cod_entry_mode = _TST_COD_ENTRY_MODE
                 summary["cod"] = "updated to icd11/doris"
-    org.require_organization_mode(TEST_PROJECT_ID)
-    site = org.ensure_organization_site(TEST_PROJECT_ID)
+    org.require_organization_mode(project_id)
+    site = org.ensure_organization_site(project_id)
     summary["site"] = site.site_id
 
-    org.seed_default_organization(TEST_PROJECT_ID)
-    levels = {lv.level_code: lv for lv in org.list_levels(TEST_PROJECT_ID, include_inactive=True)}
+    org.seed_default_organization(project_id)
+    levels = {lv.level_code: lv for lv in org.list_levels(project_id, include_inactive=True)}
     used = {level_code for _code, _name, level_code, _parent in _TST_UNITS} | {_TST_UNUSED_LEVEL}
     if missing := sorted(used - levels.keys()):
         # The template skips a level whose depth another code already holds.
@@ -546,43 +574,43 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
         )
     for code in used - {_TST_UNUSED_LEVEL}:
         if not levels[code].is_active:
-            org.update_level(TEST_PROJECT_ID, levels[code].org_level_id, is_active=True)
+            org.update_level(project_id, levels[code].org_level_id, is_active=True)
     if levels[_TST_UNUSED_LEVEL].is_active:
-        org.update_level(TEST_PROJECT_ID, levels[_TST_UNUSED_LEVEL].org_level_id, is_active=False)
+        org.update_level(project_id, levels[_TST_UNUSED_LEVEL].org_level_id, is_active=False)
 
     units = {}
     for code, name, level_code, parent_code in _TST_UNITS:
-        unit = org.find_unit_by_code(TEST_PROJECT_ID, code)
+        unit = org.find_unit_by_code(project_id, code)
         if unit is None:
             unit = org.create_unit(
-                TEST_PROJECT_ID,
+                project_id,
                 org_level_id=levels[level_code].org_level_id,
                 unit_code=code,
                 unit_name=name,
                 parent_org_unit_id=units[parent_code].org_unit_id if parent_code else None,
             )
         elif not unit.is_active:
-            org.set_unit_active(TEST_PROJECT_ID, unit.org_unit_id, True)
+            org.set_unit_active(project_id, unit.org_unit_id, True)
         units[code] = unit
 
-    cadres = {c.cadre_code: c for c in org.list_cadres(TEST_PROJECT_ID, include_inactive=True)}
+    cadres = {c.cadre_code: c for c in org.list_cadres(project_id, include_inactive=True)}
     for code in {cadre_code for *_rest, cadre_code, _roles in roster if cadre_code}:
         if not cadres[code].is_active:
-            org.update_cadre(TEST_PROJECT_ID, cadres[code].cadre_id, is_active=True)
+            org.update_cadre(project_id, cadres[code].cadre_id, is_active=True)
     summary["tree"] = (
         f"{len(levels)} levels, {len(units)} units, "
-        f"{len(org.list_level_cadres(TEST_PROJECT_ID))} grid rows"
+        f"{len(org.list_level_cadres(project_id))} grid rows"
     )
 
     # Central-office area presets (Id10002/Id10003) on the root unit, which
     # every descendant inherits. Only an unset field is filled, so a value
     # an admin set by hand survives a rerun.
-    own = org.get_unit_va_presets(TEST_PROJECT_ID, units[_TST_PRESET_UNIT].org_unit_id)
+    own = org.get_unit_va_presets(project_id, units[_TST_PRESET_UNIT].org_unit_id)
     hiv = own.hiv_mortality if own else None
     malaria = own.malaria_mortality if own else None
     if hiv is None or malaria is None:
         org.set_unit_va_presets(
-            TEST_PROJECT_ID,
+            project_id,
             units[_TST_PRESET_UNIT].org_unit_id,
             hiv_mortality=hiv or _TST_VA_PRESET,
             malaria_mortality=malaria or _TST_VA_PRESET,
@@ -635,13 +663,13 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
         worker_code = local.upper().replace(".", "_")
         worker = db.session.scalar(
             sa.select(MasOrgUnitWorker).where(
-                MasOrgUnitWorker.project_id == TEST_PROJECT_ID,
+                MasOrgUnitWorker.project_id == project_id,
                 MasOrgUnitWorker.worker_code == worker_code,
             )
         )
         if worker is None:
             org.create_worker(
-                TEST_PROJECT_ID,
+                project_id,
                 org_unit_id=units[unit_code].org_unit_id,
                 cadre_id=cadres[cadre_code].cadre_id,
                 worker_name=users[_tst_email(local)].name,
@@ -650,7 +678,7 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
             )
             created_workers += 1
         elif not worker.is_active:
-            org.update_worker(TEST_PROJECT_ID, worker.worker_id, is_active=True)
+            org.update_worker(project_id, worker.worker_id, is_active=True)
     summary["workers"] = f"{created_workers} created"
 
     # Grants: through the project user import, the admin panel's own path.
@@ -665,6 +693,22 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
         for role in roles
         if _tst_email(local) not in inactive
     ]
+    # A mentoring institute member (set up by hand) may hold only grants inside
+    # the districts the institute covers; leave out what the import would refuse.
+    refused = set()
+    for email, role, unit_code, _cadre_code in grant_specs:
+        user = users.get(email)
+        if user is None:
+            continue
+        try:
+            mentor_institute_service.check_mentor_grant(
+                user.user_id, VaAccessRoles(role), units[unit_code] if unit_code else None
+            )
+        except org.OrganizationError:
+            refused.add(email)
+    grant_specs = [spec for spec in grant_specs if spec[0] not in refused]
+    if refused:
+        summary["mentors"] = "institute staff, no grants here: " + ", ".join(sorted(refused))
     rows = [
         {
             "_line_number": number,
@@ -678,26 +722,26 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
         }
         for number, (email, role, unit_code, cadre_code) in enumerate(grant_specs, start=1)
     ]
-    plan = user_import.prepare(TEST_PROJECT_ID, rows, actor=actor)
-    _new_users, audit, _codes = user_import.apply(TEST_PROJECT_ID, plan, actor_user_id=actor.user_id)
+    plan = user_import.prepare(project_id, rows, actor=actor)
+    _new_users, audit, _codes = user_import.apply(project_id, plan, actor_user_id=actor.user_id)
     written, total = len(audit), len(plan)
     # Sites projects: the import is organization-only, so write the one
     # project-scope grant the way the admin panel does (admin.py grants).
-    for local, project_id, role in () if staging else _TST_CLASSICAL_GRANTS:
+    for local, classical_id, role in () if staging or not spec["classical_grants"] else _TST_CLASSICAL_GRANTS:
         user = users[_tst_email(local)]
-        if db.session.get(VaProjectMaster, project_id) is None or user.user_status != VaStatuses.active:
+        if db.session.get(VaProjectMaster, classical_id) is None or user.user_status != VaStatuses.active:
             continue
         total += 1
         grant = db.session.scalar(sa.select(VaUserAccessGrants).where(
             VaUserAccessGrants.user_id == user.user_id,
             VaUserAccessGrants.role == VaAccessRoles(role),
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
-            VaUserAccessGrants.project_id == project_id,
+            VaUserAccessGrants.project_id == classical_id,
         ))
         if grant is None:
             grant = VaUserAccessGrants(
                 user_id=user.user_id, role=VaAccessRoles(role),
-                scope_type=VaAccessScopeTypes.project, project_id=project_id,
+                scope_type=VaAccessScopeTypes.project, project_id=classical_id,
                 grant_status=VaStatuses.active, created_by_user_id=actor.user_id,
             )
             db.session.add(grant)
@@ -710,18 +754,18 @@ def _build_test_project(org, user_import, actor, *, staging: bool) -> dict:
         db.session.flush()
         audit.append((dict(user_id=user.user_id, grant_id=grant.grant_id, role=role,
                            scope_type="project", org_unit_id=None, cadre_id=None,
-                           project_id=project_id), action))
+                           project_id=classical_id), action))
         written += 1
     summary["grants"] = f"{written} written, {total - written} already in place"
     from app.services import consent_service
 
-    summary["consent"] = consent_service.apply_default_consent(actor, TEST_PROJECT_ID)
+    summary["consent"] = consent_service.apply_default_consent(actor, project_id)
     summary["audit"] = audit
     summary["actor_user_id"] = actor.user_id
     return summary
 
 
-def _log_test_project_grants(audit, actor_user_id) -> None:
+def _log_test_project_grants(audit, actor_user_id, project_id=TEST_PROJECT_ID) -> None:
     """grants.log lines for what the import wrote, as the import route writes them."""
     from app.logging.va_logger import log_grant_action
 
@@ -729,7 +773,7 @@ def _log_test_project_grants(audit, actor_user_id) -> None:
         log_grant_action(
             action=action, actor_user_id=actor_user_id, actor_role="admin",
             target_user_id=grant["user_id"], grant_id=grant["grant_id"], role=grant["role"],
-            scope_type=grant["scope_type"], project_id=grant.get("project_id", TEST_PROJECT_ID),
+            scope_type=grant["scope_type"], project_id=grant.get("project_id", project_id),
             org_unit_id=grant["org_unit_id"], cadre_id=grant["cadre_id"],
         )
 
@@ -750,6 +794,15 @@ _E2E_ROSTER = (
     ("reviewer", "coder", None, None, ("reviewer",)),
     ("datamgr", "data_manager", None, None, ("data_manager",)),
 )
+#: The same shape for TST002 (single-step coding): the coders, and one
+#: interviewer so the suite can create TST002 cases.
+_E2E_ROSTER_T2 = (
+    ("all", "coder", None, None, ("coder",)),
+    ("coder", "coder", None, None, ("coder",)),
+    ("coder2", "coder", None, None, ("coder",)),
+    ("interviewer_t2", "intake", "SC01", "CHO", ("interviewer",)),
+)
+_E2E_PROJECTS = ((TEST_PROJECT_ID, _E2E_ROSTER), (TEST_PROJECT_2_ID, _E2E_ROSTER_T2))
 _E2E_DOMAIN = "digitva.test"
 
 
@@ -775,13 +828,13 @@ def _require_dev_app(command: str) -> None:
 
 @seed_group.group("e2e-users")
 def e2e_users_group():
-    """Throwaway TST001 accounts for one Maestro run (dev/test only)."""
+    """Throwaway TST001 and TST002 accounts for one Maestro run (dev/test only)."""
 
 
 @e2e_users_group.command("create")
 @click.option("--out", "out_path", default=None, help="Credentials file (default private/e2e-users.json).")
 def e2e_users_create(out_path):
-    """Create a fresh e2e user set on TST001 and write its credentials to a local file.
+    """Create a fresh e2e user set on TST001 and TST002 and write its credentials to a local file.
 
     Each run gets new emails (e2e.<run>.<role>@digitva.test) and one random
     password, so phones never hit the per-user device cap. Grants go through
@@ -796,15 +849,16 @@ def e2e_users_create(out_path):
     from app.services import project_user_import_service as user_import
 
     _require_dev_app("create")
-    if db.session.get(VaProjectMaster, TEST_PROJECT_ID) is None:
-        raise click.ClickException(f"{TEST_PROJECT_ID} missing; run `flask seed test-project` first.")
+    for project_id, _roster in _E2E_PROJECTS:
+        if db.session.get(VaProjectMaster, project_id) is None:
+            raise click.ClickException(f"{project_id} missing; run `flask seed test-project` first.")
     _seed_admin()
     actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
     run_id = datetime.now(UTC).strftime("%y%m%d%H%M") + secrets.token_hex(2)
     password = secrets.token_urlsafe(18)
     emails = {}
     try:
-        for key, landing, *_ in _E2E_ROSTER:
+        for key, landing, *_ in (*_E2E_ROSTER, *_E2E_ROSTER_T2):
             if key in emails:
                 continue
             user = VaUsers(
@@ -824,47 +878,51 @@ def e2e_users_create(out_path):
             db.session.add(user)
             emails[key] = user.email
         db.session.flush()
-        # Workers: the person-holds-cadre-at-unit record the unit grants pair with.
-        for key, _landing, unit_code, cadre_code, _roles in _E2E_ROSTER:
-            if unit_code is None:
-                continue
-            unit = org.find_unit_by_code(TEST_PROJECT_ID, unit_code)
-            cadre = db.session.scalar(sa.select(MasCadre).where(
-                MasCadre.project_id == TEST_PROJECT_ID, MasCadre.cadre_code == cadre_code,
-            ))
-            if unit is None or cadre is None:
-                raise click.ClickException(f"{TEST_PROJECT_ID} lacks {unit_code}/{cadre_code}; rerun `flask seed test-project`.")
-            org.create_worker(
-                TEST_PROJECT_ID, org_unit_id=unit.org_unit_id, cadre_id=cadre.cadre_id,
-                worker_name=f"E2E {run_id} {key}",
-                worker_code=f"E2E_{run_id}_{key[:3]}{key[-3:]}_{unit_code}".upper(), user=emails[key],
-            )
-        rows = [
-            {"_line_number": n, "email": emails[key], "name": "", "role": role,
-             "org_unit_code": unit_code or "", "cadre_code": cadre_code or "",
-             "language_codes": "", "phone": ""}
-            for n, (key, role, unit_code, cadre_code) in enumerate(
-                ((k, r, u, c) for k, _l, u, c, roles in _E2E_ROSTER for r in roles), start=1
-            )
-        ]
-        plan = user_import.prepare(TEST_PROJECT_ID, rows, actor=actor)
-        _new, audit, _codes = user_import.apply(TEST_PROJECT_ID, plan, actor_user_id=actor.user_id)
+        audit = []
+        for project_id, roster in _E2E_PROJECTS:
+            # Workers: the person-holds-cadre-at-unit record the unit grants pair with.
+            for key, _landing, unit_code, cadre_code, _roles in roster:
+                if unit_code is None:
+                    continue
+                unit = org.find_unit_by_code(project_id, unit_code)
+                cadre = db.session.scalar(sa.select(MasCadre).where(
+                    MasCadre.project_id == project_id, MasCadre.cadre_code == cadre_code,
+                ))
+                if unit is None or cadre is None:
+                    raise click.ClickException(f"{project_id} lacks {unit_code}/{cadre_code}; rerun `flask seed test-project`.")
+                org.create_worker(
+                    project_id, org_unit_id=unit.org_unit_id, cadre_id=cadre.cadre_id,
+                    worker_name=f"E2E {run_id} {key}",
+                    worker_code=f"E2E_{run_id}_{key[:3]}{key[-3:]}_{unit_code}".upper(), user=emails[key],
+                )
+            rows = [
+                {"_line_number": n, "email": emails[key], "name": "", "role": role,
+                 "org_unit_code": unit_code or "", "cadre_code": cadre_code or "",
+                 "language_codes": "", "phone": ""}
+                for n, (key, role, unit_code, cadre_code) in enumerate(
+                    ((k, r, u, c) for k, _l, u, c, roles in roster for r in roles), start=1
+                )
+            ]
+            plan = user_import.prepare(project_id, rows, actor=actor)
+            _new, project_audit, _codes = user_import.apply(project_id, plan, actor_user_id=actor.user_id)
+            audit.append((project_id, project_audit))
     except (org.OrganizationError, user_import.ProjectUserImportError, ValueError) as exc:
         db.session.rollback()
-        raise click.ClickException(f"{TEST_PROJECT_ID}: {exc}")
+        raise click.ClickException(f"e2e users: {exc}")
     db.session.commit()
-    _log_test_project_grants(audit, actor.user_id)
+    for project_id, project_audit in audit:
+        _log_test_project_grants(project_audit, actor.user_id, project_id)
 
     out_path = out_path or _e2e_default_out()
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as fh:
-        json.dump({"run_id": run_id, "project_id": TEST_PROJECT_ID, "password": password,
+        json.dump({"run_id": run_id, "project_id": TEST_PROJECT_ID, "project_ids": [p for p, _r in _E2E_PROJECTS], "password": password,
                    "users": emails}, fh, indent=2)
     click.echo(f"  run        {run_id}")
     for key, email in emails.items():
         click.echo(f"  {key:10s} {email}")
-    click.echo(f"  grants     {len(audit)} written")
+    click.echo(f"  grants     {sum(len(a) for _p, a in audit)} written")
     click.echo(f"  file       {out_path}")
 
 
@@ -875,8 +933,8 @@ def e2e_users_create(out_path):
 def e2e_users_teardown(run_id, older_than_hours):
     """Revoke the devices, end the sessions and deactivate e2e accounts.
 
-    Devices are revoked through device_auth_service.revoke_device and TST001
-    grants through the users-grid revoke_all path (grants.log), both with the
+    Devices are revoked through device_auth_service.revoke_device and the
+    TST001 and TST002 grants (both projects) through the users-grid revoke_all path (grants.log), both with the
     seeded admin as actor. Rows are kept, so work the accounts made
     stays. Idempotent: a rerun finds nothing active and changes nothing.
     """
@@ -909,20 +967,23 @@ def e2e_users_teardown(run_id, older_than_hours):
     ended = sum(device_auth_service.revoke_device(d, actor=actor, reason="e2e_teardown") for d in devices)
     # Grants: the users-grid "revoke_all" path the admin panel uses, audited
     # after commit by finalize_apply. Its batch cap is 500 users.
-    changed_grants = []
-    for start in range(0, len(user_ids), 500):
-        try:
-            _summary, changed = org.bulk_apply_project_users_grid(
-                TEST_PROJECT_ID,
-                {"user_ids": [str(uid) for uid in user_ids[start:start + 500]], "operation": "revoke_all"},
-                actor=actor,
-            )
-        except org.OrganizationError as exc:
-            db.session.rollback()
-            raise click.ClickException(f"{TEST_PROJECT_ID}: {exc}")
-        changed_grants += changed
+    changed_by_project = {}
+    for project_id, _roster in _E2E_PROJECTS:
+        changed_by_project[project_id] = []
+        for start in range(0, len(user_ids), 500):
+            try:
+                _summary, changed = org.bulk_apply_project_users_grid(
+                    project_id,
+                    {"user_ids": [str(uid) for uid in user_ids[start:start + 500]], "operation": "revoke_all"},
+                    actor=actor,
+                )
+            except org.OrganizationError as exc:
+                db.session.rollback()
+                raise click.ClickException(f"{project_id}: {exc}")
+            changed_by_project[project_id] += changed
+    changed_grants = [g for grants in changed_by_project.values() for g in grants]
     # Cases the accounts registered or started, still open: cancelled through the case
-    # transition path (audited, rows kept), so TST001's To do list does not fill with test cases.
+    # transition path (audited, rows kept), so the To do lists do not fill with test cases.
     # Refused cases have no cancel transition and are left as they are.
     from app.models import VaDeathRegister
     from app.services import case_transition_service as case_svc
@@ -946,11 +1007,12 @@ def e2e_users_teardown(run_id, older_than_hours):
             user.bump_session_version()  # ends web sessions and remember cookies
             deactivated += 1
     db.session.commit()
-    if changed_grants:
-        user_import.finalize_apply(
-            TEST_PROJECT_ID, actor_user_id=actor.user_id, actor_role="admin",
-            changed_grants=changed_grants, invitations=[],
-        )
+    for project_id, grants in changed_by_project.items():
+        if grants:
+            user_import.finalize_apply(
+                project_id, actor_user_id=actor.user_id, actor_role="admin",
+                changed_grants=grants, invitations=[],
+            )
     click.echo(f"  matched    {len(users)} e2e account(s)")
     click.echo(f"  devices    {len(devices)} revoked, {ended} session(s) ended")
     click.echo(f"  grants     {len(changed_grants)} revoked")

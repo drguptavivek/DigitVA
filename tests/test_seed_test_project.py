@@ -8,7 +8,7 @@ from unittest import mock
 import sqlalchemy as sa
 
 from app import db
-from app.commands.seed import _TST_USERS, TEST_PROJECT_ID, TEST_PROJECT_PASSWORD
+from app.commands.seed import _TST_USERS, TEST_PROJECT_2_ID, TEST_PROJECT_ID, TEST_PROJECT_PASSWORD
 from app.models import (
     MasCadre,
     MasOrgUnit,
@@ -124,18 +124,65 @@ class SeedTestProjectTests(BaseTestCase):
             )
             self.assertIsNotNone(worker)
             self.assertEqual(worker.unit.unit_code, unit_code)
-            # The one grant is a death_reporter at their sub-centre.
+            # One death_reporter grant at their sub-centre in each of the two projects.
             self.assertEqual(
                 db.session.scalars(
                     sa.select(VaUserAccessGrants.role).where(VaUserAccessGrants.user_id == user.user_id)
                 ).all(),
-                [VaAccessRoles.death_reporter],
+                [VaAccessRoles.death_reporter] * 2,
             )
 
         workers = db.session.scalar(
             sa.select(sa.func.count()).where(MasOrgUnitWorker.project_id == TEST_PROJECT_ID)
         )
         self.assertEqual(workers, len({spec[0] for spec in _TST_USERS if spec[2]}))
+
+    def test_tst002_is_single_step_with_nqa_and_social_autopsy_and_a_rerun_changes_nothing(self):
+        from app.services.consent_service import get_consent_config
+
+        runner = self.app.test_cli_runner()
+        first = runner.invoke(args=["seed", "test-project"])
+        self.assertEqual(first.exit_code, 0, first.output)
+        self.assertIn("\nTST002\n", first.output)
+        t1 = db.session.get(VaProjectMaster, TEST_PROJECT_ID)
+        t2 = db.session.get(VaProjectMaster, TEST_PROJECT_2_ID)
+        self.assertEqual(
+            (t2.project_name, t2.masked_cod_required, t2.narrative_qa_enabled,
+             t2.social_autopsy_enabled, t2.reviewer_social_autopsy_enabled,
+             t2.icd_classification, t2.cod_entry_mode, t2.project_structure_mode),
+            ("Intake Test (single-step)", False, True, True, True, "icd11", "doris", "organization"),
+        )
+        # TST001 is unchanged: masked two-step, NQA and social autopsy off.
+        self.assertEqual(
+            (t1.project_name, t1.masked_cod_required, t1.narrative_qa_enabled,
+             t1.social_autopsy_enabled, t1.reviewer_social_autopsy_enabled),
+            ("Intake Test", True, False, False, False),
+        )
+        self.assertTrue(get_consent_config(TEST_PROJECT_2_ID)["consent_required"])
+        readiness = assess_web_intake_readiness(TEST_PROJECT_2_ID)
+        self.assertTrue(readiness["ready"], readiness["checks"])
+        units = db.session.scalar(sa.select(sa.func.count()).where(MasOrgUnit.project_id == TEST_PROJECT_2_ID))
+        self.assertEqual(units, 10)
+
+        def counts():
+            return [
+                db.session.scalar(sa.select(sa.func.count()).select_from(model).where(
+                    model.project_id == TEST_PROJECT_2_ID))
+                for model in (MasOrgUnit, MasOrgUnitWorker, MasCadre)
+            ] + [db.session.scalar(sa.select(sa.func.count()).select_from(VaUserAccessGrants)
+                 .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
+                 .where(sa.or_(VaUserAccessGrants.project_id == TEST_PROJECT_2_ID,
+                               MasOrgUnit.project_id == TEST_PROJECT_2_ID)))]
+
+        before = counts()
+        # A hand-set value survives the rerun.
+        t2.narrative_qa_enabled = False
+        db.session.commit()
+        second = runner.invoke(args=["seed", "test-project"])
+        self.assertEqual(second.exit_code, 0, second.output)
+        db.session.expire_all()
+        self.assertFalse(db.session.get(VaProjectMaster, TEST_PROJECT_2_ID).narrative_qa_enabled)
+        self.assertEqual(counts(), before)
 
     def _seed(self):
         result = self.app.test_cli_runner().invoke(args=["seed", "test-project"])

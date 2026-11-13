@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 import sqlalchemy as sa
 
 from app import db
-from app.commands.seed import TEST_PROJECT_ID
+from app.commands.seed import TEST_PROJECT_2_ID, TEST_PROJECT_ID
 from app.models import (
     AuthDevice,
     AuthDeviceSession,
@@ -40,19 +40,20 @@ class SeedE2eUsersTests(BaseTestCase):
         with open(self.out) as fh:
             return result, json.load(fh)
 
-    def _grants(self, email):
+    def _grants(self, email, project_id=TEST_PROJECT_ID):
         return sorted(db.session.execute(
             sa.select(VaUserAccessGrants.role, MasOrgUnit.unit_code)
             .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
             .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
-            .where(VaUsers.email == email, VaUserAccessGrants.grant_status == VaStatuses.active)
+            .where(VaUsers.email == email, VaUserAccessGrants.grant_status == VaStatuses.active,
+                   sa.or_(VaUserAccessGrants.project_id == project_id, MasOrgUnit.project_id == project_id))
         ).all(), key=lambda r: (r.role.value, r.unit_code or ""))
 
     def test_create_writes_users_grants_and_a_private_file_without_echoing_the_password(self):
         result, creds = self._create()
         users = creds["users"]
         self.assertEqual(set(users), {"all", "interviewer", "interviewer2", "coder",
-                                "coder2", "reporter", "supervisor", "reviewer", "datamgr"})
+                                "coder2", "reporter", "supervisor", "reviewer", "datamgr", "interviewer_t2"})
         self.assertNotIn(creds["password"], result.output)
         self.assertIn(self.out, result.output)
         self.assertEqual(os.stat(self.out).st_mode & 0o777, 0o600)
@@ -74,6 +75,15 @@ class SeedE2eUsersTests(BaseTestCase):
                   "reviewer": ("reviewer", None), "datamgr": ("data_manager", None)}
         for key, grant in single.items():
             self.assertEqual([(r.role.value, r.unit_code) for r in self._grants(users[key])], [grant], key)
+
+        # TST002: coder grants for all, coder and coder2; one interviewer at SC01.
+        for key in ("all", "coder", "coder2"):
+            self.assertEqual([(r.role.value, r.unit_code) for r in self._grants(users[key], TEST_PROJECT_2_ID)],
+                             [("coder", None)], key)
+        self.assertEqual([(r.role.value, r.unit_code) for r in self._grants(users["interviewer_t2"], TEST_PROJECT_2_ID)],
+                         [("interviewer", "SC01")])
+        self.assertEqual(self._grants(users["interviewer_t2"]), [])
+        self.assertEqual(self._grants(users["reviewer"], TEST_PROJECT_2_ID), [])
 
         # A second run gets fresh accounts.
         _result, second = self._create()
@@ -108,15 +118,16 @@ class SeedE2eUsersTests(BaseTestCase):
         for email in creds["users"].values():
             u = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == email))
             self.assertEqual(u.user_status, VaStatuses.deactive)
-        self.assertIn("9 deactivated", first.output)
-        self.assertIn("14 revoked", first.output)
+        self.assertIn("10 deactivated", first.output)
+        self.assertIn("18 revoked", first.output)
         for email in creds["users"].values():
-            self.assertEqual(self._grants(email), [])
+            for project_id in (TEST_PROJECT_ID, TEST_PROJECT_2_ID):
+                self.assertEqual(self._grants(email, project_id), [])
         revoked = db.session.scalar(sa.select(sa.func.count()).select_from(VaUserAccessGrants)
                                     .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
                                     .where(VaUsers.email.in_(list(creds["users"].values())),
                                            VaUserAccessGrants.grant_status == VaStatuses.deactive))
-        self.assertEqual(revoked, 14)
+        self.assertEqual(revoked, 18)
 
         again = self.runner.invoke(args=["seed", "e2e-users", "teardown"])
         self.assertEqual(again.exit_code, 0, again.output)
@@ -151,6 +162,26 @@ class SeedE2eUsersTests(BaseTestCase):
         self.assertEqual(db.session.get(VaDeathRegister, cases["paused"]).status, "cancelled")
         self.assertEqual(db.session.get(VaDeathRegister, cases["submitted"]).status, "submitted")
         self.assertIn("cases      2 of 2 open case(s) cancelled", result.output)
+
+    def test_teardown_cancels_open_tst002_cases(self):
+        from app.models import VaDeathRegister, VaProjectSites
+
+        _result, creds = self._create()
+        user = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == creds["users"]["interviewer_t2"]))
+        site_id = db.session.scalar(sa.select(VaProjectSites.site_id).where(
+            VaProjectSites.project_id == TEST_PROJECT_2_ID).limit(1))
+        self.assertIsNotNone(site_id)
+        now = datetime.now(UTC)
+        case = VaDeathRegister(project_id=TEST_PROJECT_2_ID, site_id=site_id, death_number=900100,
+                               unique_id=f"E2E-T2-{creds['run_id']}", registered_by=user.user_id,
+                               status="registered", created_at=now, updated_at=now, has_deceased_name=True,
+                               deceased_name="E2E Test", deceased_sex="female", date_of_death=now.date())
+        db.session.add(case)
+        db.session.commit()
+        result = self.runner.invoke(args=["seed", "e2e-users", "teardown", "--run", creds["run_id"]])
+        self.assertEqual(result.exit_code, 0, result.output)
+        db.session.expire_all()
+        self.assertEqual(db.session.get(VaDeathRegister, case.death_id).status, "cancelled")
 
     def test_older_than_hours_spares_a_fresh_run(self):
         _result, creds = self._create()

@@ -3,7 +3,7 @@ title: Test Project TST001 (Intake Test)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-13
 ---
 
 # Test Project TST001 (Intake Test)
@@ -137,22 +137,40 @@ accounts instead of the roster above (debug or testing app only; there is no
 staging opt-in):
 
 - `flask seed e2e-users create` needs TST001 (`flask seed test-project`). It
-  creates nine accounts `e2e.<run>.<key>@digitva.test`. Single-role keys:
+  creates ten accounts `e2e.<run>.<key>@digitva.test`. Single-role keys:
   `interviewer` and `interviewer2` (SC01 CHO), `coder` and `coder2` (project),
   `reporter` (death_reporter, SC01 ANM), `supervisor` (interview_supervisor,
-  PHC01 MO), `reviewer` (project), `datamgr` (data_manager, project). `all` holds coder, reviewer and data_manager at project
+  PHC01 MO), `reviewer` (project), `datamgr` (data_manager, project), `interviewer_t2` (interviewer, SC01 CHO, TST002 only). `all` holds coder, reviewer and data_manager at project
   scope, death_reporter and interviewer at SC01 (ANM) and interview_supervisor
-  at PHC01 (MO). Grants go
+  at PHC01 (MO). `all`, `coder` and `coder2` also hold a coder grant on TST002. Grants go
   through the project user import and `grants.log`, actor testadmin. One random
   password per run is written only to `private/e2e-users.json` (gitignored,
   mode 0600, `--out` to change); stdout shows the emails and the file path.
 - `flask seed e2e-users teardown [--run <id>] [--older-than-hours N]` revokes
   every unrevoked device any matched account has a session on
   (`device_auth_service.revoke_device`, actor testadmin, reason
-  `e2e_teardown`), revokes their TST001 grants (admin users-grid revoke, logged in grants.log), bumps the session version (ends web and device sessions)
+  `e2e_teardown`), revokes their TST001 and TST002 grants and cancels their open TST002 cases too (admin users-grid revoke, logged in grants.log), bumps the session version (ends web and device sessions)
   and deactivates the accounts. Rows and their work stay. Idempotent.
   Revoking a device ends every session on it, including a non-e2e account
   signed in on the same phone.
+
+## TST002 (Intake Test (single-step))
+
+The same command builds TST002 next to TST001 (spec table `_TST_PROJECTS` in
+`app/commands/seed.py`; one `_build_test_project` call per entry): same tree,
+grid, cadres, area presets, DORIS ICD-11, default consent and the same roster
+and grants (the SADEMO grants stay on TST001 only). It differs only in the
+switches e2e needs both sides of, set when the project is created (a rerun
+keeps hand-set values):
+
+| Setting | TST001 | TST002 |
+| --- | --- | --- |
+| `masked_cod_required` | true (masked two-step coding) | false (single-step) |
+| `narrative_qa_enabled` | false | true |
+| `social_autopsy_enabled` | false | true (adds the `social_autopsy` form layer, so the questionnaire collects SA questions) |
+| `reviewer_social_autopsy_enabled` | false | true (effective only with the coder switch; see `docs/policy/social-autopsy-analysis.md`) |
+
+The command prints TST001's summary as before, then `TST002` and its summary.
 
 ## make test-projects
 

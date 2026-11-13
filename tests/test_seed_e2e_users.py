@@ -124,6 +124,34 @@ class SeedE2eUsersTests(BaseTestCase):
         self.assertIn("0 deactivated", again.output)
         self.assertIn("grants     0 revoked", again.output)
 
+    def test_teardown_cancels_the_runs_open_cases_and_keeps_the_rows(self):
+        from app.models import VaDeathRegister
+
+        _result, creds = self._create()
+        user = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == creds["users"]["interviewer"]))
+        from app.models import VaProjectSites
+        site_id = db.session.scalar(sa.select(VaProjectSites.site_id).where(VaProjectSites.project_id == TEST_PROJECT_ID).limit(1))
+        self.assertIsNotNone(site_id)
+        now = datetime.now(UTC)
+        cases = {}
+        for n, status in enumerate(("registered", "paused", "submitted")):
+            case = VaDeathRegister(project_id=TEST_PROJECT_ID, site_id=site_id, death_number=900000 + n,
+                                   unique_id=f"E2E-T-{creds['run_id']}-{n}", registered_by=user.user_id,
+                                   status=status, created_at=now, updated_at=now, has_deceased_name=True,
+                                   deceased_name="E2E Test", deceased_sex="female", date_of_death=now.date())
+            db.session.add(case)
+            db.session.flush()
+            cases[status] = case.death_id
+        db.session.commit()
+
+        result = self.runner.invoke(args=["seed", "e2e-users", "teardown", "--run", creds["run_id"]])
+        self.assertEqual(result.exit_code, 0, result.output)
+        db.session.expire_all()
+        self.assertEqual(db.session.get(VaDeathRegister, cases["registered"]).status, "cancelled")
+        self.assertEqual(db.session.get(VaDeathRegister, cases["paused"]).status, "cancelled")
+        self.assertEqual(db.session.get(VaDeathRegister, cases["submitted"]).status, "submitted")
+        self.assertIn("cases      2 of 2 open case(s) cancelled", result.output)
+
     def test_older_than_hours_spares_a_fresh_run(self):
         _result, creds = self._create()
         result = self.runner.invoke(args=["seed", "e2e-users", "teardown", "--older-than-hours", "1"])

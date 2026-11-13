@@ -921,6 +921,24 @@ def e2e_users_teardown(run_id, older_than_hours):
             db.session.rollback()
             raise click.ClickException(f"{TEST_PROJECT_ID}: {exc}")
         changed_grants += changed
+    # Cases the accounts registered or started, still open: cancelled through the case
+    # transition path (audited, rows kept), so TST001's To do list does not fill with test cases.
+    # Refused cases have no cancel transition and are left as they are.
+    from app.models import VaDeathRegister
+    from app.services import case_transition_service as case_svc
+    WebIntakeError = case_svc.WebIntakeError
+
+    open_cases = db.session.scalars(sa.select(VaDeathRegister).where(
+        VaDeathRegister.status.in_(("draft_identity", "registered", "scheduled", "in_progress", "paused")),
+        sa.or_(VaDeathRegister.registered_by.in_(user_ids), VaDeathRegister.started_by_user_id.in_(user_ids)),
+    )).all() if user_ids else []
+    cancelled = 0
+    for case in open_cases:
+        try:
+            case_svc.transition(case, "cancelled", actor=actor, action="e2e_teardown", reason="e2e teardown")
+            cancelled += 1
+        except WebIntakeError:
+            pass
     deactivated = 0
     for user in users:
         if user.user_status != VaStatuses.deactive:
@@ -937,6 +955,7 @@ def e2e_users_teardown(run_id, older_than_hours):
     click.echo(f"  devices    {len(devices)} revoked, {ended} session(s) ended")
     click.echo(f"  grants     {len(changed_grants)} revoked")
     click.echo(f"  users      {deactivated} deactivated")
+    click.echo(f"  cases      {cancelled} of {len(open_cases)} open case(s) cancelled")
 
 
 def init_app(app):

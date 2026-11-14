@@ -4,7 +4,9 @@ Extends the ``data_management`` blueprint in place (like admin_training.py does
 for ``admin``). Read-only GET pages and two CSV exports. The report holds the
 answer key, so every route resolves the session through
 ``training_report_service.authorized_session``: an admin, or the session's own
-active reviewer_data_manager, nobody else. Policy:
+active reviewer_data_manager, nobody else. The route gate admits a reviewer
+too: a reviewer_data_manager trainee holds only a reviewer grant on TRN01
+(digitva-svx6). Policy:
 docs/policy/training-demo-project.md.
 """
 from flask import Response, render_template
@@ -32,7 +34,7 @@ def _csv(body: str, name: str) -> Response:
 
 
 @data_management.get("/training")
-@role_required("data_manager", "admin")
+@role_required("data_manager", "reviewer", "admin")
 def training_sessions():
     """The training sessions the viewer may report on."""
     return render_template(
@@ -42,20 +44,20 @@ def training_sessions():
 
 
 @data_management.get("/training/<ref>")
-@role_required("data_manager", "admin")
+@role_required("data_manager", "reviewer", "admin")
 def training_report(ref):
     return render_template("va_frontpages/va_training_report.html", report=_report(ref))
 
 
 @data_management.get("/training/<ref>/coders.csv")
-@role_required("data_manager", "admin")
+@role_required("data_manager", "reviewer", "admin")
 def training_coders_csv(ref):
     report = _report(ref)
     return _csv(report_service.coders_csv(report), f"training_{report['session']['session_code']}_coders.csv")
 
 
 @data_management.get("/training/<ref>/cases.csv")
-@role_required("data_manager", "admin")
+@role_required("data_manager", "reviewer", "admin")
 def training_cases_csv(ref):
     report = _report(ref)
     return _csv(report_service.cases_csv(report), f"training_{report['session']['session_code']}_cases.csv")

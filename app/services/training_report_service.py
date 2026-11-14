@@ -3,7 +3,8 @@
 Policy: docs/policy/training-demo-project.md ("Trainer report"). The report
 holds the answer key (the source case's ICD-10 cause), so it is read only by an
 administrator or by a user with an active ``reviewer_data_manager``
-participation in that very session; coders and the other roles never reach it.
+participation in that very session; coders and the other roles never reach it,
+and a viewer who is (or was) a coder in the session sees no reference cause.
 It carries trainee names and emails and the cause codes; never the source
 case's id or any case content.
 
@@ -81,10 +82,17 @@ def _session_match(ref):
 
 
 def _reviewer_session_ids(viewer_id) -> sa.Select:
+    # A session where the viewer codes (or ever coded) is not theirs to report on: the report's
+    # key, match and agreement would let them check their own answers.
+    coded_in = sa.select(MapTrainingParticipant.training_session_id).where(
+        MapTrainingParticipant.user_id == viewer_id,
+        MapTrainingParticipant.role == "coder",
+    )
     return sa.select(MapTrainingParticipant.training_session_id).where(
         MapTrainingParticipant.user_id == viewer_id,
         MapTrainingParticipant.role == "reviewer_data_manager",
         MapTrainingParticipant.status == "active",
+        MapTrainingParticipant.training_session_id.not_in(coded_in),
     )
 
 
@@ -92,7 +100,8 @@ def authorized_session(ref, viewer) -> MasTrainingSession:
     """The session *ref* if *viewer* may read its report, else an error.
 
     Admin: any session (an unknown one is "not found"). Anyone else: only a
-    session where they hold an active ``reviewer_data_manager`` participation;
+    session where they hold an active ``reviewer_data_manager`` participation
+    and have never held a ``coder`` one;
     every other case, an unknown session included, is the same refusal so a
     session's existence is not probed.
     """
@@ -209,6 +218,9 @@ def training_session_report(session_ref, viewer) -> dict:
     ).all()
 
     coder_of = {p.coder_slot: u for p, u in participants if p.role == "coder"}
+    # A viewer who is (or was) a coder in this session never sees the answer key
+    # (digitva-emee); an admin who is not a coder here still does.
+    show_key = not any(p.role == "coder" and p.user_id == viewer.user_id for p, _ in participants)
     slots: dict = {}
     cases = []
     for number, slot, source_cod, trainee_cod, provenance, final_at, state, state_at in case_rows:
@@ -244,8 +256,9 @@ def training_session_report(session_ref, viewer) -> dict:
             "coder_name": coder.name if coder else None,
             "trainee_code": code, "trainee_title": title,
             "trainee_group": trainee_group, "trainee_group_title": va_cause_title(trainee_group),
-            "reference_cause": (source_cod or "").strip() or None,
-            "reference_group": reference_group, "reference_group_title": va_cause_title(reference_group),
+            "reference_cause": ((source_cod or "").strip() or None) if show_key else None,
+            "reference_group": reference_group if show_key else None,
+            "reference_group_title": va_cause_title(reference_group) if show_key else None,
             "match": match,
         })
 

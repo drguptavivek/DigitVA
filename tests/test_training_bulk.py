@@ -9,7 +9,7 @@ from unittest import mock
 import sqlalchemy as sa
 
 from app import db
-from app.models import MapTrainingParticipant, VaStatuses, VaSubmissions, VaUsers
+from app.models import MapTrainingParticipant, VaAccessRoles, VaStatuses, VaSubmissions, VaUsers
 from app.models.mas_training import PARTICIPANT_ROLES
 from app.services import training_demo_service as svc
 from app.services.project_user_import_service import HEADERS
@@ -146,10 +146,10 @@ class BulkAddTests(BulkTestBase):
         pick = self._pick_list(users[1])
         self.assertTrue(pick and pick <= self._session_sids()[2])
 
-    def test_reviewer_data_manager_gets_both_grants_and_reactivation_keeps_the_slot(self):
+    def test_reviewer_data_manager_gets_a_reviewer_grant_and_reactivation_keeps_the_slot(self):
         manager = self._made_by("b.rdm")
         self.assertEqual(self._bulk([manager], "reviewer_data_manager", False)["added"], 1)
-        self.assertEqual(len(self._grants(manager, VaStatuses.active)), 2)
+        self.assertEqual([g.role for g in self._grants(manager, VaStatuses.active)], [VaAccessRoles.reviewer])
         coder = self._made_by("b.react")
         self._bulk([coder], "coder", False)
         svc.remove_participant("S001", coder.user_id, "coder", self.admin)

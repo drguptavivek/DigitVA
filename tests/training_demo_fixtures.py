@@ -46,6 +46,7 @@ def source_payload(i: int) -> dict:
         "SubmitterName": "Real Interviewer",
         "SubmitterID": "real-submitter-id",
         "DeviceID": "real-device-id",
+        "deviceid": "collect:REALDEVICE0001",
         "death_register_id": "DR-REAL-1",
         "unique_id": f"UNSW-{i:03d}",
         "unique_id2": f"MASK-{i:03d}",
@@ -168,6 +169,16 @@ class TrainingDemoTestBase(BaseTestCase):
         if status is not None:
             stmt = stmt.where(VaUserAccessGrants.grant_status == status)
         return db.session.scalars(stmt).all()
+
+    def _legacy_dm_grant(self, user, code="S001"):
+        """The data_manager grant on a session root that reviewer_data_manager
+        participations got before digitva-svx6 (staging S001 still has them)."""
+        from app.models import MasOrgUnit, VaAccessRoles
+
+        unit = db.session.get(MasOrgUnit, svc._find_session(code).org_unit_id)
+        grant = svc._activate_grant(user, VaAccessRoles.data_manager, unit, self.admin)
+        db.session.flush()
+        return grant
 
     def _session_sids(self, session_id=None) -> dict:
         rows = db.session.execute(

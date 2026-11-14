@@ -174,13 +174,30 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         ))
         self.assertEqual(states, {"ready_for_coding"})
 
-    def test_first_eligible_cases_are_chosen_in_order_and_refused_consent_skipped(self):
-        first = db.session.get(MapTrainingCase, "trn-S001-1")
-        last = db.session.get(MapTrainingCase, "trn-S001-200")
-        self.assertEqual(first.source_va_sid, "src-001")  # src-000 has no consent
-        self.assertEqual(last.source_va_sid, "src-200")
-        self.assertEqual(first.source_final_cod, "J18.9")
-        self.assertIsNone(last.source_final_cod)
+    def test_first_eligible_cases_are_chosen_and_refused_consent_skipped(self):
+        rows = db.session.execute(sa.select(MapTrainingCase.source_va_sid, MapTrainingCase.source_final_cod).where(
+            MapTrainingCase.training_session_id == self.first["training_session_id"])).all()
+        # src-000 has no consent; src-201.. are beyond the first 200 eligible.
+        self.assertEqual({s for s, _ in rows}, {f"src-{i:03d}" for i in range(1, 201)})
+        self.assertEqual({s for s, cod in rows if cod}, {"src-001"})
+        self.assertEqual(dict(rows)["src-001"], "J18.9")
+
+    def test_each_session_copies_the_sources_in_its_own_reproducible_order(self):
+        second = svc.create_training_session("Order two", self.admin, source_form_id=SRC_FORM)
+
+        def order(session_id):
+            return [s for (s,) in db.session.execute(sa.select(MapTrainingCase.source_va_sid).where(
+                MapTrainingCase.training_session_id == session_id).order_by(MapTrainingCase.case_number))]
+
+        first, other = order(self.first["training_session_id"]), order(second["training_session_id"])
+        self.assertEqual(len(first), 200)
+        self.assertEqual(sorted(first), sorted(other))  # the same cases...
+        self.assertNotEqual(first, other)  # ...behind different case numbers
+        self.assertNotEqual(first, sorted(first))  # not the frozen source order
+        self.assertEqual(svc._session_permutation(second["training_session_id"], 200),
+                         svc._session_permutation(second["training_session_id"], 200))
+        for slot in range(20):  # each slot still holds ten distinct cases
+            self.assertEqual(len(set(other[slot * 10:slot * 10 + 10])), 10)
 
     def test_copies_are_pseudonymised_and_keep_other_answers(self):
         version = db.session.scalar(
@@ -200,6 +217,7 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         self.assertEqual(payload["SubmitterName"], "Training interviewer")
         self.assertEqual(payload["SubmitterID"], "training-submitter")
         self.assertEqual(payload["DeviceID"], "training-device")
+        self.assertEqual(payload["deviceid"], "training-device")
         self.assertNotIn("death_register_id", payload)
         every = " ".join(
             str(v.payload_data) for v in db.session.scalars(
@@ -208,7 +226,7 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         )
         for needle in (
             "Kumarasamy", "Temple Road", "REAL_DISTRICT", "Real Interviewer", "real-submitter-id",
-            "real-device-id", "DR-REAL-1",
+            "real-device-id", "collect:REALDEVICE0001", "DR-REAL-1",
         ):
             self.assertNotIn(needle, every)
 
@@ -248,7 +266,9 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         rows = db.session.scalars(
             sa.select(VaSubmissionAttachments).where(VaSubmissionAttachments.va_sid.like("trn-S001-%"))
         ).all()
-        self.assertEqual({r.va_sid for r in rows}, {"trn-S001-1", "trn-S001-2", "trn-S001-3"})
+        source_of = dict(db.session.execute(sa.select(MapTrainingCase.va_sid, MapTrainingCase.source_va_sid)).all())
+        self.assertEqual({source_of[r.va_sid] for r in rows}, {"src-001", "src-002", "src-003"})
+        self.assertEqual(len(rows), 3)
         source_names = set(db.session.scalars(
             sa.select(VaSubmissionAttachments.storage_name).where(VaSubmissionAttachments.va_sid.like("src-%"))))
         for row in rows:
@@ -258,8 +278,7 @@ class SetupAndSessionTests(TrainingDemoTestBase):
             self.assertEqual(record.va_sid, row.va_sid)
             path = os.path.join(self._tmp.name, record.va_form_id, "media", row.storage_name)
             with open(path, "rb") as handle:
-                number = int(row.va_sid.rsplit("-", 1)[1])
-                self.assertEqual(handle.read(), self.source_bytes[f"src-{number:03d}"])
+                self.assertEqual(handle.read(), self.source_bytes[source_of[row.va_sid]])
 
     def test_second_session_leaves_the_first_intact(self):
         before = hashlib.sha256(repr(sorted(
@@ -290,7 +309,7 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         self.assertTrue(all(slot["cases"] == 10 for slot in detail["slots"]))
         keyed = svc.get_session_cases("S001")
         self.assertEqual(len(keyed), 200)
-        self.assertEqual(keyed[0]["source_final_cod"], "J18.9")
+        self.assertEqual([k["source_final_cod"] for k in keyed if k["source_final_cod"]], ["J18.9"])
 
     def test_safeguards(self):
         with mock.patch.dict(self.app.config, DIGITVA_TRAINING_PROJECT_ID=""):
@@ -379,7 +398,7 @@ class CheckSourceTests(TrainingDemoTestBase):
         self.assertEqual(totals(), before)
         self.assertEqual(result["cases_checked"], 50)
         self.assertEqual(result["residual_cases"], 0)
-        self.assertEqual(set(result["residual_by_type"]), {"names", "addresses", "identifiers", "phones"})
+        self.assertEqual(set(result["residual_by_type"]), {"names", "addresses", "identifiers", "phones", "device_ids"})
         self.assertGreater(result["replacements"]["names"], 0)
         self.assertGreater(result["replacements"]["text_replacements"], 0)
         self.assertNotIn("Kumarasamy", str(result))
@@ -393,6 +412,89 @@ class CheckSourceTests(TrainingDemoTestBase):
         self.assertIn('"cases_checked": 20', result.output)
         for needle in ("Kumarasamy", "Temple", "Ramesh"):
             self.assertNotIn(needle, result.output)
+
+
+    def test_a_surviving_device_id_is_reported(self):
+        with mock.patch.object(svc, "DEVICE_ID_KEYS", ("DeviceID",)):  # the copy before digitva-qdad
+            result = svc.check_source(SRC_FORM, 5)
+        self.assertEqual(result["residual_by_type"]["device_ids"], 5)
+        self.assertNotIn("REALDEVICE", str(result))
+        self.assertEqual(svc.check_source(SRC_FORM, 5)["residual_by_type"]["device_ids"], 0)
+
+
+class ScrubDeviceIdTests(TrainingDemoTestBase):
+    OLD = "collect:REALDEVICE0001"
+
+    def _payload(self, sid):
+        return db.session.scalar(sa.select(VaSubmissionPayloadVersion.payload_data).where(
+            VaSubmissionPayloadVersion.va_sid == sid))
+
+    def setUp(self):
+        super().setUp()
+        # Three copies made before the copy replaced ``deviceid``.
+        for sid in ("trn-S001-1", "trn-S001-2", "trn-S001-3"):
+            version = db.session.scalar(sa.select(VaSubmissionPayloadVersion).where(
+                VaSubmissionPayloadVersion.va_sid == sid))
+            version.payload_data = {**version.payload_data, "deviceid": self.OLD}
+        db.session.commit()
+
+    def test_dry_run_counts_and_writes_nothing(self):
+        result = svc.scrub_device_ids("S001")
+        self.assertEqual((result["versions_checked"], result["versions_with_device_id"], result["applied"]),
+                         (200, 3, False))
+        self.assertEqual(self._payload("trn-S001-1")["deviceid"], self.OLD)
+
+    def test_apply_replaces_copies_only(self):
+        self.assertEqual(self._payload("src-001")["deviceid"], self.OLD)  # the source holds it too
+        result = svc.scrub_device_ids("S001", apply=True)
+        self.assertEqual((result["versions_with_device_id"], result["applied"]), (3, True))
+        db.session.expire_all()
+        self.assertEqual({self._payload(f"trn-S001-{n}")["deviceid"] for n in (1, 2, 3)}, {"training-device"})
+        self.assertEqual(self._payload("src-001")["deviceid"], self.OLD)
+        self.assertEqual(svc.scrub_device_ids("S001")["versions_with_device_id"], 0)
+
+    def test_cli_dry_run_then_apply_prints_counts_only(self):
+        from app.commands.training_demo import training_demo_group
+
+        runner = self.app.test_cli_runner()
+        dry = runner.invoke(training_demo_group, ["scrub-device-ids", "--session", "S001"])
+        self.assertEqual(dry.exit_code, 0, dry.output)
+        self.assertIn('"versions_with_device_id": 3', dry.output)
+        self.assertNotIn("REALDEVICE", dry.output)
+        db.session.expire_all()
+        self.assertEqual(self._payload("trn-S001-1")["deviceid"], self.OLD)
+        applied = runner.invoke(training_demo_group, ["scrub-device-ids", "--apply"])
+        self.assertEqual(applied.exit_code, 0, applied.output)
+        self.assertIn('"applied": true', applied.output)
+        db.session.expire_all()
+        self.assertEqual(self._payload("trn-S001-1")["deviceid"], "training-device")
+        self.assertEqual(self._payload("src-001")["deviceid"], self.OLD)
+        unknown = runner.invoke(training_demo_group, ["scrub-device-ids", "--session", "S404"])
+        self.assertNotEqual(unknown.exit_code, 0)
+
+
+class ScrubDeviceIdSplitTests(ScrubDeviceIdTests):
+    """The same with the PII split on: the sealed fields survive the rewrite."""
+
+    split = True
+
+    def _full(self, sid):
+        version = db.session.scalar(sa.select(VaSubmissionPayloadVersion).where(
+            VaSubmissionPayloadVersion.va_sid == sid))
+        return svc._full_payloads([version])[version.payload_version_id]
+
+    def test_sealed_fields_survive_apply(self):
+        before = self._full("trn-S001-1")
+        self.assertTrue(before["Id10017"])  # a sealed name, present before the rewrite
+        svc.scrub_device_ids("S001")
+        db.session.expire_all()
+        self.assertEqual(self._full("trn-S001-1"), before)  # the dry run changed nothing
+        svc.scrub_device_ids("S001", apply=True)
+        db.session.expire_all()
+        after = self._full("trn-S001-1")
+        self.assertEqual(after["deviceid"], "training-device")
+        self.assertEqual({k: v for k, v in after.items() if k != "deviceid"},
+                         {k: v for k, v in before.items() if k != "deviceid"})
 
 
 class CorpusListTests(TrainingDemoTestBase):
@@ -576,7 +678,7 @@ class ParticipantTests(TrainingDemoTestBase):
         self.assertEqual({r.role for r in rows}, {"coder", "reviewer_data_manager"})
         self.assertEqual(
             {g.role for g in self._grants(user, VaStatuses.active)},
-            {VaAccessRoles.coder, VaAccessRoles.reviewer, VaAccessRoles.data_manager},
+            {VaAccessRoles.coder, VaAccessRoles.reviewer},
         )
 
     def test_one_refused_role_refuses_the_whole_call(self):
@@ -599,20 +701,21 @@ class ParticipantTests(TrainingDemoTestBase):
                 svc.add_participant("S001", user.email, roles, self.admin)
             self.assertEqual(ctx.exception.code, code)
 
-    def test_reviewer_data_manager_gets_both_grants_and_sees_the_session(self):
+    def test_reviewer_data_manager_gets_a_reviewer_grant_and_reviews_the_session(self):
         user = self._user("rdm")
         result = svc.add_participant("S001", user.email, "reviewer_data_manager", self.admin)
         grants = self._grants(user, VaStatuses.active)
-        self.assertEqual({g.role for g in grants}, {VaAccessRoles.reviewer, VaAccessRoles.data_manager})
+        self.assertEqual({g.role for g in grants}, {VaAccessRoles.reviewer})  # no data_manager (digitva-svx6)
         self.assertTrue(all(g.scope_type == VaAccessScopeTypes.org_unit for g in grants))
         self.assertEqual({str(g.org_unit_id) for g in grants}, {self.first["org_unit_id"]})
         self.assertEqual(len(result["participant_id"]) > 0, True)
-        visible = set(db.session.scalars(sa.select(VaSubmissions.va_sid).where(
-            scope_filter(user, Action.LIST_DATA), VaSubmissions.va_sid.like("trn-S001-%"))))
-        self.assertEqual(len(visible), 200)
         reviewable = set(db.session.scalars(sa.select(VaSubmissions.va_sid).where(
             scope_filter(user, Action.REVIEW), VaSubmissions.va_sid.like("trn-S001-%"))))
         self.assertEqual(len(reviewable), 200)
+        # No data-manager surface: the session's data is not in the DM grid's reach.
+        visible = set(db.session.scalars(sa.select(VaSubmissions.va_sid).where(
+            scope_filter(user, Action.LIST_DATA), VaSubmissions.va_sid.like("trn-S001-%"))))
+        self.assertEqual(visible, set())
 
     def test_other_roles_get_one_grant_on_the_session_root(self):
         expected = {

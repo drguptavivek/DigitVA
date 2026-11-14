@@ -106,6 +106,7 @@ class ReportTests(ReportTestBase):
     def test_counts_completion_and_agreement(self):
         a = self._add("coder.a", "coder")  # slot 1: cases 1-10
         b = self._add("coder.b", "coder")  # slot 2: cases 11-20
+        self._key(1, "J18.9")
         self._key(2, "J18.9")
         self._key(3, None)
         self._code(1, PNEUMONIA, a)  # source J18.9 (fixture): same VA cause
@@ -233,6 +234,7 @@ class ReportTests(ReportTestBase):
 
     def test_csv_export_shapes_and_no_source_identifier(self):
         coder = self._add("csv.coder", "coder")
+        self._key(1, "J18.9")
         self._code(1, PNEUMONIA, coder)
         report = reports.training_session_report("S001", self.admin)
         coders = list(csv.reader(io.StringIO(reports.coders_csv(report))))
@@ -281,6 +283,26 @@ class ReportAuthorizationTests(ReportTestBase):
         with self.assertRaises(svc.TrainingDemoError) as ctx:
             reports.training_session_report("S404", self.admin)
         self.assertEqual(ctx.exception.code, "session_not_found")
+
+    def test_a_coder_in_the_session_never_sees_the_answer_key(self):
+        coder = self._add("key.coder", "coder")
+        self._key(1, "J18.9")
+        self._code(1, PNEUMONIA, coder)
+        manager = self._add("key.rdm", "reviewer_data_manager")
+        # The key is there for an admin and a manager who does not code here.
+        for viewer in (self.admin, manager):
+            case = reports.training_session_report("S001", viewer)["cases"][0]
+            self.assertEqual((case["reference_cause"], case["reference_group"]), ("J18.9", "VAs-01.02"))
+            self.assertIn("J18.9", reports.cases_csv(reports.training_session_report("S001", viewer)))
+        # A manager who also codes (or once coded) in the session may not read its report at all:
+        # the key, the per-case match and the agreement would all let them check their answers.
+        self.assertEqual([s["session_code"] for s in reports.sessions_for_viewer(manager)], ["S001"])
+        svc.add_participant("S001", manager.email, "coder", self.admin)
+        svc.remove_participant("S001", manager.user_id, "coder", self.admin)
+        with self.assertRaises(svc.TrainingDemoError) as refused:
+            reports.training_session_report("S001", manager)
+        self.assertEqual(refused.exception.code, "report_forbidden")
+        self.assertEqual(reports.sessions_for_viewer(manager), [])
 
     def test_session_list_per_viewer(self):
         manager = self._add("rdm.list", "reviewer_data_manager", code="S002")

@@ -81,8 +81,11 @@ ADDRESS_STOP = frozenset((
 # Keys the service overwrites itself; never rewritten as free text.
 PROTECTED_KEYS = frozenset({
     "sid", "form_def", "instanceID", "KEY", "unique_id", "unique_id2", "instanceName",
-    "SubmissionDate", "updatedAt", "SubmitterName", "SubmitterID", "DeviceID", "FormVersion",
+    "SubmissionDate", "updatedAt", "SubmitterName", "SubmitterID", "DeviceID", "deviceid", "FormVersion",
 })
+# The ODK device identifiers (Collect writes ``deviceid``, e.g. ``collect:...``);
+# the copy replaces them, and ``residual_categories`` reports any that survive.
+DEVICE_ID_KEYS = ("DeviceID", "deviceid")
 _MEDIA_SUFFIXES = (
     ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".amr", ".mp3", ".m4a", ".wav", ".mp4", ".csv",
 )
@@ -344,7 +347,8 @@ def residual_categories(source: dict, output: dict) -> set[str]:
     Returns a subset of ``names`` (a name word of 3+ letters from a name
     field), ``addresses`` (a whole address, or a place word of 4+ letters not
     in ``ADDRESS_STOP``), ``identifiers`` (a whole identifier value of 5+
-    characters) and ``phones`` (an original phone-like run, from any answer).
+    characters), ``phones`` (an original phone-like run, from any answer) and
+    ``device_ids`` (an original ODK device id, ``DEVICE_ID_KEYS``).
     Pure; returns categories only, never values.
     """
     text = "\n".join(_strings(output))
@@ -380,4 +384,10 @@ def residual_categories(source: dict, output: dict) -> set[str]:
         found.add("identifiers")
     if phones and any(_digits(m.group(0)) in phones for m in _PHONE_RE.finditer(text)):
         found.add("phones")
+    devices = {
+        v.strip().lower() for v in (source.get(k) for k in DEVICE_ID_KEYS)
+        if isinstance(v, str) and len(v.strip()) >= _MIN_TEXT_PHRASE
+    }
+    if _found(devices, text):
+        found.add("device_ids")
     return found

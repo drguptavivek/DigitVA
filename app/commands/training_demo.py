@@ -6,6 +6,7 @@
   flask training-demo add-participant S001 user@example.org coder,reviewer_data_manager --by admin@example.org
   flask training-demo remove-participant S001 user@example.org coder --by admin@example.org
   flask training-demo check-source [--form-id UNSW01NC0101] [--limit N]
+  flask training-demo scrub-device-ids [--session S001] [--apply]
   flask training-demo report S001 --by admin@example.org [--csv coders.csv --cases-csv cases.csv]
   flask training-demo close-session S001 --by admin@example.org
   flask training-demo reopen-session S001 --by admin@example.org
@@ -67,6 +68,14 @@ def setup(by):
 def check_source(form_id, limit):
     """Read-only: pseudonymise the source cases in memory and print counts only."""
     _run(service.check_source, form_id, limit)
+
+
+@training_demo_group.command("scrub-device-ids")
+@click.option("--session", "session_code", default=None, help="Session code (default: every TRN01 session).")
+@click.option("--apply", is_flag=True, help="Write the change; without it, a dry run that prints counts only.")
+def scrub_device_ids(session_code, apply):
+    """Replace ODK device ids left in training copies' payloads (dry run by default)."""
+    _run(service.scrub_device_ids, session_code, apply=apply)
 
 
 @training_demo_group.command("create-session")

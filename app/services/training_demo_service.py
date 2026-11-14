@@ -20,6 +20,7 @@ import csv
 import io
 import logging
 import os
+import random
 import re
 import tempfile
 import uuid
@@ -67,6 +68,7 @@ from app.services.org_grant_service import validate_org_unit_grant
 from app.services.organization_service import OrganizationError, _spreadsheet_safe
 from app.services.training_pseudonymiser import (
     COUNT_KEYS,
+    DEVICE_ID_KEYS,
     pseudonymise_payload,
     residual_categories,
 )
@@ -158,7 +160,9 @@ _GRANT_ROLES = {
     "interview_supervisor": (VaAccessRoles.interview_supervisor,),
     "interviewer": (VaAccessRoles.interviewer,),
     "coder": (VaAccessRoles.coder,),
-    "reviewer_data_manager": (VaAccessRoles.reviewer, VaAccessRoles.data_manager),
+    # reviewer only: a data_manager grant would let a trainee manage co-trainees'
+    # accounts (digitva-svx6); the trainer report authorises by participation.
+    "reviewer_data_manager": (VaAccessRoles.reviewer,),
 }
 
 
@@ -406,6 +410,15 @@ def _source_order(coder_slots: int, available: int) -> list[int]:
     return order
 
 
+def _session_permutation(session_id, available: int) -> list[int]:
+    """A reproducible shuffle of the *available* source rows, seeded by the
+    session id, so case ``n`` is a different clinical case in each session
+    (digitva-emee: a case number never names the same answer twice)."""
+    order = list(range(available))
+    random.Random(str(session_id)).shuffle(order)
+    return order
+
+
 def slot_unit_code(session_code: str, slot: int) -> str:
     return f"{session_code}_C{slot:02d}"
 
@@ -414,8 +427,9 @@ CORPUS_DIR = Path(__file__).parent / "training_corpus"
 
 
 def _corpus_sids(source_form_id: str) -> list[str] | None:
-    """The owner's frozen case list for *source_form_id* (one va_sid per line, in
-    case-number order), or None when the form has no list."""
+    """The owner's frozen case list for *source_form_id* (one va_sid per line;
+    each session shuffles it, ``_session_permutation``), or None when the form
+    has no list."""
     path = CORPUS_DIR / f"{source_form_id}.txt"
     if not path.is_file():
         return None
@@ -506,7 +520,7 @@ def _new_payload(source: dict, *, sid: str, form_id: str, code: str, number: int
     )
     if "SubmitterName" in payload:
         payload["SubmitterName"] = "Training interviewer"
-    for key, fake in (("SubmitterID", "training-submitter"), ("DeviceID", "training-device")):
+    for key, fake in (("SubmitterID", "training-submitter"), *((k, "training-device") for k in DEVICE_ID_KEYS)):
         if key in payload:
             payload[key] = fake
     payload.pop("death_register_id", None)
@@ -603,7 +617,8 @@ def create_training_session(
     routed to slot ``((n-1)//10)+1``, state ``ready_for_coding``, and records
     the source case's authoritative final cause as the answer key. With more
     slots than the sources fill, a source case is copied into more than one
-    slot (``_source_order``); every copy is its own case. Source rows are
+    slot (``_source_order``, over the sources in a per-session order,
+    ``_session_permutation``); every copy is its own case. Source rows are
     never changed. Returns ``get_training_session(...)`` plus
     ``replacements`` (counts of names, addresses, identifiers and text
     occurrences replaced), ``attachments_copied``, ``attachments_skipped``
@@ -645,8 +660,9 @@ def create_training_session(
         new_subs, new_versions, cases, pairs = [], [], [], {}
         from app.services.va_data_sync.va_data_sync_01_odkcentral import build_submission_projection
 
+        shuffled = _session_permutation(session_row.training_session_id, len(rows))
         for number, index in enumerate(_source_order(coder_slots, len(rows)), start=1):
-            source, version = rows[index]
+            source, version = rows[shuffled[index]]
             sid = f"trn-{code}-{number}"
             slot = _slot_of(number)
             payload, counts = _new_payload(
@@ -743,7 +759,7 @@ def check_source(source_form_id: str | None = None, limit: int | None = None) ->
     rows = _load_source_rows(source_form_id or DEFAULT_SOURCE_FORM_ID, limit, strict=False)
     payloads = _full_payloads([row[1] for row in rows])
     totals = dict.fromkeys(COUNT_KEYS, 0)
-    by_type = {"names": 0, "addresses": 0, "identifiers": 0, "phones": 0}
+    by_type = {"names": 0, "addresses": 0, "identifiers": 0, "phones": 0, "device_ids": 0}
     residual_cases = 0
     for number, (source, version) in enumerate(rows, start=1):
         original = payloads[version.payload_version_id]
@@ -762,6 +778,62 @@ def check_source(source_form_id: str | None = None, limit: int | None = None) ->
         "residual_cases": residual_cases,
         "residual_by_type": by_type,
     }
+
+
+def scrub_device_ids(session_ref=None, *, apply: bool = False) -> dict:
+    """Replace the ODK device ids (``DEVICE_ID_KEYS``) left in the copied
+    payloads of one session (*session_ref*) or of every TRN01 session
+    (digitva-qdad: copies made before the copy replaced ``deviceid``).
+
+    Touches only payload versions of training copies (``MapTrainingCase``
+    rows of a TRN01 session), never a source case. Dry run by default: counts
+    what would change and writes nothing. With *apply*, rewrites those
+    payloads through ``write_payload_version`` in one transaction and logs
+    the counts. Returns counts only, never a value.
+    """
+    from app.services.submission_payload_version_service import write_payload_version
+
+    _require_configured()
+    sessions = sa.select(MasTrainingSession.training_session_id).where(
+        MasTrainingSession.project_id == TRAINING_PROJECT_ID
+    )
+    if session_ref is not None:
+        sessions = sessions.where(MasTrainingSession.training_session_id == _find_session(session_ref).training_session_id)
+    copies = sa.select(MapTrainingCase.va_sid).where(MapTrainingCase.training_session_id.in_(sessions))
+    versions = db.session.scalars(
+        sa.select(VaSubmissionPayloadVersion)
+        .join(VaSubmissions, VaSubmissions.va_sid == VaSubmissionPayloadVersion.va_sid)
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(
+            VaSubmissionPayloadVersion.va_sid.in_(copies),
+            VaForms.project_id == TRAINING_PROJECT_ID,
+            sa.or_(*(VaSubmissionPayloadVersion.payload_data.has_key(k) for k in DEVICE_ID_KEYS)),
+        )
+    ).all()  # ponytail: one session is at most 1000 copies; batch if all-session runs grow large
+    payloads = _full_payloads(versions)
+    changed = []
+    for version in versions:
+        payload = dict(payloads[version.payload_version_id] or {})
+        stale = [k for k in DEVICE_ID_KEYS if k in payload and payload[k] not in (None, "training-device")]
+        if stale:
+            payload.update(dict.fromkeys(stale, "training-device"))
+            changed.append((version, payload))
+    result = {"versions_checked": len(versions), "versions_with_device_id": len(changed), "applied": False}
+    if not apply or not changed:
+        return result
+    try:
+        for version, payload in changed:
+            write_payload_version(version, payload)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    log.info(
+        "training device ids scrubbed session=%s versions_checked=%d versions_changed=%d",
+        session_ref or "all", len(versions), len(changed),
+    )
+    result["applied"] = True
+    return result
 
 
 def _remove_objects(targets: list) -> None:

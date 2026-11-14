@@ -41,6 +41,7 @@ from app.services.authz.grants import (
     resolve_grants,
 )
 from app.services.authz.predicates import _ALLOWED, Decision, _deny, _subtree_select
+from app.services.training_scope import training_project_id
 
 _R = VaAccessRoles
 _P = VaAccessScopeTypes.project
@@ -101,10 +102,16 @@ def _locate(target: GrantTarget) -> _Where | None:
 def writer_grants(g: ResolvedGrants) -> list[Grant]:
     """The actor's grants that confer any grant-writing power: project_pi,
     data_manager at any scope, site_pi at a unit (the In-charge) unless the
-    actor is an active mentoring-institute member (``ResolvedGrants.oversees``)."""
+    actor is an active mentoring-institute member (``ResolvedGrants.oversees``).
+
+    A grant on the training project (TRN01) confers none: a trainee's grant
+    must not manage co-trainees' accounts or grants, or issue their sign-in
+    QR (digitva-svx6). Users list, grant list, ``can_grant`` and
+    ``sign_in_qr_service.may_issue`` all start here. Admins are not affected."""
+    training = training_project_id()
     return [
         x for x in g.grants
-        if not x.virtual and (
+        if not x.virtual and x.project_id != training and (
             x.role in (_R.project_pi, _R.data_manager)
             or (x.role == _R.site_pi and g.oversees(x))
         )

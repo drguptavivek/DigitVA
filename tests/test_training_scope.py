@@ -47,6 +47,8 @@ class TrainingScopeBase(TrainingDemoTestBase):
         super().setUp()
         self.trainee = self._user("scope")
         svc.add_participant("S001", self.trainee.email, list(self.roles), self.admin)
+        if "reviewer_data_manager" in self.roles:
+            self._legacy_dm_grant(self.trainee)  # what the exclusion must still hold out
         self.training_sids = self._session_sids()[1]
         # One real, ready case in a real (pick-and-choose) project the trainee also codes in.
         project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)

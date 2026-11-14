@@ -3,7 +3,7 @@ title: Training and Demo Project (TRN01)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-25
+last_updated: 2026-11-14
 ---
 
 # Training and demo project (TRN01)
@@ -67,11 +67,14 @@ Creating a session builds, in one transaction:
 - a fresh copy, for each slot, of 10 cases taken from the real, consented ODK form
   `UNSW01NC0101` (project UNSW01, site NC01): the owner's frozen list of 200
   consented cases chosen at random on 2026-10-22,
-  `app/services/training_corpus/UNSW01NC0101.txt` (one `va_sid` per line, line
-  order is the case number). A listed case must still have an active payload
+  `app/services/training_corpus/UNSW01NC0101.txt` (one `va_sid` per line). A listed case must still have an active payload
   version and valid consent, or the session is refused. A form without a list
-  takes the first 200 eligible cases by `va_sid`. Slot `k` takes 10
-  consecutive source cases, wrapping round the source list: when slots x 10 is
+  takes the first 200 eligible cases by `va_sid`. Each session first shuffles
+  the source list in its own order, seeded by the session id (reproducible),
+  so case `n` is a different clinical case in each session and a case number
+  never names the same answer key twice (`digitva-emee`; sessions created
+  before keep their order). Slot `k` then takes 10
+  consecutive source cases of that order, wrapping round the source list: when slots x 10 is
   more than the source cases, the same source case is copied into more than one
   slot (owner, 2026-10-22: the forms may be duplicated). A slot never holds one
   source case twice, and each further pass over the list starts three cases
@@ -115,8 +118,14 @@ occurs (case-insensitive, whole word).
   same number within a case.
 - Word boundaries treat Devanagari and other Indic combining marks as part of
   a word, so Hindi names are found and replaced inside Hindi narratives.
-- The payload's SubmitterID and DeviceID are replaced by fixed synthetic
-  values and `death_register_id` is dropped.
+- The payload's SubmitterID, DeviceID and the ODK `deviceid` (for example
+  `collect:...`) are replaced by fixed synthetic values and
+  `death_register_id` is dropped. `check-source` reports a surviving device id
+  as `device_ids`. Copies made before `deviceid` was replaced
+  (`digitva-qdad`) are fixed with `flask training-demo scrub-device-ids
+  [--session S001] [--apply]`: a dry run printing counts by default; `--apply`
+  rewrites only the training copies' payloads, never a source case, in one
+  transaction, and logs the counts.
 - Limits of free text: only values that also appear in the structured fields
   are found. A name, place or number that appears only in a narrative, or in a
   form the matcher does not recognise (a different spelling or transliteration,
@@ -158,8 +167,14 @@ Participant roles: `death_reporter`, `interview_supervisor`, `interviewer`,
   missing language; add it to the user first.
 - A death reporter, interview supervisor or interviewer gets a unit-scoped grant
   on the session root.
-- A reviewer_data_manager gets both a reviewer and a data_manager unit-scoped
-  grant on the session root and so sees the whole session.
+- A reviewer_data_manager gets a reviewer unit-scoped grant on the session
+  root and so reviews the whole session; it gets no data_manager grant
+  (`digitva-svx6`): a data_manager grant would let a trainee manage
+  co-trainees' accounts and grants. The trainer report admits them by their
+  participation. Sessions created before still hold such a data_manager grant
+  (left in place); a grant on the training project confers no authority to
+  list or manage users or grants, or to issue a sign-in QR
+  (`authz.writer_grants`). Admins are unaffected.
 - Grants are written through the ordinary rules (level by cadre, grants audit
   log). Training grants use a dedicated "Trainee" cadre defined for the TRN01
   levels. A user's grants on any other project are never touched.
@@ -326,6 +341,10 @@ the answer key, so only an administrator and a user with an **active**
 `reviewer_data_manager` participation in that same session may read it; every
 other user, other sessions' managers and all trainees included, is refused
 (403, the same answer for an unknown session so existence is not probed).
+A manager who holds or ever held a `coder` participation in that session may
+not read its report at all (refused like any other user): the reference cause,
+its VA cause group, the per-case match and the agreement would each let them
+check their own answers.
 
 - Per coder: name, email, slot, cases coded (an active final assessment) out of
   10, cases in progress (a coding workflow state without a final), not started,

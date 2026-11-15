@@ -861,6 +861,19 @@ class ParticipantTests(TrainingDemoTestBase):
         self.assertEqual(detail["slots"][0]["coder_name"], coder.name)
 
 
+    def test_coded_counts_ignore_a_non_participants_final_assessment(self):
+        coder, admin = self._user("coded2"), self._user("coded2.admin")
+        svc.add_participant("S001", coder.email, "coder", self.admin)
+        db.session.add(VaFinalAssessments(
+            va_sid="trn-S001-2", va_finassess_by=admin.user_id, va_conclusive_cod="J18.9"))
+        db.session.flush()
+        self.assertEqual(svc.list_training_sessions()[0]["cases_coded"], 0)
+        db.session.add(VaFinalAssessments(
+            va_sid="trn-S001-1", va_finassess_by=coder.user_id, va_conclusive_cod="J18.9"))
+        db.session.flush()
+        self.assertEqual(svc.list_training_sessions()[0]["cases_coded"], 1)
+
+
 class OnboardingTests(TrainingDemoTestBase):
     def test_pending_until_started_then_never_again(self):
         user = self._user("onboard")

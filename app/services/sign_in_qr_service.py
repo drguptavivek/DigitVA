@@ -30,6 +30,7 @@ import sqlalchemy as sa
 from flask import current_app
 
 from app import db
+from app.services import training_scope
 from app.models import (
     AuthSignInToken,
     VaAccessRoles,
@@ -107,6 +108,10 @@ def eligible_project(user: VaUsers) -> str | None:
     context = web_intake_service.interviewer_context(user, _grants=resolved)
     reach = context + web_intake_service.register_death_context(user, context, _grants=resolved)
     projects = sorted({pid for pid in (e["project_id"] for e in reach) if devices._project_active(pid)})
+    # A real project before the training project, which the phone picks
+    # after the PIN instead; a trainee with only training grants still enrols.
+    training = training_scope.training_project_id()
+    projects.sort(key=lambda pid: pid == training)
     return projects[0] if projects else None
 
 

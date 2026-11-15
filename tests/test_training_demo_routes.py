@@ -61,6 +61,11 @@ class AdminApiTests(TrainingDemoTestBase):
         self.assertEqual([(r["role"], r["action"]) for r in bulk.get_json()["rows"]],
                          [("death_reporter", "add"), ("coder", "already")])
 
+    def test_panel_carries_the_session_type_roles(self):
+        page = self.client.get("/admin/panels/training-sessions").data
+        self.assertIn(b"const TYPE_ROLES =", page)
+        self.assertIn(b'"self_coding"', page)
+
     def test_panel_offers_role_checkboxes(self):
         page = self.client.get("/admin/panels/training-sessions").data
         self.assertIn(b'type="checkbox" name="roles" value="coder"', page)

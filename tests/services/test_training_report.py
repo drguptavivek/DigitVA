@@ -220,6 +220,24 @@ class ReportTests(ReportTestBase):
         self.assertEqual(staff["interview_supervisor"]["supervisor_actions"], 1)  # only the grant-backed move
         self.assertEqual(staff["interviewer"]["deaths_registered"], 0)
 
+    def test_a_user_with_two_staff_roles_is_one_row(self):
+        user = self._add("twohats", "interviewer")
+        svc.add_participant("S001", user.email, "interview_supervisor", self.admin)
+        form = svc._web_form()
+        root = svc.get_training_session("S001")["org_unit_id"]
+        db.session.add(VaDeathRegister(
+            project_id="TRN01", site_id=form.site_id, org_unit_id=uuid.UUID(root),
+            death_number=uuid.uuid4().int % 10**9, unique_id=f"RPT-{uuid.uuid4().hex[:12]}",
+            deceased_name="Synthetic Person", deceased_sex="male", date_of_death=date(2026, 1, 1),
+            registered_by=user.user_id, source="register", status="registered",
+            started_by_user_id=user.user_id,
+        ))
+        db.session.flush()
+        rows = [s for s in reports.training_session_report("S001", self.admin)["staff"] if s["email"] == user.email]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(set(rows[0]["role"].split(", ")), {"interviewer", "interview_supervisor"})
+        self.assertEqual((rows[0]["deaths_registered"], rows[0]["interviews_started"]), (1, 1))
+
     def test_query_count_is_fixed(self):
         self._add("q.one", "coder")
         with count_selects() as one:

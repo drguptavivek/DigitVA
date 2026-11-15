@@ -433,6 +433,19 @@ class SignInQrTests(AuthzFixtureMixin, BaseTestCase):
         db.session.commit()
         self.assertIsNone(sign_in_qr_service.eligible_project(user))
 
+    def test_a_real_project_is_preferred_over_the_training_project(self):
+        user = self.users["interviewer_p1"]
+        # AZSP01 sorts before AZTA01, so only the preference can put AZTA01 first.
+        self._add_grant("interviewer_p1", VaAccessRoles.interviewer, VaAccessScopeTypes.project, "AZSP01")
+        with patch.dict(self.app.config, {"DIGITVA_TRAINING_PROJECT_ID": "AZSP01"}):
+            self.assertEqual(sign_in_qr_service.eligible_project(user), "AZTA01")
+        with patch.dict(self.app.config, {"DIGITVA_TRAINING_PROJECT_ID": "AZTA01"}):
+            self.assertEqual(sign_in_qr_service.eligible_project(user), "AZSP01")
+
+    def test_the_training_project_still_enrols_when_it_is_the_only_one(self):
+        with patch.dict(self.app.config, {"DIGITVA_TRAINING_PROJECT_ID": "AZTA01"}):
+            self.assertEqual(sign_in_qr_service.eligible_project(self.users["interviewer_p1"]), "AZTA01")
+
     def test_redeem_notice_goes_only_to_a_verified_address(self):
         for key, expected in (("interviewer_p1", True), ("nobody", False)):
             with patch.dict(self.app.config, MAIL), \

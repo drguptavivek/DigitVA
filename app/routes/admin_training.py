@@ -70,6 +70,7 @@ def admin_panel_training_sessions():
     return render_template(
         "admin/panels/training_sessions.html",
         roles=PARTICIPANT_ROLES,
+        type_roles={t: sorted(r) for t, r in service._TYPE_ROLES.items()},
         configured=service.training_configured(),
     )
 

@@ -173,7 +173,8 @@ Participant roles: `death_reporter`, `interview_supervisor`, `interviewer`,
   2026-10-22, digitva-54in); there is no self-review guard by design.
 - A coder gets the next free coder slot (the slot stays theirs for the life of
   the session, even when removed) and a unit-scoped coder grant on that slot's
-  unit, so they see exactly their 10 cases. A 21st coder is refused. A coder
+  unit, so they see exactly their 10 cases. A coder beyond the
+  session's coder slots is refused. A coder
   whose coding languages (`vacode_language`) lack a narration language of that
   slot's cases (for example Hindi) is refused with a message naming the
   missing language; add it to the user first.

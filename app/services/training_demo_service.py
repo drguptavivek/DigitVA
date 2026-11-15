@@ -1220,10 +1220,16 @@ def list_training_sessions() -> list[dict]:
 
 
 def _coded_counts_stmt(session_ids):
-    """Cases with an active final assessment, per session."""
+    """Cases with an active final assessment by one of the session's coders,
+    per session (a tester's or admin's final does not count)."""
     return (
         sa.select(MapTrainingCase.training_session_id, sa.func.count(sa.distinct(MapTrainingCase.va_sid)))
         .join(VaFinalAssessments, VaFinalAssessments.va_sid == MapTrainingCase.va_sid)
+        .join(MapTrainingParticipant, sa.and_(
+            MapTrainingParticipant.training_session_id == MapTrainingCase.training_session_id,
+            MapTrainingParticipant.user_id == VaFinalAssessments.va_finassess_by,
+            MapTrainingParticipant.role == "coder",
+        ))
         .where(
             MapTrainingCase.training_session_id.in_(session_ids),
             VaFinalAssessments.va_finassess_status == VaStatuses.active,
@@ -1975,7 +1981,8 @@ def graduation_trainees(session_ref, actor) -> dict:
     when none), their coding languages, ``graduated_at``, and for the close
     checklist their open server drafts and last sync in the training project
     (all of the trainee's TRN01 drafts, not only this session's), plus the
-    active coding languages for the panel. Admin only. Four queries; a trainee who graduates to nothing is listed
+    active coding languages and the projects graduation may target for the
+    panel. Admin only. Five queries; a trainee who graduates to nothing is listed
     too, so the trainer sees them."""
     from app.models import VaWebIntakeDraft
 
@@ -2024,25 +2031,39 @@ def graduation_trainees(session_ref, actor) -> dict:
         sa.select(MasLanguages.language_code, MasLanguages.language_name)
         .where(MasLanguages.is_active.is_(True)).order_by(MasLanguages.language_name)
     ).all()
+    targets = [
+        [project.project_id, project.project_name]
+        for project in db.session.scalars(
+            sa.select(VaProjectMaster)
+            .where(VaProjectMaster.project_structure_mode == "organization",
+                   VaProjectMaster.project_status == VaStatuses.active)
+            .order_by(VaProjectMaster.project_id)
+        )
+        if _graduation_target_ok(project.project_id, project)
+    ]
     return {"session_code": session_row.session_code, "session_type": session_row.session_type,
             "status": session_row.status, "trainees": rows,
-            "languages": [[code, name] for code, name in languages]}
+            "languages": [[code, name] for code, name in languages], "targets": targets}
 
 
 def _require_graduation_target(project_id: str) -> None:
     """Refuse (``target_not_allowed``) graduating into the training project,
     a demo-training project, a synthetic-demo project or the public demo
     project (N7); a missing or inactive project is refused by the import."""
+    project = db.session.get(VaProjectMaster, project_id) if project_id else None
+    if not project_id or not _graduation_target_ok(project_id, project):
+        raise TrainingDemoError("target_not_allowed")
+
+
+def _graduation_target_ok(project_id: str, project) -> bool:
+    """Not the training project, a demo-training, synthetic-demo or public demo project."""
     from app.services import public_demo_service
 
-    project = db.session.get(VaProjectMaster, project_id) if project_id else None
-    if (
-        not project_id
-        or project_id == TRAINING_PROJECT_ID
+    return not (
+        project_id == TRAINING_PROJECT_ID
         or public_demo_service.is_demo_project(project_id)
         or (project is not None and (project.demo_training_enabled or project.synthetic_demo_reset_enabled))
-    ):
-        raise TrainingDemoError("target_not_allowed")
+    )
 
 
 def _clean_languages(value, active: set[str]) -> list[str] | None:

@@ -144,6 +144,8 @@ class MapTrainingParticipant(db.Model):
             unique=True,
             postgresql_where=sa.text("coder_slot IS NOT NULL"),
         ),
+        # Per-user lookups (access summary, training scope) across sessions.
+        sa.Index("ix_map_training_participants_user", "user_id"),
         # The sign-in onboarding check: one probe per user.
         sa.Index(
             "ix_map_training_participants_pending_onboarding",

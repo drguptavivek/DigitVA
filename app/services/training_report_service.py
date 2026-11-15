@@ -286,15 +286,24 @@ def training_session_report(session_ref, viewer) -> dict:
         })
 
     activity = _staff_counts(row)
-    staff = [
-        {
-            "name": user.name, "email": sessions._contact(user), "role": p.role, "status": p.status,
-            **{key: activity.get(user.user_id, {}).get(key, 0) for key in (
-                "deaths_registered", "interviews_started", "interviews_submitted", "supervisor_actions")},
-        }
-        for p, user in participants
-        if p.role in STAFF_ROLES
-    ]
+    # One row per person: activity is per user, so a second staff role must
+    # not repeat it.
+    by_user: dict = {}
+    for p, user in participants:
+        if p.role not in STAFF_ROLES:
+            continue
+        entry = by_user.get(user.user_id)
+        if entry is None:
+            by_user[user.user_id] = {
+                "name": user.name, "email": sessions._contact(user), "role": p.role, "status": p.status,
+                **{key: activity.get(user.user_id, {}).get(key, 0) for key in (
+                    "deaths_registered", "interviews_started", "interviews_submitted", "supervisor_actions")},
+            }
+        else:
+            entry["role"] += ", " + p.role
+            if p.status == "active":
+                entry["status"] = "active"
+    staff = list(by_user.values())
 
     # Totals cover every case of the session, a slot without a coder included.
     compared = sum(s["compared"] for s in slots.values())

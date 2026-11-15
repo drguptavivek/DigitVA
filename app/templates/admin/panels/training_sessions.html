@@ -346,6 +346,9 @@
     el('close').disabled = current.status !== 'active';
     el('reopen').disabled = current.status === 'active';
     el('add').querySelectorAll('input, select, button').forEach(c => { c.disabled = current.status !== 'active'; });
+    const allowed = TYPE_ROLES[current.session_type];
+    ['roles', 'bulk-roles'].forEach(box => el(box).querySelectorAll('input').forEach(c => {
+      const ok = !allowed || allowed.includes(c.value); c.closest('.form-check').hidden = !ok; if (!ok) c.checked = false; }));
     const body = el('participants'); body.replaceChildren();
     current.participants.forEach(p => {
       const row = body.insertRow();
@@ -392,6 +395,7 @@
   }
 
   // Import: one role choice, as the session type allows.
+  const TYPE_ROLES = {{ type_roles|tojson }};
   const IMPORT_KINDS = {interviewer: ['interviewer', 'Interviewers'], coder: ['coder', 'Coders'], self_coding: ['both', 'Coders who also interview (both)']};
   function importReset() { el('import-apply').disabled = true; el('import-result').hidden = true; }
   async function runImport(dryRun) {
@@ -427,11 +431,10 @@
   let languages = [], cadres = [], trainees = [];
   const STATUS_TEXT = {ready: 'Ready', saved: 'Saved', unchanged: 'Already granted', needs_confirmation: 'Needs confirmation', refused: 'Refused'};
   function option(value, text) { const o = document.createElement('option'); o.value = value; o.textContent = text; return o; }
-  async function gradProjects() {
-    const projects = await fetch('/admin/api/projects').then(r => r.json());
-    el('grad-project').replaceChildren(option('', 'Choose…'), ...(projects.projects || [])
-      .filter(p => p.project_structure_mode === 'organization' && !p.demo_training_enabled && p.project_id !== 'TRN01')
-      .map(p => option(p.project_id, p.project_id + ' — ' + p.project_name)));
+  function gradProjects(targets) {
+    const keep = el('grad-project').value;
+    el('grad-project').replaceChildren(option('', 'Choose…'), ...(targets || []).map(([id, name]) => option(id, id + ' — ' + name)));
+    el('grad-project').value = keep;
   }
   async function gradProject() {
     const pid = el('grad-project').value;
@@ -463,7 +466,7 @@
   }
   async function gradLoad() {
     const data = await call('/' + encodeURIComponent(current.session_code) + '/trainees');
-    trainees = data.trainees; languages = data.languages;
+    trainees = data.trainees; languages = data.languages; gradProjects(data.targets);
     el('grad-confirm').hidden = true; el('grad-confirm-list').replaceChildren();
     gradRows();
   }
@@ -541,6 +544,5 @@
   el('preview').onclick = guard(() => bulk(true));
   el('apply').onclick = guard(async () => { if (!await ask('Add the previewed users to this session? Nothing is added unless every row is accepted.')) return; await bulk(false); });
   guard(list)();
-  gradProjects().catch(() => message("Projects could not be loaded; refresh and retry.", true));
 }());
 </script>

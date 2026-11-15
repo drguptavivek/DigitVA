@@ -245,6 +245,25 @@ class GraduationTests(GraduationTestBase):
         project.demo_training_enabled = False
         db.session.flush()
 
+    def test_targets_list_only_real_active_organization_projects(self):
+        now = datetime.now(UTC)
+        extra = {}
+        for pid, flags in (("GRDDT", {"demo_training_enabled": True}),
+                           ("GRDSY", {"synthetic_demo_reset_enabled": True}),
+                           ("GRDIN", {"project_status": VaStatuses.deactive})):
+            extra[pid] = VaProjectMaster(
+                project_id=pid, project_code=pid, project_name=pid, project_nickname=pid,
+                project_status=flags.pop("project_status", VaStatuses.active),
+                project_registered_at=now, project_updated_at=now,
+                project_structure_mode="organization", **flags)
+            db.session.add(extra[pid])
+        db.session.flush()
+        self._typed("coder", slots=1)
+        ids = [pid for pid, _ in svc.graduation_trainees("S001", self.admin)["targets"]]
+        self.assertIn(GRAD_PROJECT, ids)
+        for excluded in ("TRN01", "GRDDT", "GRDSY", "GRDIN"):
+            self.assertNotIn(excluded, ids)
+
     def test_cadre_change_and_reactivation_need_confirmation(self):
         code = self._typed("coder", slots=2)["session_code"]
         changed, revoked = self._user("grad.cadre"), self._user("grad.revoked")

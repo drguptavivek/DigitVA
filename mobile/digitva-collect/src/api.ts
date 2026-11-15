@@ -138,6 +138,8 @@ export interface TrainingAccess {
   project_id: string | null;
   areas: TrainingArea[];
   pending: boolean;
+  /** The types of the user's active sessions (null for a legacy one); absent from older servers. */
+  session_types?: (string | null)[];
   project?: AccessProject | null;
 }
 

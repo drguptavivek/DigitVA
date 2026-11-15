@@ -67,6 +67,7 @@ export async function uploadDraftAttachments(
   try {
     const { body } = await authedRequest<{ draft?: { draft_id?: string } }>(userId, `${INTAKE_API}/drafts`, {
       method: "POST",
+      projectId: item.project_id,
       body: {
         project_id: item.project_id,
         site_id: item.site_id,
@@ -84,6 +85,7 @@ export async function uploadDraftAttachments(
       const sha256 = hex(await digest(CryptoDigestAlgorithm.SHA256, bytes));
       await authedRequest<unknown>(userId, `${INTAKE_API}/drafts/${encodeURIComponent(draftId)}/attachments/${file.id}`, {
         method: "PUT",
+        projectId: item.project_id,
         rawBody: { bytes, sha256 },
         timeoutMs: UPLOAD_TIMEOUT_MS,
       });

@@ -24,3 +24,4 @@ export const OpenSourceLicenses = BrowserNativeRoute;
 export const Coding = BrowserNativeRoute;
 export const Reviewing = BrowserNativeRoute;
 export const Workspace = BrowserNativeRoute;
+export const TrainingCoding = BrowserNativeRoute;

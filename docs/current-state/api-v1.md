@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-15
 ---
 
 # API v1 Reference
@@ -490,6 +490,19 @@ Step 1), 409 on reviewer release and when a release lands during a final save.
 project of the caller's most recent coding allocation (any status), or `null`
 when there is none or it is not in `project_options`; the queue opens on it
 (`digitva-umc4`). One indexed query.
+
+## Coder stats and languages (`GET /api/v1/coding/stats`, `PATCH /api/v1/profile/languages`)
+
+`/coding/stats` adds, as an additive key, `languages: {mine: [codes],
+pending: [{language, count}]}`: the caller's coding languages and "Forms
+pending coding", the forms allocation would offer them now grouped by
+narration language regardless of their own languages (blank as
+`unrecorded`; `pending_by_language`, one grouped count; `project_id`
+narrows). `random_ready` now applies the coding gates, like the pick count.
+`PATCH /api/v1/profile/languages {languages: [codes]}` sets the caller's own
+coding languages (non-empty, active codes; cookie session with CSRF; a device
+bearer token gets 403 `cookie_session_required`). Policy:
+`docs/policy/coding-workflow-state-machine.md`, "Coder coding languages".
 
 ## Coder pick list and history (`GET /api/v1/coding/available|history`, `app/routes/api/coding.py`)
 

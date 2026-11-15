@@ -18,6 +18,14 @@ import { ConfidentialityNotice, TrainingChecklistView, TrainingNone, useTraining
 
 const AREA_LABELS = { interview: "trainingInterview", coding: "trainingCoding", review: "trainingReview" } as const;
 
+const SESSION_TYPE_LABELS = { interviewer: "trainingType_interviewer", coder: "trainingType_coder", self_coding: "trainingType_self_coding" } as const;
+
+/** A typed session's name in the UI language; undefined for a legacy (untyped) session or an unknown type. */
+export function sessionTypeLabel(type: string | null | undefined): string | undefined {
+  const key = type ? SESSION_TYPE_LABELS[type as keyof typeof SESSION_TYPE_LABELS] : undefined;
+  return key ? t(key) : undefined;
+}
+
 /** The overview: confidentiality notice, the session, the Start button, and a button per training area. */
 export function TrainingOverviewScreen() {
   const router = useRouter();
@@ -26,7 +34,7 @@ export function TrainingOverviewScreen() {
   const { me, error, setMe } = useTrainingMe();
   const [busy, setBusy] = useState(false);
   const [startError, setStartError] = useState("");
-  const sessions = Array.from(new Map((me?.participations ?? []).map((part) => [part.session_code, part.session_name])));
+  const sessions = Array.from(new Map((me?.participations ?? []).map((part) => [part.session_code, part])).values());
   const slot = me?.participations.find((part) => part.role === "coder")?.coder_slot;
 
   async function start() {
@@ -52,7 +60,12 @@ export function TrainingOverviewScreen() {
         <>
           <ConfidentialityNotice />
           <View style={styles.card}>
-            {sessions.map(([code, name]) => <Text key={code} style={styles.headline}>{t("trainingSession", { code, name })}</Text>)}
+            {sessions.map((part) => (
+              <View key={part.session_code}>
+                <Text style={styles.headline}>{t("trainingSession", { code: part.session_code, name: part.session_name })}</Text>
+                {sessionTypeLabel(part.session_type) ? <Text style={styles.muted}>{t("trainingSessionType", { type: sessionTypeLabel(part.session_type)! })}</Text> : null}
+              </View>
+            ))}
             {slot ? <Text style={styles.muted}>{t("trainingCoderSlot", { slot })}</Text> : null}
             {me.pending ? (
               <View style={{ flexDirection: "row", gap: spacing.xs }}>

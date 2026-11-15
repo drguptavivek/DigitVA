@@ -495,17 +495,35 @@ def register_death_context(
 def self_coding_project_ids(user: VaUsers, *, _grants=None) -> frozenset[str]:
     """Projects where *user* may be offered "Code this case now": a self-coding
     project in which they hold a coder grant that codes (gate open, coding
-    scope level met). Grants only, no query; the action itself re-checks scope
-    and ownership (``coder_workflow_service.allocate_own_case``)."""
+    scope level met). Plus the training project while the user self-codes in
+    a self-coding training session (``training_self_coding_ids``, one memoised
+    query); there only on those slot units (``can_code_now``, ``_code_now``).
+    The action itself re-checks scope and ownership
+    (``coder_workflow_service.allocate_own_case``)."""
+    from app.services import training_demo_service
+
     resolved = _grants if _grants is not None else resolve_grants(user)
-    return frozenset(
+    projects = {
         g.project_id
         for g in resolved.of({VaAccessRoles.coder}, virtual=False)
         if g.opens_gate
         and (settings := resolved.projects.get(g.project_id)) is not None
         and settings.self_coding
         and resolved.codes(g)
-    )
+    }
+    if training_demo_service.training_self_coding_ids(user.user_id):
+        projects.add(training_demo_service.TRAINING_PROJECT_ID)
+    return frozenset(projects)
+
+
+def _code_now_unit_ok(user: VaUsers, project_id: str, org_unit_id) -> bool:
+    """In the training project "Code this case now" holds only on the user's
+    self-coding slot units; elsewhere the project decides (N6)."""
+    from app.services import training_demo_service
+
+    if project_id != training_demo_service.TRAINING_PROJECT_ID:
+        return True
+    return org_unit_id in training_demo_service.training_self_coding_ids(user.user_id)
 
 
 def can_code_now(user: VaUsers, draft: VaWebIntakeDraft) -> bool:
@@ -520,7 +538,9 @@ def can_code_now(user: VaUsers, draft: VaWebIntakeDraft) -> bool:
         and (draft.meta or {}).get("interviewOutcome") == "completed"
         and draft.collection_hold not in EXCLUDED_HOLDS
         and draft.project_id in self_coding_project_ids(user)
-        and consent_is_valid(db.session.get(VaSubmissions, draft.va_sid).va_consent)
+        and (submission := db.session.get(VaSubmissions, draft.va_sid)) is not None
+        and _code_now_unit_ok(user, draft.project_id, submission.org_unit_id)
+        and consent_is_valid(submission.va_consent)
     )
 
 
@@ -5209,7 +5229,10 @@ def serialize_death(death: VaDeathRegister, *, show_gps: bool = False, register:
 
 
 def _code_now(user: VaUsers, death: VaDeathRegister, my_submission: bool, ready_for_coding: bool | None) -> bool:
-    return bool(my_submission and ready_for_coding and death.project_id in self_coding_project_ids(user))
+    return bool(
+        my_submission and ready_for_coding and death.project_id in self_coding_project_ids(user)
+        and _code_now_unit_ok(user, death.project_id, death.org_unit_id)
+    )
 
 
 def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,

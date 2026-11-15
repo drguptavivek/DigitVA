@@ -27,12 +27,10 @@ from app.routes.api.request_helpers import (
     error as api_error,
 )
 from app.routes.api.request_helpers import other_conditions_list as _other_conditions_list
-from app.utils import va_user_timezone_name
 from app.services import smartva_service, training_scope
 from app.services.authz import Action, Reason, can
 from app.services.case_list_service import coding_names
 from app.services.case_transition_service import WebIntakeError
-from app.services.viewer_pii_service import should_redact_pii
 from app.services.coder_cod_service import (
     CoderCodingError,
     submit_coder_final_cod,
@@ -46,9 +44,9 @@ from app.services.coder_dashboard_service import (
     get_coder_output_summary,
     get_coder_project_options,
     get_coder_recodeable_sids,
+    last_allocated_project_id,
     set_needs_recode,
     set_recode_until,
-    last_allocated_project_id,
 )
 from app.services.coder_workflow_service import (
     AllocationError,
@@ -60,8 +58,10 @@ from app.services.coder_workflow_service import (
     get_coder_ready_stats,
     get_pick_available_forms,
     get_pick_available_page,
+    get_training_queue_counts,
     is_upstream_recode,
     mark_reviewer_eligible_after_recode_window_submissions,
+    pending_by_language,
     release_own_coding_allocation,
     require_active_coding_allocation,
     start_demo_allocation,
@@ -71,10 +71,12 @@ from app.services.demo_project_service import should_use_demo_actiontype_for_sub
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.interview_send_back_service import send_back_for_revision
 from app.services.odk_retirement_service import submission_is_in_odk
+from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workflow.transitions import admin_actor
+from app.utils import va_user_timezone_name
 
 bp = Blueprint("coding_api", __name__)
 
@@ -175,6 +177,7 @@ def allocate():
     training project is never allocated (docs/policy/training-demo-project.md).
     """
     training_scope.resolve("coding")
+    training_scope.resolve_queue()
     body = optional_object_body()
     if body is None:
         return api_error("A JSON object is required.", "invalid_request", 400)
@@ -676,9 +679,12 @@ def available_forms():
     ``{forms, count, limit, offset, has_more}``, ``count`` the page's size.
     ``project_id`` narrows either form to one project of the caller's reach
     (another project's id answers an empty list). 400 ``invalid_request`` for
-    a bad parameter, ``offset`` without ``limit`` included.
+    a bad parameter, ``offset`` without ``limit`` included. On the training
+    side ``queue`` (standard, the default, or own) picks the training queue
+    (``training_scope.resolve_queue``).
     """
     training_scope.resolve("coding")
+    training_scope.resolve_queue()
     try:
         limit, offset = optional_page_args()
         project_id = project_filter_arg()
@@ -705,13 +711,26 @@ def available_forms():
 @bp.get("/stats")
 @role_required("coder", "coding_tester", "admin")
 def stats():
-    """Return ready-pool counts and mode flags for the coder dashboard."""
+    """Return ready-pool counts and mode flags for the coder dashboard. On
+    the training side the counts are of ``queue`` (standard by default) and
+    ``training_queues`` adds each queue's "X of Y" (an additive key).
+    ``languages`` (additive) is ``{mine: [codes], pending: [{language,
+    count}]}``: the coder's coding languages and the forms pending coding
+    by narration language (``pending_by_language``)."""
     training_scope.resolve("coding")
+    training_scope.resolve_queue()
     project_id = (request.args.get("project_id") or "").strip().upper() or None
     kpis = get_coder_ready_stats(current_user, project_id=project_id)
     output_summary = get_coder_output_summary(current_user.user_id, project_id=project_id)
     kpis["completed"] = output_summary["completed"]
     kpis["not_codeable"] = output_summary["not_codeable"]
+    if training_scope.on_training_side():
+        kpis["training_queues"] = get_training_queue_counts(current_user)
+    # "Your languages" and "Forms pending coding" (additive; old clients ignore it).
+    kpis["languages"] = {
+        "mine": list(current_user.vacode_language or []),
+        "pending": pending_by_language(current_user, project_id=project_id),
+    }
     return jsonify(kpis)
 
 

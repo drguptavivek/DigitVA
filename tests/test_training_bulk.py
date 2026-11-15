@@ -251,7 +251,8 @@ class GraduationTests(BulkTestBase):
         text = svc.graduation_csv("S001", self.admin, **kwargs)
         return list(csv.reader(io.StringIO(text)))
 
-    def test_headers_rows_and_reviewer_data_manager_two_rows(self):
+    def test_headers_rows_and_only_coder_and_interviewer_rows(self):
+        # digitva-xe2x: graduation never emits reviewer, data_manager, supervisor or death_reporter.
         coder, manager, reporter = (self._made_by(t) for t in ("g.coder", "g.rdm", "g.reporter"))
         svc.bulk_add_participants("S001", self._ids(coder), "coder", self.admin, dry_run=False)
         svc.bulk_add_participants("S001", self._ids(manager), "reviewer_data_manager", self.admin, dry_run=False)
@@ -259,16 +260,11 @@ class GraduationTests(BulkTestBase):
         rows = self._rows()
         self.assertEqual(tuple(rows[0]), HEADERS)
         body = [dict(zip(HEADERS, r)) for r in rows[1:]]
-        self.assertEqual(
-            sorted((r["email"], r["role"]) for r in body),
-            sorted([(coder.email, "coder"), (manager.email, "reviewer"), (manager.email, "data_manager"),
-                    (reporter.email, "death_reporter")]),
-        )
+        self.assertEqual(sorted((r["email"], r["role"]) for r in body), [(coder.email, "coder")])
         self.assertTrue(all(r["org_unit_code"] == "" and r["cadre_code"] == "" for r in body))
         filled = [dict(zip(HEADERS, r)) for r in self._rows(org_unit_code="phc01", cadre_code="staff")[1:]]
         self.assertTrue(all((r["org_unit_code"], r["cadre_code"]) == ("PHC01", "STAFF") for r in filled))
-        only = [dict(zip(HEADERS, r)) for r in self._rows(role="reviewer_data_manager")[1:]]
-        self.assertEqual({r["role"] for r in only}, {"reviewer", "data_manager"})
+        self.assertEqual(self._rows(role="reviewer_data_manager")[1:], [])
 
     def test_removed_participants_are_left_out_and_bad_filters_refused(self):
         user = self._made_by("g.removed")
@@ -285,8 +281,12 @@ class GraduationTests(BulkTestBase):
         row = dict(zip(HEADERS, self._rows()[1]))
         self.assertEqual((row["email"], row["phone"], row["name"]), ("", "9876543210", "'=Evil"))
 
-    def test_every_participant_role_maps(self):
-        self.assertEqual(set(svc._GRADUATION_ROLES), set(PARTICIPANT_ROLES))
+    def test_graduation_roles_are_coder_and_interviewer_only(self):
+        self.assertEqual(set(svc._GRADUATION_ROLES), {"coder", "interviewer"})
+        for role in PARTICIPANT_ROLES:
+            self.assertLessEqual(set(svc._graduation_roles(None, role)), {"coder", "interviewer"})
+        self.assertEqual(svc._graduation_roles("self_coding", "coder"), ("coder", "interviewer"))
+        self.assertEqual(svc._graduation_roles("coder", "coder"), ("coder",))
 
 
 class BulkApiTests(BulkTestBase):
@@ -366,21 +366,22 @@ class BulkApiTests(BulkTestBase):
 
     def test_graduation_download(self):
         user = self._made_by("api.grad")
-        self._post({"user_ids": self._ids(user), "role": "reviewer_data_manager", "dry_run": False})
+        self._post({"user_ids": self._ids(user), "roles": ["coder", "reviewer_data_manager"], "dry_run": False})
         response = self.client.get(f"{API}/S001/graduation.csv?org_unit_code=PHC01&cadre_code=STAFF")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.mimetype, "text/csv")
         self.assertIn("attachment", response.headers["Content-Disposition"])
         rows = list(csv.reader(io.StringIO(response.data.decode())))
         self.assertEqual(tuple(rows[0]), HEADERS)
-        self.assertEqual(sorted(r[2] for r in rows[1:]), ["data_manager", "reviewer"])
+        self.assertEqual(sorted(r[2] for r in rows[1:]), ["coder"])
         self.assertEqual(self.client.get(f"{API}/S001/graduation.csv?role=admin").status_code, 400)
         self.assertEqual(self.client.get(f"{API}/S404/graduation.csv").status_code, 404)
 
     def test_panel_carries_the_bulk_and_graduation_controls(self):
         page = self.client.get("/admin/panels/training-sessions").data
         for needle in (b'id="training-find"', b'id="training-preview"', b'id="training-grad-link"',
-                       b"graduation.csv", b'id="training-report-link"'):
+                       b"graduation.csv", b'id="training-report-link"', b'id="training-import-file"',
+                       b'id="training-grad-project"', b'id="training-grad-save-all"', b'id="training-close-synced"'):
             self.assertIn(needle, page)
 
     def test_admin_created_accounts_record_their_creator(self):

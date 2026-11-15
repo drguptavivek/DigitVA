@@ -109,9 +109,9 @@ EXEMPT = {
         "writes fresh synthetic workflow rows for the opted-in demo baseline; "
         "does not list or count existing coding work"
     ),
-    "services/training_demo_service.py::create_training_session": (
-        "writes fresh workflow rows for a new training session's copies and reads the "
-        "source cases' final causes as the answer key; does not list or count coding work"
+    "services/training_demo_service.py::_write_copies": (
+        "writes fresh workflow rows for a training session's new copies (at session "
+        "creation or coder add); does not list or count coding work"
     ),
     "services/training_report_service.py::training_session_report": (
         "counts coding of TRN01 training copies, which have no death-register rows and so "

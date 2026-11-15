@@ -8,6 +8,7 @@ jest.mock("expo-crypto", () => ({
 }));
 jest.mock("../src/auth", () => ({
   authedRequest: jest.fn(),
+  trainingProjectFor: jest.fn(() => undefined),
   SessionRevokedError: class SessionRevokedError extends Error {},
   SignInRequiredError: class SignInRequiredError extends Error {}
 }));
@@ -83,6 +84,36 @@ describe("native submitted interview revisions", () => {
     (authedRequest as jest.Mock).mockReset();
   });
 
+  it("reads the training project's list in the training scope only when one is remembered, deduped, a refusal kept out", async () => {
+    const { trainingProjectFor } = jest.requireMock("../src/auth") as { trainingProjectFor: jest.Mock };
+    const training = { ...summary(), draft_id: "33333333-3333-4333-8333-333333333333", project_id: "TRN01" };
+    const request = mockRequest(async (_userId, _path, init) => ({
+      body: { drafts: (init as { projectId?: string } | undefined)?.projectId ? [summary(), training] : [summary()] },
+    }));
+    expect(await fetchSubmittedRevisions(USER)).toEqual([summary()]);
+    expect(request).toHaveBeenCalledTimes(1);
+
+    trainingProjectFor.mockReturnValue("TRN01");
+    try {
+      request.mockClear();
+      expect(await fetchSubmittedRevisions(USER)).toEqual([summary(), training]);
+      expect(request.mock.calls.map((call) => call[2])).toEqual([undefined, { projectId: "TRN01" }]);
+
+      request.mockImplementation(async (_userId, _path, init) => {
+        if ((init as { projectId?: string } | undefined)?.projectId) throw new ApiError(403, "forbidden");
+        return { body: { drafts: [summary()] } };
+      });
+      expect(await fetchSubmittedRevisions(USER)).toEqual([summary()]);
+      request.mockImplementation(async (_userId, _path, init) => {
+        if ((init as { projectId?: string } | undefined)?.projectId) throw new ApiError(503, "unavailable");
+        return { body: { drafts: [summary()] } };
+      });
+      await expect(fetchSubmittedRevisions(USER)).rejects.toThrow();
+    } finally {
+      trainingProjectFor.mockReturnValue(undefined);
+    }
+  });
+
   it("fetches validated metadata only, then validates scoped detail on tap", async () => {
     const request = mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
       ? { body: { drafts: [summary()] } }
@@ -134,6 +165,8 @@ describe("native submitted interview revisions", () => {
     request.mockImplementation(async (_userId, path, init) => {
       const body = (init as { bodyFactory: () => Record<string, unknown> }).bodyFactory();
       expect(path).toBe(`/api/v1/intake/submissions/${VA_SID}/revisions`);
+      // The send carries its own project, so a training revision asks for the training scope (auth.ts).
+      expect(init).toMatchObject({ projectId: PROJECT });
       expect(body.draft).toMatchObject({
         instrumentVersion: "instrument-v1",
         definitionExtensions: ["saved_legacy_extension"],

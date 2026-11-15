@@ -203,6 +203,7 @@ jest.mock("../src/formDefinitionRuntime", () => ({
 jest.mock("../src/formDefinitions", () => jest.requireActual("../src/formDefinitions"));
 jest.mock("../src/auth", () => ({
   takePickedHomeProject: jest.fn(() => undefined),
+  trainingProjectFor: jest.fn(() => undefined),
   refreshAccessSummaryForAction: jest.fn(async () => mockDeathRegistrationAccess),
   authedRawRequest: jest.fn(async () => ({
     status: 200,
@@ -265,6 +266,7 @@ jest.mock("../src/cases", () => {
   };
 });
 jest.mock("../src/sync", () => ({
+  trainingProjectOnPhone: jest.fn(async () => undefined),
   fetchCaseDetail: jest.fn(async () => ({
     death_id: "d1",
     project_id: "P1",
@@ -647,6 +649,42 @@ describe("native project-aware routes", () => {
     const rendered = dump(tree!);
     expect(rendered).toContain("revisionRetry");
     expect(rendered).toContain("VA-LOCAL");
+    await act(async () => tree!.unmount());
+  });
+
+  it("shows the Training mode banner while the training project is selected, and none otherwise", async () => {
+    const sync = jest.requireMock("../src/sync") as { trainingProjectOnPhone: jest.Mock };
+    sync.trainingProjectOnPhone.mockResolvedValueOnce("P1");
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await settle();
+    expect(dump(tree!)).toContain("trainingMode");
+    expect(sync.trainingProjectOnPhone).toHaveBeenCalledWith(mockDb, "u1");
+    await act(async () => tree!.unmount());
+
+    sync.trainingProjectOnPhone.mockResolvedValueOnce("TRN01");
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await settle();
+    expect(dump(tree!)).toContain("P1 · Project P1");
+    expect(dump(tree!)).not.toContain("trainingMode");
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps a closed training session's unsent work under the training-closed notice (N9)", async () => {
+    const sync = jest.requireMock("../src/sync") as { trainingProjectOnPhone: jest.Mock; listPausedProjects: jest.Mock };
+    sync.trainingProjectOnPhone.mockResolvedValue("TRN01");
+    sync.listPausedProjects.mockResolvedValue([{ projectId: "TRN01", projectName: "Training" }, { projectId: "P9", projectName: "Other" }]);
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<Worklist />); });
+    await settle();
+    await settle();
+    const rendered = dump(tree!);
+    expect(rendered).toContain("trainingClosedKept");
+    expect(rendered).toContain("pausedProjectReason");
+    sync.trainingProjectOnPhone.mockResolvedValue(undefined);
+    sync.listPausedProjects.mockResolvedValue([]);
     await act(async () => tree!.unmount());
   });
 

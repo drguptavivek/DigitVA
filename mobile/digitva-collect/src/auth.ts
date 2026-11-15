@@ -54,6 +54,7 @@ import { clearNotificationState, resetNotificationState } from "./notificationSt
 import { attachmentMediaExtension } from "./workspace/media/path";
 import { offlineCodingProjectIds } from "./codingCapabilities";
 import { flushPerformanceTelemetry } from "./performanceTelemetry";
+import { hasTypedTrainingSession, scopeFor, trainingAreas, trainingScopedPath, withTrainingCollection } from "./training";
 
 export { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 
@@ -81,6 +82,10 @@ export interface Account {
   /** Digest of the last validated coding scope; display cache only, never authorization. */
   coding_history_access?: string;
   reviewing_access?: boolean;
+  /** Training mode: a typed training session gives the training project's coding queue (`/training/coding`). */
+  training_coding_access?: boolean;
+  /** Training mode: the trainee has not pressed Start yet (`/me/access` `training.pending`). */
+  training_pending?: boolean;
   /** The server refused the refresh token without revoking: sign in again, data kept. */
   needs_sign_in?: boolean;
   /** Signed out on this phone (with needs_sign_in): the encrypted store and PIN stay; signing in again shows the data. */
@@ -387,7 +392,9 @@ async function publishAccessSummary(userId: string, value: unknown): Promise<Acc
     throw error;
   }
   await setAccessBlocked(userId, undefined);
-  const capabilities = accessCapabilities(access);
+  rememberTrainingProject(userId, access.training?.project_id);
+  // Collection access includes the training project (training mode, docs/policy/training-session-types.md).
+  const capabilities = accessCapabilities(withTrainingCollection(access));
   await setAccountAccess(
     userId,
     capabilities.intake,
@@ -396,7 +403,12 @@ async function publishAccessSummary(userId: string, value: unknown): Promise<Acc
     access.roles.some((role) => role === "coder" || role === "coding_tester"),
     access.roles.includes("reviewer"),
     offlineCodingProjectIds(access),
-    await digestStringAsync(CryptoDigestAlgorithm.SHA256, stableAccessJson({ roles: access.roles, projects: access.projects })),
+    await digestStringAsync(CryptoDigestAlgorithm.SHA256, stableAccessJson({ roles: access.roles, projects: withTrainingCollection(access).projects })),
+    // Training coding needs a typed session (`session_types`): a legacy one or an older server keeps today's app.
+    {
+      coding: hasTypedTrainingSession(access) && trainingAreas(access).includes("coding"),
+      pending: hasTypedTrainingSession(access) && access.training?.pending === true,
+    },
   );
   for (const listener of accessListeners) await listener(userId, access);
   return access;
@@ -411,19 +423,25 @@ async function setAccountAccess(
   reviewing: boolean,
   offlineCoding: string[],
   codingHistoryAccess?: string,
+  training: { coding: boolean; pending: boolean } = { coding: false, pending: false },
 ): Promise<void> {
   const changed = await updateAccountsOf(userId, (accounts) => {
     if (!accounts.some((account) => account.user_id === userId &&
-        (account.collection_access !== collection || account.registration_access !== registration ||
+        ((account.training_coding_access ?? false) !== training.coding || (account.training_pending ?? false) !== training.pending ||
+          account.collection_access !== collection || account.registration_access !== registration ||
           account.registered_deaths_access !== registeredDeaths || account.coding_access !== coding ||
           account.reviewing_access !== reviewing ||
           account.coding_history_access !== codingHistoryAccess ||
           JSON.stringify(account.offline_coding_access ?? []) !== JSON.stringify(offlineCoding)))) return undefined;
-    return accounts.map((account) => account.user_id === userId
-      ? { ...account, collection_access: collection, registration_access: registration,
+    return accounts.map((account) => {
+      if (account.user_id !== userId) return account;
+      // The training flags are stored only while true, so an account without training keeps its earlier shape.
+      const { training_coding_access: _coding, training_pending: _pending, ...rest } = account;
+      return { ...rest, collection_access: collection, registration_access: registration,
         registered_deaths_access: registeredDeaths, coding_access: coding, reviewing_access: reviewing,
-        offline_coding_access: offlineCoding, coding_history_access: codingHistoryAccess }
-      : account);
+        offline_coding_access: offlineCoding, coding_history_access: codingHistoryAccess,
+        ...(training.coding ? { training_coding_access: true } : {}), ...(training.pending ? { training_pending: true } : {}) };
+    });
   });
   if (!changed) return;
   for (const listener of accountListeners) listener();
@@ -1093,6 +1111,22 @@ export async function classifyAuthError(
  * Throws SessionRevokedError (store wiped, or kept read-only when work is unsent), SignInRequiredError,
  * ApiError, or the network error.
  */
+/**
+ * Each account's training project id (`/me/access` `training.project_id`; it stays after a session closes), so a
+ * training draft is always sent in the training scope, per draft (plan N10), even offline after a restart
+ * (sync.ts restores it from the phone's store).
+ */
+const trainingProjects = new Map<string, string>();
+
+export function rememberTrainingProject(userId: string, projectId: string | null | undefined): void {
+  if (projectId) trainingProjects.set(userId, projectId);
+}
+
+/** The training project id remembered for *userId* (undefined without one): pass it as `projectId` for training work. */
+export function trainingProjectFor(userId: string): string | undefined {
+  return trainingProjects.get(userId);
+}
+
 export async function authedRequest<T>(
   userId: string,
   path: string,
@@ -1105,12 +1139,15 @@ export async function authedRequest<T>(
     rawBody?: { bytes: Uint8Array<ArrayBuffer>; sha256?: string };
     /** The route answers a JSON list (src/api.ts `ClientRequestOptions.allowList`). */
     allowList?: boolean;
+    /** The project the request is for: the training project's work asks for the training scope (`?training=1`). */
+    projectId?: string | null;
   } = {},
 ): Promise<{ status: number; body: T }> {
   const { device } = await deviceFor(userId);
   const tokens = await loadTokens(userId);
   if (!tokens) throw new SignInRequiredError();
-  const { bodyFactory, ...requestInit } = init;
+  const { bodyFactory, projectId, ...requestInit } = init;
+  path = trainingScopedPath(path, scopeFor(trainingProjects.get(userId), projectId));
   const initialBody = bodyFactory ? bodyFactory() : requestInit.body;
   let unauthorized: ApiError | undefined;
   try {
@@ -1149,11 +1186,12 @@ export async function authedRequest<T>(
 export async function authedRawRequest(
   userId: string,
   path: string,
-  init: { ifNoneMatch?: string; acceptGzip?: boolean; timeoutMs?: number } = {},
+  { projectId, ...init }: { ifNoneMatch?: string; acceptGzip?: boolean; timeoutMs?: number; projectId?: string | null } = {},
 ): Promise<RawApiResponse> {
   const { device } = await deviceFor(userId);
   const tokens = await loadTokens(userId);
   if (!tokens) throw new SignInRequiredError();
+  path = trainingScopedPath(path, scopeFor(trainingProjects.get(userId), projectId));
   try {
     return await requestRaw(device.server, path, { ...init, token: tokens.access_token });
   } catch (error) {

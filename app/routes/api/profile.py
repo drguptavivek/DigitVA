@@ -219,6 +219,49 @@ def update_job_title():
 
 
 # ---------------------------------------------------------------------------
+# PATCH /api/v1/profile/languages  — the coder's own coding languages
+# ---------------------------------------------------------------------------
+
+@bp.patch("/languages")
+@login_required
+def update_coding_languages():
+    """Set the current user's coding languages (coding-workflow-state-machine.md,
+    "Coder coding languages"): a non-empty list of active language codes, the
+    admin user screen's rule. They narrow coding and review lists in every
+    project. Coders only (403 otherwise); each change is audited with the old
+    and new codes. Cookie session only for now (CSRF by the app-wide check)."""
+    from app.models.mas_languages import MasLanguages
+    from app.services.authz.predicates import role_flags
+
+    if "coder" not in role_flags(current_user, virtual=False):
+        return api_error("Only coders can set coding languages.", "forbidden", 403)
+
+    body = optional_object_body()
+    if body is None:
+        return api_error("A JSON object is required.")
+    languages = body.get("languages")
+    if not isinstance(languages, list) or not languages or len(languages) > 50 or any(
+        not isinstance(code, str) for code in languages
+    ):
+        return api_error("At least one language must be selected.")
+    active = set(db.session.scalars(
+        sa.select(MasLanguages.language_code).where(MasLanguages.is_active.is_(True))
+    ))
+    if any(code not in active for code in languages):
+        return api_error("Choose active coding languages.")
+    old = list(current_user.vacode_language or [])
+    current_user.vacode_language = list(dict.fromkeys(languages))
+    record_security_event(
+        user_id=current_user.user_id,
+        actor_user_id=current_user.user_id,
+        event_type="coding_languages_changed",
+        detail={"old": old, "new": current_user.vacode_language},
+    )
+    db.session.commit()
+    return jsonify({"message": "Coding languages updated.", "languages": current_user.vacode_language})
+
+
+# ---------------------------------------------------------------------------
 # PATCH /api/v1/profile/interviewer  — year of birth and sex (optional)
 # ---------------------------------------------------------------------------
 

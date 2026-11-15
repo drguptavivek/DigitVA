@@ -608,7 +608,7 @@ class CoderSlotsTests(TrainingDemoTestBase):
         self.assertEqual(ctx.exception.code, "no_free_coder_slot")
 
     def test_coder_slots_outside_1_to_100_are_refused(self):
-        for bad in (0, 101, -1, True, "20", 20.0, None):
+        for bad in (0, 101, -1, True, "20", 20.0):
             with self.assertRaises(svc.TrainingDemoError) as ctx:
                 svc.create_training_session("bad", self.admin, source_form_id=SRC_FORM, coder_slots=bad)
             self.assertEqual(ctx.exception.code, "invalid_coder_slots", bad)
@@ -619,8 +619,12 @@ class CoderSlotsTests(TrainingDemoTestBase):
 
         runner = self.app.test_cli_runner()
         result = runner.invoke(training_demo_group, [
-            "create-session", "--name", "x", "--coder-slots", "101", "--by", self.admin.email])
+            "create-session", "--name", "x", "--type", "coder", "--coder-slots", "101", "--by", self.admin.email])
         self.assertNotEqual(result.exit_code, 0)
+        result = runner.invoke(training_demo_group, [
+            "create-session", "--name", "x", "--coder-slots", "3", "--by", self.admin.email])
+        self.assertNotEqual(result.exit_code, 0)  # --type is required (N13)
+        self.assertIn("--type", result.output)
         self.assertEqual(len(svc.list_training_sessions()), 1)
 
 

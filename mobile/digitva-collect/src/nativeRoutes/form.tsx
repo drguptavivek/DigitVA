@@ -66,7 +66,8 @@ import {
   stripDraftCovered,
   type Db,
 } from "../drafts";
-import { authedRawRequest, SessionRevokedError, SignInRequiredError } from "../auth";
+import { authedRawRequest, SessionRevokedError, SignInRequiredError, trainingProjectFor } from "../auth";
+import { scopeFor } from "../training";
 import { canStartDeathInterview } from "../deathWorkflow";
 import { isLocaleCode, questionnaireDefault, questionnaireLocales, t } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
@@ -386,6 +387,8 @@ export default function Form() {
     InstrumentDefinition | undefined
   >();
   const [translationFallback, setTranslationFallback] = useState(false);
+  // Training mode: the draft belongs to the training project (its own project_id, plan N10).
+  const [trainingDraft, setTrainingDraft] = useState(false);
   const [message, setMessage] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [languageOpen, setLanguageOpen] = useState(false);
@@ -584,6 +587,7 @@ export default function Form() {
           existingDraft?.project_id ??
           foundCase?.project_id ??
           registration?.project_id;
+        setTrainingDraft(scopeFor(trainingProjectFor(account.user_id), existingDraft?.project_id ?? hostProjectId));
         if (!hostProjectId) {
           setBlockedReferenceData(true);
           setMessage(t("referenceDataUnavailable"));
@@ -775,6 +779,7 @@ export default function Form() {
           authedRawRequest(account.user_id, path, {
             ifNoneMatch: requestOptions.ifNoneMatch,
             acceptGzip: true,
+            projectId: hostProjectId,
           });
         const bundledInstrument = createWhoVa2022Instrument(config.enabledExtensions);
         const definition = envelope
@@ -1510,6 +1515,7 @@ export default function Form() {
           onCancel={() => setConfirmDelete(false)}
         />
       ) : null}
+      {trainingDraft ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} numberOfLines={1} testID="form-training-mode">{`${t("trainingMode")} · ${t("trainingPractice")}`}</Text> : null}
       {translationFallback ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} numberOfLines={1} testID={loaded.standalone ? "standalone-translation-fallback" : undefined}>{t(loaded.standalone ? "questionnairePartialEnglishFallback" : "questionnaireEnglishFallback")}</Text> : null}
       {consentView.unavailable ? <Text style={[styles.muted, { paddingHorizontal: 16 }]} testID="consent-unavailable">{t("consentUnavailableInterview")}</Text> : null}
       <Sheet

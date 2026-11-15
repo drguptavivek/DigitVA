@@ -195,6 +195,7 @@ SELF_SERVICE_ENDPOINTS = {
     "api_v1.profile_api.reauth": "Own re-authentication.",
     "api_v1.profile_api.reauth_passkey": "Own re-authentication.",
     "api_v1.profile_api.reauth_passkey_options": "Own re-authentication.",
+    "api_v1.profile_api.update_coding_languages": "Own coding languages (narrow own lists; grant nothing).",
     "api_v1.profile_api.update_interviewer_profile": "Own year of birth and sex.",
     "api_v1.profile_api.update_job_title": "Own job title (public text, grants nothing).",
     "api_v1.profile_api.update_timezone": "Own timezone.",

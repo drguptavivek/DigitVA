@@ -17,8 +17,10 @@ from flask import current_app
 
 from app import cache, db
 from app.models import (
+    MapTrainingCase,
     VaAllocation,
     VaAllocations,
+    VaFinalAssessments,
     VaForms,
     VaProjectMaster,
     VaStatuses,
@@ -146,7 +148,8 @@ def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
     random_form_ids, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access)
 
     def _count_ready(form_ids):
-        filters = _available_submission_filters(form_ids, user=user)
+        # The gates too, so the count agrees with what allocation offers.
+        filters = _available_submission_filters(form_ids, user=user) + _coding_gate_filters(form_ids, user)
         return db.session.scalar(
             sa.select(sa.func.count())
             .select_from(VaSubmissions)
@@ -163,6 +166,41 @@ def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
         "has_random_mode": bool(random_form_ids),
         "has_pick_mode": bool(pick_form_ids),
     }
+
+
+UNRECORDED_LANGUAGE = "unrecorded"
+
+
+def pending_by_language(user, project_id: str | None = None) -> list[dict]:
+    """"Forms pending coding": ``[{language, count}]`` of the forms *user*
+    could be allocated to code now -- random and pick forms of their coder
+    reach, in *project_id* when given, within the current (training) scope --
+    by narration language, whatever the coder's own languages
+    (coding-workflow-state-machine.md, "Coder coding languages"). The same
+    predicate as allocation (``_available_submission_filters`` without its
+    language filter, plus ``_coding_gate_filters``). One grouped count query;
+    a blank or missing language is ``unrecorded``; only non-zero buckets,
+    largest first. Counts only."""
+    form_ids = training_scope.filter_form_ids(user.get_coder_va_forms() | user.get_coding_tester_va_forms())
+    if not form_ids:
+        return []
+    form_ids = sorted(form_ids)
+    language = sa.func.coalesce(
+        sa.func.nullif(sa.func.lower(sa.func.trim(VaSubmissions.va_narration_language)), ""),
+        UNRECORDED_LANGUAGE,
+    ).label("language")
+    rows = db.session.execute(
+        sa.select(language, sa.func.count().label("count"))
+        .select_from(VaSubmissions)
+        .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
+        .where(sa.and_(
+            *_available_submission_filters(form_ids, project_id=project_id, user=user, languages=False),
+            *_coding_gate_filters(form_ids, user),
+        ))
+        .group_by(language)
+        .order_by(sa.func.count().desc(), language)
+    ).all()
+    return [{"language": row.language, "count": row.count} for row in rows]
 
 
 # ---------------------------------------------------------------------------
@@ -217,12 +255,24 @@ def _demo_recode_reset_message() -> str:
 # Internal helpers (no current_user — caller passes user explicitly)
 # ---------------------------------------------------------------------------
 
+def _on_units(va_sid_column, unit_ids) -> sa.ColumnElement:
+    """*va_sid_column* is a submission on one of *unit_ids* (a collection or a select). An uncorrelated IN
+    over an alias: it means the same however deep it is nested under a query
+    already FROM ``VaSubmissions`` (auto-correlation reaches one level only)."""
+    sub = sa.orm.aliased(VaSubmissions)
+    return va_sid_column.in_(sa.select(sub.va_sid).where(sub.org_unit_id.in_(unit_ids)))
+
+
 def _own_collected_condition(user, va_sid_column=VaSubmissions.va_sid) -> sa.ColumnElement:
     """*va_sid_column* is a case *user* submitted through web intake in a
     project without self-coding: never theirs to code, from the pool or by
     pick (coding-workflow-state-machine.md, "Self-coding"; owner 2026-11-12,
-    digitva-9xn9.22). Served by ``ix_va_web_intake_drafts_user_status``."""
-    return sa.exists().where(
+    digitva-9xn9.22). A training interview on one of the user's self-coding
+    slot units is exempt (training-session-types.md). Served by
+    ``ix_va_web_intake_drafts_user_status``."""
+    from app.services.training_demo_service import self_coding_units_select, training_self_coding_ids
+
+    conditions = [
         VaWebIntakeDraft.va_sid == va_sid_column,
         VaWebIntakeDraft.user_id == user.user_id,
         VaWebIntakeDraft.status == "submitted",
@@ -231,10 +281,76 @@ def _own_collected_condition(user, va_sid_column=VaSubmissions.va_sid) -> sa.Col
                 VaProjectMaster.self_coding_enabled.is_not(True)
             )
         ),
+    ]
+    # Only a user with a grant in the training project can have a slot unit;
+    # the grants are already loaded, so everyone else adds no SQL. A subquery,
+    # not training_self_coding_ids: no extra round trip.
+    if training_scope.training_project_id() in resolve_grants(user).projects:
+        conditions.append(sa.not_(sa.and_(
+            VaWebIntakeDraft.project_id == training_scope.training_project_id(),
+            _on_units(VaWebIntakeDraft.va_sid, self_coding_units_select(user.user_id)),
+        )))
+    return sa.exists().where(*conditions)
+
+
+def _training_own_condition(user, va_sid_column=VaSubmissions.va_sid) -> sa.ColumnElement:
+    """*va_sid_column* is *user*'s own submitted training interview on one of
+    their self-coding slot units, not a standard-set copy: the "Code from my
+    interviews" queue (training-session-types.md). False without such units."""
+    from app.services.training_demo_service import training_self_coding_ids
+
+    unit_ids = training_self_coding_ids(user.user_id)
+    if not unit_ids:
+        return sa.false()
+    return sa.and_(
+        sa.exists().where(
+            VaWebIntakeDraft.va_sid == va_sid_column,
+            VaWebIntakeDraft.user_id == user.user_id,
+            VaWebIntakeDraft.status == "submitted",
+            VaWebIntakeDraft.project_id == training_scope.training_project_id(),
+        ),
+        sa.not_(sa.exists().where(MapTrainingCase.va_sid == va_sid_column)),
+        _on_units(va_sid_column, sorted(unit_ids)),
     )
 
 
-def _available_submission_filters(form_ids, project_id=None, user=None):
+def _training_queue_condition(user, queue: str) -> sa.ColumnElement:
+    """The training side's queue: ``own`` (``_training_own_condition``) or
+    ``standard``, the user's standard training set (their slots' copies)."""
+    from app.services.training_demo_service import standard_set_sids
+
+    if queue == "own":
+        return _training_own_condition(user)
+    return VaSubmissions.va_sid.in_(standard_set_sids(user.user_id))
+
+
+def get_training_queue_counts(user) -> dict:
+    """``{own: {coded, total} | None, standard: {coded, total}}`` for the
+    training coding page's "X of Y": coded = an active final assessment (as the
+    trainer report counts); own total = the user's submitted interviews on
+    their self-coding units (None outside a self-coding session). Two queries."""
+    from app.services.training_demo_service import standard_set_sids, training_self_coding_ids
+
+    coded = sa.exists().where(
+        VaFinalAssessments.va_sid == VaSubmissions.va_sid,
+        VaFinalAssessments.va_finassess_status == VaStatuses.active,
+    )
+
+    def _counts(condition) -> dict:
+        total, done = db.session.execute(
+            sa.select(sa.func.count(), sa.func.count().filter(coded)).select_from(VaSubmissions).where(condition)
+        ).one()
+        return {"coded": done, "total": total}
+
+    standard = _counts(VaSubmissions.va_sid.in_(standard_set_sids(user.user_id)))
+    own = _counts(_training_own_condition(user)) if training_self_coding_ids(user.user_id) else None
+    return {"own": own, "standard": standard}
+
+
+def _available_submission_filters(form_ids, project_id=None, user=None, *, languages=True):
+    """The allocation predicate: what *user* may be offered to code now in
+    *form_ids*. *languages* False drops only the coder-language filter
+    ("Forms pending coding"). Callers add ``_coding_gate_filters``."""
     filters = [
         VaSubmissions.va_form_id.in_(form_ids),
         VaSubmissionWorkflow.workflow_state.in_(CODER_READY_POOL_STATES),
@@ -244,14 +360,19 @@ def _available_submission_filters(form_ids, project_id=None, user=None):
         # Confirmed-duplicate web cases never enter a pool either.
         not_confirmed_duplicate_condition(VaSubmissions.va_sid),
     ]
+    # The training side codes one queue at a time, the standard set by default.
+    queue = training_scope.queue() if user is not None else None
     if user is not None:
-        language_filter = _narration_language_filter(user)
+        # An own interview is coded in its interview language (not the coder's).
+        language_filter = _narration_language_filter(user) if queue != "own" and languages else None
         if language_filter is not None:
             filters.append(language_filter)
         # The coding scope: the same predicate require(CODE) answers for
         # one submission, so the pool never offers what pick refuses.
         filters.append(scope_filter(user, Action.CODE))
         filters.append(sa.not_(_own_collected_condition(user)))
+        if queue is not None:
+            filters.append(_training_queue_condition(user, queue))
     if project_id:
         filters.append(
             VaSubmissions.va_form_id.in_(
@@ -1003,6 +1124,19 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
     form = _require_coder_access(user, va_sid)
 
     sub_row = _require_submission_exists(va_sid)
+    # In the training project a coder picks only from their own set, whatever
+    # the request's scope or own_case (training-session-types.md; N5).
+    own_training = False
+    if sub_row.project_id is not None and sub_row.project_id == training_scope.training_project_id():
+        from app.services.training_demo_service import standard_set_sids
+
+        own_training = bool(db.session.scalar(sa.select(_training_own_condition(user, sa.literal(va_sid)))))
+        if not own_training and not db.session.scalar(
+            sa.select(sa.literal(va_sid).in_(standard_set_sids(user.user_id)))
+        ):
+            raise AllocationError(
+                "This case is not in your training set.", 403, code="not_in_your_training_set"
+            )
     if not own_case and get_project_coding_intake_mode(sub_row.project_id) != CODING_INTAKE_PICK:
         raise AllocationError("This project does not use pick-and-choose coding.")
 
@@ -1022,9 +1156,10 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
         )
 
     # The pick list filters on the narration language; so does the pick (F16).
+    # An own training interview is coded in its interview language.
     languages = _normalized_vacode_languages(user)
     narration = (form.va_narration_language or "").strip().lower()
-    if languages and narration not in languages:
+    if languages and narration not in languages and not own_training:
         raise AllocationError(
             "Your profile does not support coding forms in "
             f"{form.va_narration_language or 'an unrecorded language'}."
@@ -1087,7 +1222,8 @@ def _resume_picked(user, existing_sid: str, va_sid: str) -> AllocationResult:
 def allocate_own_case(user, va_sid: str) -> AllocationResult:
     """"Code this case now": allocate *va_sid* to the interviewer who submitted it.
 
-    Only in a self-coding project and only for the user who owns the case's
+    Only in a self-coding project, or for a training interview on the user's
+    self-coding slot unit (``_training_own_condition``), and only for the user who owns the case's
     submitted web intake draft (docs/policy/coding-workflow-state-machine.md,
     "Self-coding"). Everything else is ``allocate_pick_form``'s: the case
     must be ``ready_for_coding`` (409 ``not_ready`` with its state while
@@ -1105,7 +1241,12 @@ def allocate_own_case(user, va_sid: str) -> AllocationResult:
     if project_id is None:
         _require_submission_exists(va_sid)  # 404 for an unknown case, else not theirs
     settings = resolve_grants(user).projects.get(project_id)
-    if not (settings and settings.self_coding):
+    own_training = (
+        project_id is not None
+        and project_id == training_scope.training_project_id()
+        and bool(db.session.scalar(sa.select(_training_own_condition(user, sa.literal(va_sid)))))
+    )
+    if not (settings and settings.self_coding) and not own_training:
         raise AllocationError(
             "Only the interviewer who submitted this case can code it now, "
             "and only in a self-coding project.",

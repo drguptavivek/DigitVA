@@ -37,6 +37,7 @@ jest.mock("../src/offlineIdentity", () => ({
 import { createDraftStore, getDraftRow, getMeta, reopenCompletedDraft, getOfflineCoding, markCompleted, migrate, retryHeldDraft, saveOfflineCoding, setMeta, type Db } from "../src/drafts";
 import type { AccessSummary, SmartVaTarget } from "../src/api";
 import { refreshAuthorizedProjectDefinitions, canUseBundledFallbackForProject, listPausedProjects, fetchCaseDetail, fetchCasePage, getCachedReferenceData, markProjectDefinitionServed, reconcileReferenceAccess, refreshCases, refreshReferenceData, syncInterviewer, targetsFrom, preloadLastFormLocale, translationsFor, translationsForDraft, uploadQueuedWork, draftAnswersSha256, codingLeftKey, type Bootstrap, type ProjectSettings, type ReferenceData } from "../src/sync";
+import { rememberTrainingProject } from "../src/auth";
 import { acquireDraftUpload, acquireLocalCodingEditor } from "../src/localCodingLeases";
 import { getOrCreatePlusDeviceIdentity } from "../src/offlineIdentity";
 import { codingReceiptSha256 } from "../src/codingReceipt";
@@ -2300,5 +2301,76 @@ describe("respondent consent and refusals on the phone", () => {
     const logged = pendingErrors().map((entry) => entry.what).join("\n");
     expect(logged).toContain("send HTTP 409 conflict POST /api/v1/intake/submissions");
     expect(logged).not.toContain("questionnaire");
+  });
+});
+
+// Last in the file: the remembered training project is module state (auth.ts) and stays for later tests.
+describe("training scope per draft", () => {
+  it("sends training drafts in the training scope and real drafts without it (mixed outbox, plan N10)", async () => {
+    const TRAINING = "TRN01";
+    const db = memoryDb();
+    await migrate(db);
+    await setMeta(db, "training.project_id", TRAINING);
+    rememberTrainingProject(USER, TRAINING);
+    const ids = {
+      realDone: "aaaaaaaa-0000-4000-8000-000000000101",
+      trainingDone: "aaaaaaaa-0000-4000-8000-000000000102",
+      realOpen: "aaaaaaaa-0000-4000-8000-000000000103",
+      trainingOpen: "aaaaaaaa-0000-4000-8000-000000000104",
+    };
+    const deaths = { [PROJECT]: DEATH, [TRAINING]: "dddddddd-0000-4000-8000-000000000102" };
+    const trainingReg = "bbbbbbbb-0000-4000-8000-000000000102";
+    await saveRegistration(db, {
+      project_id: TRAINING, client_death_id: trainingReg, site_id: SITE,
+      fields: { deceased_name: "A", deceased_sex: "male", date_of_death: "2026-09-29" },
+    });
+    for (const [id, projectId, done] of [
+      [ids.realDone, PROJECT, true], [ids.trainingDone, TRAINING, true],
+      [ids.realOpen, PROJECT, false], [ids.trainingOpen, TRAINING, false],
+    ] as const) {
+      const store = createDraftStore(db, { projectId, siteId: SITE, binding: { projectId, deathId: deaths[projectId] } });
+      await store.save(draft(id, { Id10013: id } as SubmissionData));
+      if (done) await markCompleted(db, id, { valid: true, issues: [] });
+    }
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture([project(PROJECT), project(TRAINING)]));
+      // The training project's reference reads carry training=1, so the harness's exact-path routes miss them.
+      if (call.url.includes("/form-options?")) return json(200, project(TRAINING).form_options);
+      if (call.url.includes("/prefill-policy?")) return json(200, project(TRAINING).prefill_policy);
+      if (call.url.includes("/drafts/sync")) {
+        const body = call.body ?? {};
+        return json(200, {
+          draft: {
+            draft_id: `eeeeeeee-0000-4000-8000-${String(body.client_draft_id).slice(-12)}`, project_id: body.project_id, site_id: SITE,
+            org_unit_id: null, death_id: body.death_id, unique_id: "U-1", status: "draft",
+            created_at: "2026-09-30T00:00:00Z", updated_at: "2026-10-01T01:00:00Z",
+          },
+          kept: "incoming", conflict: false, answers_sha256: body.answers_sha256, message: null,
+        });
+      }
+      if (/\/deaths(\?|$)/.test(call.url)) return json(201, { case: detail(TRAINING, "dddddddd-0000-4000-8000-000000000103") });
+      if (call.url.includes("/submissions")) return submissionSuccess(call);
+      if (call.url.includes("/outstanding")) return json(204, null);
+      return json(200, { cases: [], next_cursor: null });
+    });
+
+    await syncInterviewer(USER, db);
+    const sends = calls.filter(({ url }) => /\/submissions(\?|$)|\/drafts\/sync(\?|$)/.test(url));
+    const scoped = (draftId: string) => sends.filter(({ body }) =>
+      body?.client_draft_id === draftId || (body?.draft as { id?: unknown } | undefined)?.id === draftId ||
+      JSON.stringify(body ?? {}).includes(draftId));
+    for (const id of [ids.trainingDone, ids.trainingOpen]) {
+      expect(scoped(id).length).toBeGreaterThan(0);
+      for (const call of scoped(id)) expect(call.url).toContain("training=1");
+    }
+    for (const id of [ids.realDone, ids.realOpen]) {
+      expect(scoped(id).length).toBeGreaterThan(0);
+      for (const call of scoped(id)) expect(call.url).not.toContain("training=");
+    }
+    const registration = calls.filter(({ url }) => /\/intake\/deaths(\?|$)/.test(url));
+    expect(registration).toHaveLength(1);
+    expect(registration[0].url).toContain("training=1");
+    expect(sends.filter(({ url }) => url.includes("/drafts/sync")).length).toBe(2);
+    expect(sends.filter(({ url }) => url.includes("/submissions")).length).toBe(2);
   });
 });

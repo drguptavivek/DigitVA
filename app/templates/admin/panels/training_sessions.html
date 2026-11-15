@@ -2,16 +2,19 @@
   Training sessions panel (Training & demo project, TRN01).
   Lists, creates and manages training sessions. Every write is a JSON POST with
   X-CSRFToken. All text from the server is inserted with textContent.
-  Policy: docs/policy/training-demo-project.md.
+  Policy: docs/policy/training-demo-project.md, docs/policy/training-session-types.md.
 #}
 <div id="training-panel">
   <h2 class="h4">Training sessions</h2>
   <p class="text-muted">
-    Each session is one training: each coder slot holds 10 pseudonymised cases, and you choose the
-    number of slots per session (one per coder). The source has about 200 cases, so beyond 20 slots
-    the same case is copied into more than one slot.
-    Trainees sign in with their own accounts; add existing users below. Closing a session
-    deactivates its participants' training access and deletes nothing.
+    Each session is one training of one type. An interviewer session has no coder slots and no
+    cases. In a coder or self-coding session each coder takes a slot and gets their own random 10
+    pseudonymised cases of the English training set when added, so different coders' sets may
+    overlap. Self-coding coders also interview and code their own interviews. Older sessions
+    without a type keep their mixed roles and the cases copied when they were created.
+    Trainees sign in with their own accounts; add existing users below, or import a file that also
+    creates missing accounts. Closing a session deactivates its participants' training access and
+    deletes nothing; practice interviews are kept.
   </p>
   {% if not configured %}
   <div class="alert alert-warning" role="status">
@@ -22,17 +25,26 @@
   <div id="training-message" role="status" class="alert d-none"></div>
 
   <form id="training-create" class="row g-2 mb-4">
-    <div class="col-md-6">
+    <div class="col-md-4">
       <label class="form-label" for="training-name">New session name</label>
       <input id="training-name" name="name" class="form-control" maxlength="200" required
              placeholder="e.g. Kalpet PHC, November 2026">
     </div>
     <div class="col-md-2">
+      <label class="form-label" for="training-type">Session type</label>
+      <select id="training-type" name="session_type" class="form-select" required>
+        <option value="">Choose…</option>
+        <option value="interviewer">Interviewer</option>
+        <option value="coder">Coder</option>
+        <option value="self_coding">Self-coding</option>
+      </select>
+    </div>
+    <div class="col-md-2" id="training-slots-group">
       <label class="form-label" for="training-slots">Coder slots</label>
       <input id="training-slots" name="coder_slots" type="number" class="form-control" min="1" max="100"
              step="1" value="20" required>
     </div>
-    <div class="col-md-4 align-self-end">
+    <div class="col-md-2 align-self-end">
       <button class="btn btn-primary" id="training-create-btn">Create session</button>
     </div>
   </form>
@@ -42,7 +54,7 @@
       <caption class="visually-hidden">Training sessions</caption>
       <thead>
         <tr>
-          <th scope="col">Code</th><th scope="col">Name</th><th scope="col">Created</th>
+          <th scope="col">Code</th><th scope="col">Name</th><th scope="col">Type</th><th scope="col">Created</th>
           <th scope="col">Status</th><th scope="col">Participants</th>
           <th scope="col">Coder slots</th><th scope="col">Cases coded</th><th scope="col"></th>
         </tr>
@@ -140,37 +152,72 @@
       </div>
     </details>
 
-    <div class="mb-3 border rounded p-2" id="training-graduation">
-      <div class="fw-semibold mb-1">Graduation</div>
-      <p class="small text-muted mb-2">
-        Download the active participants as a users CSV, then load it in the main project's
-        <a href="#" hx-get="/admin/panels/organization" hx-target="#admin-panel" hx-swap="innerHTML">Organization panel</a>
-        (project users import: preview, then apply). Role, unit and cadre are filled as given;
-        a reviewer and data manager gets two rows.
+    <details class="mb-3" id="training-import">
+      <summary class="fw-semibold">Import trainees (creates missing accounts)</summary>
+      <p class="small text-muted my-2">
+        A CSV or XLSX with the columns <code>email</code>, <code>name</code>, <code>phone</code> (email, or a
+        mobile number for a mobile-only account). Missing accounts are created as in the organization users
+        import: an email account gets a verification invite, a mobile-only account a one-time sign-in code shown
+        once below. Everyone is then added to this session in one step; nothing is written unless every row is
+        accepted. New accounts code in English; an existing coder without English gets it added.
       </p>
-      <div class="row g-2">
-        <div class="col-md-3">
-          <label class="form-label" for="training-grad-role">Only role</label>
-          <select id="training-grad-role" class="form-select">
-            <option value="">All roles</option>
-            {% for role in roles %}
-            <option value="{{ role }}">{{ role|replace('_', ' ')|capitalize }}</option>
-            {% endfor %}
-          </select>
+      <div class="row g-2 mb-2">
+        <div class="col-md-5">
+          <label class="form-label" for="training-import-file">File</label>
+          <input id="training-import-file" type="file" class="form-control" accept=".csv,.xlsx">
         </div>
         <div class="col-md-3">
-          <label class="form-label" for="training-grad-unit">Unit code (optional)</label>
-          <input id="training-grad-unit" class="form-control" maxlength="32">
+          <label class="form-label" for="training-import-kind">The rows are</label>
+          <select id="training-import-kind" class="form-select"></select>
         </div>
-        <div class="col-md-3">
-          <label class="form-label" for="training-grad-cadre">Cadre code (optional)</label>
-          <input id="training-grad-cadre" class="form-control" maxlength="32">
-        </div>
-        <div class="col-md-3 align-self-end">
-          <a class="btn btn-outline-secondary" id="training-grad-link" href="#">Download graduation CSV</a>
+        <div class="col-md-4 align-self-end d-flex gap-2">
+          <button type="button" class="btn btn-outline-primary" id="training-import-preview">Preview</button>
+          <button type="button" class="btn btn-primary" id="training-import-apply" disabled>Import</button>
         </div>
       </div>
-    </div>
+      <pre class="small border rounded p-2 bg-light" id="training-import-result" hidden></pre>
+    </details>
+
+    <details class="mb-3 border rounded p-2" id="training-graduation">
+      <summary class="fw-semibold">Graduation</summary>
+      <p class="small text-muted my-2">
+        Give trainees their real coder and interviewer grants (a self-coding trainee gets both), never reviewer
+        or data manager. Grants are active at once; the project's coding and interview gates still apply.
+        Preview first; a change to a cadre the user already holds, or a revoked grant it would reactivate, is
+        listed separately and needs your confirmation. Graduate before closing the session.
+      </p>
+      <div class="row g-2 mb-2">
+        <div class="col-md-5">
+          <label class="form-label" for="training-grad-project">Select organisational project</label>
+          <select id="training-grad-project" class="form-select"><option value="">Choose…</option></select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="training-grad-cadre">Cadre for every row</label>
+          <select id="training-grad-cadre" class="form-select"><option value="">None</option></select>
+        </div>
+      </div>
+      <datalist id="training-grad-units"></datalist>
+      <div class="table-responsive mb-2">
+        <table class="table table-sm align-middle">
+          <caption class="visually-hidden">Trainees to graduate</caption>
+          <thead><tr>
+            <th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Unit</th>
+            <th scope="col">Cadre</th><th scope="col">Coding languages</th><th scope="col">Result</th><th scope="col"></th>
+          </tr></thead>
+          <tbody id="training-grad-rows"></tbody>
+        </table>
+      </div>
+      <div id="training-grad-confirm" class="mb-2" hidden>
+        <div class="fw-semibold small">Needs your confirmation</div>
+        <ul class="small mb-1" id="training-grad-confirm-list"></ul>
+      </div>
+      <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-primary" id="training-grad-preview">Preview all</button>
+        <button type="button" class="btn btn-primary" id="training-grad-save-all">Save all</button>
+      </div>
+      <p class="small text-muted mt-2 mb-0">The old graduation CSV
+        (<a id="training-grad-link" href="#">download</a>) stays for one release.</p>
+    </details>
 
     <div class="table-responsive mb-3">
       <table class="table table-sm align-middle">
@@ -183,12 +230,32 @@
       </table>
     </div>
 
-    <div class="alert alert-light border small">
+      Graduation (above) gives coder and interviewer grants. For any other real access use the ordinary screens:
       After the training, give the trainee access to their real project through the ordinary screens:
       <a href="#" hx-get="/admin/panels/access-grants" hx-target="#admin-panel" hx-swap="innerHTML">Access grants</a>
       or <a href="{{ url_for('people_roles_page.page') }}">People &amp; roles</a>.
     </div>
   </section>
+
+  <dialog id="training-close-dialog" aria-labelledby="training-close-title">
+    <form method="dialog">
+      <h3 class="h6" id="training-close-title">Before closing</h3>
+      <p class="small">Only interviews sent from a phone reach the server; practice interviews are never
+        discarded on close. Graduate trainees first: after close the training project leaves their phones.</p>
+      <div class="table-responsive"><table class="table table-sm">
+        <caption class="visually-hidden">Trainee sync state</caption>
+        <thead><tr><th scope="col">Name</th><th scope="col">Open drafts on server</th><th scope="col">Sent</th>
+          <th scope="col">Last sync</th><th scope="col">Graduated</th></tr></thead>
+        <tbody id="training-close-rows"></tbody>
+      </table></div>
+      <div class="form-check mb-2">
+        <input class="form-check-input" type="checkbox" id="training-close-synced">
+        <label class="form-check-label" for="training-close-synced">Every trainee has synced their phone</label>
+      </div>
+      <button value="cancel" class="btn btn-outline-secondary">Cancel</button>
+      <button value="ok" class="btn btn-danger" id="training-close-ok" disabled>Close session</button>
+    </form>
+  </dialog>
 
   <dialog id="training-confirm">
     <form method="dialog">
@@ -218,6 +285,14 @@
   function ask(text) { return new Promise(resolve => { el('confirm-text').textContent = text; const d = el('confirm'); d.addEventListener('close', () => resolve(d.returnValue === 'ok'), {once: true}); d.showModal(); }); }
   function guard(fn) { return async (...args) => { if (busy) return; busy = true; try { await fn(...args); } catch (e) { message(e.message, true); } finally { busy = false; } }; }
   const roleName = r => r.replace(/_/g, ' ');
+  const TYPE_NAMES = {interviewer: 'Interviewer', coder: 'Coder', self_coding: 'Self-coding'};
+  const typeName = t => TYPE_NAMES[t] || 'Mixed (older session)';
+  el('type').addEventListener('change', () => {
+    const interviewer = el('type').value === 'interviewer';
+    el('slots-group').hidden = interviewer;
+    el('slots').min = interviewer ? '0' : '1';
+    el('slots').required = !interviewer;
+  });
 
   // Name or email suggestions while typing; picking one fills the email.
   let suggestTimer = null, suggestSeq = 0;
@@ -244,7 +319,7 @@
     const body = el('rows'); body.replaceChildren();
     data.sessions.forEach(s => {
       const row = body.insertRow();
-      cell(row, s.session_code); cell(row, s.name);
+      cell(row, s.session_code); cell(row, s.name); cell(row, typeName(s.session_type));
       cell(row, new Date(s.created_at).toLocaleDateString()); cell(row, s.status);
       cell(row, Object.entries(s.participants_by_role).map(([r, n]) => roleName(r) + ' ' + n).join(', '));
       cell(row, s.coder_slots_used + ' / ' + s.coder_slots_total);
@@ -257,11 +332,17 @@
     current = await call('/' + encodeURIComponent(code));
     el('detail').hidden = false;
     el('heading').textContent = current.session_code + ' — ' + current.name;
-    el('summary').textContent = 'Status: ' + current.status + '. Coder slots used ' + current.coder_slots_used + ' of ' + current.coder_slots_total + '. Cases coded ' + current.cases_coded + ' of ' + current.cases_total + '.';
+    el('summary').textContent = 'Type: ' + typeName(current.session_type) + '. Status: ' + current.status + '. Coder slots used ' + current.coder_slots_used + ' of ' + current.coder_slots_total + '. Cases coded ' + current.cases_coded + ' of ' + current.cases_total + '.';
     el('report-link').href = '/data-management/training/' + encodeURIComponent(current.session_code);
     el('plan').replaceChildren(); el('plan-table').hidden = true; el('apply').disabled = true;
     el('candidates').replaceChildren(); el('found').textContent = ''; el('all').checked = false;
     gradLink();
+    const kind = IMPORT_KINDS[current.session_type];
+    el('import').hidden = !kind; importReset();
+    el('import-kind').replaceChildren(...(kind ? [option(kind[0], kind[1])] : []));
+    el('import').querySelectorAll('input, select, button').forEach(c => { c.disabled = current.status !== 'active'; });
+    el('import-apply').disabled = true;
+    await gradLoad();
     el('close').disabled = current.status !== 'active';
     el('reopen').disabled = current.status === 'active';
     el('add').querySelectorAll('input, select, button').forEach(c => { c.disabled = current.status !== 'active'; });
@@ -279,9 +360,11 @@
     });
   }
   el('create').onsubmit = e => { e.preventDefault(); guard(async () => {
-    const slots = Number(el('slots').value);
-    const button = el('create-btn'); button.disabled = true; message('Creating the session; copying ' + (slots * 10) + ' cases takes a few seconds.');
-    try { const s = await call('', {name: el('name').value, coder_slots: slots}); el('name').value = ''; await list(); await detail(s.session_code); message('Session ' + s.session_code + ' created.'); } finally { button.disabled = false; }
+    const type = el('type').value;
+    if (!type) { message('Choose the session type.', true); return; }
+    const slots = type === 'interviewer' ? 0 : Number(el('slots').value);
+    const button = el('create-btn'); button.disabled = true; message('Creating the session.');
+    try { const s = await call('', {name: el('name').value, session_type: type, coder_slots: slots}); el('name').value = ''; await list(); await detail(s.session_code); message('Session ' + s.session_code + ' created.'); } finally { button.disabled = false; }
   })(); };
   const pickedRoles = id => Array.from(el(id).querySelectorAll('input[type=checkbox]:checked')).map(c => c.value);
   el('add').onsubmit = e => { e.preventDefault(); guard(async () => {
@@ -290,14 +373,125 @@
     await call('/' + encodeURIComponent(current.session_code) + '/participants', {email: el('email').value, roles: roles});
     el('email').value = ''; message('Participant added.'); await detail(current.session_code); await list();
   })(); };
-  el('close').onclick = guard(async () => { if (!await ask('Close this session? All its participants lose their training access until you reopen it. Nothing is deleted.')) return; await call('/' + encodeURIComponent(current.session_code) + '/close', {}); message('Session closed.'); await detail(current.session_code); await list(); });
+  const when = v => v ? new Date(v).toLocaleString() : 'Never';
+  el('close-synced').onchange = () => { el('close-ok').disabled = !el('close-synced').checked; };
+  el('close').onclick = guard(async () => {
+    const data = await call('/' + encodeURIComponent(current.session_code) + '/trainees');
+    const body = el('close-rows'); body.replaceChildren();
+    data.trainees.forEach(t => { const row = body.insertRow(); cell(row, t.name); cell(row, t.open_drafts); cell(row, t.sent_interviews); cell(row, when(t.last_sync)); cell(row, t.graduated_at ? 'Yes' : 'No'); });
+    el('close-synced').checked = false; el('close-ok').disabled = true;
+    const d = el('close-dialog'); d.returnValue = '';
+    const ok = await new Promise(resolve => { d.addEventListener('close', () => resolve(d.returnValue === 'ok' && el('close-synced').checked), {once: true}); d.showModal(); });
+    if (!ok) return;
+    await call('/' + encodeURIComponent(current.session_code) + '/close', {}); message('Session closed.'); await detail(current.session_code); await list();
+  });
   el('reopen').onclick = guard(async () => { await call('/' + encodeURIComponent(current.session_code) + '/reopen', {}); message('Session reopened.'); await detail(current.session_code); await list(); });
   function gradLink() {
     if (!current) return;
-    const q = new URLSearchParams({role: el('grad-role').value, org_unit_code: el('grad-unit').value.trim(), cadre_code: el('grad-cadre').value.trim()});
-    el('grad-link').href = api + '/' + encodeURIComponent(current.session_code) + '/graduation.csv?' + q;
+    el('grad-link').href = api + '/' + encodeURIComponent(current.session_code) + '/graduation.csv';
   }
-  ['grad-role', 'grad-unit', 'grad-cadre'].forEach(id => el(id).addEventListener('input', gradLink));
+
+  // Import: one role choice, as the session type allows.
+  const IMPORT_KINDS = {interviewer: ['interviewer', 'Interviewers'], coder: ['coder', 'Coders'], self_coding: ['both', 'Coders who also interview (both)']};
+  function importReset() { el('import-apply').disabled = true; el('import-result').hidden = true; }
+  async function runImport(dryRun) {
+    const file = el('import-file').files[0];
+    if (!file) { message('Choose a file to import.', true); return; }
+    const form = new FormData();
+    form.append('file', file); form.append('kind', el('import-kind').value); form.append('dry_run', dryRun ? '1' : '0');
+    const response = await fetch(api + '/' + encodeURIComponent(current.session_code) + '/import', {method: 'POST', headers: {'X-CSRFToken': window._adminCsrf}, body: form});
+    const data = await response.json().catch(() => ({}));
+    const lines = (data.rows || []).map(r => r.name + ' (' + (r.email || '') + ') — ' + roleName(r.role) + ' — ' + r.slot_or_scope + ' — ' + r.action + ' — ' + (r.account || '') + (r.reason ? ' — ' + r.reason : ''));
+    if (!response.ok) lines.unshift(data.error || 'Import failed.');
+    else if (dryRun) lines.push('Preview only: ' + data.created_users + ' new account(s). Nothing was written.');
+    else {
+      lines.push('Imported: ' + data.created_users + ' new account(s), ' + data.added + ' added, ' + data.reactivated + ' reactivated.');
+      lines.push(data.invitations_queued + ' invitation(s) queued. Delivery is not confirmed.');
+      (data.invite_warnings || []).forEach(w => lines.push('WARNING: ' + w));
+      if ((data.sign_in_codes || []).length) {
+        // Shown once: give each person their code in person or by phone.
+        lines.push('Sign-in codes for new mobile-only accounts (shown once, valid 72 hours):');
+        data.sign_in_codes.forEach(c => lines.push('Row ' + c.row + ': ' + c.name + ' (' + c.mobile + ') — ' + c.sign_in_code));
+      }
+    }
+    const out = el('import-result'); out.textContent = lines.join('\n'); out.hidden = false;
+    const refused = (data.rows || []).some(r => r.action === 'refuse');
+    el('import-apply').disabled = !(dryRun && response.ok && !refused);
+    if (!dryRun && response.ok) { el('import-file').value = ''; await detail(current.session_code); await list(); }
+  }
+  el('import-file').onchange = importReset; el('import-kind').onchange = importReset;
+  el('import-preview').onclick = guard(() => runImport(true));
+  el('import-apply').onclick = guard(async () => { if (!await ask('Create the missing accounts and add everyone to this session?')) return; await runImport(false); });
+
+  // Graduation.
+  let languages = [], cadres = [], trainees = [];
+  const STATUS_TEXT = {ready: 'Ready', saved: 'Saved', unchanged: 'Already granted', needs_confirmation: 'Needs confirmation', refused: 'Refused'};
+  function option(value, text) { const o = document.createElement('option'); o.value = value; o.textContent = text; return o; }
+  async function gradProjects() {
+    const projects = await fetch('/admin/api/projects').then(r => r.json());
+    el('grad-project').replaceChildren(option('', 'Choose…'), ...(projects.projects || [])
+      .filter(p => p.project_structure_mode === 'organization' && !p.demo_training_enabled && p.project_id !== 'TRN01')
+      .map(p => option(p.project_id, p.project_id + ' — ' + p.project_name)));
+  }
+  async function gradProject() {
+    const pid = el('grad-project').value;
+    el('grad-units').replaceChildren(); cadres = [];
+    if (pid) {
+      const base = '/admin/api/organization/' + encodeURIComponent(pid);
+      const [units, cad] = await Promise.all([fetch(base + '/units').then(r => r.json()), fetch(base + '/cadres').then(r => r.json())]);
+      el('grad-units').replaceChildren(...(units.units || []).map(u => { const o = option(u.unit_code, ''); o.label = u.unit_name + ' (' + u.level_name + ')'; return o; }));
+      cadres = (cad.cadres || []).filter(c => c.is_active);
+    }
+    el('grad-cadre').replaceChildren(option('', 'None'), ...cadres.map(c => option(c.cadre_code, c.cadre_name)));
+    gradRows();
+  }
+  function gradRows() {
+    const body = el('grad-rows'); body.replaceChildren();
+    trainees.forEach(t => {
+      const row = body.insertRow(); row.dataset.userId = t.user_id;
+      cell(row, t.name); cell(row, t.email); cell(row, t.role || 'none');
+      const unit = document.createElement('input'); unit.className = 'form-control form-control-sm'; unit.setAttribute('list', 'training-grad-units');
+      unit.maxLength = 32; unit.dataset.f = 'unit'; unit.setAttribute('aria-label', 'Unit for ' + t.name); row.insertCell().append(unit);
+      const cadre = document.createElement('select'); cadre.className = 'form-select form-select-sm'; cadre.dataset.f = 'cadre'; cadre.setAttribute('aria-label', 'Cadre for ' + t.name);
+      cadre.append(option('', 'None'), ...cadres.map(c => option(c.cadre_code, c.cadre_name))); cadre.value = el('grad-cadre').value; row.insertCell().append(cadre);
+      const langs = document.createElement('select'); langs.multiple = true; langs.size = 3; langs.className = 'form-select form-select-sm'; langs.dataset.f = 'langs'; langs.setAttribute('aria-label', 'Coding languages for ' + t.name);
+      languages.forEach(([code, name]) => { const o = option(code, name); o.selected = t.languages.includes(code); langs.append(o); }); row.insertCell().append(langs);
+      cell(row, t.graduated_at ? 'Graduated ' + new Date(t.graduated_at).toLocaleDateString() : '').dataset.f = 'result';
+      const save = document.createElement('button'); save.type = 'button'; save.className = 'btn btn-sm btn-outline-primary'; save.textContent = 'Save';
+      save.disabled = !t.role; save.onclick = guard(() => graduate([row], false)); row.insertCell().append(save);
+    });
+  }
+  async function gradLoad() {
+    const data = await call('/' + encodeURIComponent(current.session_code) + '/trainees');
+    trainees = data.trainees; languages = data.languages;
+    el('grad-confirm').hidden = true; el('grad-confirm-list').replaceChildren();
+    gradRows();
+  }
+  el('grad-cadre').onchange = () => el('grad-rows').querySelectorAll('select[data-f=cadre]').forEach(s => { s.value = el('grad-cadre').value; });
+  el('grad-project').onchange = guard(gradProject);
+  const confirmed = () => Array.from(el('grad-confirm-list').querySelectorAll('input:checked')).map(c => c.value);
+  async function graduate(rows, dryRun) {
+    if (!el('grad-project').value) { message('Select the organisational project.', true); return; }
+    const payload = rows.filter(r => r.cells[2].textContent !== 'none').map(r => ({
+      user_id: r.dataset.userId, org_unit_code: r.querySelector('[data-f=unit]').value.trim(),
+      cadre_code: r.querySelector('[data-f=cadre]').value,
+      language_codes: Array.from(r.querySelector('[data-f=langs]').selectedOptions).map(o => o.value)}));
+    if (!payload.length) { message('No trainee to graduate.', true); return; }
+    const data = await call('/' + encodeURIComponent(current.session_code) + '/graduate', {project_id: el('grad-project').value, rows: payload, dry_run: dryRun, confirm: confirmed()});
+    const byId = Object.fromEntries(data.rows.map(r => [r.user_id, r]));
+    rows.forEach(r => { const result = byId[r.dataset.userId]; if (!result) return;
+      r.querySelector('[data-f=result]').textContent = (STATUS_TEXT[result.status] || result.status) + (result.reason ? ': ' + result.reason : '') +
+        (result.changes.length ? ' (' + result.changes.map(c => c.role + ' ' + c.action + ' at ' + c.scope).join(', ') + ')' : ''); });
+    const list = el('grad-confirm-list'); const kept = new Set(confirmed()); list.replaceChildren();
+    [['cadre_changes', 'Cadre change'], ['reactivations', 'Reactivates a revoked grant']].forEach(([key, label]) => data[key].forEach(r => {
+      const li = document.createElement('li'); const box = document.createElement('input'); box.type = 'checkbox'; box.value = r.user_id; box.className = 'form-check-input me-1';
+      box.checked = kept.has(r.user_id); box.setAttribute('aria-label', 'Confirm ' + r.name); li.append(box, document.createTextNode(label + ': ' + r.name + ' (' + (r.email || '') + ')')); list.append(li); }));
+    el('grad-confirm').hidden = !list.children.length;
+    const refused = data.rows.filter(r => r.status === 'refused').length, waiting = data.rows.filter(r => r.status === 'needs_confirmation').length;
+    message((dryRun ? 'Preview: ' : 'Saved ' + data.saved + '. ') + refused + ' refused, ' + waiting + ' waiting for confirmation.', refused > 0);
+  }
+  el('grad-preview').onclick = guard(() => graduate(Array.from(el('grad-rows').rows), true));
+  el('grad-save-all').onclick = guard(async () => { if (!await ask('Save real grants for every accepted row? Grants are active at once.')) return; await graduate(Array.from(el('grad-rows').rows), false); });
 
   const checks = () => Array.from(el('candidates').querySelectorAll('input[type=checkbox]'));
   const selectedIds = () => checks().filter(c => c.checked).map(c => c.value);
@@ -347,5 +541,6 @@
   el('preview').onclick = guard(() => bulk(true));
   el('apply').onclick = guard(async () => { if (!await ask('Add the previewed users to this session? Nothing is added unless every row is accepted.')) return; await bulk(false); });
   guard(list)();
+  gradProjects().catch(() => message("Projects could not be loaded; refresh and retry.", true));
 }());
 </script>

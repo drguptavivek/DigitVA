@@ -56,11 +56,13 @@ export async function getNativeRegisteredDeaths(
   userId: string,
   registeredMine: boolean,
   cursor?: string | null,
+  /** The project the list is for: the training project asks for the training scope (auth.ts). */
+  projectId?: string,
 ): Promise<RegisteredDeathPage> {
   const params = new URLSearchParams({ limit: "50" });
   if (registeredMine) params.set("registered", "mine");
   if (cursor) params.set("cursor", cursor);
-  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/deaths?${params}`);
+  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/deaths?${params}`, projectId ? { projectId } : undefined);
   return parseRegisteredDeathPage(body);
 }
 
@@ -71,6 +73,7 @@ export async function postNativeDeathRegistration(
 ): Promise<{ death_id: string; unique_id: string }> {
   const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/deaths`, {
     method: "POST",
+    projectId: input.project_id,
     body: input,
   });
   const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -85,8 +88,8 @@ export async function postNativeDeathRegistration(
 }
 
 /** Fetch a single authorised interviewer case before editing its registration. */
-export async function getNativeRegistrationCase(userId: string, deathId: string): Promise<RegistrationCase> {
-  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/cases/${encodeURIComponent(deathId)}`);
+export async function getNativeRegistrationCase(userId: string, deathId: string, projectId?: string): Promise<RegistrationCase> {
+  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/cases/${encodeURIComponent(deathId)}`, projectId ? { projectId } : undefined);
   if (!record(body) || !isRegistrationCase(body.case) || body.case.death_id !== deathId) {
     throw new ApiError(200, "malformed_response");
   }
@@ -99,9 +102,11 @@ export async function patchNativeDeathRegistration(
   deathId: string,
   changes: RegistrationChanges,
   ifUpdatedAt?: string,
+  projectId?: string,
 ): Promise<RegistrationCase> {
   const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/deaths/${encodeURIComponent(deathId)}`, {
     method: "PATCH",
+    ...(projectId ? { projectId } : {}),
     body: { ...changes, ...(ifUpdatedAt ? { if_updated_at: ifUpdatedAt } : {}) },
   });
   if (!record(body) || !isRegistrationCase(body.case) || body.case.death_id !== deathId) {

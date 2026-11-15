@@ -94,27 +94,40 @@ class AdminApiTests(TrainingDemoTestBase):
     def test_create_session_through_the_api(self):
         from unittest import mock
 
+        refused = self._post("", {"name": "Second training"})
+        self.assertEqual(refused.status_code, 400)
+        self.assertIn("session type", refused.get_json()["error"])  # type_required (N13)
         with mock.patch.object(svc, "DEFAULT_SOURCE_FORM_ID", SRC_FORM):
-            response = self._post("", {"name": "Second training"})
+            response = self._post("", {"name": "Second training", "session_type": "interviewer"})
         self.assertEqual(response.status_code, 201, response.get_json())
         body = response.get_json()
         self.assertEqual(body["session_code"], "S002")
-        self.assertEqual(body["cases_total"], 200)
-        self.assertEqual(len(self.client.get(API).get_json()["sessions"]), 2)
+        self.assertEqual(body["session_type"], "interviewer")
+        self.assertEqual((body["coder_slots_total"], body["cases_total"]), (0, 0))  # copies nothing
+        sessions = self.client.get(API).get_json()["sessions"]
+        self.assertEqual(len(sessions), 2)
+        self.assertEqual({s["session_type"] for s in sessions}, {"interviewer", None})
 
     def test_create_takes_the_coder_slot_count_and_checks_it(self):
-        from unittest import mock
+        from tests.test_training_session_types import fixture_corpus
 
-        for bad in (0, 101, "20", True, None):
-            response = self._post("", {"name": "Bad slots", "coder_slots": bad})
+        for bad in (0, 101, True):  # null now means the type's default; few posts: 10 per hour
+            response = self._post("", {"name": "Bad slots", "session_type": "coder", "coder_slots": bad})
             self.assertEqual(response.status_code, 400, bad)
             self.assertIn("coder slots", response.get_json()["error"])
-        with mock.patch.object(svc, "DEFAULT_SOURCE_FORM_ID", SRC_FORM):
-            response = self._post("", {"name": "Small training", "coder_slots": 3})
+        bad = self._post("", {"name": "Bad", "session_type": "interviewer", "coder_slots": 2})
+        self.assertEqual(bad.status_code, 400, bad.get_json())
+        missing = self._post("", {"name": "No corpus", "session_type": "coder", "coder_slots": 3})
+        self.assertEqual(missing.status_code, 409)
+        self.assertIn("English training case list", missing.get_json()["error"])  # corpus_missing
+        with fixture_corpus(self.source_sids[1:201]):
+            response = self._post("", {"name": "Small training", "session_type": "coder", "coder_slots": 3})
         self.assertEqual(response.status_code, 201, response.get_json())
         body = response.get_json()
-        self.assertEqual((body["coder_slots_total"], body["cases_total"]), (3, 30))
-        self.assertIn(b'id="training-slots"', self.client.get("/admin/panels/training-sessions").data)
+        self.assertEqual((body["coder_slots_total"], body["cases_total"]), (3, 0))  # copies at coder add
+        page = self.client.get("/admin/panels/training-sessions").data
+        self.assertIn(b'id="training-slots"', page)
+        self.assertIn(b'id="training-type"', page)
 
     def test_non_admins_and_anonymous_are_refused(self):
         for who in (self.base_coder_id, self.base_project_pi_id):
@@ -156,7 +169,7 @@ class AdminApiTests(TrainingDemoTestBase):
 
         with mock.patch.dict(self.app.config, DIGITVA_TRAINING_PROJECT_ID=""):
             self.assertFalse(self.client.get(API).get_json()["configured"])
-            self.assertEqual(self._post("", {"name": "x"}).status_code, 409)
+            self.assertEqual(self._post("", {"name": "x", "session_type": "interviewer"}).status_code, 409)
 
 
 @contextmanager

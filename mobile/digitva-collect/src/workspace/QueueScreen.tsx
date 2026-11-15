@@ -4,13 +4,15 @@ import Svg, { Path } from "react-native-svg";
 
 import { ConfirmDialog } from "../ConfirmDialog";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
-import { Button, Card, DetailsChip, Screen, SegmentedControl, TextField, errorText, useUiStyles } from "../ui";
+import { Button, Card, DetailsChip, Screen, SegmentedControl, TextField, errorText as uiErrorText, useUiStyles } from "../ui";
 import { t, type StringKey } from "../i18n";
 import { dateOnly } from "../ui/interviewRows";
 import { ProjectSelect } from "../ui/ProjectSelect";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 import { formatDisplayTimestamp } from "../web/DeathsList";
-import type { WorkspaceApi } from "./api";
+import type { TrainingQueue, WorkspaceApi } from "./api";
+import { ApiError } from "../api";
+import { codingLanguageLines, trainingQueueCounts } from "./codingLanguages";
 import { shortCaseNumber } from "./caseLabel";
 import type { QueueView } from "./viewState";
 import type { CodingHistoryCache, CodingHistoryIdentity } from "../codingHistoryCache";
@@ -251,6 +253,9 @@ export function QueueScreen({
   historyCache,
   historyIdentity,
   reloadKey,
+  trainingQueue,
+  onTrainingQueue,
+  onEditLanguages,
 }: {
   api: WorkspaceApi;
   mode: "coding" | "reviewing";
@@ -267,6 +272,11 @@ export function QueueScreen({
   historyIdentity?: CodingHistoryIdentity;
   /** Native only: a change reloads the page (the route bumps it when the queue regains focus). */
   reloadKey?: number;
+  /** Training coding only: the queue *api* was made for; the queue buttons report the next one (the route makes a new api). */
+  trainingQueue?: TrainingQueue;
+  onTrainingQueue?: (queue: TrainingQueue) => void;
+  /** Opens the profile, where the coder edits their coding languages (the ✎ after "Your languages"). */
+  onEditLanguages?: () => void;
 }) {
   const ActiveShell = Shell ?? Screen;
   // Phone presentation only (round-6 Q1-Q8); the browser keeps its own look.
@@ -302,6 +312,10 @@ export function QueueScreen({
   const scopeRef = useRef<QueueScope>({ api, mode, projectId, offset, showHistory });
   scopeRef.current = { api, mode, projectId, offset, showHistory };
   const activeRef = useRef(AppState.currentState !== "background" && AppState.currentState !== "inactive" && (typeof document === "undefined" || document.visibilityState !== "hidden"));
+
+  // A training queue the caller may not use answers 400/403 (training_scope.resolve_queue).
+  const errorText = (error: unknown) => trainingQueue === "own" && error instanceof ApiError && (error.status === 400 || error.status === 403)
+    && (error.code === "forbidden" || error.code === "invalid_request") ? t("errTrainingQueue") : uiErrorText(error);
 
   function clearMessage() {
     actionError.current = null;
@@ -860,6 +874,44 @@ export function QueueScreen({
     ? (showHistory ? filteredCoderHistory.length : filteredCoderAvailable.length)
     : filteredReviewerRows.length;
 
+  function renderLanguageLines() {
+    const lines = codingLanguageLines(coderStats);
+    if (!lines) return null;
+    return (
+      <View testID="coding-languages">
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
+          <Text style={styles.muted}>{lines.mine}</Text>
+          {onEditLanguages ? (
+            <Pressable accessibilityRole="link" accessibilityLabel={t("queueLanguagesEdit")} onPress={onEditLanguages} hitSlop={12} testID="coding-languages-edit">
+              <Text style={[styles.muted, { color: colors.accent }]}>✎</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {lines.pending ? <Text style={styles.muted} testID="coding-pending-languages">{lines.pending}</Text> : null}
+      </View>
+    );
+  }
+
+  /** Coder sessions: the standard set; self-coding sessions also their own interviews. The queues never mix. */
+  function renderTrainingQueues() {
+    const counts = trainingQueueCounts(coderStats);
+    if (!counts || !onTrainingQueue) return null;
+    const current = trainingQueue ?? "standard";
+    const queue = (value: TrainingQueue, label: string, count: { coded: number; total: number }, countKey: "trainingQueueStandardCount" | "trainingQueueOwnCount") => (
+      <View key={value} style={{ gap: spacing.xxs }}>
+        <Button size="sm" kind={current === value ? "primary" : "secondary"} label={label} disabled={busy || loading} selected={current === value}
+          onPress={() => { if (current !== value) onTrainingQueue(value); }} testID={`training-queue-${value}`} />
+        <Text style={styles.muted}>{t(countKey, { x: count.coded, y: count.total })}</Text>
+      </View>
+    );
+    return (
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }} testID="training-queues">
+        {queue("standard", t("trainingQueueStandard"), counts.standard, "trainingQueueStandardCount")}
+        {counts.own ? queue("own", t("trainingQueueOwn"), counts.own, "trainingQueueOwnCount") : null}
+      </View>
+    );
+  }
+
   function renderFilterControls() {
     if (activeItems.length === 0 && !(mode === "coding" && showHistory)) return null;
     return (
@@ -1126,6 +1178,8 @@ export function QueueScreen({
             </View>
             <RefreshIcon disabled={busy || loading} onPress={refreshCases} />
           </View>
+          {renderLanguageLines()}
+          {renderTrainingQueues()}
           {coderStats ? (
             <View style={q.statsGrid}>
               {randomMode && typeof coderStats.random_ready === "number" ? (

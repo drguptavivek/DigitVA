@@ -44,6 +44,7 @@ import {
   passwordEnrolAndSignIn,
   redeemSignInQr,
   refreshAccessSummary,
+  rememberTrainingProject,
   setActiveSlot,
   setDeviceHomeProject,
   takePickedHomeProject,
@@ -793,6 +794,31 @@ it("forwards the normalized mobile in the existing email field and ignores nulla
   expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", server: SERVER, collection_access: false, registration_access: false, registered_deaths_access: false, coding_access: false, reviewing_access: false, offline_coding_access: [], coding_history_access: historyAccessHash(ACCESS) }]);
 });
 
+it("stores training coding and Start pending only for a typed training session (legacy or older server: none)", async () => {
+  mockSecure.set("device_secret", "dev-secret");
+  mockSecure.set("device", JSON.stringify({ device_id: "d1", server: SERVER, project_id: "P", project_name: "P" }));
+  // Not TRN01: the remembered training project is module state, and a later test starts with none for TRN01.
+  const trainingProject = {
+    project_id: "TRN09", project_name: "Training", has_tree: false, sites: [],
+    grants: [{ role: "coder", scope: "project", active: true, source: "assigned" }],
+    actions: { interview: [], register_death: [] },
+  };
+  const training = (extra: object) => ({ ...ACCESS, training: { project_id: "TRN09", areas: ["coding"], pending: true, project: trainingProject, ...extra } });
+  const login = { access_token: "a", access_expires_at: "", refresh_token: "r", refresh_expires_at: "", user: { user_id: USER, name: "A" }, access: training({ session_types: ["coder"] }) };
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, login.access) : json(201, login));
+  await signIn("a@example.org", "pw");
+  expect((await loadAccounts())[0]).toMatchObject({ coding_access: false, training_coding_access: true, training_pending: true });
+
+  for (const access of [training({ session_types: [null] }), training({})]) {
+    mockServer((call) => call.url.endsWith("/me/access") ? json(200, access) : json(200, {}));
+    await refreshAccessSummary(USER);
+    const [account] = await loadAccounts();
+    expect(account.coding_access).toBe(false);
+    expect(account).not.toHaveProperty("training_coding_access");
+    expect(account).not.toHaveProperty("training_pending");
+  }
+});
+
 it("persists only explicit coder and reviewer roles, never admin demo coding", async () => {
   mockSecure.set("device_secret", "dev-secret");
   mockSecure.set("device", JSON.stringify({ device_id: "d1", server: SERVER, project_id: "P", project_name: "P" }));
@@ -1214,4 +1240,26 @@ describe("passwordEnrolAndSignIn", () => {
     expect(calls).toHaveLength(0);
     expect([...mockSecure]).toEqual([["active_slot", "demo"]]);
   });
+});
+
+it("sends each request in its own project's scope: training=1 only for the training project (plan N10)", async () => {
+  seed({ access: "a", refresh: "r1" });
+  mockServer(() => json(200, {}));
+  // No training project known yet: nothing is scoped.
+  await authedRequest(USER, "/api/v1/intake/drafts/sync", { method: "POST", body: {}, projectId: "TRN01" });
+  expect(calls.at(-1)?.url).toBe(`${SERVER}/api/v1/intake/drafts/sync`);
+  rememberTrainingProject(USER, "TRN01");
+  // A mixed outbox: a real draft, a training draft, a by-id read with a query, and one without a project.
+  await authedRequest(USER, "/api/v1/intake/drafts/sync", { method: "POST", body: {}, projectId: "P1" });
+  expect(calls.at(-1)?.url).toBe(`${SERVER}/api/v1/intake/drafts/sync`);
+  await authedRequest(USER, "/api/v1/intake/drafts/sync", { method: "POST", body: {}, projectId: "TRN01" });
+  expect(calls.at(-1)?.url).toBe(`${SERVER}/api/v1/intake/drafts/sync?training=1`);
+  await authedRequest(USER, "/api/v1/intake/cases?project_id=TRN01", { projectId: "TRN01" });
+  expect(calls.at(-1)?.url).toBe(`${SERVER}/api/v1/intake/cases?project_id=TRN01&training=1`);
+  await authedRequest(USER, "/api/v1/intake/outstanding", { method: "POST", body: {} });
+  expect(calls.at(-1)?.url).toBe(`${SERVER}/api/v1/intake/outstanding`);
+  // A forgotten id never clears the remembered one (offline, or training switched off server side).
+  rememberTrainingProject(USER, null);
+  await authedRequest(USER, "/api/v1/intake/submissions", { method: "POST", body: {}, projectId: "TRN01" });
+  expect(calls.at(-1)?.url).toBe(`${SERVER}/api/v1/intake/submissions?training=1`);
 });

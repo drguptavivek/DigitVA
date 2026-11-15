@@ -326,8 +326,12 @@ def _expand_default_roles(rows, units, cadres, permissions):
             yield {**row, "role": role}
 
 
-def prepare(project_id, rows, *, actor):
+def prepare(project_id, rows, *, actor, collect_errors=False):
     """Resolve all users, roles and scopes without writing; return an apply plan.
+
+    With *collect_errors* it raises nothing for a refused row and returns
+    ``(plan, {row_number: reason})`` instead, the plan holding only the rows
+    that were accepted whole (graduation's per-row refusals).
 
     *actor* is the importing user: every row's grant must pass
     ``authz.can_grant`` for them (an admin writes anything; a project PI any
@@ -348,16 +352,7 @@ def prepare(project_id, rows, *, actor):
     if project.project_structure_mode != "organization":
         raise ProjectUserImportError("This project is not in organization mode.")
 
-    emails = {(row["email"] or "").strip().lower() for row in rows} - {""}
-    users = {user.email.lower(): user for user in db.session.scalars(
-        sa.select(VaUsers).where(sa.func.lower(VaUsers.email).in_(emails))
-    )}
-    # Rows without an email: their people by sign-in number, one query.
-    row_mobiles = {canonical_mobile(row["phone"]) for row in rows
-                   if not (row["email"] or "").strip()} - {None}
-    users_by_mobile = {user.mobile_login: user for user in db.session.scalars(
-        sa.select(VaUsers).where(VaUsers.mobile_login.in_(row_mobiles))
-    )} if row_mobiles else {}
+    users, users_by_mobile, taken_mobiles = _known_people(rows)
     known_users = list(users.values()) + list(users_by_mobile.values())
     requested_units = {row["org_unit_code"].upper() for row in rows if row["org_unit_code"]}
     units = {unit.unit_code.upper(): unit for unit in db.session.scalars(
@@ -391,18 +386,6 @@ def prepare(project_id, rows, *, actor):
                                   VaUserAccessGrants.org_unit_id.in_([unit.org_unit_id for unit in units.values()])),
                        ))}
     mentor_members = member_user_ids(user.user_id for user in known_users)
-    # docs/policy/mobile-sign-in.md section 1: a new account's phone that is a
-    # valid mobile number becomes its sign-in number, so it must be unique:
-    # one query for every number in the file, plus repeats within the file.
-    file_mobiles = {canonical_mobile(row["phone"]) for row in rows} - {None}
-    taken_mobiles = set()
-    if file_mobiles:
-        for held in db.session.execute(
-            sa.select(VaUsers.mobile_login, PHONE_CANONICAL).where(sa.or_(
-                VaUsers.mobile_login.in_(file_mobiles), PHONE_CANONICAL.in_(file_mobiles)
-            ))
-        ):
-            taken_mobiles.update(held)
     mobile_rows = {}
     # can_grant per distinct (role, unit): rows repeat targets, and each
     # decision locates its target with one query.
@@ -411,21 +394,12 @@ def prepare(project_id, rows, *, actor):
     seen = set()
     new_profiles = {}
     errors = []
+    row_errors = {}
     failed_rows = set()
     for row in _expand_default_roles(rows, units, cadres, permissions):
         number = row["_line_number"]
         try:
-            email = row["email"].strip().lower()
-            mobile = canonical_mobile(row["phone"])
-            if email:
-                if len(email) > 128 or not EMAIL_RE.fullmatch(email):
-                    raise ProjectUserImportError("invalid email")
-                identity = email
-            elif mobile is None:
-                raise ProjectUserImportError(
-                    "a row without an email needs a valid 10-digit mobile number")
-            else:
-                identity = f"mobile:{mobile}"
+            email, mobile, identity = _row_identity(row)
             allowed_roles = [role for role in VaAccessRoles
                              if role != VaAccessRoles.admin and
                              (is_admin or role != VaAccessRoles.project_pi)]
@@ -494,20 +468,8 @@ def prepare(project_id, rows, *, actor):
             if not user:
                 if not is_admin:
                     raise ProjectUserImportError("project PI cannot create accounts")
-                if not row["name"] or len(row["name"]) > 128:
-                    raise ProjectUserImportError("new user needs a name of at most 128 characters")
-                if not languages or any(code not in active_languages for code in languages):
-                    raise ProjectUserImportError("new user needs active language codes")
-                if len(row["phone"]) > 15:
-                    raise ProjectUserImportError("phone is too long")
-                if mobile and (
-                    mobile in taken_mobiles or mobile_rows.setdefault(mobile, identity) != identity
-                ):
-                    raise ProjectUserImportError("mobile number is already used by another account")
-                profile = (row["name"], tuple(languages), row["phone"])
-                if identity in new_profiles and new_profiles[identity] != profile:
-                    raise ProjectUserImportError("new user profile differs from an earlier row")
-                new_profiles[identity] = profile
+                _check_new_account(row, identity, mobile, languages, active_languages,
+                                   taken_mobiles, mobile_rows, new_profiles)
             scope = VaAccessScopeTypes.org_unit if unit else VaAccessScopeTypes.project
             grant_key = (user.user_id, role, scope, unit.org_unit_id if unit else project_id) if user else None
             grant = existing_grants.get(grant_key)
@@ -524,9 +486,138 @@ def prepare(project_id, rows, *, actor):
             if number not in failed_rows:
                 failed_rows.add(number)
                 errors.append(f"Row {number}: {exc}")
+                row_errors[number] = str(exc)
+    if collect_errors:
+        # A row refused for one of its roles is refused as a whole.
+        return [item for item in plan if item["row"] not in failed_rows], row_errors
     if errors:
         raise ProjectUserImportError("; ".join(errors))
     return plan
+
+
+def _known_people(rows):
+    """``(users_by_email, users_by_mobile, taken_mobiles)`` for *rows*, three
+    queries: the accounts the rows name by email, the accounts rows without
+    an email name by sign-in number, and every mobile number of the file
+    already held as a sign-in number or a phone (docs/policy/mobile-sign-in.md
+    section 1: a new account's valid mobile becomes its sign-in number, so it
+    must be unique)."""
+    emails = {(row["email"] or "").strip().lower() for row in rows} - {""}
+    users = {user.email.lower(): user for user in db.session.scalars(
+        sa.select(VaUsers).where(sa.func.lower(VaUsers.email).in_(emails))
+    )}
+    row_mobiles = {canonical_mobile(row["phone"]) for row in rows
+                   if not (row["email"] or "").strip()} - {None}
+    users_by_mobile = {user.mobile_login: user for user in db.session.scalars(
+        sa.select(VaUsers).where(VaUsers.mobile_login.in_(row_mobiles))
+    )} if row_mobiles else {}
+    file_mobiles = {canonical_mobile(row["phone"]) for row in rows} - {None}
+    taken_mobiles = set()
+    if file_mobiles:
+        for held in db.session.execute(
+            sa.select(VaUsers.mobile_login, PHONE_CANONICAL).where(sa.or_(
+                VaUsers.mobile_login.in_(file_mobiles), PHONE_CANONICAL.in_(file_mobiles)
+            ))
+        ):
+            taken_mobiles.update(held)
+    return users, users_by_mobile, taken_mobiles
+
+
+def _row_identity(row):
+    """``(email, mobile, identity)`` of one row: a valid email, else a valid
+    mobile number (``mobile:<number>``). Raises ProjectUserImportError."""
+    email = row["email"].strip().lower()
+    mobile = canonical_mobile(row["phone"])
+    if email:
+        if len(email) > 128 or not EMAIL_RE.fullmatch(email):
+            raise ProjectUserImportError("invalid email")
+        return email, mobile, email
+    if mobile is None:
+        raise ProjectUserImportError("a row without an email needs a valid 10-digit mobile number")
+    return email, mobile, f"mobile:{mobile}"
+
+
+def _check_new_account(row, identity, mobile, languages, active_languages,
+                       taken_mobiles, mobile_rows, new_profiles):
+    """The rules for a new account an admin creates from a row; raises
+    ProjectUserImportError. *mobile_rows* and *new_profiles* carry the file's
+    earlier rows, so one person's rows agree and no number is used twice."""
+    if not row["name"] or len(row["name"]) > 128:
+        raise ProjectUserImportError("new user needs a name of at most 128 characters")
+    if not languages or any(code not in active_languages for code in languages):
+        raise ProjectUserImportError("new user needs active language codes")
+    if len(row["phone"]) > 15:
+        raise ProjectUserImportError("phone is too long")
+    if mobile and (mobile in taken_mobiles or mobile_rows.setdefault(mobile, identity) != identity):
+        raise ProjectUserImportError("mobile number is already used by another account")
+    profile = (row["name"], tuple(languages), row["phone"])
+    if identity in new_profiles and new_profiles[identity] != profile:
+        raise ProjectUserImportError("new user profile differs from an earlier row")
+    new_profiles[identity] = profile
+
+
+def prepare_accounts(rows, *, languages):
+    """Resolve the people of *rows* (``email``, ``name``, ``phone`` and
+    ``_line_number``) without writing and without any grant: the identity
+    and new-account rules of ``prepare``, an admin creating accounts. Every
+    new account gets *languages* (active codes). Returns one item per person
+    (``row``, ``identity``, ``display``, ``email``, ``name``, ``phone``,
+    ``mobile``, ``languages``, ``user`` -- None for a new account -- and
+    ``action`` ``create_user`` or ``existing``) for ``create_account``.
+    Raises ProjectUserImportError with row numbers; an inactive existing
+    account is refused, and a person named twice is refused."""
+    active_languages = set(db.session.scalars(
+        sa.select(MasLanguages.language_code).where(MasLanguages.is_active.is_(True))
+    ))
+    users, users_by_mobile, taken_mobiles = _known_people(rows)
+    mobile_rows, new_profiles, seen, items, errors = {}, {}, set(), [], []
+    for row in rows:
+        try:
+            email, mobile, identity = _row_identity(row)
+            if identity in seen:
+                raise ProjectUserImportError("duplicate person")
+            seen.add(identity)
+            user = users.get(email) if email else users_by_mobile.get(mobile)
+            if user and user.user_status != VaStatuses.active:
+                raise ProjectUserImportError("existing user is inactive")
+            if not user:
+                _check_new_account(row, identity, mobile, list(languages), active_languages,
+                                   taken_mobiles, mobile_rows, new_profiles)
+            items.append({"row": row["_line_number"], "identity": identity, "email": email or None,
+                          "display": email or mask_mobile(mobile), "name": row["name"],
+                          "phone": row["phone"], "mobile": None if user else mobile,
+                          "languages": list(languages), "user": user,
+                          "action": "existing" if user else "create_user"})
+        except (ValueError, KeyError) as exc:
+            errors.append(f"Row {row.get('_line_number')}: {exc}")
+    if errors:
+        raise ProjectUserImportError("; ".join(errors))
+    return items
+
+
+def create_account(item, *, actor_user_id, sign_in_code=True):
+    """Create the account of one ``create_user`` item (``prepare`` or
+    ``prepare_accounts``) in the caller's transaction; writes no grant.
+    Returns ``(user, code)``: *code* is the first sign-in code dict (``row``,
+    masked ``mobile``, ``name``, ``sign_in_code``) of a new mobile-only
+    account when *sign_in_code*, else None -- for the caller to show once and
+    never log."""
+    from app.services import mobile_sign_in_service
+
+    user = VaUsers(email=item["email"], name=item["name"], phone=item["phone"] or None,
+                   mobile_login=item["mobile"],
+                   user_status=VaStatuses.active, vacode_language=item["languages"],
+                   permission={}, landing_page="coder", pw_reset_t_and_c=False,
+                   email_verified=False, other=creation_other("import", actor_user_id))
+    user.set_password(secrets.token_urlsafe(32))
+    db.session.add(user)
+    db.session.flush()
+    record_account_created(user, via="project_import", actor_user_id=actor_user_id)
+    code = None
+    if user.email is None and sign_in_code:
+        code = {"row": item["row"], "mobile": mask_mobile(user.mobile_login), "name": user.name,
+                "sign_in_code": mobile_sign_in_service.issue_code(user, actor_user_id=actor_user_id)}
+    return user, code
 
 
 def apply(project_id, plan, *, actor_user_id):
@@ -537,31 +628,16 @@ def apply(project_id, plan, *, actor_user_id):
     per new mobile-only account (``row``, masked ``mobile``, ``name``,
     ``sign_in_code``) for the caller to show once and never log.
     """
-    from app.services import mobile_sign_in_service
-
     new_users = {}
     changed_grants = []
     sign_in_codes = []
     for item in plan:
         user = item["user"] or new_users.get(item["identity"])
         if user is None:
-            user = VaUsers(email=item["email"], name=item["name"], phone=item["phone"] or None,
-                           mobile_login=item["mobile"],
-                           user_status=VaStatuses.active, vacode_language=item["languages"],
-                           permission={}, landing_page="coder", pw_reset_t_and_c=False,
-                           email_verified=False, other=creation_other("import", actor_user_id))
-            user.set_password(secrets.token_urlsafe(32))
-            db.session.add(user)
-            db.session.flush()
-            record_account_created(user, via="project_import", actor_user_id=actor_user_id)
+            user, code = create_account(item, actor_user_id=actor_user_id)
             new_users[item["identity"]] = user
-            if user.email is None:
-                sign_in_codes.append({
-                    "row": item["row"], "mobile": mask_mobile(user.mobile_login),
-                    "name": user.name,
-                    "sign_in_code": mobile_sign_in_service.issue_code(
-                        user, actor_user_id=actor_user_id),
-                })
+            if code:
+                sign_in_codes.append(code)
         # Organization worker creation uses the same transaction and needs
         # the account created for an expanded default-role row.
         item["user"] = user

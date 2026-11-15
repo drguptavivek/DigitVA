@@ -16,15 +16,18 @@ import { isUnlocked } from "../interviewerDb";
 export default function RegisteredDeaths({
   userId,
   registeredMine,
+  projectId,
 }: {
   userId: string;
   registeredMine: boolean;
+  /** The training project when opened in training mode: the list asks for the training scope. */
+  projectId?: string;
 }) {
   const router = useRouter();
   const styles = useUiStyles();
   const { accounts, lockNow, reload, lockVersion, offline } = useAppState();
   const account = accounts.find((item) => item.user_id === userId);
-  const ownerKey = `${userId}:${registeredMine ? "mine" : "all"}`;
+  const ownerKey = `${userId}:${registeredMine ? "mine" : "all"}:${projectId ?? ""}`;
   const renderContextRef = useRef({
     ownerKey,
     userId,
@@ -56,7 +59,7 @@ export default function RegisteredDeaths({
     setBusy(true);
     setMessage("");
     try {
-      const page = await getNativeRegisteredDeaths(userId, registeredMine, nextCursor);
+      const page = await getNativeRegisteredDeaths(userId, registeredMine, nextCursor, projectId);
       if (request !== generation.current || !current(ownerKey)) return;
       pageCursorByDeath.current = {
         ...pageCursorByDeath.current,
@@ -70,7 +73,7 @@ export default function RegisteredDeaths({
     } finally {
       if (request === generation.current) setBusy(false);
     }
-  }, [current, ownerKey, registeredMine, userId]);
+  }, [current, ownerKey, projectId, registeredMine, userId]);
 
   useFocusEffect(useCallback(() => {
     focused.current = true;
@@ -156,6 +159,7 @@ export default function RegisteredDeaths({
               userId,
               deathId: death.death_id,
               registrationSource: "mine",
+              ...(death.project_id ? { projectId: death.project_id } : {}),
               ...(pageCursorByDeath.current[death.death_id] ? { registrationCursor: pageCursorByDeath.current[death.death_id] } : {}),
             },
           })} />

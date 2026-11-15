@@ -9,7 +9,7 @@ two scopes, chosen per request from ``?training=``:
   invisible to everyone, including a trainee.
 * ``only`` (``training=1``): nothing but the training project, and only for a
   caller with an active participation in an active session whose role opens the
-  area (``training_demo_service.AREA_ROLES``). Anyone else gets 403.
+  area in that session's type (``training_demo_service.AREA_RULES``). Anyone else gets 403.
 
 ``use`` stores the scope on the request; the query builders then add
 ``conditions`` / ``form_conditions`` to their own WHERE. Every request starts
@@ -60,7 +60,7 @@ def current() -> str | None:
 
 def resolve(area: str, *more_areas: str) -> str:
     """Read ``?training=`` of the request, authorize it for *area* (or any of
-    *more_areas*, keys of ``training_demo_service.AREA_ROLES``), set it and
+    *more_areas*, keys of ``training_demo_service.AREA_RULES``), set it and
     return it.
 
     400 ``invalid_request`` for a value other than 0/1; 403 ``forbidden`` for
@@ -82,6 +82,39 @@ def resolve(area: str, *more_areas: str) -> str:
     ):
         _refuse("You are not a participant of an active training session for this area.", "forbidden", 403)
     return use(ONLY)
+
+
+QUEUES = ("standard", "own")
+_QUEUE_KEY = "digitva.training_queue"
+
+
+def resolve_queue() -> str | None:
+    """Read ``?queue=`` on the training side (call after ``resolve``): the
+    coding queue every training pool, count, random allocation and pick list
+    of this request uses (docs/policy/training-session-types.md, "Coding in a
+    self-coding session"). ``standard`` (the default) is the caller's standard
+    training set; ``own`` their own interviews, only for a self-coding
+    trainee (403 ``forbidden`` otherwise). 400 ``invalid_request`` for
+    another value. Ignored on the real side, which keeps its codes."""
+    if current() != ONLY:
+        return None
+    from app.services import training_demo_service as training
+
+    raw = (request.args.get("queue") or "standard").strip().lower()
+    if raw not in QUEUES:
+        _refuse("queue must be standard or own.", "invalid_request", 400)
+    if raw == "own" and not training.training_self_coding_ids(current_user.user_id):
+        _refuse("Coding your own interviews needs a self-coding training session.", "forbidden", 403)
+    request.environ[_QUEUE_KEY] = raw
+    return raw
+
+
+def queue() -> str | None:
+    """The training coding queue of this request (``standard`` unless
+    ``resolve_queue`` set ``own``), or None off the training side."""
+    if current() != ONLY:
+        return None
+    return request.environ.get(_QUEUE_KEY, "standard")
 
 
 def conditions(project_col) -> list:

@@ -55,6 +55,38 @@ export function trainingBootstrap(bootstrap: ClientBootstrap): ClientBootstrap |
   return { ...bootstrap, csrf: { ...bootstrap.csrf, training: true }, access, capabilities: accessCapabilities(access), scope: "training" };
 }
 
+/**
+ * Whether a request for *projectId* takes the training scope (plan N10): exactly when it is the training project.
+ * *trainingProjectId* is `access.training.project_id` (or the phone's remembered copy of it).
+ */
+export function scopeFor(trainingProjectId: string | null | undefined, projectId: string | null | undefined): boolean {
+  return Boolean(projectId) && trainingProjectId === projectId;
+}
+
+/** *path* with `training=1` when *training*, unless it already names a scope. */
+export function trainingScopedPath(path: string, training: boolean): string {
+  if (!training || /[?&]training=/.test(path)) return path;
+  return `${path}${path.includes("?") ? "&" : "?"}training=1`;
+}
+
+/**
+ * The phone's collection access (training mode): the user's projects plus the training project while a
+ * participation gives grants there, appended last so the default project choice is unchanged. Unchanged without one,
+ * or from an older server (no `session_types`).
+ */
+export function withTrainingCollection<T extends Pick<AccessSummary, "projects" | "training">>(access: T): T {
+  const project = access.training?.project;
+  // `session_types` marks a server with session types: before them a legacy (S001) participation never trained on
+  // the phone, and a new APK on such a server keeps today's behaviour.
+  if (!project || !Array.isArray(access.training?.session_types) || access.projects.some((entry) => entry.project_id === project.project_id)) return access;
+  return { ...access, projects: [...access.projects, project] };
+}
+
+/** Whether the user holds a typed (non-legacy) training session: the training queue buttons need one. */
+export function hasTypedTrainingSession(access: Pick<AccessSummary, "training"> | undefined): boolean {
+  return (access?.training?.session_types ?? []).some((type) => typeof type === "string" && type.length > 0);
+}
+
 /** A requester that asks every list, count and allocation route for the training scope (`?training=1`). */
 export function trainingRequester(request: JsonRequester): JsonRequester {
   return (path, init) => request(`${path}${path.includes("?") ? "&" : "?"}training=1`, init);
@@ -66,6 +98,8 @@ export interface TrainingParticipation {
   onboarded_at: string | null;
   session_code: string;
   session_name: string;
+  /** interviewer, coder or self_coding; null for a legacy session; absent from older servers. */
+  session_type?: string | null;
 }
 
 export interface TrainingMe {

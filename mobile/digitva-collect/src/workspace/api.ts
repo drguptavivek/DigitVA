@@ -160,9 +160,14 @@ function normalizeDorisError(error: unknown): never {
  * Create route methods without acquiring an allocation or touching storage.
  * The injected requester owns credentials, browser CSRF, and native refresh.
  */
-export function createWorkspaceApi(request: JsonRequester, options: { training?: boolean } = {}): WorkspaceApi {
-  // The training scope (docs/policy/training-demo-project.md): only the queue, count and allocation routes take it.
-  const scope = (path: string) => options.training ? `${path}${path.includes("?") ? "&" : "?"}training=1` : path;
+/** The training coding queue: the standard training set, or (self-coding sessions only) the trainee's own interviews. */
+export type TrainingQueue = "standard" | "own";
+
+export function createWorkspaceApi(request: JsonRequester, options: { training?: boolean; queue?: TrainingQueue } = {}): WorkspaceApi {
+  // The training scope (docs/policy/training-demo-project.md): only the queue, count and allocation routes take it,
+  // with the training coding queue (docs/policy/training-session-types.md) when one is chosen.
+  const trainingQuery = `training=1${options.queue ? `&queue=${options.queue}` : ""}`;
+  const scope = (path: string) => options.training ? `${path}${path.includes("?") ? "&" : "?"}${trainingQuery}` : path;
   const scopedGet = (path: string) => request(`${API}${scope(path)}`);
   const get = (path: string) => request(`${API}${path}`);
   const post = (path: string, json?: unknown) => request(`${API}${path}`, { method: "POST", ...(json !== undefined ? { json } : {}) });

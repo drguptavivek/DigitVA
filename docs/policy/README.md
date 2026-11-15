@@ -34,6 +34,7 @@ Current policy docs:
 - [ODK Connection Guard Policy](odk-connection-guard.md)
 - [Organization Model Policy](organization-model.md) — per-project health-system tree, unit codes, cadres, workers, export/import
 - [Training and Demo Project](training-demo-project.md) — permanent TRN01 practice project: pseudonymised case copies, training sessions, participants, onboarding
+- [Training Session Types](training-session-types.md) — draft: interviewer, coder and self-coding sessions, phone training, English-only standard set, graduation by unit tree, coder language counts
 - [District Reference Model](district-reference-model.md) — proposed district tree, cadres, grid flags and default roles
 - [People and Roles Page](people-and-roles-page.md) — roles matrix and access audit page (active)
 - [ODK Retired Submissions Policy](odk-retired-submissions.md) — submissions missing in ODK are kept, not codeable, not counted by default

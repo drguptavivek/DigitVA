@@ -3,7 +3,7 @@ import { goHome } from "./goHome";
 import { Text } from "react-native";
 
 import { t } from "./i18n";
-import { PlusCoding, PlusReviewing, PlusWorkspace } from "./nativeRoutes/plusWorkspace";
+import { PlusCoding, PlusReviewing, PlusTrainingCoding, PlusWorkspace } from "./nativeRoutes/plusWorkspace";
 import { Button, Screen, useUiStyles } from "./ui";
 
 export { default as Case } from "./nativeRoutes/case";
@@ -41,3 +41,5 @@ export function CodingOnWeb() {
 export const Coding = PlusCoding;
 export const Reviewing = PlusReviewing;
 export const Workspace = PlusWorkspace;
+// Training coding (training mode): the same workspace over the training project.
+export const TrainingCoding = PlusTrainingCoding;

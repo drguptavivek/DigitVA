@@ -3,7 +3,7 @@ title: Training and Demo Project (TRN01)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-14
+last_updated: 2026-11-15
 ---
 
 # Training and demo project (TRN01)
@@ -14,11 +14,20 @@ data manager) on realistic, consented, pseudonymised cases. It is separate from
 the weekly synthetic demo (`DEMO01`, `docs/policy/organization-demo.md`), whose
 reset and accounts are unchanged.
 
+Session types (interviewer, coder, self-coding), phone training and graduation
+are specified in [Training Session Types](training-session-types.md); where it
+and this document differ for a typed session, that document is the rule.
+Sessions without a type (S001, S002) keep everything below unchanged.
+
 ## What the project is
 
 - Project `TRN01`, "Training & demo (WHO 2022, ICD-11)", organization mode,
   web-only (`web_intake_mode` `both`, no ODK mapping, no ODK form), questionnaire
-  WHO_2022_VA, English forms only (`web_intake_available_locales` `["en"]`).
+  WHO_2022_VA. Policy: trainees interview in any interview language the
+  platform has (training-session-types.md, "Interview languages"), replacing
+  English forms only; the standard training set stays English. Not yet
+  implemented: `setup` still sets `web_intake_available_locales` `["en"]`.
+  Interview supervisors train on the web only.
   Narration languages are `["english", "hindi"]`: the source narratives are
   Hindi (199 of the 200 in `UNSW01NC0101`). `setup` sets this on an existing
   TRN01 too.
@@ -45,11 +54,14 @@ reset and accounts are unchanged.
 ## No generated accounts
 
 There are no generated accounts, no passwords and no account expiry. Trainees
-sign in with their own existing DigitVA accounts. The trainer (an admin)
-creates a training session for each training and adds existing users to it
-with a role. An unknown email is refused; the feature never creates a user.
-After the training the admin grants the trainee access to their real project
-through the ordinary grant screens; that is outside this feature.
+sign in with their own DigitVA accounts. The trainer (an admin) creates a
+training session for each training and adds users to it with a role. A single
+or bulk add refuses an unknown email; it never creates a user. The one
+exception is the admin-run session import (training-session-types.md, "Adding
+trainees"), which creates missing accounts through the organisation users
+import rules (email invite, one-time mobile code, sign-in QR) and enrols them
+in the same step. After the training an admin graduates the trainee into their
+real project (below).
 
 ## Training sessions
 
@@ -182,6 +194,23 @@ Participant roles: `death_reporter`, `interview_supervisor`, `interviewer`,
   again reactivates the same grants. Closing a session deactivates every
   participant's training grants; reopening reactivates those of participants who
   are still active. Nothing is deleted.
+- Typed sessions (training-session-types.md) accept only their type's roles,
+  else `role_not_in_session_type`: an interviewer session takes interviewers
+  (and an interview supervisor by single add only) on the root; a coder
+  session takes coders, each with a coder grant on their slot unit; a
+  self-coding session takes coders, each with a coder and an interviewer grant
+  on their slot unit, so their own interviews stay in their slot's scope.
+  death_reporter and reviewer_data_manager are refused in typed sessions. A
+  typed session copies nothing at creation: a coder's first add copies their
+  own random ten of the English corpus (`training_corpus/english_v1.txt`,
+  `<va_form_id>,<va_sid>` per line) into their slot, after checking the coder
+  codes English; coder and self-coding sessions are refused `corpus_missing`
+  while the corpus list is absent or shorter than 200 cases. A bulk add of
+  coders to a typed session takes at most 50 users. Session counts are
+  counted from the copied rows.
+- Closing any session stops its grants and keeps every practice interview.
+  Only sent interviews reach the server, so every trainee syncs before the
+  admin closes the session.
 
 ## Onboarding and the public page
 
@@ -322,17 +351,36 @@ The panel finds candidate users and adds many at once in one role.
 
 ### Graduation
 
+For typed sessions graduation is an admin screen (training-session-types.md,
+"Graduation"): it grants the coder and interviewer roles only (a self-coding
+trainee gets both), never to the training project or a demo project, and
+records `graduated_at` on the participation (set once; saving again changes
+nothing). It is in the training panel: `GET .../trainees` lists each active
+trainee with the real role they graduate to, and `POST .../graduate`
+(`project_id`, `rows: [{user_id, org_unit_code, cadre_code, language_codes}]`,
+`dry_run` by default, `confirm: [user_id]`) checks every row through the
+organization users import (`prepare`, one call, per-row reasons) and writes
+the accepted rows' grants, active at once. A row that changes a cadre the user
+already holds or reactivates a revoked grant is applied only when confirmed.
+Supervisors, death reporters and reviewer_data_manager graduate to nothing
+(digitva-xe2x). Graduating into TRN01, a demo-training or synthetic-demo
+project, or the public demo project is refused (`target_not_allowed`). The CSV
+below stays for one release.
+
 `GET .../graduation.csv` returns the session's active participants in the
 columns of the organization users import (`email`, `name`, `role`,
 `org_unit_code`, `cadre_code`, `language_codes`, `phone`), for loading into the
 participants' real project through the existing import (preview, then apply).
-The training role gives the import role (coder to `coder`, and so on); a
-reviewer_data_manager gives two rows, `reviewer` and `data_manager`. The unit
+Only coder and interviewer rows are written (a self-coding coder gives both);
+other training roles give no row. The unit
 and cadre codes are those given in the request, else blank; a mobile-only user
 is identified by phone. This writes no grant: the ordinary import and its rules
 do.
 
 ## Trainer report
+
+The report of a typed session is admin-only. A legacy session (no type) keeps
+the rule below unchanged.
 
 A session's report is at `/data-management/training/<code>` (the list of
 sessions the viewer may read is `/data-management/training`), with CSV exports

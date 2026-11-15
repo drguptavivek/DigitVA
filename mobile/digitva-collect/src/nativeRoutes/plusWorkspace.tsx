@@ -3,13 +3,15 @@
  * on the phone, the same QueueScreen and CaseWorkspaceScreen the web app renders, over the signed-in account's
  * bearer session. The plain build uses it for coding only; review stays Plus (src/nativeRouteScreens.native.tsx).
  * DORIS still goes to the server here; the offline engine is wired in by phase B.
+ * Training coding (`/training/coding`, docs/policy/training-session-types.md) is the same queue over the training
+ * project: every request asks for `training=1`, with the standard/own queue buttons the web shows.
  */
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEngineScreen } from "../engineIdle";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { goHome, RedirectHome } from "../goHome";
-import { Text } from "react-native";
+import { Linking, Text } from "react-native";
 
 import { useAppState } from "../AppState";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
@@ -17,7 +19,9 @@ import { loadActiveSlot, loadDevice } from "../auth";
 import { t } from "../i18n";
 import { Button, Screen, useUiStyles } from "../ui";
 import { getBundledVaDefinition } from "../coding/bundledVaDefinitions";
-import { createWorkspaceApi } from "../workspace/api";
+import { createWorkspaceApi, type TrainingQueue } from "../workspace/api";
+import { TRAINING_CODING_CASE_ROUTE, TRAINING_ROUTES } from "../training";
+import { TrainingOnboarding } from "./trainingOnboarding";
 import { CaseWorkspaceScreen } from "../workspace/CaseWorkspaceScreen";
 import type { WorkspaceIdentity, WorkspaceMode } from "../workspace/contracts";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
@@ -39,16 +43,16 @@ function isMode(value: string | undefined): value is WorkspaceMode {
 }
 
 /** The account whose session the workspace uses: the route's `userId`, else the only account that may code or review. */
-function usePlusUserId(mode: WorkspaceMode): string | undefined {
+function usePlusUserId(mode: WorkspaceMode, training: boolean): string | undefined {
   const { userId } = useLocalSearchParams<Params>();
   const { accounts } = useAppState();
   const wanted = first(userId);
   if (wanted) return accounts.some((account) => account.user_id === wanted) ? wanted : undefined;
-  const eligible = accounts.filter((account) => (mode === "reviewing" ? account.reviewing_access : account.coding_access));
+  const eligible = accounts.filter((account) => (training ? account.training_coding_access : mode === "reviewing" ? account.reviewing_access : account.coding_access));
   return eligible.length === 1 ? eligible[0].user_id : accounts.length === 1 ? accounts[0].user_id : undefined;
 }
 
-function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
+function Workspace({ mode, vaSid, training = false }: { mode: WorkspaceMode; vaSid?: string; training?: boolean }) {
   const router = useRouter();
   useEngineScreen();
   // The workspace exits by popping back to this queue, so a return to focus (not the first) reloads it.
@@ -61,16 +65,18 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
   const { initialHistory } = useLocalSearchParams<Params>();
   const styles = useUiStyles();
   const icd11Preference = useIcd11DorisPreference();
-  const userId = usePlusUserId(mode);
+  const userId = usePlusUserId(mode, training);
+  // Training coding: which queue the list, counts and allocations use (standard set unless the trainee picks own).
+  const [trainingQueue, setTrainingQueue] = useState<TrainingQueue>("standard");
   const { accounts } = useAppState();
   const account = accounts.find((item) => item.user_id === userId);
   const [historyContext, setHistoryContext] = useState<{ identity: CodingHistoryIdentity; cache: CodingHistoryCache }>();
   const historyCacheRef = useRef<CodingHistoryCache | undefined>(undefined);
   historyCacheRef.current = historyContext?.cache;
-  const request = useMemo(() => (userId ? createNativeWorkspaceTransport(userId) : undefined), [userId]);
+  const request = useMemo(() => (userId ? createNativeWorkspaceTransport(userId, training) : undefined), [training, userId]);
   const api = useMemo(() => {
     if (!request) return undefined;
-    const base = createWorkspaceApi(request);
+    const base = createWorkspaceApi(request, training ? { training, queue: trainingQueue } : {});
     const invalidate = (vaSid: string) => {
       const cache = historyCacheRef.current;
       if (cache && historyContext?.identity) void cache.invalidateCase(historyContext.identity, vaSid).catch(() => undefined);
@@ -107,12 +113,13 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
         return reply;
       },
     };
-  }, [historyContext?.identity, request]);
+  }, [historyContext?.identity, request, training, trainingQueue]);
 
   useEffect(() => {
     let active = true;
     setHistoryContext(undefined);
-    if (!userId || mode !== "coding" || !account || account.standalone || account.coding_access !== true ||
+    // Practice cases stay out of the real coding history cache.
+    if (!userId || mode !== "coding" || training || !account || account.standalone || account.coding_access !== true ||
         account.signed_out || account.needs_sign_in || account.access_removed || account.terms_required || account.access_blocked ||
         !account.server || !/^[a-f0-9]{64}$/i.test(account.coding_history_access ?? "")) return () => { active = false; };
     void (async () => {
@@ -132,14 +139,25 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
     });
     return () => { active = false; };
   }, [account?.access_blocked, account?.access_removed, account?.coding_access, account?.coding_history_access, account?.needs_sign_in, account?.server,
-    account?.signed_out, account?.standalone, account?.terms_required, mode, userId]);
+    account?.signed_out, account?.standalone, account?.terms_required, mode, training, userId]);
 
   if (!userId || !account || !request || !api) return <RedirectHome />;
   if (!isUnlocked(userId)) return <Redirect href={{ pathname: "/unlock", params: { userId } }} />;
-  const allowed = mode === "view" || (mode === "reviewing" ? account.reviewing_access : account.coding_access);
+  // The collection gate passes /training/* through: a training account that cannot reach the server goes home.
+  if (training && (account.needs_sign_in || account.terms_required || account.access_blocked)) return <RedirectHome />;
+  const allowed = training
+    ? mode === "coding" && account.training_coding_access === true
+    : mode === "view" || (mode === "reviewing" ? account.reviewing_access : account.coding_access);
   if (!allowed) {
     return <Screen title={t("workspaceTitle")}>
       <Text accessibilityRole="alert" style={styles.text}>{t("serverForbidden")}</Text>
+      <Button kind="secondary" label={t("home")} onPress={() => goHome(router)} />
+    </Screen>;
+  }
+
+  if (training && account.training_pending) {
+    return <Screen title={t("trainingTitle")}>
+      <TrainingOnboarding userId={userId} />
       <Button kind="secondary" label={t("home")} onPress={() => goHome(router)} />
     </Screen>;
   }
@@ -155,7 +173,7 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
       assertIcd11DorisEnabled={async () => {
         if (!await isIcd11DorisEnabled()) throw new Error("icd11_doris_disabled");
       }}
-      onExit={() => router.dismissTo({ pathname: mode === "reviewing" ? "/reviewing" : "/coding", params: { userId } })}
+      onExit={() => router.dismissTo({ pathname: training ? TRAINING_ROUTES.coding : mode === "reviewing" ? "/reviewing" : "/coding", params: { userId } } as never)}
       renderDoris={(workspace, onSaved, onDone, guardedApi) => <DorisPanel
         workspace={workspace}
         api={guardedApi}
@@ -171,12 +189,15 @@ function Workspace({ mode, vaSid }: { mode: WorkspaceMode; vaSid?: string }) {
   return <QueueScreen
     api={api}
     mode={mode}
-    onOpen={(identity) => router.push({ pathname: "/workspace", params: { userId, vaSid: identity.vaSid, mode: identity.mode } })}
+    onOpen={(identity) => router.push({ pathname: training ? TRAINING_CODING_CASE_ROUTE : "/workspace", params: { userId, vaSid: identity.vaSid, mode: identity.mode } } as never)}
     onExit={() => goHome(router)}
     reloadKey={returns}
     initialView={first(initialHistory) === "1" ? { allProjects: false, showHistory: true, offset: 0 } : undefined}
+    {...(training ? { trainingQueue, onTrainingQueue: setTrainingQueue } : {})}
     historyCache={historyContext?.cache}
     historyIdentity={historyContext?.identity}
+    // Coding languages are edited in the web profile for now (PATCH /profile/languages is cookie-only).
+    onEditLanguages={account?.server ? () => void Linking.openURL(new URL("/profile/", account.server!).toString()).catch(() => undefined) : undefined}
   />;
 }
 
@@ -194,4 +215,11 @@ export function PlusWorkspace() {
   const vaSid = first(params.vaSid)?.trim();
   const mode = first(params.mode);
   return <Workspace mode={isMode(mode) ? mode : "coding"} vaSid={vaSid || undefined} />;
+}
+
+/** `/training/coding` and `/training/coding/case?vaSid`: the training project's coding queue and cases. */
+export function PlusTrainingCoding() {
+  const params = useLocalSearchParams<Params>();
+  const vaSid = first(params.vaSid)?.trim();
+  return <Workspace mode="coding" vaSid={vaSid || undefined} training />;
 }

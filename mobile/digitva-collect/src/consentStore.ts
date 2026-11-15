@@ -46,7 +46,7 @@ export interface StoredConsent {
 /** Cache the project's consent settings; best effort like the identifier types (a failure keeps the old copy, session errors propagate). */
 export async function refreshConsentConfig(userId: string, db: Db, projectId: string): Promise<ProjectConsentConfig | undefined> {
   try {
-    const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/consent-config?project_id=${encodeURIComponent(projectId)}`);
+    const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/consent-config?project_id=${encodeURIComponent(projectId)}`, { projectId });
     const config = normaliseProjectConsentConfig(body);
     if (!config) return undefined;
     await setMeta(db, CONFIG_KEY, config, projectId);

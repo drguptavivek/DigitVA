@@ -392,6 +392,41 @@ class CodingPagingTests(BaseTestCase):
         self.assertEqual(small.count, large.count, "\n".join(difflib.unified_diff(
             small.statements, large.statements, "small", "large", lineterm="")))
 
+    def test_random_ready_applies_the_coding_gates_like_allocation(self):
+        from app.services import coder_workflow_service as cws
+
+        self._grant(self.coder, DEMO)
+        for i in range(2):
+            self._add_submission(f"rr-{i}", self.form_d)
+        db.session.flush()
+        self.assertEqual(cws.get_coder_ready_stats(self.coder)["random_ready"], 2)
+        with mock.patch.object(cws, "_coding_gate_filters", return_value=[VaSubmissions.va_sid != "rr-0"]):
+            self.assertEqual(cws.get_coder_ready_stats(self.coder)["random_ready"], 1)
+
+    def test_pending_by_language_is_the_pool_without_the_language_filter(self):
+        from app.services import coder_workflow_service as cws
+
+        forms = [self.form_a, self.form_c]
+        self.coder.vacode_language = ["english"]
+        for sid, language in (("pl-h", " Hindi "), ("pl-n", "  "), ("pl-e", "")):
+            self._add_submission(sid, self.form_a)
+            db.session.flush()
+            db.session.get(VaSubmissions, sid).va_narration_language = language
+        db.session.flush()
+        listed = {r["va_sid"] for r in cws.get_pick_available_forms(self.coder, forms)}
+        self.assertNotIn("pl-h", listed)  # the coder's languages narrow the pool...
+        pending = {r["language"]: r["count"] for r in cws.pending_by_language(self.coder)}
+        # ...but not the pending counts; blank ones are "unrecorded".
+        self.assertEqual(pending, {"english": len(listed), "hindi": 1, "unrecorded": 2})
+        self.assertEqual(cws.pending_by_language(self.coder, project_id=PICK_C), [{"language": "english", "count": 2}])
+        stats = self._get("/api/v1/coding/stats").get_json()
+        self.assertEqual(stats["languages"]["mine"], ["english"])
+        self.assertEqual({r["language"]: r["count"] for r in stats["languages"]["pending"]}, pending)
+        self.assertIn("pick_ready", stats)  # the old keys stay
+        # the gates apply, as in allocation
+        with mock.patch.object(cws, "_coding_gate_filters", return_value=[VaSubmissions.va_sid != "pl-h"]):
+            self.assertNotIn("hindi", {r["language"] for r in cws.pending_by_language(self.coder)})
+
     # ------------------------------------------------------------------
     # /coding/history
     # ------------------------------------------------------------------

@@ -264,6 +264,7 @@ def _training(user, project: dict | None) -> dict | None:
         "project_id": summary["project_id"],
         "areas": summary["areas"],
         "pending": summary["pending"],
+        "session_types": summary["session_types"],
         "project": project if summary["areas"] else None,
     }
 

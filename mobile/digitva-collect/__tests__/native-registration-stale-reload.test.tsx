@@ -141,7 +141,7 @@ it("clears a saved DOB with a changed-only patch when age remains", async () => 
   await act(async () => tree.root.findByProps({ label: "dobUnknown" }).props.onPress());
   expect(tree.root.findAllByProps({ "data-field": "date_of_birth" })).toHaveLength(0);
   await act(async () => tree.root.findByProps({ label: "save" }).props.onPress());
-  expect(mockPatch).toHaveBeenCalledWith("u1", "d1", { date_of_birth: "" }, "2026-10-06T12:00:00+00:00");
+  expect(mockPatch).toHaveBeenCalledWith("u1", "d1", { date_of_birth: "" }, "2026-10-06T12:00:00+00:00", "P1");
   await act(async () => tree.unmount());
 });
 
@@ -163,7 +163,7 @@ it("sends a captured household fix in the correction, as the web does", async ()
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
   await act(async () => tree.root.findByProps({ label: "locationCapture" }).props.onPress());
   await act(async () => tree.root.findByProps({ label: "save" }).props.onPress());
-  expect(mockPatch).toHaveBeenCalledWith("u1", "d1", { latitude: 12.97, longitude: 77.59, accuracy_m: 8 }, "2026-10-06T12:00:00+00:00");
+  expect(mockPatch).toHaveBeenCalledWith("u1", "d1", { latitude: 12.97, longitude: 77.59, accuracy_m: 8 }, "2026-10-06T12:00:00+00:00", "P1");
   await act(async () => tree.unmount());
 });
 
@@ -178,7 +178,7 @@ it("clears a stored fix with nulls and leaves an untouched fix out of the correc
   expect(mockPatch).not.toHaveBeenCalled();
   await act(async () => tree.root.find((node) => node.type === "button" && node.props.label === "locationClear").props.onPress());
   await act(async () => tree.root.findByProps({ label: "save" }).props.onPress());
-  expect(mockPatch).toHaveBeenCalledWith("u1", "d1", { latitude: null, longitude: null, accuracy_m: null }, "2026-10-06T12:00:00+00:00");
+  expect(mockPatch).toHaveBeenCalledWith("u1", "d1", { latitude: null, longitude: null, accuracy_m: null }, "2026-10-06T12:00:00+00:00", "P1");
   await act(async () => tree.unmount());
 });
 

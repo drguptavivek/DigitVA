@@ -171,9 +171,10 @@ function prefillRecord(value: unknown): Record<string, unknown> {
 }
 
 /** Fetch one authorized server draft and validate its identity before exposing its envelope. */
-export async function fetchServerDraft(userId: string, serverDraftId: string): Promise<FetchedServerDraft> {
+export async function fetchServerDraft(userId: string, serverDraftId: string, projectId?: string | null): Promise<FetchedServerDraft> {
   if (!UUID_RE.test(serverDraftId)) throw new Error("invalid_server_draft");
-  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/drafts/${encodeURIComponent(serverDraftId)}`);
+  // *projectId*: the local draft's project, so a training draft is read in the training scope (plan N10).
+  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/drafts/${encodeURIComponent(serverDraftId)}`, { projectId });
   if (!isRecord(body)) throw new Error("invalid_server_draft");
   const draft = serverSummary(body.draft, serverDraftId);
   if (draft.status !== "draft") throw new Error("server_draft_not_editable");
@@ -190,7 +191,7 @@ export async function fetchServerDraft(userId: string, serverDraftId: string): P
 /** Refresh only a refusal conflict; unrelated server changes never replace local work. */
 export async function recoverRefusalDraft(userId: string, db: Db, row: DraftRow): Promise<void> {
   if (row.upload_issue !== "refusal_stale" || !row.server_draft_id) throw new Error("refusal_server_draft_unavailable");
-  const server = await fetchServerDraft(userId, row.server_draft_id);
+  const server = await fetchServerDraft(userId, row.server_draft_id, row.project_id);
   if (server.draft.project_id !== row.project_id || server.draft.site_id !== row.site_id || server.draft.org_unit_id !== row.org_unit_id || server.draft.death_id !== row.death_id) throw new Error("server_draft_case_mismatch");
   const safe = refusalAnswers(server.envelope.data);
   if (Object.keys(server.envelope.data).some((key) => !(key in safe))) throw new Error("refusal_server_draft_changed");
@@ -208,7 +209,7 @@ export async function recoverRefusalDraft(userId: string, db: Db, row: DraftRow)
 
 async function fetchForLocalSnapshot(userId: string, db: Db, item: DraftSyncItem): Promise<FetchedServerDraft> {
   try {
-    return await fetchServerDraft(userId, item.server_draft_id!);
+    return await fetchServerDraft(userId, item.server_draft_id!, item.project_id);
   } catch (error) {
     if (error instanceof Error && error.message === "server_draft_not_editable") {
       await db.runAsync(`UPDATE drafts SET draft_sync_blocked = 1
@@ -504,6 +505,7 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
   const send = () => authedRequest<unknown>(userId, `${INTAKE_API}/drafts/sync`, {
     method: "POST",
     timeoutMs: 120_000,
+    projectId: item.project_id,
     bodyFactory: () => ({
       project_id: item.project_id,
       site_id: item.site_id,
@@ -715,7 +717,7 @@ export async function reconcileCaseDraft(
     const existing = await draftForCase(db, { deathId: caseDetail.death_id });
     if (existing) return { draft: existing, conflict: false, message: null, imported: false };
     if (!caseIsOpen(caseDetail)) return { draft: null, conflict: false, message: null, imported: false };
-    const fetched = await fetchServerDraft(userId, caseDetail.my_draft_id);
+    const fetched = await fetchServerDraft(userId, caseDetail.my_draft_id, caseDetail.project_id);
     const imported = await insertServerDraft(db, caseDetail, fetched, newLocalId, defaults);
     return { draft: imported.row, conflict: false, message: null, imported: imported.imported };
   }
@@ -747,7 +749,7 @@ export async function reconcileCaseDraft(
 
   const fetched = current.draft_sync_dirty === 0 && current.server_draft_id === serverId
     ? await fetchForLocalSnapshot(userId, db, current)
-    : await fetchServerDraft(userId, serverId);
+    : await fetchServerDraft(userId, serverId, caseDetail.project_id);
   if (!serverIdentityMatches(fetched.draft, caseDraftIdentity(caseDetail))) throw new Error("server_draft_case_mismatch");
   if (current.base_updated_at && Date.parse(fetched.draft.updated_at) > Date.parse(current.base_updated_at)) {
     const storedPrefill = await getDraftPrefill<Record<string, unknown>>(db, current.id);

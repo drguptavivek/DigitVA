@@ -44,7 +44,7 @@ it("PATCHes only changed registration fields and preserves a blank clear with th
 it("loads reporter edits from the bounded own-registration list, not a forbidden case detail", async () => {
   mockRequest.mockResolvedValue({ body: { deaths: [], next_cursor: null } });
   await getNativeRegisteredDeaths("u1", true, "cursor-1");
-  expect(mockRequest).toHaveBeenCalledWith("u1", "/api/v1/intake/deaths?limit=50&registered=mine&cursor=cursor-1");
+  expect(mockRequest).toHaveBeenCalledWith("u1", "/api/v1/intake/deaths?limit=50&registered=mine&cursor=cursor-1", undefined);
   expect(mockRequest.mock.calls[0][1]).not.toContain("/cases/");
 });
 

@@ -11,6 +11,7 @@ export {
   ProfileAccess,
   OpenSourceLicenses,
   SignIn,
+  TrainingCoding,
   Unlock,
   Worklist
 } from "./nativeRouteScreens.base";

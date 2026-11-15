@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-15
 ---
 
 # Coding Workflow State Machine Policy
@@ -848,6 +848,87 @@ they themselves submitted through intake; the server enforces this (owner,
   correction after coding is handled.
 - A coder may release their own allocation; see [Coding Allocation Timeout
   Policy](coding-allocation-timeouts.md), "Coder release".
+
+### Self-coding in a training session
+
+The training project (TRN01) is never a self-coding project
+(`self_coding_enabled` stays off). Self-coding there is granted per session
+([Training Session Types](training-session-types.md)): a coder of an active
+self-coding session holds a coder and an interviewer grant on their slot unit,
+and those slot units (`training_self_coding_ids`) are the only place where:
+
+- their own submitted training interview is exempt from the own-case
+  exclusion above;
+- "Code this case now" (and its worklist "Code now") is offered and allowed;
+  it is unit-aware, so an own interview elsewhere in TRN01 is not;
+- the "own" queue below finds cases.
+
+A coder session never gains this. Offline coding of training cases stays off.
+
+### Training queues
+
+On the training side (`training=1`) coding runs in one of two queues,
+`?queue=standard` (the default) or `?queue=own`, on the available list, the
+stats and allocation (`/api/v1/coding/available`, `/stats`, `/allocation`):
+
+- **standard**: the copies in the user's own coder slots of active sessions
+  (`map_training_cases`), whatever the session type. Every training pool,
+  count, random allocation and pick list uses it unless `own` is asked for.
+  This narrows what a legacy coder may pick in TRN01 to their slot's ten: a
+  root interviewer's interview in a legacy session no longer reaches a slot
+  pool.
+- **own**: the user's submitted training interviews on their self-coding slot
+  units that are not standard-set copies. Only for a self-coding trainee
+  (others get 403 `forbidden`); any other queue value is 400. An own interview
+  is coded in its interview language: the own queue and an own-case pick skip
+  the coder-language filter and refusal for that case only.
+
+A pick of a TRN01 case is checked against the data, whatever the request's
+scope or the own-case flag: a case neither in the user's standard set nor
+their own self-coding interview is refused 403 `not_in_your_training_set`.
+`/coding/stats` on the training side adds `training_queues: {own: {coded,
+total} | null, standard: {coded, total}}`, coded meaning an active final
+assessment. The real side ignores `queue` and its responses are unchanged.
+
+Two self-coding reads were left as they are: the coding screens' names
+(`case_list_service.coding_names`) need no training branch, because a
+self-coding trainee holds an explicit interviewer grant on their slot unit and
+so already sees their own interview's (made-up) deceased name there, as any
+interviewer of that unit would. The intake readiness check (`web_intake_readiness_service`) counts a
+coder grant as an interviewer only in a self-coding project; a self-coding
+trainee holds an explicit interviewer grant, which it already counts.
+
+## Coder coding languages
+
+A coder's coding languages (`vacode_language`) narrow the coding pool and the
+pick: a case whose narration language is not one of them is not offered, and
+its pick is refused (see "Coding Intake Mode"). With none set, nothing is
+narrowed. Admins and project managers set them (user and project user
+screens); a coder (and only a coder: 403 for anyone without a coder
+grant) may also set their own in their profile
+(`PATCH /api/v1/profile/languages`: a non-empty list of active language
+codes, the admin screen's rule; cookie session with CSRF, not yet a device
+bearer token). Every such change, and the English that a training import
+appends to an existing coder, is recorded as a `coding_languages_changed`
+security event holding the old and new codes only. The same list also gates review (the reviewer dashboard and
+reviewer coding match a case's narration language against it exactly), so a
+self-set change narrows or widens review too. Training graduation may set
+them per trainee (training-session-types.md). The exceptions are the
+training own queue above and the typed training sessions' corpus check: a
+coder must code English to join a coder or self-coding session.
+
+"Forms pending coding" counts the forms the allocation predicate would offer
+this coder now, in the project and scope they work in, without the language
+filter, grouped by narration language (blank or missing as "unrecorded"),
+counts only. It never offers a form the coder could not be allocated for any
+reason other than language. `GET /api/v1/coding/stats` returns it as the
+additive `languages: {mine: [codes], pending: [{language, count}]}`
+(`pending_by_language`: one grouped count over the random and pick forms of
+the coder's reach, the site and unit coding gates applied, `project_id` when
+given, the training queue on the training side; only non-zero buckets). The
+ready counts of the same response (`random_ready`) now apply the coding gates
+too, as the pick list already did, so they agree with allocation; dashboard
+numbers may drop where a gate is closed.
 
 ## Imported offline final
 

@@ -1,10 +1,13 @@
 """Training sessions of the Training & demo project (TRN01).
 
-Policy: docs/policy/training-demo-project.md. A session is one training: a
-root organization unit with its coder-slot units (20 by default, chosen per
-session), ten pseudonymised case copies per slot and the participants an admin
-added. Everything is retained; closing a session
-only deactivates its participants' grants.
+Policy: docs/policy/training-demo-project.md and
+docs/policy/training-session-types.md. A session is one training: a root
+organization unit with its coder-slot units (20 by default, chosen per
+session; none for an interviewer session), ten pseudonymised case copies per
+slot and the participants an admin added. A legacy session (no type) copies
+every slot's cases at creation; a coder or self-coding session copies a
+coder's ten when the coder takes a slot. Everything is retained; closing a
+session only deactivates its participants' grants.
 """
 
 import uuid
@@ -25,7 +28,10 @@ PARTICIPANT_ROLES = (
     "reviewer_data_manager",
 )
 PARTICIPANT_STATUSES = ("active", "removed")
-#: The default number of coder slots; each session stores its own (1..MAX_CODER_SLOTS).
+#: None (legacy mixed session) or one of these.
+SESSION_TYPES = ("interviewer", "coder", "self_coding")
+#: The default number of coder slots; each session stores its own
+#: (0 for an interviewer session, else 1..MAX_CODER_SLOTS).
 CODER_SLOTS = 20
 MAX_CODER_SLOTS = 100
 CASES_PER_SLOT = 10
@@ -43,7 +49,15 @@ class MasTrainingSession(db.Model):
         sa.UniqueConstraint("project_id", "session_code", name="uq_mas_training_sessions_project_code"),
         sa.UniqueConstraint("org_unit_id", name="uq_mas_training_sessions_org_unit"),
         sa.CheckConstraint("status IN ('active', 'closed')", name="status"),
-        sa.CheckConstraint("coder_slots BETWEEN 1 AND 100", name="coder_slots"),
+        sa.CheckConstraint(
+            "session_type IS NULL OR session_type IN ('interviewer', 'coder', 'self_coding')",
+            name="session_type",
+        ),
+        sa.CheckConstraint(
+            "coder_slots BETWEEN 0 AND 100 AND "
+            "(coder_slots = 0) = (session_type IS NOT DISTINCT FROM 'interviewer')",
+            name="coder_slots",
+        ),
         sa.Index("ix_mas_training_sessions_project_created", "project_id", "created_at"),
     )
 
@@ -70,6 +84,7 @@ class MasTrainingSession(db.Model):
     coder_slots: so.Mapped[int] = so.mapped_column(
         sa.Integer, nullable=False, default=CODER_SLOTS, server_default=str(CODER_SLOTS)
     )
+    session_type: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
 
 
 class MapTrainingCase(db.Model):
@@ -103,8 +118,9 @@ class MapTrainingCase(db.Model):
 class MapTrainingParticipant(db.Model):
     """An existing user added to a session in one role.
 
-    ``grant_ids`` are the unit-scoped grants written for the role (two for
-    reviewer_data_manager); remove and close flip only their status.
+    ``grant_ids`` are the unit-scoped grants written for the role (two for a
+    coder of a self-coding session: coder and interviewer); remove and close
+    flip only their status. ``graduated_at`` is set by graduation.
     """
 
     __tablename__ = "map_training_participants"
@@ -157,6 +173,7 @@ class MapTrainingParticipant(db.Model):
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
     )
     onboarded_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    graduated_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
     status: so.Mapped[str] = so.mapped_column(
         sa.String(16), nullable=False, default="active", server_default="active"
     )

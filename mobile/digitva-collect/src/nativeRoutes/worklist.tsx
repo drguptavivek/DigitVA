@@ -56,6 +56,7 @@ import {
   registersDeaths,
   startsDirectly,
   targetsFrom,
+  trainingProjectOnPhone,
 } from "../sync";
 import { useToast } from "../toast";
 import { dropWorklist, heldWorklist, holdWorklist } from "../worklistCache";
@@ -67,6 +68,7 @@ import { homeSummary } from "../ui/homeSummary";
 import { readRecentTarget, writeRecentTarget, type RecentTarget } from "../recentTarget";
 import type { PickerTarget } from "../ui/sitePicker";
 import RegisteredDeaths from "./RegisteredDeaths";
+import { TrainingCodingEntry, TrainingOnboarding } from "./trainingOnboarding";
 import { HomeView, InterviewsView, Notice, ProjectLine, ProjectSheet, SitePickerSheet } from "./worklistParts";
 
 type ClosedGate = Exclude<GateDecision, { open: true }>;
@@ -77,12 +79,12 @@ const PICKED_PROJECT_KEY = "worklist.project.v1";
 const SUBMITTED_TTL_MS = 60_000;
 
 export default function Worklist() {
-  const { userId, registeredMine, view, filter } = useLocalSearchParams<{ userId: string; registeredMine?: string; view?: string; filter?: string }>();
+  const { userId, registeredMine, view, filter, projectId } = useLocalSearchParams<{ userId: string; registeredMine?: string; view?: string; filter?: string; projectId?: string }>();
   const { accounts } = useAppState();
   const account = accounts.find((item) => item.user_id === userId);
   const reporterOnly = account?.collection_access !== true && account?.registration_access === true;
   if (reporterOnly || (registeredMine === "1" && account?.registered_deaths_access === true)) {
-    return <RegisteredDeaths userId={userId} registeredMine />;
+    return <RegisteredDeaths userId={userId} registeredMine projectId={projectId || undefined} />;
   }
   return <InterviewWorklist interviews={(Array.isArray(view) ? view[0] : view) === "interviews"} filter={filter} />;
 }
@@ -693,6 +695,16 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     return () => { live = false; };
   }, [db, targets, registerTargets, offline, lockVersion, drafts]);
 
+  // Training mode (docs/policy/training-session-types.md): the training project is one more choice; while it is
+  // selected the list shows only its work (as for any project) under a banner.
+  const [trainingProjectId, setTrainingProjectId] = useState<string>();
+  useEffect(() => {
+    let live = true;
+    if (db) void trainingProjectOnPhone(db, userId).then((id) => { if (live) setTrainingProjectId(id); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [db, userId, referenceData]);
+  const trainingMode = Boolean(selectedProjectId) && selectedProjectId === trainingProjectId;
+
   const openRevision = useCallback((summary: SubmittedRevisionSummary | RevisionRow) => {
     if (
       !userId ||
@@ -929,7 +941,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const goRows = [
     canRegister ? <ListRow key="register" icon={icons.register} label={t("registerDeath")} disabled={registerGate !== undefined} onPress={openRegister} /> : null,
     account.registered_deaths_access ? (
-      <ListRow key="mine" icon={icons.interviews} label={t("myRegisteredDeaths")} onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, registeredMine: "1" } })} />
+      <ListRow key="mine" icon={icons.interviews} label={t("myRegisteredDeaths")} onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, registeredMine: "1", ...(trainingMode && selectedProjectId ? { projectId: selectedProjectId } : {}) } })} />
     ) : null,
   ].filter((row) => row !== null);
   // Each row is followed by a separator when another row comes after it in the same card.
@@ -1010,6 +1022,9 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   // Sync outcomes the old list showed under its buttons; kept as notices on both tabs.
   const notices = (
     <>
+      {trainingMode ? <Notice>{`${t("trainingMode")} · ${t("trainingPractice")}`}</Notice> : null}
+      {trainingMode && account.training_pending ? <TrainingOnboarding userId={account.user_id} /> : null}
+      {trainingMode && account.training_coding_access ? <TrainingCodingEntry userId={account.user_id} /> : null}
       {draftConflict ? <Notice>{t("draftConflictNotice")}</Notice> : null}
       {codingUploadNotices.length ? (
         <>
@@ -1047,7 +1062,8 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         return (
           <Fragment key={`paused-${paused.projectId}`}>
             <Notice>
-              {t("pausedProjectTitle", { name: paused.projectName ?? paused.projectId, count })} {t("pausedProjectReason")}
+              {t("pausedProjectTitle", { name: paused.projectName ?? paused.projectId, count })}{" "}
+              {paused.projectId === trainingProjectId ? t("trainingClosedKept") : t("pausedProjectReason")}
               {paused.refusal ? ` ${t("pausedProjectRefused")}` : ""}
             </Notice>
             {paused.refusal ? <DetailsChip code={paused.refusal.code ?? String(paused.refusal.status)} /> : null}

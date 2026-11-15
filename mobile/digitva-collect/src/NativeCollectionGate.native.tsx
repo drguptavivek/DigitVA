@@ -14,6 +14,7 @@ import { isPlusVariant } from "./appVariant";
 import { canUseOfflineCoding, canUseOnlineCoding } from "./codingCapabilities";
 import { Button, errorText, Screen, useUiStyles } from "./ui";
 import { CodingCaseChips } from "./ui/CodingCaseChips";
+import { TrainingCodingEntry } from "./nativeRoutes/trainingOnboarding";
 
 const COLLECTION_ROUTES = new Set([
   "/case",
@@ -49,6 +50,7 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
   const [sending, setSending] = useState(false);
   const account = accounts.find((item) => item.user_id === userId);
   const unlocked = isUnlocked(userId);
+  const trainingEntry = Boolean(account?.training_coding_access) && unlocked && !account?.needs_sign_in && !account?.access_blocked && !account?.terms_required;
   // Both builds code online, so a coder is told what blocks coding; reviewing-only accounts still get the web-app line.
   const codingBlocker = account?.needs_sign_in ? "codingBlockedSignIn"
     : account?.terms_required ? "termsRequired"
@@ -98,9 +100,12 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
       ) : unlocked && unsent ? (
         <Button label={t("sendUnsent")} loading={sending} disabled={sending} onPress={() => void sendUnsent()} />
       ) : null}
+      {trainingEntry ? (
+        <TrainingCodingEntry userId={userId} />
+      ) : null}
       {account && canUseOnlineCoding(account) && unlocked && !account.needs_sign_in && !account.access_blocked && !account.terms_required ? (
         <CodingCaseChips userId={userId} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={offline} />
-      ) : (
+      ) : trainingEntry ? null : (
         <Text style={styles.text}>{t(codingNotice)}</Text>
       )}
       {message ? <Text style={styles.error}>{message}</Text> : null}

@@ -35,7 +35,8 @@ import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API, isSmartVaTarget, parseAccessSummary, type AccessSummary, type SmartVaTarget } from "./api";
-import { authedRawRequest, authedRequest, sendQueuedProfileDeletions, SessionRevokedError, SignInRequiredError } from "./auth";
+import { authedRawRequest, authedRequest, rememberTrainingProject, sendQueuedProfileDeletions, SessionRevokedError, SignInRequiredError } from "./auth";
+import { withTrainingCollection } from "./training";
 import { identifierFieldErrors, type IdentifierType } from "./identifiers";
 import {
   acknowledgeRegistration,
@@ -423,6 +424,7 @@ export async function uploadQueuedWork(
   } = {}
 ): Promise<UploadResult> {
   const { onSuperseded, onServerKept, onCanCodeNow, standalone } = callbacks;
+  await rememberTrainingProjectOnPhone(userId, db, undefined);
   const codingOutcomes: OfflineCodingOutcome[] = [];
   let enrolledDeviceUuid: string | null | undefined;
   let sent = 0;
@@ -454,7 +456,7 @@ export async function uploadQueuedWork(
         if (consent?.envelope.decision !== "refused") throw new ApiError(422, "consent_invalid");
         const profile = refusalAnswers(registrationFields);
         const { body } = await authedRequest<{ client_draft_id?: unknown }>(userId, `${INTAKE_API}/refusals`, {
-          method: "POST", body: { client_draft_id: reg.client_death_id, project_id: reg.project_id, site_id: reg.site_id,
+          method: "POST", projectId: reg.project_id, body: { client_draft_id: reg.client_death_id, project_id: reg.project_id, site_id: reg.site_id,
             ...(reg.org_unit_id ? { org_unit_id: reg.org_unit_id } : {}), ...profile, consent: consent.envelope },
         });
         if (body?.client_draft_id !== reg.client_death_id) throw new Error("invalid_refusal_receipt");
@@ -477,6 +479,7 @@ export async function uploadQueuedWork(
       const fields = reg.fields;
       const { body } = await authedRequest<{ case: CaseDetail }>(userId, `${INTAKE_API}/deaths`, {
         method: "POST",
+        projectId: reg.project_id,
         body: {
           project_id: reg.project_id,
           client_death_id: reg.client_death_id,
@@ -516,6 +519,7 @@ export async function uploadQueuedWork(
     try {
       const acknowledgement = await authedRequest<unknown>(userId, path, {
         method: "POST",
+        projectId: action.project_id,
         body:
           action.kind === "attempt"
             ? { client_attempt_id: action.client_id, ...action.body }
@@ -638,6 +642,7 @@ export async function uploadQueuedWork(
       const send = () => authedRequest<unknown>(userId, `${INTAKE_API}/submissions`, {
         method: "POST",
         timeoutMs: 120_000,
+        projectId: target.project_id,
         bodyFactory: () => ({
           client_draft_id: item.id,
           project_id: target.project_id,
@@ -927,7 +932,7 @@ export async function fetchCasePage(
     cases: CaseRow[];
     counts?: Record<string, number>;
     next_cursor?: string | null;
-  }>(userId, `${INTAKE_API}/cases?${params.toString()}`);
+  }>(userId, `${INTAKE_API}/cases?${params.toString()}`, { projectId });
   if (!body || !Array.isArray(body.cases)) throw new Error("invalid_case_page");
   return { cases: body.cases, counts: body.counts, next_cursor: body.next_cursor ?? null };
 }
@@ -940,9 +945,12 @@ export async function fetchCaseDetail(
 ): Promise<CaseDetail> {
   let body: { case: CaseDetail };
   try {
+    // The case's project picks its scope: a training case is read with training=1 (else the server answers 404).
+    const projectId = options.expectedProjectId ?? (await getCase(db, deathId))?.project_id;
     body = (await authedRequest<{ case: CaseDetail }>(
       userId,
-      `${INTAKE_API}/cases/${encodeURIComponent(deathId)}`
+      `${INTAKE_API}/cases/${encodeURIComponent(deathId)}`,
+      { projectId },
     )).body;
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
@@ -1056,7 +1064,8 @@ export async function refreshIdentifierTypes(userId: string, db: Db, projectId: 
   try {
     const { body } = await authedRequest<{ identifier_types?: IdentifierType[] }>(
       userId,
-      `${INTAKE_API}/identifier-types?project_id=${encodeURIComponent(projectId)}`
+      `${INTAKE_API}/identifier-types?project_id=${encodeURIComponent(projectId)}`,
+      { projectId },
     );
     if (!body || !Array.isArray(body.identifier_types)) return undefined;
     await setMeta(db, IDENTIFIER_TYPES_META_KEY, body.identifier_types, projectId);
@@ -1249,8 +1258,10 @@ function projectNames(previous: ReferencePack | undefined, access: AccessSummary
  */
 export async function reconcileReferenceAccess(
   db: Db,
-  access: AccessSummary,
+  serverAccess: AccessSummary,
 ): Promise<ReferenceData | undefined> {
+  const access = withTrainingCollection(serverAccess);
+  await rememberTrainingProjectOnPhone(access.user.user_id, db, access.training?.project_id);
   const previous = await readReferencePack(db);
   const authorized = new Map(
     access.projects
@@ -1373,7 +1384,7 @@ async function fetchTranslation(
   if (cached) return cached;
   const path = `/api/v1/instruments/${encodeURIComponent(code)}/translations/${encodeURIComponent(locale)}?project_id=${encodeURIComponent(projectId)}`;
   try {
-    const { body } = await authedRequest<Translations>(userId, path);
+    const { body } = await authedRequest<Translations>(userId, path, { projectId });
     return body && typeof body === "object" ? body : null;
   } catch (error) {
     if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
@@ -1386,8 +1397,33 @@ async function fetchTranslation(
   }
 }
 
+const TRAINING_PROJECT_META_KEY = "training.project_id";
+
+/**
+ * Keep the training project id on the phone (plan N10): a training draft is sent in the training scope even
+ * offline after a restart, and after the session closed (the id stays in `/me/access` while training is on).
+ */
+async function rememberTrainingProjectOnPhone(userId: string, db: Db, projectId: string | null | undefined): Promise<void> {
+  if (projectId) {
+    rememberTrainingProject(userId, projectId);
+    await setMeta(db, TRAINING_PROJECT_META_KEY, projectId);
+    return;
+  }
+  rememberTrainingProject(userId, await getMeta<string>(db, TRAINING_PROJECT_META_KEY).catch(() => undefined));
+}
+
+/** The training project id this phone knows for its account, if any (training mode, the N9 notice). */
+export async function trainingProjectOnPhone(db: Db, userId?: string): Promise<string | undefined> {
+  const projectId = (await getMeta<string>(db, TRAINING_PROJECT_META_KEY).catch(() => undefined)) || undefined;
+  // Home opens the account's store first after a restart: restore the request scope before any send.
+  if (userId) rememberTrainingProject(userId, projectId);
+  return projectId;
+}
+
 async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack> {
-  const access = parseAccessSummary((await authedRequest<unknown>(userId, "/api/v1/me/access")).body);
+  // Training mode: the training project is collected like any other while a participation gives grants there.
+  const access = withTrainingCollection(parseAccessSummary((await authedRequest<unknown>(userId, "/api/v1/me/access")).body));
+  await rememberTrainingProjectOnPhone(userId, db, access.training?.project_id);
   // This answer bypasses the access listeners, so it must carry its own collection gate to the store.
   await rememberCollectionGate(db, access);
   const accessProjects = access.projects.filter((project) => project.actions.interview.length > 0);
@@ -1483,13 +1519,13 @@ async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack>
 }
 
 async function fetchProjectFormOptions(userId: string, projectId: string): Promise<ProjectSettings["form_options"]> {
-  const { body } = await authedRequest<unknown>(userId, `/api/v1/organization/${encodeURIComponent(projectId)}/form-options`);
+  const { body } = await authedRequest<unknown>(userId, `/api/v1/organization/${encodeURIComponent(projectId)}/form-options`, { projectId });
   if (!isRecord(body)) throw new Error("invalid_form_options");
   return body as ProjectSettings["form_options"];
 }
 
 async function fetchPrefillPolicy(userId: string, projectId: string): Promise<PrefillPolicy> {
-  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/projects/${encodeURIComponent(projectId)}/prefill-policy`);
+  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/projects/${encodeURIComponent(projectId)}/prefill-policy`, { projectId });
   if (!isRecord(body)) throw new Error("invalid_prefill_policy");
   return body as unknown as PrefillPolicy;
 }
@@ -1610,6 +1646,7 @@ async function refreshAuthorizedProjectDefinitionsOnce(
         request: (path, requestOptions) => authedRawRequest(userId, path, {
           ifNoneMatch: requestOptions.ifNoneMatch,
           acceptGzip: true,
+          projectId: identity.projectId,
         }),
       })).value;
       const actualExtensions = readDefinitionExtensions(definition);

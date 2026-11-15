@@ -8,7 +8,7 @@ import { loadBrowserSession } from "../client/session";
 import { t } from "../i18n";
 import { controls, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
-import { createWorkspaceApi, type JsonRequester, type WorkspaceApi } from "../workspace/api";
+import { createWorkspaceApi, type JsonRequester, type TrainingQueue, type WorkspaceApi } from "../workspace/api";
 import { CaseWorkspaceScreen } from "../workspace/CaseWorkspaceScreen";
 import { QueueScreen } from "../workspace/QueueScreen";
 import { hasQueueParams, ownsQueueParams, parseQueueParams, queueUrlStep, serializeQueueParams } from "../workspace/viewState";
@@ -22,7 +22,7 @@ import { ContextualHelpBanner } from "./ContextualHelp";
 import { KpiStrip } from "./KpiStrip";
 import { dataAccess, hasAnyRoleOrProject, openServerPage, statisticsAllowed } from "./roleHome";
 import {
-  TRAINING_CODING_CASE_ROUTE, TRAINING_REVIEWING_CASE_ROUTE, TRAINING_ROUTES, takeTrainingRedirect,
+  hasTypedTrainingSession, TRAINING_CODING_CASE_ROUTE, TRAINING_REVIEWING_CASE_ROUTE, TRAINING_ROUTES, takeTrainingRedirect,
 } from "../training";
 import { TrainingShell } from "./TrainingChecklist";
 
@@ -186,6 +186,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   // undefined while loading, null when the call failed.
   const [home, setHome] = useState<HomeSummary | null>();
   const [progressOpen, setProgressOpen] = useState(false);
+  // Training coding: which queue the list, counts and allocations use (standard set unless the trainee picks own).
+  const [trainingQueue, setTrainingQueue] = useState<TrainingQueue>("standard");
   const [caseLookupOpen, setCaseLookupOpen] = useState(false);
   const wide = useWindowDimensions().width >= WIDE_MIN_WIDTH;
   const requestGeneration = useRef(0);
@@ -240,8 +242,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
     [workspaceCsrf],
   );
   const api: WorkspaceApi | undefined = useMemo(
-    () => requester ? createWorkspaceApi(requester, { training }) : undefined,
-    [requester, training],
+    () => requester ? createWorkspaceApi(requester, training ? { training, queue: trainingQueue } : {}) : undefined,
+    [requester, training, trainingQueue],
   );
 
   // A trainee with Start pending is sent to the Training page once per browser session (the server redirect skips /app/).
@@ -325,6 +327,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
     mode={mode}
     Shell={trainingRoute ? (mode === "reviewing" ? ReviewTrainingShell : CodingTrainingShell) : WebShell}
     initialView={parseQueueParams(params)}
+    {...(trainingRoute && mode === "coding" && hasTypedTrainingSession(activeBootstrap.access) ? { trainingQueue, onTrainingQueue: setTrainingQueue } : {})}
+    onEditLanguages={() => openServerPage(activeBootstrap.user.user_id, "/profile/")}
     onViewChange={(view) => {
       if (!ownsQueueParams(window.location.search)) return;
       const step = queueUrlStep(window.location.search, view);

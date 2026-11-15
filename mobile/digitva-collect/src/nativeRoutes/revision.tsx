@@ -201,6 +201,7 @@ async function resolveRevisionInstrument(
     authedRawRequest(userId, path, {
       ifNoneMatch: requestOptions.ifNoneMatch,
       acceptGzip: true,
+      projectId: project.project_id,
     });
   const resolved = await resolveSavedEnvelopeDefinition({
     accountId: userId,

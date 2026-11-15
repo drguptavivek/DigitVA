@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-26
+last_updated: 2026-11-15
 ---
 
 # Admin And Setup Model
@@ -354,16 +354,31 @@ project (`docs/policy/training-demo-project.md`) and is a thin client of
 - Bulk add: filter users by creation date (default today), "accounts I
   created" and a search, tick them, tick the roles, Preview and then Apply (only
   enabled when no row is refused). Rows are written with `textContent`.
-- Graduation: "Download graduation CSV" (optional training role, unit code and
-  cadre code) produces a file for the main project's users import in the
-  Organization panel.
+- Import (typed sessions): a CSV or XLSX of `email,name,phone` and one role
+  choice the session type allows (interviewer, coder, or both for
+  self-coding); Preview, then Import. It creates missing accounts with the
+  organization users import's rules (`project_user_import_service.prepare_accounts`
+  and `create_account`; English coding language) and enrols everyone through
+  the bulk-add core (`_bulk_enrol`) in one transaction, all or nothing. New
+  mobile-only accounts' one-time codes are shown once in the result.
+- Graduation: Select organisational project (organization mode, not TRN01 or
+  a demo project), a cadre for every row (overridable per row), a unit per row
+  from one shared searchable datalist of the project's units, coding languages
+  per row; Preview all, Save per row, Save all. Rows needing confirmation (a
+  cadre change, a revoked grant reactivated) get a tick box. The old
+  "graduation.csv" link stays for one release (coder and interviewer rows
+  only).
+- Close: a checklist dialog lists each trainee's open server drafts, sent
+  interviews, last sync and graduated state; Close needs "Every trainee has
+  synced" ticked (panel only; the service and route are unchanged).
 - A link opens the trainer report (below).
 
 JSON API under `/admin/api/training/sessions` (`GET` list and detail, `POST`
 create, `/<code>/participants` (`roles: [...]`, or the legacy `role`),
 `/<code>/participants/remove`,
 `/<code>/participants/bulk`, `GET /<code>/candidates`,
-`GET /<code>/graduation.csv`, `/<code>/close`, `/<code>/reopen`). Every write
+`GET /<code>/graduation.csv`, `POST /<code>/import` (multipart, no-store),
+`GET /<code>/trainees`, `POST /<code>/graduate`, `/<code>/close`, `/<code>/reopen`). Every write
 carries `X-CSRFToken`; a non-admin gets 403. Accounts created in the Users
 panel now record `other.created_by_user_id`, as the data-manager page and the
 project users import already did, so "accounts I created" finds them.

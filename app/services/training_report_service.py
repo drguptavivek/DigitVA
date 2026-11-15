@@ -88,11 +88,15 @@ def _reviewer_session_ids(viewer_id) -> sa.Select:
         MapTrainingParticipant.user_id == viewer_id,
         MapTrainingParticipant.role == "coder",
     )
+    # Typed sessions' reports are admin-only (training-session-types.md); only a
+    # legacy session (no type) is open to its reviewer_data_manager participants.
+    legacy = sa.select(MasTrainingSession.training_session_id).where(MasTrainingSession.session_type.is_(None))
     return sa.select(MapTrainingParticipant.training_session_id).where(
         MapTrainingParticipant.user_id == viewer_id,
         MapTrainingParticipant.role == "reviewer_data_manager",
         MapTrainingParticipant.status == "active",
         MapTrainingParticipant.training_session_id.not_in(coded_in),
+        MapTrainingParticipant.training_session_id.in_(legacy),
     )
 
 
@@ -100,8 +104,8 @@ def authorized_session(ref, viewer) -> MasTrainingSession:
     """The session *ref* if *viewer* may read its report, else an error.
 
     Admin: any session (an unknown one is "not found"). Anyone else: only a
-    session where they hold an active ``reviewer_data_manager`` participation
-    and have never held a ``coder`` one;
+    legacy (untyped) session where they hold an active
+    ``reviewer_data_manager`` participation and have never held a ``coder`` one;
     every other case, an unknown session included, is the same refusal so a
     session's existence is not probed.
     """

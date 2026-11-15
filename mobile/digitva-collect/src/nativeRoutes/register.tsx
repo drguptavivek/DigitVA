@@ -632,9 +632,9 @@ export default function Register() {
           getDeathRegistrationAccess(account.user_id),
           serverDeathId
             ? ownRegistrationSource
-              ? getNativeRegisteredDeaths(account.user_id, true, params.registrationCursor).then((page) =>
+              ? getNativeRegisteredDeaths(account.user_id, true, params.registrationCursor, params.projectId || undefined).then((page) =>
                   page.deaths.find((death) => death.death_id === serverDeathId))
-              : getNativeRegistrationCase(account.user_id, serverDeathId)
+              : getNativeRegistrationCase(account.user_id, serverDeathId, params.projectId || undefined)
             : Promise.resolve(undefined),
         ]);
         const saved = persistable
@@ -980,8 +980,8 @@ export default function Register() {
     isCurrent: () => boolean,
   ): Promise<void> {
     const fresh = ownRegistrationSource
-      ? (await getNativeRegisteredDeaths(userId, true, params.registrationCursor)).deaths.find((row) => row.death_id === deathId)
-      : await getNativeRegistrationCase(userId, deathId);
+      ? (await getNativeRegisteredDeaths(userId, true, params.registrationCursor, params.projectId || undefined)).deaths.find((row) => row.death_id === deathId)
+      : await getNativeRegistrationCase(userId, deathId, params.projectId || undefined);
     if (!isCurrent()) return;
     if (!fresh) throw new Error("registration_unavailable");
     const nextFields = registrationFieldsFromCase(fresh);
@@ -1065,7 +1065,7 @@ export default function Register() {
           return;
         }
         if (consent && covered.some((name) => name in changes)) changes.consent = consent.envelope;
-        const corrected = await patchNativeDeathRegistration(account.user_id, serverDeathId, changes, serverUpdatedAt.current);
+        const corrected = await patchNativeDeathRegistration(account.user_id, serverDeathId, changes, serverUpdatedAt.current, projectId);
         if (!current()) return;
         serverBase.current = registrationFieldsFromCase(corrected);
         locationBase.current = location;

@@ -63,6 +63,7 @@ jest.mock("../src/sync", () => {
   const project = { project_id: "P1", project_name: "P1", web_intake_mode: "both", sites: [{ project_id: "P1", site_id: "S1", web_intake_mode: "both" }] };
   const target = { key: "P1:S1", label: "S1", projectId: "P1", siteId: "S1" };
   return {
+    trainingProjectOnPhone: async () => undefined,
     getCachedReferenceData: async () => ({ bootstrap: {}, projects: [{ project, units: null }] }),
     getCachedIdentifierTypes: async () => [],
     refreshIdentifierTypes: async () => [],

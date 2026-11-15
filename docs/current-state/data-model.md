@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-08
+last_updated: 2026-11-15
 ---
 
 # Current Data Model
@@ -1036,9 +1036,12 @@ One training. `training_session_id` (PK), `project_id` (FK
 `va_project_master`), `session_code` (`S001`, `S002`, ... per project; unique
 with `project_id`), `name`, `created_at` (timezone-aware), `created_by` (FK
 `va_users`), `org_unit_id` (FK `mas_org_unit`, unique: the session root unit,
-PHC level), `status` (`active` or `closed`) and `coder_slots` (1 to 100,
-default 20; migration `f6b2d8a4c1e7`; the session has `coder_slots` x 10
-cases). Index
+PHC level), `status` (`active` or `closed`), `coder_slots` (0 to 100,
+default 20; migration `f6b2d8a4c1e7`) and `session_type` (NULL for a legacy
+mixed session, else `interviewer`, `coder` or `self_coding`; migration
+`b4e8c2a6d0f3`). A check ties zero slots to the interviewer type. A legacy
+session has `coder_slots` x 10 cases from creation; a coder or self-coding
+session gets ten per coder as coders are added. Index
 `(project_id, created_at)`.
 
 ### `map_training_cases`
@@ -1057,9 +1060,10 @@ An existing user added to a session in one role (`death_reporter`,
 `interview_supervisor`, `interviewer`, `coder`, `reviewer_data_manager`).
 `participant_id` (PK), `training_session_id` and `user_id` (FKs), `role`,
 `coder_slot` (1 to 100; set exactly for coders), `grant_ids` (uuid array: the
-`va_user_access_grants` written for the role, two for
-`reviewer_data_manager`), `added_at`, `added_by`, `onboarded_at` (null until
-the user pressed Start on the welcome page) and `status` (`active` or
+`va_user_access_grants` written for the role, two for a self-coding
+session's coder, coder and interviewer), `added_at`, `added_by`, `onboarded_at` (null until
+the user pressed Start on the welcome page), `graduated_at` (null until
+graduation; migration `b4e8c2a6d0f3`) and `status` (`active` or
 `removed`). Unique `(training_session_id, user_id, role)`; unique
 `(training_session_id, coder_slot)` where the slot is set; index
 `(training_session_id, role)`; a partial index on `user_id` where

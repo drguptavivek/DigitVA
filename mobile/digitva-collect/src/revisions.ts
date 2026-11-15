@@ -7,7 +7,7 @@ import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument, reduceNationalIdData, type SubmissionData, type WhoVaDraft, type WhoVaDraftStore } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API } from "./api";
-import { authedRequest, SessionRevokedError, SignInRequiredError } from "./auth";
+import { authedRequest, SessionRevokedError, SignInRequiredError, trainingProjectFor } from "./auth";
 import { createProjectStoreGuard, localDateTimeWithOffset, type Completion, type Db, type DeviceTimedDraft } from "./drafts";
 import { readDefinitionPin, withDefinitionPin } from "./formDefinitionRuntime";
 import { clearSendError, noteSendError } from "./unsentWork";
@@ -136,12 +136,28 @@ function parseSummary(value: unknown): SubmittedRevisionSummary {
   };
 }
 
-/** Read only the current server list; answers are never part of this response. */
+/**
+ * Read only the current server list; answers are never part of this response. The training project's list is a
+ * second request in the training scope (the normal list leaves it out), made only when the phone knows that project;
+ * a refusal there (session closed) leaves the normal list unchanged.
+ */
 export async function fetchSubmittedRevisions(userId: string): Promise<SubmittedRevisionSummary[]> {
   const path = `${INTAKE_API}/drafts?status=submitted`;
-  const { body } = await authedRequest<unknown>(userId, path);
-  if (!isRecord(body) || !Array.isArray(body.drafts)) throw new ApiError(200, "malformed_response");
-  return body.drafts.slice(0, LIST_LIMIT).map(parseSummary);
+  const read = async (projectId?: string) => {
+    const { body } = await authedRequest<unknown>(userId, path, projectId ? { projectId } : undefined);
+    if (!isRecord(body) || !Array.isArray(body.drafts)) throw new ApiError(200, "malformed_response");
+    return body.drafts.slice(0, LIST_LIMIT).map(parseSummary);
+  };
+  const normal = await read();
+  const trainingProjectId = trainingProjectFor(userId);
+  if (!trainingProjectId) return normal;
+  const training = await read(trainingProjectId).catch((error: unknown) => {
+    if (error instanceof ApiError && error.status >= 400 && error.status < 500 && error.status !== 401) return [];
+    throw error;
+  });
+  // An older server ignores the scope and answers the same list again.
+  const seen = new Set(normal.map((item) => item.draft_id));
+  return [...normal, ...training.filter((item) => !seen.has(item.draft_id))];
 }
 
 async function readStoredConfig(db: Db, draftId: string, projectId: string): Promise<RevisionConfig | undefined> {
@@ -267,7 +283,7 @@ export async function beginRevision(userId: string, db: Db, draftId: string): Pr
   const summaries = await fetchSubmittedRevisions(userId);
   const summary = summaries.find((item) => item.draft_id === draftId);
   if (!summary) throw new ApiError(404, "not_found");
-  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/drafts/${encodeURIComponent(draftId)}`);
+  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/drafts/${encodeURIComponent(draftId)}`, { projectId: summary.project_id });
   const config = await readStoredConfig(db, draftId, summary.project_id);
   const row = validateDetail(summary, body, config);
   await insertRow(db, row);
@@ -528,6 +544,7 @@ export async function syncQueuedRevisions(userId: string, db: Db, authorizedProj
       const path = `${INTAKE_API}/submissions/${encodeURIComponent(row.va_sid)}/revisions`;
       const send = () => authedRequest<unknown>(userId, path, {
         method: "POST",
+        projectId: row.project_id,
         timeoutMs: 120_000,
         bodyFactory: () => ({
           reason_code: row.reason_code,

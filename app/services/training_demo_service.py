@@ -1,14 +1,19 @@
 """Training & demo project (TRN01): training sessions, participants and onboarding.
 
-Policy: docs/policy/training-demo-project.md. The project is permanent and
-signed-in only. A trainer (admin) creates a training session with a chosen
-number of coder slots, which copies ten consented cases per slot from a real
-ODK form with names, addresses and phone-like
-identifiers replaced (``training_pseudonymiser``), and then adds existing users
-to it in a role. Sessions are retained; closing one only deactivates its
+Policy: docs/policy/training-demo-project.md and
+docs/policy/training-session-types.md. The project is permanent and
+signed-in only. A trainer (admin) creates a training session of a type
+(interviewer, coder, self-coding; none for the legacy mixed sessions) with a
+chosen number of coder slots. A legacy session copies ten consented cases per
+slot from a real ODK form at creation; a coder or self-coding session copies a
+coder's own random ten of the English corpus when the coder takes a slot. Names,
+addresses and phone-like identifiers are replaced (``training_pseudonymiser``).
+The admin then adds existing users to it in a role the type allows. Sessions are retained; closing one only deactivates its
 participants' grants. Every function here is a service call: callers check that
-the actor is an admin (``_require_admin`` also does), and no function creates a
-user, a password or an account expiry.
+the actor is an admin (``_require_admin`` also does). Only ``import_trainees``
+creates accounts, through the organization users import's rules; no function
+sets a password a person knows or an account expiry. ``graduate`` writes real
+grants in another project through that import's rules.
 
 Failures raise ``TrainingDemoError`` with a fixed code (``MESSAGES``); nothing
 in a message or a log line carries case content or a person's details.
@@ -61,6 +66,7 @@ from app.models.mas_training import (
     CODER_SLOTS,
     MAX_CODER_SLOTS,
     PARTICIPANT_ROLES,
+    SESSION_TYPES,
 )
 from app.services import authz, consent_service
 from app.services import organization_service as org
@@ -72,6 +78,7 @@ from app.services.training_pseudonymiser import (
     pseudonymise_payload,
     residual_categories,
 )
+from app.services.security_event_service import record_security_event
 from app.services.user_account_service import mask_mobile
 
 log = logging.getLogger(__name__)
@@ -104,7 +111,13 @@ MESSAGES = {
     "source_form_missing": "The source form does not exist.",
     "source_is_training": "The source form belongs to the training project.",
     "not_enough_source_cases": "The source form does not have enough eligible cases.",
-    "invalid_coder_slots": "Give the session 1 to 100 coder slots.",
+    "invalid_coder_slots": "Give the session 1 to 100 coder slots (an interviewer session has none).",
+    "type_required": "Choose the session type: interviewer, coder or self-coding.",
+    "invalid_session_type": "Unknown session type.",
+    "corpus_cases_ineligible": "{count} case(s) of the English training case list are not eligible (missing, no consent or no active version); fix the list.",
+    "corpus_missing": "The English training case list is not available yet; coder and self-coding sessions cannot take coders.",
+    "role_not_in_session_type": "That role is not allowed in this session type.",
+    "bulk_too_many_coders": "Add at most 50 coders at a time to a coder or self-coding session.",
     "invalid_name": "Give the session a name of 1 to 200 characters.",
     "admin_required": "Only an administrator may do this.",
     "session_not_found": "Training session not found.",
@@ -124,8 +137,17 @@ MESSAGES = {
     "bulk_too_many": "Select at most 200 users at a time.",
     "bulk_empty": "Select at least one user.",
     "invalid_filter": "A filter value is not valid.",
+    "import_refused": "Nothing was imported: {detail}",
+    "target_not_allowed": "Trainees cannot graduate into the training project or a demo project.",
+    "not_a_trainee": "That user is not an active trainee of this session.",
+    "nothing_to_graduate": "This trainee's training role graduates to no real role.",
+    "invalid_languages": "Choose active coding languages.",
+    "graduation_unit": "Choose the trainee's unit (and a valid cadre code).",
+    "graduation_confirm": "This changes a cadre the user already holds or reactivates a revoked grant; confirm it.",
 }
 BULK_MAX = 200
+#: Coders added at once to a typed session: each copies ten cases (N4).
+TYPED_BULK_CODERS_MAX = 50
 CANDIDATES_MAX = 200
 
 
@@ -163,6 +185,14 @@ _GRANT_ROLES = {
     # reviewer only: a data_manager grant would let a trainee manage co-trainees'
     # accounts (digitva-svx6); the trainer report authorises by participation.
     "reviewer_data_manager": (VaAccessRoles.reviewer,),
+}
+
+#: Session type -> the participant roles it accepts (training-session-types.md).
+#: interview_supervisor joins an interviewer session by single add only.
+_TYPE_ROLES = {
+    "interviewer": frozenset({"interviewer", "interview_supervisor"}),
+    "coder": frozenset({"coder"}),
+    "self_coding": frozenset({"coder"}),
 }
 
 
@@ -388,10 +418,25 @@ def _slot_of(case_number: int) -> int:
     return (case_number - 1) // CASES_PER_SLOT + 1
 
 
-def _clean_coder_slots(value) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= MAX_CODER_SLOTS:
+def _clean_session_type(value) -> str | None:
+    """None (legacy, service callers only) or one of ``SESSION_TYPES``."""
+    if value is None:
+        return None
+    if value not in SESSION_TYPES:
+        raise TrainingDemoError("invalid_session_type")
+    return value
+
+
+def _clean_coder_slots(value, session_type: str | None = None) -> int:
+    """0 for an interviewer session, else 1..``MAX_CODER_SLOTS`` (the DB check's rule)."""
+    low, high = (0, 0) if session_type == "interviewer" else (1, MAX_CODER_SLOTS)
+    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
         raise TrainingDemoError("invalid_coder_slots")
     return value
+
+
+def default_coder_slots(session_type: str | None) -> int:
+    return 0 if session_type == "interviewer" else CODER_SLOTS
 
 
 def _source_order(coder_slots: int, available: int) -> list[int]:
@@ -435,6 +480,97 @@ def _corpus_sids(source_form_id: str) -> list[str] | None:
         return None
     lines = (line.strip() for line in path.read_text(encoding="utf-8").splitlines())
     return [line for line in lines if line and not line.startswith("#")]
+
+
+#: The typed sessions' standard set (training-session-types.md): English
+#: narratives, one ``<va_form_id>,<va_sid>`` per line, any number of forms.
+CORPUS_NAME = "english_v1"
+CORPUS_LANGUAGE = "english"
+#: A typed corpus with fewer distinct cases than this is refused (``corpus_missing``).
+CORPUS_SIZE = 200
+
+
+def typed_corpus(minimum: int | None = None) -> list[tuple[str, str]]:
+    """The typed sessions' corpus as ``[(va_form_id, va_sid), ...]`` in file
+    order. Raises ``corpus_missing`` while the file is absent, malformed or
+    shorter than *minimum* (default ``CORPUS_SIZE``) distinct cases (the
+    owner supplies the list)."""
+    path = CORPUS_DIR / f"{CORPUS_NAME}.txt"
+    if not path.is_file():
+        raise TrainingDemoError("corpus_missing")
+    entries = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        form_id, _sep, sid = (part.strip() for part in line.partition(","))
+        if not form_id or not sid:
+            raise TrainingDemoError("corpus_missing")
+        entries.append((form_id, sid))
+    entries = list(dict.fromkeys(entries))
+    if len(entries) < (CORPUS_SIZE if minimum is None else minimum):
+        raise TrainingDemoError("corpus_missing")
+    _require_corpus_language(entries)
+    return entries
+
+
+def _require_corpus_language(entries: list[tuple[str, str]]) -> None:
+    """Refuse (``corpus_missing``) a corpus any of whose listed cases has a
+    narration language other than ``CORPUS_LANGUAGE``: the standard set is
+    English only, and the coder check trusts it. One query over the whole
+    list (sid, form, language; no payload); a listed case that is not found
+    is left to the eligibility check of ``_load_corpus_rows``."""
+    forms = dict((sid, form_id) for form_id, sid in entries)
+    other = [
+        sid
+        for sid, form_id, language in db.session.execute(
+            sa.select(VaSubmissions.va_sid, VaSubmissions.va_form_id, VaSubmissions.va_narration_language)
+            .where(VaSubmissions.va_sid.in_(list(forms)))
+        )
+        if forms[sid] == form_id and (language or "").strip().lower() != CORPUS_LANGUAGE
+    ]
+    if other:
+        # Pseudonymous case ids only, never case content (security review L1).
+        log.warning("training corpus refused: %d listed case(s) not %s: %s",
+                    len(other), CORPUS_LANGUAGE, ",".join(sorted(other)))
+        raise TrainingDemoError("corpus_missing")
+
+
+def _draw(session_id, slot: int, size: int) -> list[int]:
+    """The corpus indices of one coder slot's ten: reproducible per session and
+    slot, so two coders draw independently (their sets may overlap)."""
+    return random.Random(f"{session_id}:{slot}").sample(range(size), CASES_PER_SLOT)
+
+
+def _load_corpus_rows(entries: list[tuple[str, str]]) -> dict:
+    """``{va_sid: (submission, version)}`` for the listed corpus cases only,
+    one query: the same eligibility as ``_load_source_rows`` (active payload
+    version, consent given), on the listed form, outside the training project.
+    Refuses (``corpus_cases_ineligible``, naming how many; the sids are
+    logged) when any listed case is not eligible."""
+    forms = dict((sid, form_id) for form_id, sid in entries)
+    rows = db.session.execute(
+        sa.select(VaSubmissions, VaSubmissionPayloadVersion)
+        .join(
+            VaSubmissionPayloadVersion,
+            VaSubmissionPayloadVersion.payload_version_id == VaSubmissions.active_payload_version_id,
+        )
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .where(
+            VaSubmissions.va_sid.in_(list(forms)),
+            VaForms.project_id != TRAINING_PROJECT_ID,
+            VaSubmissionPayloadVersion.version_status == "active",
+            VaSubmissions.va_consent != "",
+            sa.func.lower(VaSubmissions.va_consent) != "no",
+        )
+    ).all()
+    found = {sub.va_sid: (sub, version) for sub, version in rows if forms[sub.va_sid] == sub.va_form_id}
+    missing = sorted(set(forms) - set(found))
+    if missing:
+        # Pseudonymous case ids only, never case content (security review L2).
+        log.warning("training corpus cases ineligible count=%d sids=%s", len(missing), ",".join(missing))
+        raise TrainingDemoError("corpus_cases_ineligible", count=len(missing))
+    return found
 
 
 def _load_source_rows(source_form_id: str, limit: int | None = None, *, strict: bool = True) -> list:
@@ -582,6 +718,18 @@ def _copy_attachments(source_form_id: str, form_id: str, sid_pairs: dict, create
     return rows, skipped, not_stored
 
 
+def _copy_attachments_by_form(form_id: str, pairs_by_form: dict, created: list):
+    """``_copy_attachments`` once per source form of *pairs_by_form*
+    (``{source_form_id: {source_sid: [new_sid, ...]}}``); summed counts."""
+    rows, skipped, not_stored = [], 0, 0
+    for source_form_id, pairs in pairs_by_form.items():
+        more, more_skipped, more_not_stored = _copy_attachments(source_form_id, form_id, pairs, created)
+        rows += more
+        skipped += more_skipped
+        not_stored += more_not_stored
+    return rows, skipped, not_stored
+
+
 def _attachment_copy(src, new_sid: str, name: str, local_path, is_s3: bool) -> VaSubmissionAttachments:
     return VaSubmissionAttachments(
         va_sid=new_sid,
@@ -604,49 +752,209 @@ def _attachment_copy(src, new_sid: str, name: str, local_path, is_s3: bool) -> V
     )
 
 
+def _write_copies(session_row, form, assignments, payloads, causes, slot_units, actor, created_objects) -> dict:
+    """Write one pseudonymised copy per *assignments* entry
+    ``(case_number, slot, source_submission, source_version)``: the submission
+    ``trn-<code>-<n>`` on the slot's unit, its payload version, attachment
+    copies (per source form), ``ready_for_coding`` and the ``MapTrainingCase``
+    with the source's final cause as the answer key. Flushes; the caller
+    commits, or rolls back and removes *created_objects*. Returns counts only."""
+    from app.services.submission_payload_version_service import write_payload_version
+    from app.services.va_data_sync.va_data_sync_01_odkcentral import build_submission_projection
+
+    code = session_row.session_code
+    replacements = dict.fromkeys(COUNT_KEYS, 0)
+    new_subs, new_versions, cases, pairs = [], [], [], {}
+    for number, slot, source, version in assignments:
+        sid = f"trn-{code}-{number}"
+        payload, counts = _new_payload(
+            payloads[version.payload_version_id],
+            sid=sid, form_id=form.form_id, code=code, number=number, seed=f"{code}:{number}",
+        )
+        payload.setdefault("SubmissionDate", _iso(source.va_submission_date))
+        for key, value in counts.items():
+            replacements[key] += value
+        fields = build_submission_projection(form, payload)
+        new_subs.append(
+            VaSubmissions(
+                **fields,
+                org_unit_id=slot_units[slot].org_unit_id,
+                org_unit_resolution="manual",
+            )
+        )
+        new_versions.append((sid, payload, version))
+        cases.append(
+            MapTrainingCase(
+                va_sid=sid,
+                training_session_id=session_row.training_session_id,
+                case_number=number,
+                coder_slot=slot,
+                source_va_sid=source.va_sid,
+                source_final_cod=causes.get(source.va_sid),
+            )
+        )
+        pairs.setdefault(source.va_form_id, {}).setdefault(source.va_sid, []).append(sid)
+    db.session.add_all(new_subs)
+    db.session.flush()
+
+    now = _utcnow()
+    versions = []
+    for sid, payload, source_version in new_versions:
+        version = VaSubmissionPayloadVersion(
+            va_sid=sid,
+            version_status="active",
+            created_by=actor.user_id,
+            created_by_role="admin",
+            version_created_at=now,
+            version_activated_at=now,
+            has_required_metadata=source_version.has_required_metadata,
+            attachments_expected=source_version.attachments_expected,
+            validation_err=[],
+        )
+        # The one payload writer: sealed fields go to the side row when the split is on
+        # (it then flushes each version itself, to seal under the version's id).
+        write_payload_version(version, payload, new=True)
+        versions.append(version)
+    db.session.add_all(versions)
+    db.session.flush()
+    for sub, version in zip(new_subs, versions, strict=True):
+        sub.active_payload_version_id = version.payload_version_id
+    attachment_rows, skipped, not_stored = _copy_attachments_by_form(form.form_id, pairs, created_objects)
+    db.session.add_all(attachment_rows)
+    db.session.add_all(
+        VaSubmissionWorkflow(
+            va_sid=sub.va_sid, workflow_state="ready_for_coding", workflow_reason="training_session_copy"
+        )
+        for sub in new_subs
+    )
+    db.session.add_all(cases)
+    db.session.flush()
+    return {
+        "cases": len(new_subs),
+        "replacements": replacements,
+        "attachments_copied": len(attachment_rows),
+        "attachments_skipped": skipped,
+        "attachments_not_stored": not_stored,
+    }
+
+
+def _slot_draws(session_row, slots: list[int]) -> dict:
+    """``{slot: [(va_form_id, va_sid), ...]}``: each slot's ten corpus entries."""
+    entries = typed_corpus()
+    return {
+        slot: [entries[i] for i in _draw(session_row.training_session_id, slot, len(entries))] for slot in slots
+    }
+
+
+def _copy_slot_cases(session_row, slots: list[int], actor, created_objects: list) -> dict:
+    """Copy each new coder slot's own random ten of the typed corpus into it
+    (coder and self-coding sessions, when a coder takes the slot).
+
+    Draws the indices first (``_draw``) and loads and unseals only the drawn
+    cases, once for all *slots* (a bulk add). A case drawn by two slots gets
+    two copies. Copies are numbered after the session's last case. The caller
+    holds the session row lock and commits, or rolls back and removes
+    *created_objects*. Raises ``corpus_missing`` or ``corpus_cases_ineligible``.
+    """
+    if not slots:
+        return {"cases": 0}
+    draws = _slot_draws(session_row, slots)
+    rows = _load_corpus_rows([entry for picked in draws.values() for entry in picked])
+    payloads = _full_payloads([version for _sub, version in rows.values()])
+    causes = _source_final_causes(list(rows))
+    codes = {slot: slot_unit_code(session_row.session_code, slot) for slot in slots}
+    units = {
+        unit.unit_code: unit
+        for unit in db.session.scalars(
+            sa.select(MasOrgUnit).where(
+                MasOrgUnit.project_id == TRAINING_PROJECT_ID, MasOrgUnit.unit_code.in_(list(codes.values()))
+            )
+        )
+    }
+    if len(units) < len(codes):
+        raise TrainingDemoError("session_not_found")
+    number = db.session.scalar(
+        sa.select(sa.func.coalesce(sa.func.max(MapTrainingCase.case_number), 0)).where(
+            MapTrainingCase.training_session_id == session_row.training_session_id
+        )
+    )
+    assignments = []
+    for slot in slots:
+        for _form_id, sid in draws[slot]:
+            number += 1
+            assignments.append((number, slot, *rows[sid]))
+    copied = _write_copies(
+        session_row, _web_form(), assignments, payloads, causes,
+        {slot: units[code] for slot, code in codes.items()}, actor, created_objects,
+    )
+    log.info(
+        "training slot cases copied code=%s slots=%d cases=%d skipped_attachments=%d",
+        session_row.session_code, len(slots), copied["cases"], copied["attachments_skipped"],
+    )
+    return copied
+
+
 def create_training_session(
-    name, created_by, *, source_form_id: str | None = None, coder_slots: int = CODER_SLOTS
+    name, created_by, *, source_form_id: str | None = None, coder_slots: int | None = None,
+    session_type: str | None = None,
 ) -> dict:
-    """Create a training session with *coder_slots* (1..100) slots of ten
-    pseudonymised case copies each. One transaction.
+    """Create a training session. One transaction.
+
+    *session_type* is ``interviewer``, ``coder`` or ``self_coding``; None
+    (service callers only: the route and the CLI require a type) is a legacy
+    mixed session. *coder_slots* defaults per type (0 for interviewer, else
+    ``CODER_SLOTS``; ``_clean_coder_slots``).
 
     Builds the session root unit (named after the session) with one unit per
-    coder slot, copies ten eligible cases of *source_form_id* (default the
-    UNSW01 NC01 form; its frozen list in ``training_corpus/`` when one exists)
-    into each slot as ``trn-<code>-<n>`` under the TRN01 web form, case ``n``
-    routed to slot ``((n-1)//10)+1``, state ``ready_for_coding``, and records
-    the source case's authoritative final cause as the answer key. With more
-    slots than the sources fill, a source case is copied into more than one
-    slot (``_source_order``, over the sources in a per-session order,
+    coder slot. A typed session copies nothing here: a coder or self-coding
+    session needs the typed corpus (``corpus_missing`` otherwise) and copies a
+    coder's ten when the coder is added (``_copy_slot_cases``).
+
+    A legacy session copies ten eligible cases of *source_form_id* (default
+    the UNSW01 NC01 form; its frozen list in ``training_corpus/`` when one
+    exists) into each slot as ``trn-<code>-<n>`` under the TRN01 web form,
+    case ``n`` routed to slot ``((n-1)//10)+1``, state ``ready_for_coding``,
+    and records the source case's authoritative final cause as the answer key.
+    With more slots than the sources fill, a source case is copied into more
+    than one slot (``_source_order``, over the sources in a per-session order,
     ``_session_permutation``); every copy is its own case. Source rows are
     never changed. Returns ``get_training_session(...)`` plus
     ``replacements`` (counts of names, addresses, identifiers and text
     occurrences replaced), ``attachments_copied``, ``attachments_skipped``
     (stored object missing) and ``attachments_not_stored`` (no stored object in
-    DigitVA, not copied). Raises
+    DigitVA, not copied); all zero for a typed session. Raises
     ``TrainingDemoError``; nothing is kept on failure, and objects already
     copied are removed.
     """
     _require_configured()
     name = _clean_name(name)
-    coder_slots = _clean_coder_slots(coder_slots)
+    session_type = _clean_session_type(session_type)
+    coder_slots = _clean_coder_slots(
+        default_coder_slots(session_type) if coder_slots is None else coder_slots, session_type
+    )
     actor = _require_admin(created_by)
+    if session_type in ("coder", "self_coding"):
+        typed_corpus()
     source_form_id = source_form_id or DEFAULT_SOURCE_FORM_ID
     created_objects: list = []
+    copied = {
+        "cases": 0, "replacements": dict.fromkeys(COUNT_KEYS, 0),
+        "attachments_copied": 0, "attachments_skipped": 0, "attachments_not_stored": 0,
+    }
     try:
         project = _require_target(lock=True)
         if project.project_status != VaStatuses.active:
             raise TrainingDemoError("project_closed")
         form = _web_form()
-        source_form = db.session.get(VaForms, source_form_id)
-        if source_form is None:
-            raise TrainingDemoError("source_form_missing")
-        if source_form.project_id == TRAINING_PROJECT_ID:
-            raise TrainingDemoError("source_is_training")
-        rows = _load_source_rows(source_form_id)
-        sources = [row[0] for row in rows]
-        payloads = _full_payloads([row[1] for row in rows])
-        causes = _source_final_causes([s.va_sid for s in sources])
+        if session_type is None:
+            source_form = db.session.get(VaForms, source_form_id)
+            if source_form is None:
+                raise TrainingDemoError("source_form_missing")
+            if source_form.project_id == TRAINING_PROJECT_ID:
+                raise TrainingDemoError("source_is_training")
+            rows = _load_source_rows(source_form_id)
+            payloads = _full_payloads([row[1] for row in rows])
+            causes = _source_final_causes([row[0].va_sid for row in rows])
 
         existing = db.session.scalar(
             sa.select(sa.func.count()).select_from(MasTrainingSession).where(
@@ -654,99 +962,35 @@ def create_training_session(
             )
         )
         code = f"S{existing + 1:03d}"
-        session_row, slot_units = _create_units_and_session(code, name, actor, coder_slots)
-
-        replacements = dict.fromkeys(COUNT_KEYS, 0)
-        new_subs, new_versions, cases, pairs = [], [], [], {}
-        from app.services.va_data_sync.va_data_sync_01_odkcentral import build_submission_projection
-
-        shuffled = _session_permutation(session_row.training_session_id, len(rows))
-        for number, index in enumerate(_source_order(coder_slots, len(rows)), start=1):
-            source, version = rows[shuffled[index]]
-            sid = f"trn-{code}-{number}"
-            slot = _slot_of(number)
-            payload, counts = _new_payload(
-                payloads[version.payload_version_id],
-                sid=sid, form_id=form.form_id, code=code, number=number, seed=f"{code}:{number}",
-            )
-            payload.setdefault("SubmissionDate", _iso(source.va_submission_date))
-            for key, value in counts.items():
-                replacements[key] += value
-            fields = build_submission_projection(form, payload)
-            new_subs.append(
-                VaSubmissions(
-                    **fields,
-                    org_unit_id=slot_units[slot].org_unit_id,
-                    org_unit_resolution="manual",
-                )
-            )
-            new_versions.append((sid, payload, version))
-            cases.append(
-                MapTrainingCase(
-                    va_sid=sid,
-                    training_session_id=session_row.training_session_id,
-                    case_number=number,
-                    coder_slot=slot,
-                    source_va_sid=source.va_sid,
-                    source_final_cod=causes.get(source.va_sid),
-                )
-            )
-            pairs.setdefault(source.va_sid, []).append(sid)
-        db.session.add_all(new_subs)
-        db.session.flush()
-
-        from app.services.submission_payload_version_service import write_payload_version
-
-        now = _utcnow()
-        versions = []
-        for sid, payload, source_version in new_versions:
-            version = VaSubmissionPayloadVersion(
-                va_sid=sid,
-                version_status="active",
-                created_by=actor.user_id,
-                created_by_role="admin",
-                version_created_at=now,
-                version_activated_at=now,
-                has_required_metadata=source_version.has_required_metadata,
-                attachments_expected=source_version.attachments_expected,
-                validation_err=[],
-            )
-            # The one payload writer: sealed fields go to the side row when the split is on
-            # (it then flushes each version itself, to seal under the version's id).
-            write_payload_version(version, payload, new=True)
-            versions.append(version)
-        db.session.add_all(versions)
-        db.session.flush()
-        for sub, version in zip(new_subs, versions, strict=True):
-            sub.active_payload_version_id = version.payload_version_id
-        attachment_rows, skipped, not_stored = _copy_attachments(source_form_id, form.form_id, pairs, created_objects)
-        db.session.add_all(attachment_rows)
-        db.session.add_all(
-            VaSubmissionWorkflow(
-                va_sid=sub.va_sid, workflow_state="ready_for_coding", workflow_reason="training_session_copy"
-            )
-            for sub in new_subs
-        )
-        db.session.add_all(cases)
+        session_row, slot_units = _create_units_and_session(code, name, actor, coder_slots, session_type)
+        if session_type is None:
+            shuffled = _session_permutation(session_row.training_session_id, len(rows))
+            assignments = [
+                (number, _slot_of(number), *rows[shuffled[index]])
+                for number, index in enumerate(_source_order(coder_slots, len(rows)), start=1)
+            ]
+            copied = _write_copies(session_row, form, assignments, payloads, causes, slot_units, actor, created_objects)
         db.session.commit()
     except Exception:
         db.session.rollback()
         _remove_objects(created_objects)
         raise
+    replacements = copied["replacements"]
     log.info(
-        "training session created code=%s cases=%d names=%d addresses=%d identifiers=%d text=%d skipped_attachments=%d",
-        code, len(new_subs), replacements["names"], replacements["addresses"],
-        replacements["identifiers"], replacements["text_replacements"], skipped,
+        "training session created code=%s type=%s cases=%d names=%d addresses=%d identifiers=%d text=%d "
+        "skipped_attachments=%d",
+        code, session_type or "legacy", copied["cases"], replacements["names"], replacements["addresses"],
+        replacements["identifiers"], replacements["text_replacements"], copied["attachments_skipped"],
     )
     summary = get_training_session(session_row.training_session_id)
     summary["replacements"] = replacements
-    summary["attachments_skipped"] = skipped
-    summary["attachments_copied"] = len(attachment_rows)
-    summary["attachments_not_stored"] = not_stored
+    summary["attachments_skipped"] = copied["attachments_skipped"]
+    summary["attachments_copied"] = copied["attachments_copied"]
+    summary["attachments_not_stored"] = copied["attachments_not_stored"]
     return summary
 
 
-def check_source(source_form_id: str | None = None, limit: int | None = None) -> dict:
+def check_source(source_form_id: str | None = None, limit: int | None = None, *, corpus: str | None = None) -> dict:
     """Dry run of the pseudonymiser over the real source cases: counts only.
 
     Loads the same deterministic selection as session creation, each source
@@ -754,9 +998,15 @@ def check_source(source_form_id: str | None = None, limit: int | None = None) ->
     pseudonymises each case in memory and reports how many cases
     still hold any original personal value (``residual_cases``, split by kind
     in ``residual_by_type``). Writes nothing and reads no training table, so
-    it works before the training migration. Never returns a value.
+    it works before the training migration. *corpus* (``CORPUS_NAME``) checks
+    the typed corpus list instead of a form, however short; its listed cases
+    must all be eligible. Never returns a value.
     """
-    rows = _load_source_rows(source_form_id or DEFAULT_SOURCE_FORM_ID, limit, strict=False)
+    if corpus is not None:
+        entries = typed_corpus(minimum=1)
+        rows = list(_load_corpus_rows(entries[:limit] if limit else entries).values())
+    else:
+        rows = _load_source_rows(source_form_id or DEFAULT_SOURCE_FORM_ID, limit, strict=False)
     payloads = _full_payloads([row[1] for row in rows])
     totals = dict.fromkeys(COUNT_KEYS, 0)
     by_type = {"names": 0, "addresses": 0, "identifiers": 0, "phones": 0, "device_ids": 0}
@@ -847,7 +1097,7 @@ def _remove_objects(targets: list) -> None:
             log.warning("training session: could not remove a copied attachment object")
 
 
-def _create_units_and_session(code: str, name: str, actor: VaUsers, coder_slots: int):
+def _create_units_and_session(code: str, name: str, actor: VaUsers, coder_slots: int, session_type: str | None):
     levels = {level.level_code: level for level in org.list_levels(TRAINING_PROJECT_ID)}
     chc = org.find_unit_by_code(TRAINING_PROJECT_ID, CHC_UNIT_CODE)
     if chc is None or "phc" not in levels or "subcentre" not in levels:
@@ -881,6 +1131,7 @@ def _create_units_and_session(code: str, name: str, actor: VaUsers, coder_slots:
         created_by=actor.user_id,
         org_unit_id=root.org_unit_id,
         coder_slots=coder_slots,
+        session_type=session_type,
     )
     db.session.add(session_row)
     db.session.flush()
@@ -916,12 +1167,14 @@ def _session_fields(row: MasTrainingSession) -> dict:
         "created_at": _iso(row.created_at),
         "created_by": str(row.created_by),
         "org_unit_id": str(row.org_unit_id),
+        "session_type": row.session_type,
     }
 
 
 def list_training_sessions() -> list[dict]:
-    """Every session, newest first, with participants by role, coder slots used
-    and cases coded: four queries however many sessions exist."""
+    """Every session, newest first, with participants by role, coder slots used,
+    cases copied and cases coded: five queries however many sessions exist.
+    ``cases_total`` counts the copies (a typed session copies at coder add)."""
     sessions = db.session.scalars(
         sa.select(MasTrainingSession)
         .where(MasTrainingSession.project_id == TRAINING_PROJECT_ID)
@@ -947,6 +1200,11 @@ def list_training_sessions() -> list[dict]:
     ):
         slots[session_id] = used
     coded = dict(db.session.execute(_coded_counts_stmt(ids)).all())
+    copies = dict(db.session.execute(
+        sa.select(MapTrainingCase.training_session_id, sa.func.count())
+        .where(MapTrainingCase.training_session_id.in_(ids))
+        .group_by(MapTrainingCase.training_session_id)
+    ).all())
     out = []
     for row in sessions:
         sid = row.training_session_id
@@ -956,7 +1214,7 @@ def list_training_sessions() -> list[dict]:
             "coder_slots_used": slots.get(sid, 0),
             "coder_slots_total": row.coder_slots,
             "cases_coded": coded.get(sid, 0),
-            "cases_total": row.coder_slots * CASES_PER_SLOT,
+            "cases_total": copies.get(sid, 0),
         })
     return out
 
@@ -1157,6 +1415,7 @@ def _activate_grant(user: VaUsers, role: VaAccessRoles, unit: MasOrgUnit, actor:
         grant.cadre_id = cadre.cadre_id
         _log_grant("grant_reactivated", actor, grant)
     authz.invalidate(user.user_id)
+    _forget_self_coding_ids()
     return grant
 
 
@@ -1175,6 +1434,7 @@ def _set_grants_status(grant_ids, status: VaStatuses, actor: VaUsers) -> int:
         changed += 1
         _log_grant("grant_reactivated" if status == VaStatuses.active else "grant_revoked", actor, grant)
         authz.invalidate(grant.user_id)
+    _forget_self_coding_ids()
     return changed
 
 
@@ -1188,10 +1448,28 @@ def _find_user(email) -> VaUsers:
     return user
 
 
-def _participant_units(session_row: MasTrainingSession, role: str, slot: int | None) -> list:
+def _grant_targets(session_row: MasTrainingSession, role: str, slot: int | None) -> list:
+    """The ``(grant role, unit)`` pairs a participation writes, by session type
+    and role: a coder on its slot unit (plus an interviewer grant there in a
+    self-coding session, so own interviews stay in the slot's scope); every
+    other role on the session root."""
     if role == "coder":
-        return [_unit_by_code(slot_unit_code(session_row.session_code, slot))]
-    return [db.session.get(MasOrgUnit, session_row.org_unit_id)]
+        unit = _unit_by_code(slot_unit_code(session_row.session_code, slot))
+        roles = (VaAccessRoles.coder,)
+        if session_row.session_type == "self_coding":
+            roles = (VaAccessRoles.coder, VaAccessRoles.interviewer)
+        return [(grant_role, unit) for grant_role in roles]
+    unit = db.session.get(MasOrgUnit, session_row.org_unit_id)
+    return [(grant_role, unit) for grant_role in _GRANT_ROLES[role]]
+
+
+def _require_role_in_type(session_row: MasTrainingSession, role: str, *, bulk: bool = False) -> None:
+    """Refuse (``role_not_in_session_type``) a role the session's type does not
+    take; a legacy session takes every role. A supervisor joins an interviewer
+    session by single add only."""
+    allowed = _TYPE_ROLES.get(session_row.session_type)
+    if allowed is not None and (role not in allowed or (bulk and role == "interview_supervisor")):
+        raise TrainingDemoError("role_not_in_session_type")
 
 
 def _find_participant(session_row: MasTrainingSession, user_id, role: str):
@@ -1221,8 +1499,7 @@ def _write_participant(session_row, user, role, actor, participant, slot) -> Map
     participant.status = "active"
     grants = [
         _activate_grant(user, grant_role, unit, actor)
-        for unit in _participant_units(session_row, role, participant.coder_slot)
-        for grant_role in _GRANT_ROLES[role]
+        for grant_role, unit in _grant_targets(session_row, role, participant.coder_slot)
     ]
     participant.grant_ids = [g.grant_id for g in grants]
     db.session.flush()
@@ -1247,22 +1524,27 @@ def add_participant(session_ref, email, roles, added_by) -> dict:
     """Add an existing user to a session in one or more *roles*, or reactivate them.
 
     *roles* is a role name or a list; each (user, role) is its own participation.
-    All or nothing: one transaction, and any refusal (already active, no free
-    slot, missing coder language, grant rules) rolls back every role. Unknown or
-    inactive users are refused; no user is ever created. A coder takes the next
-    free coder slot (kept for the life of the session) and a coder grant on that
-    slot's unit; the other roles get grants on the session root
-    (reviewer_data_manager gets both reviewer and data_manager). Returns the
-    first participation as a dict, with all of them under ``participants``.
-    Commits.
+    All or nothing: one transaction, and any refusal (a role the session type
+    does not take, already active, no free slot, missing coder language,
+    grant rules, corpus) rolls back every role and removes copied objects.
+    Unknown or inactive users are refused; no user is ever created. A coder
+    takes the next free coder slot (kept for the life of the session) and the
+    grants of ``_grant_targets``; in a coder or self-coding session a coder's
+    first add also copies their own ten cases (``_copy_slot_cases``; a re-add
+    keeps the slot and its copies). The other roles get grants on the session
+    root. Returns the first participation as a dict, with all of them under
+    ``participants``. Commits.
     """
     _require_configured()
     roles = _normalise_roles(roles)
     actor = _require_admin(added_by)
+    created_objects: list = []
     try:
         session_row = _find_session(session_ref, lock=True)
         if session_row.status != "active":
             raise TrainingDemoError("session_closed")
+        for role in roles:
+            _require_role_in_type(session_row, role)
         user = _find_user(email)
         written = []
         for role in roles:
@@ -1273,12 +1555,15 @@ def add_participant(session_ref, email, roles, added_by) -> dict:
             if participant is None and role == "coder":
                 slot = _next_free_slot(session_row)
                 _require_coder_languages(session_row, slot, user)
+                if session_row.session_type is not None:
+                    _copy_slot_cases(session_row, [slot], actor, created_objects)
             written.append(_write_participant(session_row, user, role, actor, participant, slot))
         participants = [_participant_dict(p, user) for p in written]
         result = {**participants[0], "participants": participants}
         db.session.commit()
     except Exception:
         db.session.rollback()
+        _remove_objects(created_objects)
         raise
     return result
 
@@ -1306,8 +1591,13 @@ def _missing_languages(needed: set[str], user: VaUsers) -> list[str]:
 
 
 def _require_coder_languages(session_row: MasTrainingSession, slot: int, user: VaUsers) -> None:
-    """Refuse a coder who lacks a narration language of the slot's cases. One query."""
-    missing = _missing_languages(_slot_languages(session_row, slot).get(slot, set()), user)
+    """Refuse a coder who lacks a narration language of the slot's cases (one
+    query), or in a typed session the corpus language, checked before any copy."""
+    if session_row.session_type is not None:
+        needed = {CORPUS_LANGUAGE}
+    else:
+        needed = _slot_languages(session_row, slot).get(slot, set())
+    missing = _missing_languages(needed, user)
     if missing:
         raise TrainingDemoError("coder_language_missing", languages=", ".join(m.title() for m in missing))
 
@@ -1351,8 +1641,11 @@ def bulk_add_participants(session_ref, user_ids, roles, added_by, *, dry_run: bo
 
     One plan row per user and role; coder slots go out in user order.
 
-    The plan is computed first with read-only checks (user active, coder
-    language, free slot, grant rules), coder slots handed out in the order given.
+    The plan is computed first with read-only checks (role allowed by the
+    session type, user active, coder language, free slot, grant rules, and the
+    corpus for a typed session), coder slots handed out in the order given. A
+    typed session takes at most ``TYPED_BULK_CODERS_MAX`` coders at a time, and
+    applying copies every new coder's ten cases in one pass (``_copy_slot_cases``).
     ``dry_run`` returns the plan (``rows``) and writes nothing. Without it the
     plan is applied only when no row is refused; otherwise nothing is written
     and ``applied`` is False, so a preview and its apply never disagree. Commits
@@ -1367,81 +1660,108 @@ def bulk_add_participants(session_ref, user_ids, roles, added_by, *, dry_run: bo
         raise TrainingDemoError("bulk_empty")
     if len(ids) > BULK_MAX:
         raise TrainingDemoError("bulk_too_many")
+    created_objects: list = []
     try:
         session_row = _find_session(session_ref, lock=not dry_run)
         if session_row.status != "active":
             raise TrainingDemoError("session_closed")
-        parsed = {}
-        for text in ids:
-            try:
-                parsed[text] = uuid.UUID(text)
-            except ValueError:
-                parsed[text] = None
-        known = {u.user_id: u for u in db.session.scalars(
-            sa.select(VaUsers).where(VaUsers.user_id.in_([v for v in parsed.values() if v]))
-        )}
-        existing = {(p.user_id, p.role): p for p in db.session.scalars(
-            sa.select(MapTrainingParticipant).where(
-                MapTrainingParticipant.training_session_id == session_row.training_session_id,
-                MapTrainingParticipant.role.in_(roles),
-            )
-        )}
-        free = []
-        languages: dict = {}
-        if "coder" in roles:
-            used = _used_slots(session_row)
-            free = [slot for slot in range(1, session_row.coder_slots + 1) if slot not in used]
-            languages = _slot_languages(session_row)
-        plan, rows = [], []
-        for text, uid in parsed.items():
-            user = known.get(uid) if uid else None
-            if user is None:
-                rows.append(_bulk_row(None, text, roles[0], "refuse", reason=MESSAGES["unknown_user"]))
-                continue
-            if not user.is_active:
-                rows.append(_bulk_row(user, uid, roles[0], "refuse", reason=MESSAGES["user_inactive"]))
-                continue
-            for role in roles:
-                participant = existing.get((uid, role))
-                if participant is not None and participant.status == "active":
-                    rows.append(_bulk_row(user, uid, role, "already", participant.coder_slot,
-                                          MESSAGES["already_participant"]))
-                    continue
-                slot = participant.coder_slot if participant is not None else None
-                try:
-                    if participant is None and role == "coder":
-                        if not free:
-                            raise TrainingDemoError("no_free_coder_slot")
-                        slot = free[0]
-                        missing = _missing_languages(languages.get(slot, set()), user)
-                        if missing:
-                            raise TrainingDemoError(
-                                "coder_language_missing", languages=", ".join(m.title() for m in missing)
-                            )
-                    for unit in _participant_units(session_row, role, slot):
-                        for grant_role in _GRANT_ROLES[role]:
-                            _check_grant(user, grant_role, unit, actor)
-                except TrainingDemoError as exc:
-                    rows.append(_bulk_row(user, uid, role, "refuse", slot if participant else None, exc.message))
-                    continue
-                if participant is None and role == "coder":
-                    free.pop(0)
-                action = "reactivate" if participant is not None else "add"
-                rows.append(_bulk_row(user, uid, role, action, slot))
-                plan.append((user, role, participant, slot))
-        refused = [r for r in rows if r["action"] == "refuse"]
-        if dry_run:
-            return {"dry_run": True, "rows": rows}
-        if refused:
-            db.session.commit()  # writes nothing; ends the transaction, releasing the session row lock
-            return {"dry_run": False, "applied": False, "rows": rows, "refused": refused,
-                    "added": 0, "reactivated": 0, "already": 0}
-        for user, role, participant, slot in plan:
-            _write_participant(session_row, user, role, actor, participant, slot)
-        db.session.commit()
+        result = _bulk_enrol(session_row, ids, roles, actor, dry_run=dry_run, created_objects=created_objects)
+        if not dry_run:
+            # Also ends a refused apply's transaction (it wrote nothing),
+            # releasing the session row lock.
+            db.session.commit()
     except Exception:
         db.session.rollback()
+        _remove_objects(created_objects)
         raise
+    return result
+
+
+def _bulk_enrol(session_row, ids: list[str], roles: list[str], actor, *, dry_run: bool, created_objects: list) -> dict:
+    """The core of ``bulk_add_participants`` on a session the caller found
+    (and, to apply, locked): plan, and unless *dry_run* or a row is refused,
+    copy and write. Never commits or rolls back; the caller owns the
+    transaction and removes *created_objects* on failure."""
+    for role in roles:
+        _require_role_in_type(session_row, role, bulk=True)
+    typed_coders = session_row.session_type is not None and "coder" in roles
+    if typed_coders:
+        if len(ids) > TYPED_BULK_CODERS_MAX:
+            raise TrainingDemoError("bulk_too_many_coders")
+        typed_corpus()
+    parsed = {}
+    for text in ids:
+        try:
+            parsed[text] = uuid.UUID(text)
+        except ValueError:
+            parsed[text] = None
+    known = {u.user_id: u for u in db.session.scalars(
+        sa.select(VaUsers).where(VaUsers.user_id.in_([v for v in parsed.values() if v]))
+    )}
+    existing = {(p.user_id, p.role): p for p in db.session.scalars(
+        sa.select(MapTrainingParticipant).where(
+            MapTrainingParticipant.training_session_id == session_row.training_session_id,
+            MapTrainingParticipant.role.in_(roles),
+        )
+    )}
+    free = []
+    languages: dict = {}
+    if "coder" in roles:
+        used = _used_slots(session_row)
+        free = [slot for slot in range(1, session_row.coder_slots + 1) if slot not in used]
+        languages = {} if typed_coders else _slot_languages(session_row)
+    plan, rows = [], []
+    for text, uid in parsed.items():
+        user = known.get(uid) if uid else None
+        if user is None:
+            rows.append(_bulk_row(None, text, roles[0], "refuse", reason=MESSAGES["unknown_user"]))
+            continue
+        if not user.is_active:
+            rows.append(_bulk_row(user, uid, roles[0], "refuse", reason=MESSAGES["user_inactive"]))
+            continue
+        for role in roles:
+            participant = existing.get((uid, role))
+            if participant is not None and participant.status == "active":
+                rows.append(_bulk_row(user, uid, role, "already", participant.coder_slot,
+                                      MESSAGES["already_participant"]))
+                continue
+            slot = participant.coder_slot if participant is not None else None
+            try:
+                if participant is None and role == "coder":
+                    if not free:
+                        raise TrainingDemoError("no_free_coder_slot")
+                    slot = free[0]
+                    needed = {CORPUS_LANGUAGE} if typed_coders else languages.get(slot, set())
+                    missing = _missing_languages(needed, user)
+                    if missing:
+                        raise TrainingDemoError(
+                            "coder_language_missing", languages=", ".join(m.title() for m in missing)
+                        )
+                for grant_role, unit in _grant_targets(session_row, role, slot):
+                    _check_grant(user, grant_role, unit, actor)
+            except TrainingDemoError as exc:
+                rows.append(_bulk_row(user, uid, role, "refuse", slot if participant else None, exc.message))
+                continue
+            if participant is None and role == "coder":
+                free.pop(0)
+            action = "reactivate" if participant is not None else "add"
+            rows.append(_bulk_row(user, uid, role, action, slot))
+            plan.append((user, role, participant, slot))
+    new_slots = [slot for _u, role, participant, slot in plan if role == "coder" and participant is None]
+    if dry_run and typed_coders and new_slots:
+        # The preview checks the drawn cases too (no unseal), so it never
+        # disagrees with the apply, which loads them in _copy_slot_cases.
+        _load_corpus_rows([e for picked in _slot_draws(session_row, new_slots).values() for e in picked])
+    refused = [r for r in rows if r["action"] == "refuse"]
+    if dry_run:
+        return {"dry_run": True, "rows": rows}
+    if refused:
+        return {"dry_run": False, "applied": False, "rows": rows, "refused": refused,
+                "added": 0, "reactivated": 0, "already": 0}
+    if typed_coders:
+        _copy_slot_cases(session_row, new_slots, actor, created_objects)
+    for user, role, participant, slot in plan:
+        _write_participant(session_row, user, role, actor, participant, slot)
     return {
         "dry_run": False, "applied": True, "rows": rows, "refused": [],
         "added": sum(r["action"] == "add" for r in rows),
@@ -1516,15 +1836,370 @@ def training_candidates(
     }
 
 
-#: Training role -> the roles of the main project's organization users import.
+#: Training role -> the real-project roles graduation grants
+#: (training-session-types.md, "Graduation"): coder and interviewer only,
+#: never reviewer or data manager (digitva-xe2x); supervisors, death
+#: reporters and reviewer_data_manager graduate to nothing.
 _GRADUATION_ROLES = {
-    "death_reporter": ("death_reporter",),
-    "interview_supervisor": ("interview_supervisor",),
     "interviewer": ("interviewer",),
     "coder": ("coder",),
-    "reviewer_data_manager": ("reviewer", "data_manager"),
 }
 _CODE_RE = re.compile(r"^[A-Za-z0-9_-]{0,32}$")
+
+
+def _graduation_roles(session_type: str | None, participant_role: str) -> tuple[str, ...]:
+    """The real roles one participation graduates to: a self-coding coder
+    gets coder and interviewer."""
+    if participant_role == "coder" and session_type == "self_coding":
+        return ("coder", "interviewer")
+    return _GRADUATION_ROLES.get(participant_role, ())
+
+
+def _role_label(roles) -> str:
+    roles = set(roles)
+    return "both" if roles == {"coder", "interviewer"} else next(iter(roles), "")
+
+
+# ---------------------------------------------------------------------------
+# Import (create accounts and enrol, one step)
+# ---------------------------------------------------------------------------
+
+#: Session type -> the import's one role choice and the participant roles it
+#: writes: a self-coding coder participation carries both grants.
+IMPORT_KINDS = {
+    "interviewer": ("interviewer", ("interviewer",)),
+    "coder": ("coder", ("coder",)),
+    "self_coding": ("both", ("coder",)),
+}
+#: The session import's columns: identity only, no unit, role or username.
+IMPORT_HEADERS = ("email", "name", "phone")
+IMPORT_MAX_BYTES = 1024 * 1024
+
+
+def import_trainees(session_ref, rows, kind, actor, *, dry_run: bool = True) -> dict:
+    """Create the missing accounts of *rows* and enrol everyone in the
+    session, in one step and one transaction, all or nothing (admin only).
+
+    *rows* are parsed table rows (``IMPORT_HEADERS`` plus ``_line_number``);
+    *kind* must be the one choice the session type allows (``IMPORT_KINDS``;
+    a legacy session takes no import). Accounts follow the organization users
+    import rules (``project_user_import_service.prepare_accounts`` and
+    ``create_account``): a new account gets English as its coding language,
+    and an existing coder lacking English gets it added (never removed); the
+    rows say so. Enrolment is ``_bulk_enrol``, so its refusals and limits
+    apply. ``dry_run`` makes the same writes without copies or sign-in codes
+    and rolls them back, so the preview and the apply agree. On apply a
+    refused row writes nothing (``applied`` False). On success returns the
+    new mobile-only accounts' one-time ``sign_in_codes`` (for the caller to
+    show once, never log) and queues the email invitations after commit.
+    """
+    from types import SimpleNamespace
+
+    from app.services import project_user_import_service as user_import
+
+    _require_configured()
+    actor = _require_admin(actor)
+    if not rows:
+        raise TrainingDemoError("bulk_empty")
+    if len(rows) > BULK_MAX:
+        raise TrainingDemoError("bulk_too_many")
+    created_objects: list = []
+    try:
+        session_row = _find_session(session_ref, lock=not dry_run)
+        if session_row.status != "active":
+            raise TrainingDemoError("session_closed")
+        expected = IMPORT_KINDS.get(session_row.session_type)
+        if expected is None or kind != expected[0]:
+            raise TrainingDemoError("role_not_in_session_type")
+        roles = list(expected[1])
+        try:
+            items = user_import.prepare_accounts(rows, languages=[CORPUS_LANGUAGE])
+        except user_import.ProjectUserImportError as exc:
+            raise TrainingDemoError("import_refused", detail=str(exc)) from exc
+        codes, invitations, notes = [], [], {}
+        for item in items:
+            user = item["user"]
+            if user is None:
+                user, code = user_import.create_account(
+                    item, actor_user_id=actor.user_id, sign_in_code=not dry_run
+                )
+                item["user"] = user
+                notes[user.user_id] = "new account"
+                if code:
+                    codes.append(code)
+                elif user.email:
+                    invitations.append(SimpleNamespace(user_id=user.user_id, email=user.email, name=user.name))
+            elif "coder" in roles and _missing_languages({CORPUS_LANGUAGE}, user):
+                old_languages = list(user.vacode_language or [])
+                user.vacode_language = [*old_languages, CORPUS_LANGUAGE]
+                notes[user.user_id] = "English added to coding languages"
+                if not dry_run:
+                    record_security_event(
+                        user_id=user.user_id,
+                        actor_user_id=actor.user_id,
+                        event_type="coding_languages_changed",
+                        detail={"old": old_languages, "new": user.vacode_language, "via": "training_import"},
+                    )
+        db.session.flush()
+        result = _bulk_enrol(
+            session_row, [str(item["user"].user_id) for item in items], roles, actor,
+            dry_run=dry_run, created_objects=created_objects,
+        )
+        for row in result["rows"]:
+            row["account"] = notes.get(uuid.UUID(row["user_id"]), "existing account")
+        created = sum(note == "new account" for note in notes.values())
+        if dry_run or not result.get("applied"):
+            db.session.rollback()
+            return {**result, "kind": kind, "created_users": created if dry_run else 0}
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        _remove_objects(created_objects)
+        raise
+    queued, warnings = user_import.finalize_apply(
+        TRAINING_PROJECT_ID, actor_user_id=actor.user_id, actor_role="admin",
+        changed_grants=[], invitations=invitations,
+    )
+    log.info("training import code=%s rows=%d new_users=%d", session_row.session_code, len(items), created)
+    return {**result, "kind": kind, "created_users": created, "sign_in_codes": codes,
+            "invitations_queued": queued, "invite_warnings": warnings}
+
+
+# ---------------------------------------------------------------------------
+# Graduation (real grants in an organizational project)
+# ---------------------------------------------------------------------------
+
+def graduation_trainees(session_ref, actor) -> dict:
+    """Every active trainee of the session, once per person, with the real
+    role graduation gives (``coder``, ``interviewer`` or ``both``; empty
+    when none), their coding languages, ``graduated_at``, and for the close
+    checklist their open server drafts and last sync in the training project
+    (all of the trainee's TRN01 drafts, not only this session's), plus the
+    active coding languages for the panel. Admin only. Four queries; a trainee who graduates to nothing is listed
+    too, so the trainer sees them."""
+    from app.models import VaWebIntakeDraft
+
+    _require_admin(actor)
+    session_row = _find_session(session_ref)
+    trainees: dict = {}
+    for participant, user in db.session.execute(
+        sa.select(MapTrainingParticipant, VaUsers)
+        .join(VaUsers, VaUsers.user_id == MapTrainingParticipant.user_id)
+        .where(
+            MapTrainingParticipant.training_session_id == session_row.training_session_id,
+            MapTrainingParticipant.status == "active",
+        )
+        .order_by(VaUsers.name, VaUsers.user_id, MapTrainingParticipant.role)
+    ):
+        entry = trainees.setdefault(user.user_id, {
+            "user_id": str(user.user_id), "name": user.name, "email": _contact(user),
+            "user_status": user.user_status.value, "languages": list(user.vacode_language or []),
+            "training_roles": [], "roles": [], "graduated_at": None,
+            "open_drafts": 0, "sent_interviews": 0, "last_sync": None,
+        })
+        entry["training_roles"].append(participant.role)
+        entry["roles"] += [r for r in _graduation_roles(session_row.session_type, participant.role)
+                           if r not in entry["roles"]]
+        if participant.graduated_at and (entry["graduated_at"] is None or participant.graduated_at > entry["graduated_at"]):
+            entry["graduated_at"] = participant.graduated_at
+    if trainees:
+        for user_id, open_drafts, sent, last in db.session.execute(
+            sa.select(
+                VaWebIntakeDraft.user_id,
+                sa.func.count().filter(VaWebIntakeDraft.status == "draft"),
+                sa.func.count().filter(VaWebIntakeDraft.status == "submitted"),
+                sa.func.max(VaWebIntakeDraft.updated_at),
+            )
+            .where(VaWebIntakeDraft.project_id == TRAINING_PROJECT_ID, VaWebIntakeDraft.user_id.in_(list(trainees)))
+            .group_by(VaWebIntakeDraft.user_id)
+        ):
+            trainees[user_id].update(open_drafts=open_drafts, sent_interviews=sent, last_sync=_iso(last))
+    rows = list(trainees.values())
+    for entry in rows:
+        entry["role"] = _role_label(entry["roles"])
+        entry["graduated_at"] = _iso(entry["graduated_at"])
+    from app.models.mas_languages import MasLanguages
+
+    languages = db.session.execute(
+        sa.select(MasLanguages.language_code, MasLanguages.language_name)
+        .where(MasLanguages.is_active.is_(True)).order_by(MasLanguages.language_name)
+    ).all()
+    return {"session_code": session_row.session_code, "session_type": session_row.session_type,
+            "status": session_row.status, "trainees": rows,
+            "languages": [[code, name] for code, name in languages]}
+
+
+def _require_graduation_target(project_id: str) -> None:
+    """Refuse (``target_not_allowed``) graduating into the training project,
+    a demo-training project, a synthetic-demo project or the public demo
+    project (N7); a missing or inactive project is refused by the import."""
+    from app.services import public_demo_service
+
+    project = db.session.get(VaProjectMaster, project_id) if project_id else None
+    if (
+        not project_id
+        or project_id == TRAINING_PROJECT_ID
+        or public_demo_service.is_demo_project(project_id)
+        or (project is not None and (project.demo_training_enabled or project.synthetic_demo_reset_enabled))
+    ):
+        raise TrainingDemoError("target_not_allowed")
+
+
+def _clean_languages(value, active: set[str]) -> list[str] | None:
+    """A row's coding languages: None keeps the user's own; otherwise a
+    non-empty list of active codes (the admin user screen's rule)."""
+    if value is None or value == []:
+        return None
+    if not isinstance(value, list) or len(value) > 50 or any(
+        not isinstance(code, str) or code not in active for code in value
+    ):
+        raise TrainingDemoError("invalid_languages")
+    return list(dict.fromkeys(value))
+
+
+def graduate(session_ref, project_id, rows, actor, *, dry_run: bool = True, confirm=()) -> dict:
+    """Give trainees their real coder and interviewer grants in an
+    organizational project, through the organization users import rules (admin only).
+
+    *rows* are ``{user_id, org_unit_code, cadre_code, language_codes}``, at
+    most ``BULK_MAX``; each user must be an active trainee of the session, and
+    their roles come from their participation (``_graduation_roles``), never
+    from the request. Every role row of a person is checked by one
+    ``prepare`` call and refused or accepted as a whole, with the reason. A
+    row that would change a cadre the user already holds there or reactivate
+    a revoked grant is ``needs_confirmation`` unless its user_id is in
+    *confirm*. ``dry_run`` writes nothing. Applying writes the accepted rows'
+    grants (active at once) and languages, sets ``graduated_at`` where unset,
+    commits and then logs the grant changes; refused rows stay listed. Saving
+    again is a no-op (``retain``).
+    """
+    from app.models.mas_languages import MasLanguages
+    from app.services import project_user_import_service as user_import
+
+    _require_configured()
+    actor = _require_admin(actor)
+    project_id = str(project_id or "").strip().upper()[:6]
+    _require_graduation_target(project_id)
+    if not isinstance(rows, list) or not rows:
+        raise TrainingDemoError("bulk_empty")
+    if len(rows) > BULK_MAX:
+        raise TrainingDemoError("bulk_too_many")
+    confirm = {str(value) for value in (confirm or []) if isinstance(value, str)}
+    try:
+        session_row = _find_session(session_ref, lock=not dry_run)
+        people: dict = {}
+        for participant, user in db.session.execute(
+            sa.select(MapTrainingParticipant, VaUsers)
+            .join(VaUsers, VaUsers.user_id == MapTrainingParticipant.user_id)
+            .where(
+                MapTrainingParticipant.training_session_id == session_row.training_session_id,
+                MapTrainingParticipant.status == "active",
+            )
+        ):
+            people.setdefault(user.user_id, (user, []))[1].append(participant)
+        active = set(db.session.scalars(
+            sa.select(MasLanguages.language_code).where(MasLanguages.is_active.is_(True))
+        ))
+        results, import_rows, by_line = [], [], {}
+        for number, row in enumerate(rows, start=1):
+            row = row if isinstance(row, dict) else {}
+            text = str(row.get("user_id") or "")[:64]
+            out = {"user_id": text, "name": None, "email": None, "roles": [], "status": "refused",
+                   "reason": "", "changes": [], "languages": None}
+            results.append(out)
+            try:
+                try:
+                    uid = uuid.UUID(text)
+                except ValueError as exc:
+                    raise TrainingDemoError("not_a_trainee") from exc
+                if uid not in people or any(r["user_id"] == text for r in results[:-1]):
+                    raise TrainingDemoError("not_a_trainee")
+                user, parts = people[uid]
+                out.update(name=user.name, email=_contact(user))
+                roles = [r for p in parts for r in _graduation_roles(session_row.session_type, p.role)]
+                out["roles"] = list(dict.fromkeys(roles))
+                if not out["roles"]:
+                    raise TrainingDemoError("nothing_to_graduate")
+                unit_code = str(row.get("org_unit_code") or "").strip()
+                cadre_code = str(row.get("cadre_code") or "").strip()
+                if not (unit_code and _CODE_RE.match(unit_code) and _CODE_RE.match(cadre_code)):
+                    raise TrainingDemoError("graduation_unit")
+                out["languages"] = _clean_languages(row.get("language_codes"), active)
+            except TrainingDemoError as exc:
+                out["reason"] = exc.message
+                continue
+            by_line[number] = (out, user, parts)
+            for role in out["roles"]:
+                import_rows.append({
+                    "email": user.email or "", "name": user.name or "", "role": role,
+                    "org_unit_code": unit_code, "cadre_code": cadre_code, "language_codes": "",
+                    "phone": "" if user.email else (user.mobile_login or ""), "_line_number": number,
+                })
+        try:
+            plan, errors = user_import.prepare(project_id, import_rows, actor=actor, collect_errors=True) \
+                if import_rows else ([], {})
+        except user_import.ProjectUserImportError as exc:
+            raise TrainingDemoError("import_refused", detail=str(exc)) from exc
+        items_by_line: dict = {}
+        for item in plan:
+            items_by_line.setdefault(item["row"], []).append(item)
+        accepted = []
+        for number, (out, user, parts) in by_line.items():
+            items = items_by_line.get(number, [])
+            if number in errors:
+                out["reason"] = errors[number]
+                continue
+            if len(items) != len(out["roles"]) or any(
+                item["user"] is None or item["user"].user_id != user.user_id for item in items
+            ):
+                out["reason"] = MESSAGES["not_a_trainee"]
+                continue
+            out["changes"] = [{"role": item["role"].value, "action": item["action"],
+                               "scope": item["unit"].unit_code if item["unit"] else "whole project"}
+                              for item in items]
+            languages_change = out["languages"] is not None and out["languages"] != list(user.vacode_language or [])
+            out["language_change"] = languages_change
+            needs = [item["action"] for item in items if item["action"] in ("update_cadre", "reactivate")]
+            if needs and out["user_id"] not in confirm:
+                out["status"] = "needs_confirmation"
+                out["reason"] = MESSAGES["graduation_confirm"]
+                continue
+            unchanged = all(item["action"] == "retain" for item in items) and not languages_change
+            out["status"] = "unchanged" if unchanged else "ready"
+            accepted.append((out, user, parts, items))
+        summary = {
+            "dry_run": dry_run, "project_id": project_id, "rows": results,
+            "cadre_changes": [r for r in results if any(c["action"] == "update_cadre" for c in r["changes"])],
+            "reactivations": [r for r in results if any(c["action"] == "reactivate" for c in r["changes"])],
+        }
+        if dry_run:
+            return summary
+        audit = []
+        if accepted:
+            _inv, audit, _codes = user_import.apply(
+                project_id, [item for *_rest, items in accepted for item in items], actor_user_id=actor.user_id
+            )
+        now = _utcnow()
+        for out, user, parts, _items in accepted:
+            if out["languages"] is not None:
+                user.vacode_language = out["languages"]
+            for participant in parts:
+                if participant.graduated_at is None:
+                    participant.graduated_at = now
+            if out["status"] == "ready":
+                out["status"] = "saved"
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    user_import.finalize_apply(
+        project_id, actor_user_id=actor.user_id, actor_role="admin", changed_grants=audit, invitations=[],
+    )
+    log.info("training graduation code=%s project=%s rows=%d saved=%d grants_changed=%d",
+             session_row.session_code, project_id, len(results),
+             sum(r["status"] == "saved" for r in results), len(audit))
+    summary["saved"] = sum(r["status"] == "saved" for r in results)
+    return summary
 
 
 def graduation_csv(session_ref, actor, *, role: str = "", org_unit_code: str = "", cadre_code: str = "") -> str:
@@ -1532,8 +2207,10 @@ def graduation_csv(session_ref, actor, *, role: str = "", org_unit_code: str = "
     organization users import (``project_user_import_service.HEADERS``), to be
     loaded into the participants' real project. ``role`` optionally keeps one
     training role; the unit and cadre columns carry the codes given, else stay
-    blank. A reviewer_data_manager gives a reviewer row and a data_manager row;
-    a mobile-only user is keyed by phone. Writes nothing; no grant is created here.
+    blank. Only coder and interviewer rows (``_graduation_roles``; a
+    self-coding coder gives both); a mobile-only user is keyed by phone.
+    Writes nothing; no grant is created here. Superseded by ``graduate``;
+    kept for one release.
     """
     from app.services.project_user_import_service import HEADERS
 
@@ -1559,7 +2236,7 @@ def graduation_csv(session_ref, actor, *, role: str = "", org_unit_code: str = "
     writer.writerow(HEADERS)
     seen = set()
     for email, name, mobile, participant_role in db.session.execute(stmt):
-        for import_role in _GRADUATION_ROLES[participant_role]:
+        for import_role in _graduation_roles(session_row.session_type, participant_role):
             key = (email or mobile, import_role)
             if key in seen:
                 continue
@@ -1679,7 +2356,7 @@ def participations(user_id, *, pending_only: bool = False) -> list[dict]:
     stmt = (
         sa.select(MapTrainingParticipant.role, MapTrainingParticipant.coder_slot,
                   MapTrainingParticipant.onboarded_at, MasTrainingSession.session_code,
-                  MasTrainingSession.name)
+                  MasTrainingSession.name, MasTrainingSession.session_type)
         .join(MasTrainingSession, MasTrainingSession.training_session_id == MapTrainingParticipant.training_session_id)
         .where(
             MapTrainingParticipant.user_id == user_id,
@@ -1691,55 +2368,148 @@ def participations(user_id, *, pending_only: bool = False) -> list[dict]:
     if pending_only:
         stmt = stmt.where(MapTrainingParticipant.onboarded_at.is_(None))
     return [
-        {"role": role, "coder_slot": slot, "onboarded_at": _iso(done), "session_code": code, "session_name": name}
-        for role, slot, done, code, name in db.session.execute(stmt)
+        {"role": role, "coder_slot": slot, "onboarded_at": _iso(done), "session_code": code, "session_name": name,
+         "session_type": session_type}
+        for role, slot, done, code, name, session_type in db.session.execute(stmt)
     ]
 
 
-#: Expo Training sub-menus -> the participant roles that open them
-#: (docs/policy/training-demo-project.md, "Onboarding and the public page").
-AREA_ROLES = {
-    "interview": frozenset({"death_reporter", "interviewer", "interview_supervisor"}),
-    "coding": frozenset({"coder"}),
-    "review": frozenset({"reviewer_data_manager"}),
+#: Expo Training sub-menus -> the participant roles that open them, per
+#: session type (None = legacy mixed session); docs/policy/training-demo-project.md,
+#: "Onboarding and the public page", and docs/policy/training-session-types.md.
+#: Typed sessions have no reviewing; a self-coding coder also interviews.
+AREA_RULES = {
+    "interview": (
+        (frozenset({"death_reporter", "interviewer", "interview_supervisor"}), (None, "interviewer")),
+        (frozenset({"coder"}), ("self_coding",)),
+    ),
+    "coding": ((frozenset({"coder"}), (None, *SESSION_TYPES)),),
+    "review": ((frozenset({"reviewer_data_manager"}), (None,)),),
 }
+
+
+def _opens(area: str, role: str, session_type: str | None) -> bool:
+    return any(role in roles and session_type in types for roles, types in AREA_RULES.get(area, ()))
 
 
 def areas_of(parts: list[dict]) -> list[str]:
     """The Training sub-menus (in menu order) the participations in *parts* open."""
-    roles = {part["role"] for part in parts}
-    return [area for area, area_roles in AREA_ROLES.items() if roles & area_roles]
+    return [
+        area for area in AREA_RULES
+        if any(_opens(area, part["role"], part.get("session_type")) for part in parts)
+    ]
+
+
+def _type_condition(types) -> sa.ColumnElement:
+    named = [t for t in types if t is not None]
+    conditions = [MasTrainingSession.session_type.in_(named)] if named else []
+    if None in types:
+        conditions.append(MasTrainingSession.session_type.is_(None))
+    return sa.or_(*conditions)
 
 
 def may_use_area(user_id, area: str) -> bool:
     """Whether *user_id* has an active participation, in an active session, with
-    a role that opens *area*. The server-side gate of ``training=1``."""
-    roles = AREA_ROLES.get(area)
-    if not roles:
+    a role that opens *area* in that session's type. The server-side gate of
+    ``training=1``: one EXISTS per request."""
+    rules = AREA_RULES.get(area)
+    if not rules:
         return False
     return bool(
         db.session.scalar(
             sa.select(sa.exists().where(
                 MapTrainingParticipant.user_id == user_id,
                 MapTrainingParticipant.status == "active",
-                MapTrainingParticipant.role.in_(sorted(roles)),
-                MapTrainingParticipant.training_session_id.in_(
-                    sa.select(MasTrainingSession.training_session_id).where(MasTrainingSession.status == "active")
-                ),
+                MasTrainingSession.training_session_id == MapTrainingParticipant.training_session_id,
+                MasTrainingSession.status == "active",
+                sa.or_(*(
+                    sa.and_(MapTrainingParticipant.role.in_(sorted(roles)), _type_condition(types))
+                    for roles, types in rules
+                )),
             ))
         )
     )
 
 
+_SELF_CODING_KEY = "digitva.training_self_coding_ids"
+
+
+def _forget_self_coding_ids() -> None:
+    """Drop this request's ``training_self_coding_ids`` memo (a grant changed)."""
+    from flask import has_request_context, request
+
+    if has_request_context():
+        request.environ.pop(_SELF_CODING_KEY, None)
+
+
+def self_coding_units_select(user_id) -> sa.Select:
+    """The statement behind ``training_self_coding_ids``, for embedding as a
+    subquery where a separate round trip is not wanted."""
+    return (
+        sa.select(VaUserAccessGrants.org_unit_id)
+        .join(MapTrainingParticipant, VaUserAccessGrants.grant_id == sa.any_(MapTrainingParticipant.grant_ids))
+        .join(MasTrainingSession,
+              MasTrainingSession.training_session_id == MapTrainingParticipant.training_session_id)
+        .where(
+            MapTrainingParticipant.user_id == user_id,
+            MapTrainingParticipant.role == "coder",
+            MapTrainingParticipant.status == "active",
+            MasTrainingSession.status == "active",
+            MasTrainingSession.session_type == "self_coding",
+            VaUserAccessGrants.user_id == user_id,
+            VaUserAccessGrants.role == VaAccessRoles.coder,
+            VaUserAccessGrants.grant_status == VaStatuses.active,
+        )
+    )
+
+
+def training_self_coding_ids(user_id) -> frozenset:
+    """The slot unit ids where *user_id* self-codes in training: the units of the
+    active coder grants of their active coder participations in active
+    self-coding sessions. Empty when training is off. One query, memoised per
+    request (cleared on any training grant change)."""
+    from flask import has_request_context, request
+
+    if not training_configured():
+        return frozenset()
+    memo = request.environ.setdefault(_SELF_CODING_KEY, {}) if has_request_context() else {}
+    if user_id not in memo:
+        memo[user_id] = frozenset(db.session.scalars(self_coding_units_select(user_id)))
+    return memo[user_id]
+
+
+def standard_set_sids(user_id):
+    """SELECT of the va_sids of *user_id*'s standard training set: the case
+    copies of their active coder slots in active sessions (every type; a legacy
+    coder's slot cases). Served by ``ix_map_training_cases_session_slot``."""
+    return (
+        sa.select(MapTrainingCase.va_sid)
+        .join(MapTrainingParticipant, sa.and_(
+            MapTrainingParticipant.training_session_id == MapTrainingCase.training_session_id,
+            MapTrainingParticipant.coder_slot == MapTrainingCase.coder_slot,
+        ))
+        .join(MasTrainingSession, MasTrainingSession.training_session_id == MapTrainingCase.training_session_id)
+        .where(
+            MapTrainingParticipant.user_id == user_id,
+            MapTrainingParticipant.role == "coder",
+            MapTrainingParticipant.status == "active",
+            MasTrainingSession.status == "active",
+        )
+    )
+
+
 def me_summary(user_id) -> dict:
-    """The Training menu's data: ``{project_id, areas, pending}``; the same
-    shape ``GET /api/v1/me/access`` carries as ``training``, plus the
-    participations for the overview screen."""
+    """The Training menu's data: ``{project_id, areas, pending,
+    session_types}``; the same shape ``GET /api/v1/me/access`` carries as
+    ``training``, plus the participations for the overview screen.
+    ``session_types`` lists the types of the user's active sessions (null for
+    a legacy one)."""
     parts = participations(user_id) if training_configured() else []
     return {
         "project_id": TRAINING_PROJECT_ID if training_configured() else None,
         "areas": areas_of(parts),
         "pending": any(part["onboarded_at"] is None for part in parts),
+        "session_types": sorted({part["session_type"] for part in parts}, key=lambda t: t or ""),
         "participations": parts,
     }
 

@@ -12,7 +12,7 @@ from flask_login import current_user
 
 from app import limiter
 from app.decorators import role_required
-from app.models.mas_training import CODER_SLOTS, PARTICIPANT_ROLES
+from app.models.mas_training import PARTICIPANT_ROLES, SESSION_TYPES
 from app.routes.admin import _json_error, admin
 from app.services import training_demo_service as service
 
@@ -34,6 +34,11 @@ _STATUS = {
     "source_form_missing": 409,
     "report_forbidden": 403,
     "bulk_refused": 409,
+    "corpus_missing": 409,
+    "corpus_cases_ineligible": 409,
+    "target_not_allowed": 409,
+    "role_not_in_session_type": 409,
+    "import_refused": 400,
 }
 
 
@@ -82,13 +87,19 @@ def training_sessions_list():
 @role_required("admin")
 @limiter.limit("10 per hour")
 def training_sessions_create():
-    """Create a session; ``coder_slots`` (1..100, default 20) is checked by the
-    service and anything else is a 400. Copies take a few seconds."""
+    """Create a session. ``session_type`` (interviewer, coder, self_coding) is
+    required here (400 ``type_required``); ``coder_slots`` defaults per type
+    (0 for interviewer, else 20) and is checked by the service; anything else
+    is a 400. A typed session copies nothing at creation."""
     payload = _body()
+    session_type = payload.get("session_type")
     try:
+        if session_type not in SESSION_TYPES:
+            raise service.TrainingDemoError("type_required")
         summary = service.create_training_session(
             payload.get("name"), current_user._get_current_object(),
-            coder_slots=payload.get("coder_slots", CODER_SLOTS),
+            coder_slots=payload.get("coder_slots", service.default_coder_slots(session_type)),
+            session_type=session_type,
         )
     except service.TrainingDemoError as exc:
         return _fail(exc)
@@ -175,6 +186,77 @@ def training_participants_bulk(ref):
         return _fail(exc)
     if result.get("applied") is False:
         return jsonify({"error": service.MESSAGES["bulk_refused"], **result}), 409
+    return jsonify(result)
+
+
+@admin.post(f"{_API}/sessions/<ref>/import")
+@role_required("admin")
+@limiter.limit("30 per hour")
+def training_import(ref):
+    """Create missing accounts and enrol them in one step (multipart: ``file``
+    CSV or XLSX with ``email,name,phone``; ``kind`` interviewer, coder or both,
+    as the session type allows; ``dry_run`` "1" by default). The apply's
+    one-time sign-in codes are only in this no-store response, never logged."""
+    from werkzeug.exceptions import RequestEntityTooLarge
+
+    from app.services.tabular_import_service import TabularImportError, parse_table
+
+    request.max_content_length = service.IMPORT_MAX_BYTES + 64 * 1024
+    try:
+        uploaded = request.files.get("file")
+    except RequestEntityTooLarge:
+        return _json_error("The upload exceeds the 1 MB limit.", 413)
+    if uploaded is None or not uploaded.filename or not uploaded.filename.lower().endswith((".csv", ".xlsx")):
+        return _json_error("Upload a CSV or XLSX with the columns email, name, phone as 'file'.", 400)
+    dry_run = request.form.get("dry_run", "1") != "0"
+    try:
+        rows = parse_table(uploaded.stream, uploaded.filename, service.IMPORT_HEADERS,
+                           max_bytes=service.IMPORT_MAX_BYTES, max_rows=service.BULK_MAX)
+    except TabularImportError as exc:
+        return _json_error(str(exc), 400)
+    for row in rows:
+        for header in service.IMPORT_HEADERS:
+            row[header] = str(row.get(header) or "")
+    try:
+        result = service.import_trainees(
+            ref, rows, (request.form.get("kind") or "")[:16], current_user._get_current_object(), dry_run=dry_run,
+        )
+    except service.TrainingDemoError as exc:
+        return _fail(exc)
+    if result.get("applied") is False:
+        response = jsonify({"error": service.MESSAGES["bulk_refused"], **result})
+        response.status_code = 409
+    else:
+        response = jsonify(result)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@admin.get(f"{_API}/sessions/<ref>/trainees")
+@role_required("admin")
+def training_trainees(ref):
+    """Trainees with their graduation role and the close checklist's sync state."""
+    try:
+        return jsonify(service.graduation_trainees(ref, current_user._get_current_object()))
+    except service.TrainingDemoError as exc:
+        return _fail(exc)
+
+
+@admin.post(f"{_API}/sessions/<ref>/graduate")
+@role_required("admin")
+def training_graduate(ref):
+    """Preview (``dry_run``, the default) or save real grants for trainees:
+    ``{project_id, rows: [{user_id, org_unit_code, cadre_code, language_codes}],
+    confirm: [user_id]}``. Per-row refusals are in ``rows``."""
+    payload = _body()
+    try:
+        result = service.graduate(
+            ref, _text(payload, "project_id", 6), payload.get("rows"), current_user._get_current_object(),
+            dry_run=payload.get("dry_run", True) is not False,
+            confirm=payload.get("confirm") if isinstance(payload.get("confirm"), list) else [],
+        )
+    except service.TrainingDemoError as exc:
+        return _fail(exc)
     return jsonify(result)
 
 

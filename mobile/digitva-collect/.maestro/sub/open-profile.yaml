@@ -1,0 +1,16 @@
+# Subflow: cold start (force-stop), then tap the e2e profile of this run for env
+# ROLE on "Profiles on this phone" (its row may be below earlier runs' profiles).
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Profiles on this phone"
+    timeout: 60000
+- scrollUntilVisible:
+    centerElement: true
+    element: "E2E ${MAESTRO_RUN_ID} ${ROLE}, .*"
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} ${ROLE}, .*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200

@@ -1,0 +1,35 @@
+# wrapper: offline-before
+# I09 part 2 of 3: wifi and data are off (adb, by the wrapper). Finish the interview
+# of the second registered death (regB) as incomplete: it stays Unsent. A send attempt
+# does not send it. The app refuses to send once it knows it is offline, so wait for
+# the Offline chip first or the tap would really send it.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- runFlow:
+    file: ../sub/finish-case.yaml
+    env:
+      NAME: "E2E${MAESTRO_RUN_ID}regB"
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertVisible: "1 Unsent\\. View"
+# The Offline chip is in the header, which the Sync sheet covers: wait for it on Home.
+- extendedWaitUntil:
+    visible: "Offline"
+    timeout: 30000
+- tapOn:
+    id: "tab-sync"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Send now"
+    optional: true
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd:
+    timeout: 5000
+- assertNotVisible: "Last result: Sent 1\\..*"
+- assertVisible: "1 unsent"

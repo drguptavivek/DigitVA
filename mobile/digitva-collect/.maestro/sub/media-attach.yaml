@@ -1,0 +1,99 @@
+# Subflow: in an open draft with consent Yes, record about 3 s of audio (section 5,
+# emulator virtual mic) and take one death-document photo (section 14, emulator
+# camera). Needs the microphone and camera permissions granted to the app.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "section-drawer-toggle"
+    direction: UP
+- tapOn:
+    id: "section-drawer-toggle"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "5. Open narrative"
+- tapOn:
+    text: "5. Open narrative"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- tapOn:
+    id: "question-Id10476_audio"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Recording time 00:0[2-9].*"
+    timeout: 20000
+- tapOn:
+    text: "Stop and save recording"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertVisible: "Play"
+- assertVisible:
+    id: "question-Id10476_audio-remove"
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "section-drawer-toggle"
+    direction: UP
+- tapOn:
+    id: "section-drawer-toggle"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "14. Medical and death documents"
+- tapOn:
+    text: "14. Medical and death documents"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- tapOn:
+    id: "question-ds_available-choice-yes"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-ds_count-increase"
+- tapOn:
+    id: "question-ds_count-increase"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+# The first tap on the stepper is sometimes ignored; repeat only if the count is not 1.
+- runFlow:
+    when:
+      notVisible: "1"
+    commands:
+      - tapOn:
+          id: "question-ds_count-increase"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-ds_im1-camera"
+- tapOn:
+    id: "question-ds_im1-camera"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd:
+    timeout: 3000
+# The camera app may open ready to shoot or already in review.
+- tapOn:
+    id: "com.android.camera2:id/shutter_button"
+    optional: true
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Done"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-ds_im1-preview"
+    timeout: 20000

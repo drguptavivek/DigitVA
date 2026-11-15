@@ -1,0 +1,41 @@
+# T02. Self-coding on the training coding page: "Code from my interviews" and "Code from
+# standard training set" are two queues that never mix, each with its "X of Y". The trainee
+# opens Coding in training mode, reads both counts, switches to My interviews (the interview
+# 96-training-interview-send sent), codes it, and sees "My interviews coded" go up while the
+# standard count stays. Needs 96 earlier in the same run and the ROLE=trainee profile.
+# Native training coding is not wired yet (QueueScreen through plusWorkspace in training
+# scope); this flow is written for when it is. Not run yet.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: trainee
+---
+- runFlow: ../sub/start.yaml
+- tapOn:
+    id: "tab-coding"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "training-queues"
+    timeout: 30000
+- assertVisible: "Standard training set coded: \\d+ of \\d+"
+- copyTextFrom:
+    text: "My interviews coded: \\d+ of \\d+"
+- evalScript: ${output.ownBefore = parseInt(maestro.copiedText.split(" ")[3])}
+- copyTextFrom:
+    text: "Standard training set coded: \\d+ of \\d+"
+- evalScript: ${output.standardBefore = maestro.copiedText}
+- tapOn:
+    id: "training-queue-own"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/code-open-case.yaml
+- runFlow: ../sub/icd-use.yaml
+- tapOn:
+    id: "tab-coding"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "My interviews coded: ${output.ownBefore + 1} of \\d+"
+    timeout: 30000
+- assertVisible: "${output.standardBefore}"

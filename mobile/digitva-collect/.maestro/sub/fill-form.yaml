@@ -1,0 +1,40 @@
+# Subflow: the interview form is open on its first page (consent already given). Answer
+# every page with fill-page.yaml and tap Next until the footer says Complete, answer the
+# last page, tap Complete. The outcome is not chosen: the server sets "completed" for a valid
+# form. The form leaves for the death details screen. A refused Next (a required question
+# missed) leaves the page and the loop answers it again, up to 40 pages.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- extendedWaitUntil:
+    visible:
+      id: "section-drawer-toggle"
+    timeout: 30000
+# The loop runs until Complete shows, not while Next shows. No hideKeyboard: on Android it
+# presses Back when no keyboard is up, which left the form (happy-path run 4). fill-page
+# closes the number keyboard with Enter instead.
+- repeat:
+    while:
+      notVisible: "Complete"
+    times: 40
+    commands:
+      - runFlow: fill-page-fast.yaml
+      - runFlow:
+          when:
+            visible: "Next"
+          commands:
+            - tapOn:
+                text: "Next"
+                retryTapIfNoChange: false
+                waitToSettleTimeoutMs: 200
+- runFlow: fill-page-fast.yaml
+- scrollUntilVisible:
+    element:
+      text: "Complete"
+    timeout: 10000
+- tapOn:
+    text: "Complete"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Death details"
+    timeout: 60000

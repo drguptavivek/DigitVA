@@ -1,0 +1,33 @@
+# Subflow: pull the server's cases to the phone (Sync tab > Refresh), then back to
+# Home. A death registered after the phone last synced is not in To do until then.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+# Taps right after a cold start are sometimes lost: repeat until the tab shows.
+- repeat:
+    while:
+      notVisible: "Refresh"
+    times: 4
+    commands:
+      - tapOn:
+          id: "tab-sync"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - extendedWaitUntil:
+          visible: "Refresh"
+          timeout: 5000
+          optional: true
+- tapOn:
+    text: "Refresh"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Last result: Refreshed.*"
+    timeout: 60000
+- tapOn:
+    text: "Cancel"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200

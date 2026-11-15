@@ -1,0 +1,62 @@
+# Subflow: the respondent consent screen that opens first on a project with consent on:
+# select every purpose (all required ones), pick "Tapped on the device" when the notice
+# offers modes, then "Respondent agrees"; then "Start questionnaire" on the screen that follows. Taps can be dropped on the debug build, so the
+# whole sequence repeats until the screen is gone; "Select all" turns into "Clear all"
+# once it took, so it is never toggled back off.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- extendedWaitUntil:
+    visible: "Respondent consent"
+    timeout: 30000
+- repeat:
+    while:
+      visible: "Respondent consent"
+    times: 4
+    commands:
+      # The notice text is long: Select all and the mode buttons sit below the fold.
+      - scrollUntilVisible:
+          element:
+            text: "Select all|Clear all"
+          centerElement: true
+      - runFlow:
+          when:
+            visible: "Select all"
+          commands:
+            - tapOn:
+                text: "Select all"
+                retryTapIfNoChange: false
+                waitToSettleTimeoutMs: 200
+      - scrollUntilVisible:
+          element:
+            text: "Tapped on the device"
+          centerElement: true
+          timeout: 3000
+          optional: true
+      - runFlow:
+          when:
+            visible: "Tapped on the device"
+          commands:
+            - tapOn:
+                text: "Tapped on the device"
+                retryTapIfNoChange: false
+                waitToSettleTimeoutMs: 200
+      - scrollUntilVisible:
+          element:
+            text: "Respondent agrees"
+          centerElement: true
+      - tapOn:
+          text: "Respondent agrees"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - extendedWaitUntil:
+          notVisible: "Respondent consent"
+          timeout: 8000
+          optional: true
+# After consent the "Before you begin" screen follows.
+- extendedWaitUntil:
+    visible: "Start questionnaire"
+    timeout: 15000
+- tapOn:
+    text: "Start questionnaire"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200

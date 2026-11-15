@@ -1,0 +1,38 @@
+# Subflow: type env CODE (an ICD-11 leaf code) into the search box labelled env BOX (its
+# accessibility label), which opens the picker after a short pause, tap "Use <CODE>" on the
+# result, and confirm with OK when the picker asks. Waits until the picker is closed.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- scrollUntilVisible:
+    centerElement: true
+    element: "${BOX}"
+- tapOn:
+    text: "${BOX}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: "${CODE}"
+- extendedWaitUntil:
+    visible: "Use ${CODE}"
+    timeout: 60000
+- tapOn:
+    text: "Use ${CODE}"
+    index: 0
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible: "Use the selected code"
+    commands:
+      - tapOn:
+          text: "Use the selected code"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    notVisible: "Close search"
+    timeout: 30000
+# Gboard can open its clipboard panel over the buttons below the search: close it.
+- runFlow:
+    when:
+      visible: "Clipboard|Turn on Clipboard"
+    commands:
+      - pressKey: Back

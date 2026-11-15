@@ -1,0 +1,20 @@
+# Subflow: the "Sign in" screen that "Signed out" profiles and "Forgot PIN?" lead to
+# (email + password of env EMAIL; the password is MAESTRO_PASSWORD).
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- tapOn:
+    text: "name@example.org"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: ${EMAIL}
+- tapOn:
+    text: "Password"
+    index: 1
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: ${MAESTRO_PASSWORD}
+- tapOn:
+    text: "Sign in"
+    below: "Password"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200

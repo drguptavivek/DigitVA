@@ -1,0 +1,72 @@
+# U02. Switch interviewer -> interviewer2 -> interviewer: each profile sees only its
+# own drafts (interviewer2 has none), and the draft's answers are intact.
+# Own draft; Drafts +1 for interviewer, interviewer2 unchanged.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/drafts-count.yaml
+- evalScript: ${output.before = output.drafts}
+- runFlow: ../sub/new-interview.yaml
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-Id10013-choice-yes"
+- tapOn:
+    id: "question-Id10013-choice-yes"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "header-back"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- tapOn:
+    id: "tab-home"
+    optional: true
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+- tapOn:
+    text: "Account"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "account-switch-profile"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "E2E ${MAESTRO_RUN_ID} interviewer2, Locked"
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} interviewer2, Locked"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/unlock.yaml
+- assertVisible:
+    id: "tab-home"
+# The other profile never sees this draft.
+- assertNotVisible: "Resume draft"
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == 0}
+- tapOn:
+    text: "Account"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "account-switch-profile"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "E2E ${MAESTRO_RUN_ID} ${ROLE}, Locked"
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} ${ROLE}, Locked"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/unlock.yaml
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+- runFlow: ../sub/open-draft-check.yaml

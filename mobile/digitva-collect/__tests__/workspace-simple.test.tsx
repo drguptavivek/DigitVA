@@ -46,12 +46,6 @@ jest.mock("../src/workspace/WorkspaceLayout", () => {
   return { ...actual, WorkspaceLayout: (props: any) => React.createElement(React.Fragment, null, React.createElement(actual.WorkspaceLayout, props), props.notes) };
 });
 
-jest.mock("../src/workspace/CategoryPanel", () => {
-  const React = require("react") as typeof import("react");
-  const actual = jest.requireActual("../src/workspace/CategoryPanel");
-  return { ...actual, CategoryPanel: (props: any) => React.createElement(React.Fragment, null, React.createElement(actual.CategoryPanel, props), props.afterContent) };
-});
-
 import { ApiError } from "../src/api";
 import { CategoryPanel } from "../src/workspace/CategoryPanel";
 import { PrivateNotePanel } from "../src/workspace/PrivateNotePanel";
@@ -932,6 +926,41 @@ it("updates the narrative score and exposes checked radio state before saving", 
   expect(textContent(tree.root)).toContain("Score: 0 / 2 · Cannot Grade");
   expect(tree.root.findByProps({ testID: "question-nqa_q1-choice-2" }).props.accessibilityState).toEqual({ selected: true, disabled: true });
   expect(tree.root.findByProps({ testID: "question-nqa-cannot_grade-choice-cannot_grade" }).props.accessibilityState).toEqual({ checked: true, disabled: false });
+  await act(async () => tree.unmount());
+});
+
+it("native opens on the first data tab and shows NQA and SA on their own tabs before COD, as Jinja does", async () => {
+  const payload = workspace("coding");
+  payload.categories = [
+    { code: "demographic", label: "Demographic", nav_label: "Demographic", render_mode: "default" },
+    { code: "docs", label: "Documents", nav_label: "Documents", render_mode: "attachments" },
+    { code: "social_autopsy", label: "Social autopsy", nav_label: "Social autopsy", render_mode: "default" },
+    ...payload.categories,
+  ];
+  payload.default_category = "demographic";
+  payload.narrative_qa = { fields: [{ key: "q1", label: "Detail", options: [{ value: 2, label: "Complete" }] }], max_score: 2, saved: null };
+  payload.social_autopsy = { questions: [{ delay_level: "1", title: "First delay", options: [{ option_code: "none", label: "None", description: "" }] }], saved: null };
+  const api = apiFor(payload, { getCategory: jest.fn(async (_sid, code) => ({ ...category, code, render_mode: code === "docs" ? "attachments" : code === "vacodassessment" ? "workflow_panel" : "default" })) });
+  let tree!: ReactTestRenderer;
+  await act(async () => { tree = create(<CaseWorkspaceScreen identity={{ vaSid: "sid-1", mode: "coding" }} api={api} onExit={jest.fn()} />); await flush(); });
+  const panels = () => { const quality = tree.root.findByType(QualityPanels); return [quality.props.narrative, quality.props.socialAutopsy]; };
+  expect(tree.root.findByProps({ selectedCode: "demographic" })).toBeDefined();
+  expect(panels()).toEqual([null, null]);
+  await act(async () => { tree.root.findByProps({ selectedCode: "demographic" }).props.onSelectCategory("docs"); await flush(); });
+  expect(panels()).toEqual([payload.narrative_qa, null]);
+  expect(textContent(tree.root)).toContain("Save narrative quality");
+  expect(textContent(tree.root)).not.toContain("Save social autopsy");
+  // Saving NQA keeps the coder on its tab, not back on the first data tab (it jumped before).
+  await act(async () => { await tree.root.findByType(QualityPanels).props.onSaveNarrative({ cannot_grade: true }); await flush(); });
+  expect(tree.root.findByProps({ selectedCode: "docs" })).toBeDefined();
+  await act(async () => { tree.root.findByProps({ selectedCode: "docs" }).props.onSelectCategory("social_autopsy"); await flush(); });
+  expect(panels()).toEqual([null, payload.social_autopsy]);
+  expect(textContent(tree.root)).toContain("Save social autopsy");
+  expect(textContent(tree.root)).not.toContain("Save narrative quality");
+  await act(async () => { tree.root.findByProps({ selectedCode: "social_autopsy" }).props.onSelectCategory("vacodassessment"); await flush(); });
+  expect(panels()).toEqual([null, null]);
+  expect(textContent(tree.root)).not.toContain("Save narrative quality");
+  expect(textContent(tree.root)).not.toContain("Save social autopsy");
   await act(async () => tree.unmount());
 });
 

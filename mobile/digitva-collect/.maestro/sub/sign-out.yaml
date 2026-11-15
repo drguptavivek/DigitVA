@@ -1,0 +1,21 @@
+# Subflow: the death reporter's Home "Sign out" button -> confirm the native "Sign out
+# of this phone?" dialog; ends on "Profiles on this phone". (The Account menu's Sign
+# out row sits at the very bottom of the sheet, where taps are lost on the debug
+# build, so this uses the reporter Home button.)
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- tapOn:
+    text: "Sign out"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "android:id/button1"
+    timeout: 15000
+- tapOn:
+    id: "android:id/button1"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Profiles on this phone"
+    timeout: 30000

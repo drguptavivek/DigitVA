@@ -1,0 +1,50 @@
+# P03. Lock now from the Account menu, unlock with the PIN: Drafts count and the
+# draft's answers intact. Own draft; Drafts +1.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/drafts-count.yaml
+- evalScript: ${output.before = output.drafts}
+- runFlow: ../sub/new-interview.yaml
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-Id10013-choice-yes"
+- tapOn:
+    id: "question-Id10013-choice-yes"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "header-back"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- tapOn:
+    id: "tab-home"
+    optional: true
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+- tapOn:
+    text: "Account"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "account-lock-now"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertVisible: "Profiles on this phone"
+- scrollUntilVisible:
+    centerElement: true
+    element: "E2E ${MAESTRO_RUN_ID} ${ROLE}, Locked"
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} ${ROLE}, Locked"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/unlock.yaml
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+- runFlow: ../sub/open-draft-check.yaml

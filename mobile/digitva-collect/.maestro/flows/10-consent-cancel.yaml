@@ -1,0 +1,70 @@
+# I02 + I03. Consent Yes + respondent Female, change consent to No: the delete
+# dialog asks, Cancel keeps Yes and the other answers, Cancel again, leave, reopen
+# the draft: still Yes + Female. Own draft; Drafts +1.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/drafts-count.yaml
+- evalScript: ${output.before = output.drafts}
+- runFlow: ../sub/new-interview.yaml
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-Id10013-choice-yes"
+- tapOn:
+    id: "question-Id10013-choice-yes"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "question-Id10013-choice-no"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertVisible: "Delete this interview?"
+- tapOn:
+    text: "Cancel"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertNotVisible: "Delete this interview?"
+- assertVisible:
+    id: "question-Id10013-choice-yes"
+    selected: true
+# Second round (I03): No again, Cancel again.
+- tapOn:
+    id: "question-Id10013-choice-no"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertVisible: "Delete this interview?"
+- tapOn:
+    text: "Cancel"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertNotVisible: "Delete this interview?"
+- assertVisible:
+    id: "question-Id10013-choice-yes"
+    selected: true
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-Id10007a-choice-female"
+    direction: UP
+- assertVisible:
+    id: "question-Id10007a-choice-female"
+    selected: true
+# Leave the form (Back arrow) and reopen the new draft.
+- tapOn:
+    id: "header-back"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- tapOn:
+    id: "tab-home"
+    optional: true
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+- runFlow: ../sub/open-draft-check.yaml
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}

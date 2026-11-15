@@ -1,0 +1,77 @@
+# Happy path 3, TST001 (masked two-step coding, NQA and social autopsy off): the coder picks
+# a ready case online on the Code tab, opens "COD Assessment" (the last tab), codes Step 1
+# (Part I line A = CA40.Z, manner Disease, Process, confirm the cause, Save Step 1) and then the
+# masked final cause (CA40.Z, Save final cause). Back on the queue the case is under "My coded
+# cases". Server side: checks/82-code-tst001-two-step.sh. Needs DORIS and the WHO ICD-11 search
+# reachable from the dev server; Process current certificate waits up to 2 minutes.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: coder
+  PROJECT: "Intake Test"
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/code-open-case.yaml
+- tapOn:
+    text: "COD Assessment"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+# Step 1: the DORIS certificate.
+# The COD tab starts with the case summary (symptoms, narration); the editor is below it.
+- scrollUntilVisible:
+    centerElement: true
+    element: "Step 1"
+    timeout: 60000
+- runFlow:
+    file: ../sub/icd-use.yaml
+    env:
+      BOX: "Search Part I line 1 condition"
+      CODE: "CA40.Z"
+- scrollUntilVisible:
+    centerElement: true
+    element: "Disease"
+- tapOn:
+    text: "Disease"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "Process current certificate"
+- tapOn:
+    text: "Process current certificate"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "DORIS: completed"
+    timeout: 240000
+- runFlow:
+    file: ../sub/icd-use.yaml
+    env:
+      BOX: "Confirm Step 1 underlying cause search"
+      CODE: "CA40.Z"
+- scrollUntilVisible:
+    centerElement: true
+    element: "Save Step 1"
+- tapOn:
+    text: "Save Step 1"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+# Step 2: the final cause.
+- extendedWaitUntil:
+    visible: "Save final cause"
+    timeout: 60000
+- runFlow:
+    file: ../sub/icd-use.yaml
+    env:
+      BOX: "Choose and confirm the final underlying cause search"
+      CODE: "CA40.Z"
+- scrollUntilVisible:
+    centerElement: true
+    element: "Save final cause"
+- tapOn:
+    text: "Save final cause"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+# The workspace closes back to the queue; the coder's history lists the case.
+- extendedWaitUntil:
+    visible: "Pick a case|Random allocation"
+    timeout: 60000

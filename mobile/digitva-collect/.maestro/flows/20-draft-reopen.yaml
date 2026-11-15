@@ -1,0 +1,54 @@
+# I07 + P02. Fill a draft to section 3 (consent Yes + respondent Female), leave by
+# the Back arrow, reopen from Home: same page and answers; then force-stop,
+# relaunch, unlock, reopen: still intact. Own draft; Drafts +1.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/drafts-count.yaml
+- evalScript: ${output.before = output.drafts}
+- runFlow: ../sub/new-interview.yaml
+- scrollUntilVisible:
+    element:
+      id: "question-Id10013-choice-yes"
+- tapOn:
+    id: "question-Id10013-choice-yes"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "header-back"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- tapOn:
+    id: "tab-home"
+    optional: true
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+# Reopen: the section the draft was left on (3), with its answers.
+- tapOn:
+    text: "Resume draft"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- assertVisible:
+    id: "question-card-Id10007a"
+- scrollUntilVisible:
+    element:
+      id: "question-Id10013-choice-yes"
+- assertVisible:
+    id: "question-Id10013-choice-yes"
+    selected: true
+- tapOn:
+    id: "header-back"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+# Force-stop, relaunch, unlock, reopen.
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+- runFlow: ../sub/open-draft-check.yaml

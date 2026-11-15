@@ -1,0 +1,8 @@
+# I09 part 1 of 3 (parts share the phone's state; the wrapper switches the network
+# between them, see the "wrapper:" markers): cold start and refresh while online.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/refresh.yaml

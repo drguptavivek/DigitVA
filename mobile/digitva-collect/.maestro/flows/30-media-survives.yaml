@@ -1,0 +1,123 @@
+# M01, M03, M06, P01, P02, P03, U02. Attach audio + a camera photo to a draft, then
+# prove both survive: Home and return (same page, P01), force-stop and relaunch
+# (P02), lock and unlock (P03), switch to the other profile and back (U02).
+# Own draft; Drafts +1.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/drafts-count.yaml
+- evalScript: ${output.before = output.drafts}
+- runFlow: ../sub/new-interview.yaml
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-Id10013-choice-yes"
+- tapOn:
+    id: "question-Id10013-choice-yes"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/media-attach.yaml
+
+# 1. Home and return: the form is still on the same page with the photo shown.
+- pressKey: home
+- launchApp:
+    stopApp: false
+- waitForAnimationToEnd
+- runFlow:
+    when:
+      visible: "Enter your PIN to unlock this phone."
+    file: ../sub/unlock.yaml
+- assertVisible:
+    id: "question-ds_im1-preview"
+
+# 2. Force-stop and relaunch: reopen the draft.
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+- tapOn:
+    text: "Resume draft"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- runFlow: ../sub/media-check.yaml
+- tapOn:
+    id: "header-back"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+
+# 3. Lock now, unlock, reopen.
+- tapOn:
+    text: "Account"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "account-lock-now"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertVisible: "Profiles on this phone"
+- scrollUntilVisible:
+    centerElement: true
+    element: "E2E ${MAESTRO_RUN_ID} ${ROLE}, Locked"
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} ${ROLE}, Locked"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/unlock.yaml
+- tapOn:
+    text: "Resume draft"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- runFlow: ../sub/media-check.yaml
+- tapOn:
+    id: "header-back"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+
+# 4. Switch to the other profile and back, reopen.
+- tapOn:
+    text: "Account"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "account-switch-profile"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "E2E ${MAESTRO_RUN_ID} interviewer2, Locked"
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} interviewer2, Locked"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/unlock.yaml
+- assertVisible:
+    id: "tab-home"
+- tapOn:
+    text: "Account"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "account-switch-profile"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "E2E ${MAESTRO_RUN_ID} ${ROLE}, Locked"
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} ${ROLE}, Locked"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/unlock.yaml
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.before + 1}
+- tapOn:
+    text: "Resume draft"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- runFlow: ../sub/media-check.yaml

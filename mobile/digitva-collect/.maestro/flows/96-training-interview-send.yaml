@@ -1,0 +1,54 @@
+# T01. Training mode on the phone (docs/policy/training-session-types.md): a self-coding
+# trainee picks the training project on Home's project line, sees the persistent
+# "Training mode" banner, interviews a training death (regT, registered for this run in
+# TRN01 by setup) and sends it: "Sent 1". The send goes in the training scope
+# (training=1, per draft; plan N10). Needs a ROLE=trainee profile enrolled by setup with an
+# active self-coding participation (setup is not part of this change). Not run yet.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: trainee
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/refresh.yaml
+- tapOn:
+    text: "TRN01.*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "TRN01.*"
+    index: 1
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Training mode · Practice: use made-up details only"
+    timeout: 15000
+- runFlow:
+    file: ../sub/finish-case-full.yaml
+    env:
+      NAME: "E2E${MAESTRO_RUN_ID}regT"
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertVisible: "Training mode · Practice: use made-up details only"
+- assertVisible: "1 Unsent\\. View"
+- tapOn:
+    id: "tab-sync"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Send now"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Last result: Sent 1\\..*"
+    timeout: 90000
+- tapOn:
+    text: "Cancel"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertNotVisible: "\\d+ Unsent\\. View"

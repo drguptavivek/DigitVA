@@ -1,0 +1,84 @@
+# Subflow: signed in as the coder (sub/start.yaml done): open the Code tab, pick env PROJECT
+# (the project name as the menu shows it, a regex: escape parentheses), wait until a case is
+# ready (a case still preparing is not listed: the queue is refreshed until "Pick case" shows),
+# pick the first case and open its COD Assessment tab. Which case is picked does not matter: the
+# server checks count the coder's assessments, not one case.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- repeat:
+    while:
+      notVisible: "Project: .*"
+    times: 4
+    commands:
+      - tapOn:
+          id: "tab-code"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - extendedWaitUntil:
+          visible: "Project: .*"
+          timeout: 8000
+          optional: true
+- tapOn:
+    text: "Project: .*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "${PROJECT}"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- repeat:
+    while:
+      notVisible: "Pick case|Start a random case|Resume case"
+    times: 20
+    commands:
+      - tapOn:
+          text: "Refresh cases"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - extendedWaitUntil:
+          visible: "Pick case|Start a random case|Resume case"
+          timeout: 15000
+          optional: true
+- runFlow:
+    when:
+      visible: "Pick case"
+    commands:
+      - tapOn:
+          text: "Pick case"
+          index: 0
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible: "Start a random case"
+    commands:
+      - tapOn:
+          text: "Start a random case"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible: "Resume case"
+    commands:
+      - tapOn:
+          text: "Resume case"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+# The case opens on its first data tab; COD Assessment is the last tab, off screen in the
+# horizontally scrolling tab bar (about 20% down): wait for the bar, swipe it left until the tab shows.
+- extendedWaitUntil:
+    visible: "Demographic / Risk Factors|Injuries|COD Assessment"
+    timeout: 90000
+- repeat:
+    while:
+      notVisible: "COD Assessment"
+    times: 8
+    commands:
+      - swipe:
+          start: "85%,20%"
+          end: "15%,20%"
+          duration: 400
+- tapOn:
+    text: "COD Assessment"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200

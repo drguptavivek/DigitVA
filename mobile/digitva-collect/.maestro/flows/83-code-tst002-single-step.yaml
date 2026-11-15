@@ -1,0 +1,144 @@
+# Happy path 3, TST002 (single-step coding, narrative quality assessment and social autopsy
+# on; online only): the coder picks a ready TST002 case (the one 81-register-interview-tst002
+# sent), saves the narrative quality ("Cannot grade" is a valid assessment, on the Narration /
+# Documents tab) and the social autopsy analysis ("None" at every delay level, on the Social
+# Autopsy tab), then opens "COD Assessment" and codes in one
+# step (CA40.Z, Process, confirm, Save cause of death). The cause is blocked until the
+# narrative quality and the social autopsy are saved. Server side:
+# checks/83-code-tst002-single-step.sh. Same DORIS and ICD-11 search needs as 82.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: coder
+  PROJECT: "Intake Test \\(single-step\\)"
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/code-open-case.yaml
+# NQA and SA come before COD, each on its own data tab, as in the Jinja workspace (owner
+# 2026-11-14): narrative quality on "Narration / Documents", social autopsy on "Social Autopsy".
+# code-open-case left the tab bar scrolled to COD Assessment: swipe it back to the left.
+- repeat:
+    while:
+      notVisible: "Narration / Documents.*"
+    times: 8
+    commands:
+      - swipe:
+          start: "15%,20%"
+          end: "85%,20%"
+          duration: 400
+- tapOn:
+    text: "Narration / Documents.*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "Save narrative quality"
+    timeout: 90000
+- tapOn:
+    id: "question-nqa-cannot_grade-choice-cannot_grade"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Save narrative quality"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "Demographic / Risk Factors|Injuries|Disease.*|Narration / Documents.*|Social Autopsy|COD Assessment"
+    direction: UP
+- repeat:
+    while:
+      notVisible: "Social Autopsy"
+    times: 8
+    commands:
+      - swipe:
+          start: "15%,20%"
+          end: "85%,20%"
+          duration: 400
+# The Social Autopsy tab shows only when the case has social autopsy answers; the analysis is
+# required (and COD blocked) only then.
+- runFlow:
+    when:
+      visible: "Social Autopsy"
+    commands:
+      - tapOn:
+          text: "Social Autopsy"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - scrollUntilVisible:
+          centerElement: true
+          element: "Save social autopsy"
+          timeout: 60000
+      - repeat:
+          while:
+            visible:
+              id: "question-social_autopsy_.*-choice-none"
+              selected: false
+          times: 6
+          commands:
+            - tapOn:
+                id: "question-social_autopsy_.*-choice-none"
+                selected: false
+                retryTapIfNoChange: false
+                waitToSettleTimeoutMs: 200
+      - tapOn:
+          text: "Save social autopsy"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - scrollUntilVisible:
+          centerElement: true
+          element: "Demographic / Risk Factors|Injuries|Disease.*|Narration / Documents.*|Social Autopsy|COD Assessment"
+          direction: UP
+- repeat:
+    while:
+      notVisible: "COD Assessment"
+    times: 8
+    commands:
+      - swipe:
+          start: "85%,20%"
+          end: "15%,20%"
+          duration: 400
+- tapOn:
+    text: "COD Assessment"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "DORIS certificate"
+    timeout: 60000
+- runFlow:
+    file: ../sub/icd-use.yaml
+    env:
+      BOX: "Search Part I line 1 condition"
+      CODE: "CA40.Z"
+- scrollUntilVisible:
+    centerElement: true
+    element: "Disease"
+- tapOn:
+    text: "Disease"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "Process current certificate"
+- tapOn:
+    text: "Process current certificate"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "DORIS: completed"
+    timeout: 240000
+- runFlow:
+    file: ../sub/icd-use.yaml
+    env:
+      BOX: "Choose and confirm the final underlying cause search"
+      CODE: "CA40.Z"
+- scrollUntilVisible:
+    centerElement: true
+    element: "Save final COD"
+- tapOn:
+    text: "Save final COD"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Pick a case|Random allocation"
+    timeout: 60000

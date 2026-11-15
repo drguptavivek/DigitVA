@@ -1,0 +1,84 @@
+# Enrol the e2e users the flows use (one profile each), then stop on Profiles.
+# Run by run-suite.sh after `flask seed e2e-users create`; MAESTRO_* from there.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+# A cleared Collect Plus asks "Enable ICD-11 / DORIS coding in this app?" first: answer it.
+- launchApp
+# The coding prompt can render a moment after launch: wait for it or the enrol screen first.
+- extendedWaitUntil:
+    visible: "Enable coding|Profiles on this phone|Enrol this device"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Enable coding"
+    commands:
+      - tapOn:
+          text: "Enable coding"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      true: ${MAESTRO_ENROL_INTERVIEWER == '1'}
+    file: ../sub/enrol.yaml
+    env:
+      EMAIL: ${MAESTRO_INTERVIEWER_EMAIL}
+- runFlow:
+    when:
+      true: ${MAESTRO_ENROL_INTERVIEWER2 == '1'}
+    file: ../sub/enrol.yaml
+    env:
+      EMAIL: ${MAESTRO_INTERVIEWER2_EMAIL}
+- runFlow:
+    when:
+      true: ${MAESTRO_ENROL_REPORTER == '1'}
+    file: ../sub/enrol.yaml
+    env:
+      EMAIL: ${MAESTRO_REPORTER_EMAIL}
+- runFlow:
+    when:
+      true: ${MAESTRO_ENROL_CODER == '1'}
+    file: ../sub/enrol.yaml
+    env:
+      EMAIL: ${MAESTRO_CODER_EMAIL}
+# The TST002 death reporter and interviewer (81-register-interview-tst002).
+- runFlow:
+    when:
+      true: ${MAESTRO_ENROL_REPORTER_T2 == '1'}
+    file: ../sub/enrol.yaml
+    env:
+      EMAIL: ${MAESTRO_REPORTER_T2_EMAIL}
+- runFlow:
+    when:
+      true: ${MAESTRO_ENROL_INTERVIEWER_T2 == '1'}
+    file: ../sub/enrol.yaml
+    env:
+      EMAIL: ${MAESTRO_INTERVIEWER_T2_EMAIL}
+# Run by run-suite*.sh, which sets MAESTRO_ENROL_<ROLE> to 1 for the profiles its flows need.
+# Coding is a per-phone preference that a cleared app has not answered: turn it on in
+# Settings (account menu, then Settings) so the coder flows (82, 83) can open cases.
+- tapOn:
+    text: "Account"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Settings"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    element:
+      id: "coding-on-phone"
+    timeout: 15000
+- runFlow:
+    when:
+      visible:
+        id: "coding-on-phone"
+        checked: false
+    commands:
+      - tapOn:
+          id: "coding-on-phone"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- assertVisible:
+    id: "coding-on-phone"
+    checked: true
+- back

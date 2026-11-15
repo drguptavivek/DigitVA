@@ -1,0 +1,64 @@
+# Subflow: from "Profiles on this phone", delete the profile of this run for env ROLE:
+# row -> Delete profile -> PIN -> confirm. With unsent work the app refuses
+# ("N forms on this phone are not sent yet..."), so the dialog is cancelled instead.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} ${ROLE}, .*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+# Delete profile sits at the very bottom of the unlock screen (below the fold with the keyboard up).
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "profile-delete"
+- tapOn:
+    id: "profile-delete"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "pin-input"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: ${MAESTRO_PIN.charAt(0)}
+- inputText: ${MAESTRO_PIN.charAt(1)}
+- inputText: ${MAESTRO_PIN.charAt(2)}
+- inputText: ${MAESTRO_PIN.charAt(3)}
+- inputText: ${MAESTRO_PIN.charAt(4)}
+- inputText: ${MAESTRO_PIN.charAt(5)}
+- tapOn:
+    id: "unlock-submit"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: ".*Nothing is waiting to be sent.*|.*not sent yet.*|Your session was revoked.*"
+    timeout: 30000
+# A revoked session with nothing unsent wipes the profile and says so.
+- runFlow:
+    when:
+      visible: "Your session was revoked.*"
+    commands:
+      - tapOn:
+          id: "android:id/button1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "profile-delete-confirm"
+    commands:
+      - tapOn:
+          id: "profile-delete-confirm"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - extendedWaitUntil:
+          visible: "Profiles on this phone"
+          timeout: 30000
+- runFlow:
+    when:
+      notVisible: "Profiles on this phone"
+    commands:
+      - tapOn:
+          text: "Cancel"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200

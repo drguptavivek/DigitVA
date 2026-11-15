@@ -1,0 +1,17 @@
+# Subflow: unlock the phone with the run PIN (MAESTRO_PIN, 6 digits). The whole PIN goes
+# into the debug build's pin-input field in one inputText (PinBoxes.tsx), not digit by digit.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- assertVisible: "Enter your PIN to unlock this phone."
+- tapOn:
+    id: "pin-input"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: ${MAESTRO_PIN}
+- tapOn:
+    id: "unlock-submit"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    notVisible: "Enter your PIN to unlock this phone."
+    timeout: 30000

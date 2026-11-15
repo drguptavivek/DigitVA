@@ -1,0 +1,77 @@
+# I01. Start the interview of the death registered by 60-register-death (regA) from To do,
+# consent, answer every question and Complete (the full interview, happy path 1 and 2), see it
+# Unsent on Home, Send now: "Sent 1", Unsent gone. The server side (the case is "submitted") is
+# checked by checks/70-interview-send.sh. The shortest sendable form, Finish as incomplete, is
+# still what 80-offline-* queue (sub/finish-case.yaml).
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/refresh.yaml
+# Counted after the refresh: regA only shows in To do once the phone has synced it.
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.todo >= 1}
+- evalScript: ${output.todoBefore = output.todo}
+- evalScript: ${output.draftsBefore = output.drafts}
+- runFlow:
+    file: ../sub/finish-case-full.yaml
+    env:
+      NAME: "E2E${MAESTRO_RUN_ID}regA"
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+# Background sync may send it before this check, so Unsent is not asserted here.
+- waitForAnimationToEnd:
+    timeout: 5000
+- runFlow: ../sub/drafts-count.yaml
+# The case left To do on this phone. Not a count check: To do counts the whole unit, which other
+# runs (the second emulator) and earlier runs' open deaths change meanwhile.
+- tapOn:
+    text: "\\d+ To do\\. View"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Search interviews"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: "E2E${MAESTRO_RUN_ID}regA"
+- waitForAnimationToEnd:
+    timeout: 5000
+- extendedWaitUntil:
+    visible: "No interviews match your search\\."
+    timeout: 15000
+- assertNotVisible:
+    id: "open-case-.*"
+# The search keyboard is up here and hides the tab bar (hideKeyboard is only unsafe with no keyboard).
+- hideKeyboard
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "tab-sync"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+# Background sync may already have sent it ("Nothing to send"); the web check confirms the send.
+- extendedWaitUntil:
+    visible: "Send now|Nothing to send"
+    timeout: 15000
+- runFlow:
+    when:
+      visible: "Send now"
+    commands:
+      - tapOn:
+          text: "Send now"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - extendedWaitUntil:
+          visible: "Last result: Sent 1\\..*"
+          timeout: 90000
+- pressKey: Back
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertNotVisible: "\\d+ Unsent\\. View"

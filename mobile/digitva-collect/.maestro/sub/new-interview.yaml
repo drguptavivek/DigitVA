@@ -1,0 +1,249 @@
+# Subflow: from Home start a new interview and fill the required answers up to
+# section 3 (respondent), with respondent sex Female. Leaves the form on section 3
+# with the consent question (Id10013) reachable by scroll. The form's first "Next"
+# sometimes does not advance, so each Next is retapped until the next page shows.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+# Taps right after a cold start are sometimes dropped: repeat each until the next
+# screen shows.
+- repeat:
+    while:
+      notVisible: "SC-AAM 1"
+    times: 4
+    commands:
+      - tapOn:
+          text: "Start an interview|New interview"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - extendedWaitUntil:
+          visible: "SC-AAM 1"
+          timeout: 8000
+          optional: true
+- repeat:
+    while:
+      notVisible: "Start questionnaire|Respondent consent"
+    times: 4
+    commands:
+      - runFlow:
+          when:
+            visible: "SC-AAM 1"
+          commands:
+            - tapOn:
+                text: "SC-AAM 1"
+                retryTapIfNoChange: false
+                waitToSettleTimeoutMs: 200
+      - extendedWaitUntil:
+          visible: "Start questionnaire|Respondent consent"
+          timeout: 15000
+          optional: true
+- runFlow:
+    when:
+      visible: "Start questionnaire"
+    commands:
+      - tapOn:
+          text: "Start questionnaire"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow: consent-grant.yaml
+- extendedWaitUntil:
+    visible:
+      id: "question-Id10010b-choice-female"
+    timeout: 30000
+- tapOn:
+    id: "question-Id10010b-choice-female"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-Id10010b-choice-female"
+      selected: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: "question-Id10010b-choice-female"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10010b-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-language-choice-en"
+- tapOn:
+    id: "question-language-choice-en"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-language-choice-en"
+      selected: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: "question-language-choice-en"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-language-choice-en"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+# The age is prefilled from the interviewer's last interview (last-saved default) and
+# the box is narrow: tap its right end so the caret is after the value, then erase and
+# type. 99 = "do not wish to disclose". Kept as a point tap: a centre tap leaves the
+# caret mid-value and eraseText removes only the left part.
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-Id10010a"
+    direction: UP
+- tapOn:
+    id: "question-Id10010a"
+    point: "95%,50%"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- eraseText: 10
+- inputText: "99"
+- assertVisible:
+    id: "question-Id10010a"
+    text: "99"
+# Last on this page, and a label tap closes the keyboard: while it is open it
+# covers the choices below (taps on them are lost).
+- tapOn:
+    text: "Sex of VA interviewer.*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- tapOn:
+    text: "Next"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-Id10002-choice-low"
+    timeout: 6000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: "question-Id10002-choice-low"
+    commands:
+      - tapOn:
+          text: "Next"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-Id10002-choice-low"
+    timeout: 15000
+- tapOn:
+    id: "question-Id10002-choice-low"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-Id10002-choice-low"
+      selected: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: "question-Id10002-choice-low"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10002-choice-low"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "question-Id10003-choice-low"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-Id10003-choice-low"
+      selected: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: "question-Id10003-choice-low"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10003-choice-low"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-Id10004-choice-dry"
+- tapOn:
+    id: "question-Id10004-choice-dry"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-Id10004-choice-dry"
+      selected: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: "question-Id10004-choice-dry"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10004-choice-dry"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Next"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-card-Id10007a"
+    timeout: 6000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: "question-card-Id10007a"
+    commands:
+      - tapOn:
+          text: "Next"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-card-Id10007a"
+    timeout: 15000
+- tapOn:
+    id: "question-Id10007a-choice-female"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-Id10007a-choice-female"
+      selected: true
+    timeout: 5000
+    optional: true
+- runFlow:
+    when:
+      notVisible:
+        id: "question-Id10007a-choice-female"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10007a-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200

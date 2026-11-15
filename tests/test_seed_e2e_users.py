@@ -21,6 +21,7 @@ from app.models import (
 )
 from app.services import device_auth_service as devices
 from tests.base import BaseTestCase
+from tests.test_coding_scope_enforcement import CodingScopeFixtureMixin
 
 
 class SeedE2eUsersTests(BaseTestCase):
@@ -63,7 +64,7 @@ class SeedE2eUsersTests(BaseTestCase):
         result, creds = self._create()
         users = creds["users"]
         self.assertEqual(set(users), {"all", "interviewer", "interviewer2", "coder",
-                                "coder2", "reporter", "supervisor", "reviewer", "datamgr", "interviewer_t2",
+                                "coder2", "reporter", "supervisor", "reviewer", "datamgr", "interviewer_t2", "reporter_t2",
                                 "mentor"})
         self.assertNotIn(creds["password"], result.output)
         self.assertIn(self.out, result.output)
@@ -93,6 +94,9 @@ class SeedE2eUsersTests(BaseTestCase):
                              [("coder", None)], key)
         self.assertEqual([(r.role.value, r.unit_code) for r in self._grants(users["interviewer_t2"], TEST_PROJECT_2_ID)],
                          [("interviewer", "SC01")])
+        self.assertEqual([(r.role.value, r.unit_code) for r in self._grants(users["reporter_t2"], TEST_PROJECT_2_ID)],
+                         [("death_reporter", "SC01")])
+        self.assertEqual(self._grants(users["reporter_t2"]), [])
         self.assertEqual(self._grants(users["interviewer_t2"]), [])
         self.assertEqual(self._grants(users["reviewer"], TEST_PROJECT_2_ID), [])
 
@@ -135,8 +139,8 @@ class SeedE2eUsersTests(BaseTestCase):
         for email in creds["users"].values():
             u = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == email))
             self.assertEqual(u.user_status, VaStatuses.deactive)
-        self.assertIn("11 deactivated", first.output)
-        self.assertIn("22 revoked", first.output)
+        self.assertIn("12 deactivated", first.output)
+        self.assertIn("23 revoked", first.output)
         for email in creds["users"].values():
             for project_id in (TEST_PROJECT_ID, TEST_PROJECT_2_ID):
                 self.assertEqual(self._grants(email, project_id), [])
@@ -144,7 +148,7 @@ class SeedE2eUsersTests(BaseTestCase):
                                     .join(VaUsers, VaUsers.user_id == VaUserAccessGrants.user_id)
                                     .where(VaUsers.email.in_(list(creds["users"].values())),
                                            VaUserAccessGrants.grant_status == VaStatuses.deactive))
-        self.assertEqual(revoked, 22)
+        self.assertEqual(revoked, 23)
 
         self.assertEqual(self._members(creds["users"]["mentor"]), [])
         self.assertIn("mentors    1 institute membership(s) removed", first.output)
@@ -221,3 +225,79 @@ class SeedE2eUsersTests(BaseTestCase):
         finally:
             self.app.testing = True
         self.assertFalse(os.path.exists(self.out))
+
+
+class SeedE2eUsersReleaseTests(CodingScopeFixtureMixin, BaseTestCase):
+    """Teardown hands a run's unfinished coding allocations back to the queue."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._ensure_form_type("WHO_2022_VA", "WHO VA 2022")
+        db.session.commit()
+
+    def setUp(self):
+        super().setUp()
+        self.runner = self.app.test_cli_runner()
+        self.assertEqual(self.runner.invoke(args=["seed", "test-project"]).exit_code, 0)
+        out = os.path.join(tempfile.mkdtemp(), "e2e-users.json")
+        for _ in range(2):  # two runs: the second is the bystander
+            created = self.runner.invoke(args=["seed", "e2e-users", "create", "--out", out])
+            self.assertEqual(created.exit_code, 0, created.output)
+            with open(out) as fh:
+                setattr(self, "run_b" if hasattr(self, "run_a") else "run_a", json.load(fh))
+
+    def _hold(self, run, sid, state, allocation_for=None):
+        from app.models import VaAllocation, VaAllocations, VaSubmissionWorkflow
+
+        user = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == run["users"]["coder"]))
+        self._submission(sid)
+        db.session.execute(sa.update(VaSubmissionWorkflow).where(VaSubmissionWorkflow.va_sid == sid)
+                           .values(workflow_state=state))
+        alloc = VaAllocations(va_sid=sid, va_allocated_to=user.user_id,
+                              va_allocation_for=allocation_for or VaAllocation.coding,
+                              va_allocation_status=VaStatuses.active)
+        db.session.add(alloc)
+        db.session.commit()
+        return alloc.va_allocation_id
+
+    def _state(self, sid):
+        from app.services.workflow.state_store import get_submission_workflow_state
+
+        db.session.expire_all()
+        return get_submission_workflow_state(sid)
+
+    def _status(self, allocation_id):
+        from app.models import VaAllocations
+
+        db.session.expire_all()
+        return db.session.get(VaAllocations, allocation_id).va_allocation_status
+
+    def test_held_allocation_is_released_and_the_case_is_pickable_again(self):
+        mine = self._hold(self.run_a, "csc-e2e-held", "coding_in_progress")
+        theirs = self._hold(self.run_b, "csc-e2e-other", "coding_in_progress")
+        result = self.runner.invoke(args=["seed", "e2e-users", "teardown", "--run", self.run_a["run_id"]])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("allocations 1 of 1 released", result.output)
+        self.assertEqual(self._status(mine), VaStatuses.deactive)
+        self.assertEqual(self._state("csc-e2e-held"), "ready_for_coding")
+        # another run's allocation is untouched
+        self.assertEqual(self._status(theirs), VaStatuses.active)
+        self.assertEqual(self._state("csc-e2e-other"), "coding_in_progress")
+
+    def test_reviewer_allocation_returns_to_reviewer_eligible(self):
+        from app.models import VaAllocation
+
+        alloc = self._hold(self.run_a, "csc-e2e-rev", "reviewer_coding_in_progress", VaAllocation.reviewing)
+        result = self.runner.invoke(args=["seed", "e2e-users", "teardown", "--run", self.run_a["run_id"]])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(self._status(alloc), VaStatuses.deactive)
+        self.assertEqual(self._state("csc-e2e-rev"), "reviewer_eligible")
+
+    def test_final_coded_case_is_left_alone(self):
+        alloc = self._hold(self.run_a, "csc-e2e-final", "coder_finalized")
+        result = self.runner.invoke(args=["seed", "e2e-users", "teardown", "--run", self.run_a["run_id"]])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertIn("allocations 0 of 1 released", result.output)
+        self.assertEqual(self._status(alloc), VaStatuses.active)
+        self.assertEqual(self._state("csc-e2e-final"), "coder_finalized")

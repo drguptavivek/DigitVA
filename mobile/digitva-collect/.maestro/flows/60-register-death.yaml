@@ -1,0 +1,62 @@
+# R04 then R01, as the death reporter, twice (a second death for 80-offline-send). Start a registration (name only), leave by the
+# Home tab and come back: the name is kept (R04). Finish it (sex, date of death =
+# the picker's default today, age unknown + estimated age) and Save: the death is
+# listed under "Reported deaths" with a case id (R01). The death is named
+# E2E<run id>regA / regB; 70-interview-send and 80-offline-send start their interviews.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: reporter
+---
+- runFlow: ../sub/start.yaml
+- tapOn:
+    text: "New death"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "question-deceased_name"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: "E2E${MAESTRO_RUN_ID}regA"
+# A label tap closes the keyboard (it hides the tab bar).
+- tapOn:
+    text: "DECEASED"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+# Leave half done: Home tab, then back to Register.
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "tab-register"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-deceased_name"
+    timeout: 20000
+- assertVisible:
+    id: "question-deceased_name"
+    text: "E2E${MAESTRO_RUN_ID}regA"
+- runFlow:
+    file: ../sub/register-finish.yaml
+    env:
+      NAME: "E2E${MAESTRO_RUN_ID}regA"
+# Second death, straight through.
+- tapOn:
+    text: "New death"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "question-deceased_name"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: "E2E${MAESTRO_RUN_ID}regB"
+- tapOn:
+    text: "DECEASED"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow:
+    file: ../sub/register-finish.yaml
+    env:
+      NAME: "E2E${MAESTRO_RUN_ID}regB"

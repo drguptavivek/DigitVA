@@ -840,17 +840,21 @@ _E2E_ROSTER = (
     # only unit-scope coder/reviewer/coding_tester/collaborator inside DH01.
     ("mentor", "coder", "DH01", "MO", _E2E_MENTOR_ROLES),
 )
-#: The same shape for TST002 (single-step coding): the coders, and one
-#: interviewer so the suite can create TST002 cases.
+#: The same shape for TST002 (single-step coding): the coders, a death reporter
+#: and an interviewer so the suite can register and interview TST002 cases.
 _E2E_ROSTER_T2 = (
     ("all", "coder", None, None, ("coder",)),
     ("coder", "coder", None, None, ("coder",)),
     ("coder2", "coder", None, None, ("coder",)),
+    ("reporter_t2", "intake", "SC01", "ANM", ("death_reporter",)),
     ("interviewer_t2", "intake", "SC01", "CHO", ("interviewer",)),
     ("mentor", "coder", "DH01", "MO", _E2E_MENTOR_ROLES),
 )
 _E2E_PROJECTS = ((TEST_PROJECT_ID, _E2E_ROSTER), (TEST_PROJECT_2_ID, _E2E_ROSTER_T2))
-_E2E_DOMAIN = "digitva.test"
+# A real domain we never take mail on: web sign-in's email check rejects the special-use .test TLD.
+_E2E_DOMAIN = "e2e.causeofdeathindia.com"
+# Users created before the switch (2026-11-13) still tear down.
+_E2E_OLD_DOMAIN = "digitva.test"
 
 
 def _e2e_email(run_id: str, key: str) -> str:
@@ -883,7 +887,7 @@ def e2e_users_group():
 def e2e_users_create(out_path):
     """Create a fresh e2e user set on TST001 and TST002 and write its credentials to a local file.
 
-    Each run gets new emails (e2e.<run>.<role>@digitva.test) and one random
+    Each run gets new emails (e2e.<run>.<role>@e2e.causeofdeathindia.com) and one random
     password, so phones never hit the per-user device cap. Grants go through
     the project user import and grants.log like `seed test-project`. Only
     emails and the file path are printed; the password lives only in the file.
@@ -994,7 +998,8 @@ def e2e_users_teardown(run_id, older_than_hours):
 
     Devices are revoked through device_auth_service.revoke_device and the
     TST001 and TST002 grants (both projects) through the users-grid revoke_all path (grants.log), both with the
-    seeded admin as actor. Rows are kept, so work the accounts made
+    seeded admin as actor. Active coding and reviewing allocations are
+    released first so their cases return to the queue. Rows are kept, so work the accounts made
     stays. Idempotent: a rerun finds nothing active and changes nothing.
     """
     from datetime import UTC, datetime, timedelta
@@ -1009,8 +1014,10 @@ def e2e_users_teardown(run_id, older_than_hours):
         raise click.ClickException("--run must be the alphanumeric run id `create` printed.")
     _seed_admin()
     actor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == "testadmin@digitva.com"))
-    pattern = f"e2e.{run_id or '%'}.%@{_E2E_DOMAIN}"
-    query = sa.select(VaUsers).where(VaUsers.email.like(pattern))
+    prefix = f"e2e.{run_id or '%'}.%@"
+    query = sa.select(VaUsers).where(sa.or_(
+        VaUsers.email.like(prefix + _E2E_DOMAIN), VaUsers.email.like(prefix + _E2E_OLD_DOMAIN),
+    ))
     if older_than_hours is not None:
         query = query.where(VaUsers.user_created_at < datetime.now(UTC) - timedelta(hours=older_than_hours))
     users = db.session.scalars(query).all()
@@ -1072,6 +1079,37 @@ def e2e_users_teardown(run_id, older_than_hours):
             cancelled += 1
         except WebIntakeError:
             pass
+    # Coding and reviewing allocations the accounts still hold: released through the
+    # app's own release (the timeout's effect, audited), so the case goes back to the
+    # queue now instead of after the stale sweep. A case already past that point
+    # (final cause) refuses the reset and is left alone; nothing coded is discarded.
+    from app.models import VaAllocation, VaAllocations
+    from app.services import coding_allocation_service as alloc_svc
+    from app.services.workflow.transitions import WorkflowTransitionError
+
+    held = db.session.scalars(sa.select(VaAllocations).where(
+        VaAllocations.va_allocated_to.in_(user_ids),
+        VaAllocations.va_allocation_status == VaStatuses.active,
+    )).all() if user_ids else []
+    released = 0
+    for record in held:
+        try:
+            with db.session.begin_nested():
+                if record.va_allocation_for == VaAllocation.reviewing:
+                    alloc_svc.lock_coding_submission(record.va_sid)
+                    db.session.refresh(record)
+                    if record.va_allocation_status != VaStatuses.active:
+                        continue
+                    alloc_svc._release_reviewer_allocation(
+                        record, cause="e2e teardown", reason="e2e_teardown",
+                        audit_action="reviewer_allocation_released_by_e2e_teardown")
+                    released += 1
+                else:
+                    released += int(alloc_svc._release_coding_allocation(
+                        record, cause="e2e teardown", reason="e2e_teardown",
+                        audit_action="va_allocation_released_by_e2e_teardown"))
+        except WorkflowTransitionError:
+            pass
     deactivated = 0
     for user in users:
         if user.user_status != VaStatuses.deactive:
@@ -1090,6 +1128,7 @@ def e2e_users_teardown(run_id, older_than_hours):
     click.echo(f"  grants     {len(changed_grants)} revoked")
     click.echo(f"  mentors    {len(members)} institute membership(s) removed")
     click.echo(f"  users      {deactivated} deactivated")
+    click.echo(f"  allocations {released} of {len(held)} released")
     click.echo(f"  cases      {cancelled} of {len(open_cases)} open case(s) cancelled")
 
 

@@ -1,0 +1,27 @@
+# wrapper: online-before
+# I09 part 3 of 3: network back on (by the wrapper). Send now: the queue empties
+# (once: "Nothing to send"). The wrapper's cleanup re-enables wifi and data even if
+# a part dies.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- waitForAnimationToEnd:
+    timeout: 10000
+# The app may already have retried on its own when the network came back.
+- runFlow:
+    when:
+      visible: "Send now"
+    commands:
+      - tapOn:
+          text: "Send now"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Nothing to send"
+    timeout: 120000
+- tapOn:
+    text: "Cancel"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertNotVisible: "\\d+ Unsent\\. View"

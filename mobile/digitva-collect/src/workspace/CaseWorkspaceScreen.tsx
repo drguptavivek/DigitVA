@@ -347,7 +347,7 @@ export function CaseWorkspaceScreen({
     try {
       await save();
       if (!current()) return;
-      await loadWorkspace(Platform.OS === "web" ? selectedCategory.current : undefined);
+      await loadWorkspace(selectedCategory.current || undefined);
     } catch (saveError) {
       if (!current()) return;
       if (saveError instanceof ApiError && saveError.status === 403) loseAllocation();
@@ -434,10 +434,11 @@ export function CaseWorkspaceScreen({
     ? [...workspace.categories, ...VIEW_FINAL_CATEGORIES]
     : workspace.categories;
   const selectedMode = workspace.categories.find((item) => item.code === selectedCode)?.render_mode;
+  // Jinja shows NQA on the narrative/documents tab and SA on the social autopsy tab, both before COD.
   const qualityPanels = identity.mode !== "view" ? <>
     <QualityPanels
-      narrative={!browser || selectedMode === "attachments" ? workspace.narrative_qa : null}
-      socialAutopsy={!browser || selectedCode === "social_autopsy" ? workspace.social_autopsy : null}
+      narrative={selectedMode === "attachments" ? workspace.narrative_qa : null}
+      socialAutopsy={selectedCode === "social_autopsy" ? workspace.social_autopsy : null}
       onSaveNarrative={(body) => saveQuality(() => api.saveNarrativeQuality(identity.vaSid, body, identity.mode as "coding" | "reviewing"))}
       onSaveSocialAutopsy={(body) => saveQuality(() => api.saveSocialAutopsy(identity.vaSid, body, identity.mode as "coding" | "reviewing"))}
     />
@@ -543,11 +544,10 @@ export function CaseWorkspaceScreen({
               {codEditor}
             </View>
           ) : null}
-          {category ? <CategoryPanel category={category} iconName={workspace.categories.find((item) => item.code === selectedCode)?.icon_name} renderMedia={renderMedia} categoryNav={workspace.categories} workspaceIdentity={`${identityKey}:${selectedCode}`} notesSummary={noteSummary} afterContent={browser ? qualityPanels : undefined} /> : null}
+          {category ? <CategoryPanel category={category} iconName={workspace.categories.find((item) => item.code === selectedCode)?.icon_name} renderMedia={renderMedia} categoryNav={workspace.categories} workspaceIdentity={`${identityKey}:${selectedCode}`} notesSummary={noteSummary} afterContent={qualityPanels} /> : null}
           {selectedCode === "vacodassessment" && identity.mode !== "view" ? (
             <View key={identityKey}>
               {reviewing ? null : codEditor}
-              {browser ? null : qualityPanels}
               {Platform.OS === "web" ? null : privateNotes}
             </View>
           ) : null}

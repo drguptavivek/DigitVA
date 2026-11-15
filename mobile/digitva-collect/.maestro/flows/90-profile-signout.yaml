@@ -1,0 +1,46 @@
+# U01, U03. Two e2e profiles are listed on the phone (U01). Sign out of the death reporter
+# (nothing unsent): the confirmation asks once, the profile stays listed as
+# "Signed out" with its data; sign in again, then the PIN: Home as before (U03).
+# Needs 60-register-death earlier in the same run: the reporter's Home must list a death.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: reporter
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Profiles on this phone"
+    timeout: 60000
+- scrollUntilVisible:
+    centerElement: true
+    element: "E2E ${MAESTRO_RUN_ID} interviewer, .*"
+- assertVisible: "E2E ${MAESTRO_RUN_ID} reporter, .*"
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} reporter, .*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow: ../sub/unlock.yaml
+- extendedWaitUntil:
+    visible:
+      id: "tab-home"
+    timeout: 60000
+# The reporter Home lists the registered deaths: remember what it shows.
+- assertVisible: "E2E${MAESTRO_RUN_ID}reg.*"
+- runFlow: ../sub/sign-out.yaml
+- scrollUntilVisible:
+    centerElement: true
+    element: "E2E ${MAESTRO_RUN_ID} reporter, Signed out.*"
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} reporter, Signed out.*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow:
+    file: ../sub/signin-again.yaml
+    env:
+      EMAIL: ${MAESTRO_REPORTER_EMAIL}
+- runFlow: ../sub/unlock.yaml
+- extendedWaitUntil:
+    visible:
+      id: "tab-home"
+    timeout: 60000
+- assertVisible: "E2E${MAESTRO_RUN_ID}reg.*"

@@ -1,0 +1,55 @@
+# T03. Closing a training session keeps an unsent training draft (plan N9): with a training
+# interview finished but not sent, the trainer closes the session (setup step, server side,
+# between the two halves of this flow: checks/98-training-close.sh, not part of this change).
+# Refresh: the training project leaves the project choice, the draft stays on the phone under
+# "Training closed ... ask your trainer to reopen the session", and Send now does not lose it.
+# Needs the ROLE=trainee profile and a death regU registered in TRN01 for this run. Not run yet.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: trainee
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/refresh.yaml
+- tapOn:
+    text: "TRN01.*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "TRN01.*"
+    index: 1
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow:
+    file: ../sub/finish-case.yaml
+    env:
+      NAME: "E2E${MAESTRO_RUN_ID}regU"
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertVisible: "1 Unsent\\. View"
+# The session is closed here by the suite (server side), then the phone refreshes.
+- runFlow: ../sub/refresh.yaml
+- extendedWaitUntil:
+    visible: ".*Training closed\\. These interviews stay on this phone.*"
+    timeout: 30000
+- assertNotVisible: "Training mode · Practice: use made-up details only"
+- tapOn:
+    id: "tab-sync"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Send now"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd:
+    timeout: 30000
+- tapOn:
+    text: "Cancel"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertVisible: ".*Training closed\\. These interviews stay on this phone.*"

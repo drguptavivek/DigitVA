@@ -1,0 +1,11 @@
+# Subflow: cold start. Force-stops the app, picks the e2e profile of this run for
+# env ROLE (interviewer, reporter, ...), unlocks it with the run PIN and lands on
+# Home. MAESTRO_RUN_ID and MAESTRO_PIN come from run-suite.sh.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- runFlow: open-profile.yaml
+- runFlow: unlock.yaml
+- extendedWaitUntil:
+    visible:
+      id: "tab-home"
+    timeout: 60000

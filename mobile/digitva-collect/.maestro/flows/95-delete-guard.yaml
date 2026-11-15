@@ -1,0 +1,51 @@
+# Delete profile. A profile with unsent drafts cannot be deleted ("N forms on this
+# phone are not sent yet. Send them before deleting this profile."), nothing is
+# lost; a profile with nothing unsent can be deleted after the PIN and one
+# confirmation, and leaves the list. Last flow: it deletes the coder profile.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- runFlow: ../sub/open-profile.yaml
+# Delete profile sits at the very bottom of the unlock screen (below the fold with the keyboard up).
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "profile-delete"
+- tapOn:
+    id: "profile-delete"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "pin-input"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: ${MAESTRO_PIN.charAt(0)}
+- inputText: ${MAESTRO_PIN.charAt(1)}
+- inputText: ${MAESTRO_PIN.charAt(2)}
+- inputText: ${MAESTRO_PIN.charAt(3)}
+- inputText: ${MAESTRO_PIN.charAt(4)}
+- inputText: ${MAESTRO_PIN.charAt(5)}
+- tapOn:
+    id: "unlock-submit"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "\\d+ forms on this phone are not sent yet\\. Send them before deleting this profile\\."
+    timeout: 30000
+- assertNotVisible:
+    id: "profile-delete-confirm"
+- tapOn:
+    text: "Cancel"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Profiles on this phone"
+    timeout: 30000
+# Nothing unsent: the coder profile is deleted.
+- runFlow:
+    file: ../sub/delete-profile.yaml
+    env:
+      ROLE: coder
+- assertNotVisible: "E2E ${MAESTRO_RUN_ID} coder, .*"
+- assertVisible: "E2E ${MAESTRO_RUN_ID} interviewer, .*"

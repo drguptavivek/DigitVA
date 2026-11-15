@@ -1,0 +1,39 @@
+# Subflow: from Home (after refresh.yaml), open the registered death whose name is env NAME (Interviews
+# search), start its interview, consent, answer every question (fill-form.yaml) and Complete,
+# which queues it for sending (the death details screen shows). The full interview of an
+# adult woman; finish-case.yaml is the shortest one.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- tapOn:
+    text: "\\d+ To do\\. View"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Search interviews"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: ${NAME}
+- extendedWaitUntil:
+    visible: ${NAME}
+    timeout: 30000
+- tapOn:
+    id: "open-case-.*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Start interview"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Start questionnaire|Respondent consent"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Start questionnaire"
+    commands:
+      - tapOn:
+          text: "Start questionnaire"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow: consent-grant.yaml
+- runFlow: fill-form.yaml

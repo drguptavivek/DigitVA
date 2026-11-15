@@ -1,8 +1,11 @@
-# Shared subflow: from Home reopen the newest draft and assert the answers
-# written by new-interview.yaml (consent Yes + respondent Female) are intact.
+# Subflow: from Home reopen the newest draft and assert the answers written by
+# new-interview.yaml (consent Yes + respondent Female) are intact, then leave.
 appId: com.causeofdeathindia.digitvacollect.plus
 ---
-- tapOn: "Resume draft"
+- tapOn:
+    text: "Resume draft"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
 - waitForAnimationToEnd
 - scrollUntilVisible:
     element:
@@ -11,6 +14,7 @@ appId: com.causeofdeathindia.digitvacollect.plus
     id: "question-Id10013-choice-yes"
     selected: true
 - scrollUntilVisible:
+    centerElement: true
     element:
       id: "question-Id10007a-choice-female"
     direction: UP
@@ -19,7 +23,11 @@ appId: com.causeofdeathindia.digitvacollect.plus
     selected: true
 - tapOn:
     id: "header-back"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
 - waitForAnimationToEnd
 - tapOn:
     id: "tab-home"
     optional: true
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200

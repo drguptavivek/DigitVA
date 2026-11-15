@@ -1,0 +1,43 @@
+# Subflow: finish the open registration form (name already typed; env NAME is
+# that name): sex Female, date of death = the picker's default (today), birth date
+# not known + estimated age 70, Save; wait until the death is listed.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+# Finish: sex, date of death (default today), birth date not known + age.
+- tapOn:
+    text: "Female"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Select date"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "android:id/button1"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "Not known"
+- tapOn:
+    text: "Not known"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "question-age_years"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: "70"
+# A label tap closes the keyboard so Save is not under it.
+- tapOn:
+    text: "PLACE"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Save"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "${NAME}"
+    timeout: 60000
+- assertVisible: "SC01-\\d+ · .*"

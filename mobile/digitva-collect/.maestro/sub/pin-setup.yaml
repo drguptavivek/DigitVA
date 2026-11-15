@@ -1,0 +1,27 @@
+# Subflow: the "Set a PIN" screen: the run PIN (MAESTRO_PIN) twice, each typed whole into
+# the debug build's pin-input field (PinBoxes.tsx), then Set PIN.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- extendedWaitUntil:
+    visible: "Set a.*PIN|Set new PIN|New PIN"
+    timeout: 30000
+- tapOn:
+    id: "pin-input"
+    index: 0
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: ${MAESTRO_PIN}
+- tapOn:
+    id: "pin-input"
+    index: 1
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: ${MAESTRO_PIN}
+- tapOn:
+    text: "Set PIN"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "tab-home"
+    timeout: 60000

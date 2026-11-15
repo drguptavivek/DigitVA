@@ -1,0 +1,21 @@
+# Subflow: read the Drafts and To do counts from Home into output.drafts and
+# output.todo (0 when Home does not list that count).
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- assertVisible:
+    id: "tab-home"
+- evalScript: ${output.drafts = 0; output.todo = 0}
+- runFlow:
+    when:
+      visible: "\\d+ Drafts?\\. View"
+    commands:
+      - copyTextFrom:
+          text: "\\d+ Drafts?\\. View"
+      - evalScript: ${output.drafts = parseInt(maestro.copiedText)}
+- runFlow:
+    when:
+      visible: "\\d+ To do\\. View"
+    commands:
+      - copyTextFrom:
+          text: "\\d+ To do\\. View"
+      - evalScript: ${output.todo = parseInt(maestro.copiedText)}

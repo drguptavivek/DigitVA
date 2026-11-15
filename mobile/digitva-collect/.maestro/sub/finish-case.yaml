@@ -1,0 +1,75 @@
+# Subflow: from Home (after refresh.yaml), open the registered death whose name is env NAME (Interviews
+# search), start its interview, set the outcome Partially completed and Finish as
+# incomplete, which queues it for sending (the death details screen shows). The
+# interview is the shortest one the app lets through: outcome only, nothing answered.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- tapOn:
+    text: "\\d+ To do\\. View"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Search interviews"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: ${NAME}
+- extendedWaitUntil:
+    visible: ${NAME}
+    timeout: 30000
+- tapOn:
+    id: "open-case-.*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Start interview"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Start questionnaire|Respondent consent"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Start questionnaire"
+    commands:
+      - tapOn:
+          text: "Start questionnaire"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow: consent-grant.yaml
+- extendedWaitUntil:
+    visible:
+      id: "section-drawer-toggle"
+    timeout: 30000
+- tapOn:
+    id: "section-drawer-toggle"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "4. Interview outcome"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "question-interview_outcome-choice-partially_completed"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible:
+      id: "question-interview_outcome-choice-partially_completed"
+      selected: true
+    timeout: 5000
+- tapOn:
+    text: "More actions"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Finish as incomplete"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Finish as incomplete"
+    below: "Finish as incomplete\\?"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Death details"
+    timeout: 60000

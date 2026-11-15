@@ -1,0 +1,42 @@
+# Forgot PIN. Lock the phone, choose the profile, "Forgot PIN? Sign in with
+# password", sign in with the account password and set the PIN again (the same
+# run PIN): Home shows the same Drafts and To do counts, because a PIN reset keeps
+# the interviews on the phone.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: interviewer
+---
+- runFlow: ../sub/start.yaml
+- runFlow: ../sub/drafts-count.yaml
+- evalScript: ${output.draftsBefore = output.drafts}
+- evalScript: ${output.todoBefore = output.todo}
+- tapOn:
+    text: "Account"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "account-lock-now"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Profiles on this phone"
+    timeout: 30000
+- scrollUntilVisible:
+    centerElement: true
+    element: "E2E ${MAESTRO_RUN_ID} ${ROLE}, .*"
+- tapOn:
+    text: "E2E ${MAESTRO_RUN_ID} ${ROLE}, .*"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "unlock-recover"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow:
+    file: ../sub/signin-again.yaml
+    env:
+      EMAIL: ${MAESTRO_INTERVIEWER_EMAIL}
+- runFlow: ../sub/pin-setup.yaml
+- runFlow: ../sub/drafts-count.yaml
+- assertTrue: ${output.drafts == output.draftsBefore}
+- assertTrue: ${output.todo == output.todoBefore}

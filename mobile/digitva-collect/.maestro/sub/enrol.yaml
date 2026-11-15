@@ -1,0 +1,107 @@
+# Subflow: enrol one e2e user on the phone. Env: EMAIL. The password and PIN come
+# from MAESTRO_PASSWORD / MAESTRO_PIN (exported by run-suite.sh, never in a file).
+# Two start states: the phone still has a device (Profiles list, Add profile) or
+# its device was revoked by the last run's teardown (the app forgets it on the
+# first refused sign-in and shows "Enrol this device").
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- launchApp:
+    stopApp: true
+- extendedWaitUntil:
+    visible: "Profiles on this phone|Enrol this device"
+    timeout: 60000
+- runFlow:
+    when:
+      visible: "Profiles on this phone"
+    commands:
+      # Earlier runs' profiles can push Add profile below the fold.
+      - scrollUntilVisible:
+          centerElement: true
+          element: "Add profile"
+      - tapOn:
+          text: "Add profile"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - tapOn:
+          text: "name@example.org"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: ${EMAIL}
+      - tapOn:
+          text: "Password"
+          index: 1
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: ${MAESTRO_PASSWORD}
+      - tapOn:
+          text: "Sign in"
+          below: "Password"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - extendedWaitUntil:
+          visible: "Set a PIN|This device has been revoked. Enrol it again."
+          timeout: 30000
+- runFlow:
+    when:
+      visible: "This device has been revoked. Enrol it again."
+    commands:
+      - launchApp:
+          stopApp: true
+      - extendedWaitUntil:
+          visible: "Enrol this device"
+          timeout: 60000
+- runFlow:
+    when:
+      visible: "Enrol this device"
+    commands:
+      # The first tap after a cold start is often dropped: repeat until the form shows.
+      - repeat:
+          while:
+            notVisible: "Server address"
+          times: 4
+          commands:
+            - tapOn:
+                text: "Sign in with email or mobile"
+                retryTapIfNoChange: false
+                waitToSettleTimeoutMs: 200
+            - extendedWaitUntil:
+                visible: "Server address"
+                timeout: 5000
+                optional: true
+      - tapOn:
+          text: "Server address"
+          index: 1
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: "http://10.0.2.2:8051"
+      - tapOn:
+          text: "Email"
+          above: "Password"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: ${EMAIL}
+      - tapOn:
+          text: "Password"
+          above: "Log in and enroll this device"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: ${MAESTRO_PASSWORD}
+      - tapOn:
+          text: "Log in and enroll this device"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+# A user in more than one project (the coder) enrolling a fresh phone is asked which project the
+# phone is for: pick TST001, as a full run does (its first enrolment is a TST001 interviewer).
+- extendedWaitUntil:
+    visible: "Choose the project|Set a.*PIN|Set new PIN|New PIN"
+    timeout: 30000
+    optional: true
+- runFlow:
+    when:
+      visible: "Choose the project"
+    commands:
+      - tapOn:
+          text: "TST001"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow: pin-setup.yaml

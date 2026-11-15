@@ -1,0 +1,52 @@
+# Subflow: in an open draft (consent Yes), go to section 5 and 14 by the section
+# drawer and assert the audio recording and the death-document photo made by
+# media-attach.yaml are still there.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- extendedWaitUntil:
+    visible:
+      id: "section-drawer-toggle"
+    timeout: 60000
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "section-drawer-toggle"
+    direction: UP
+- tapOn:
+    id: "section-drawer-toggle"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "5. Open narrative"
+- tapOn:
+    text: "5. Open narrative"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- assertVisible: "Play"
+- assertVisible:
+    id: "question-Id10476_audio-remove"
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "section-drawer-toggle"
+    direction: UP
+- tapOn:
+    id: "section-drawer-toggle"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- scrollUntilVisible:
+    centerElement: true
+    element: "14. Medical and death documents"
+- tapOn:
+    text: "14. Medical and death documents"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- waitForAnimationToEnd
+- scrollUntilVisible:
+    centerElement: true
+    element:
+      id: "question-ds_im1-preview"
+- assertVisible:
+    id: "question-ds_im1-preview"

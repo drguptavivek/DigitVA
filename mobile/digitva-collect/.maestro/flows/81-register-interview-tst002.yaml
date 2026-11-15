@@ -1,0 +1,63 @@
+# Happy path 3 setup (TST002), R01 and I01 on the register-then-interview path. The TST002 death
+# reporter registers a death (name E2E<run id>regT2); the TST002 interviewer refreshes, opens it
+# from To do, consents, answers every question (the social autopsy questions are on in this
+# project), Completes, Sends. The case then goes to coding: 83-code-tst002-single-step codes it
+# online. Server side: checks/81-register-interview-tst002.sh.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- runFlow:
+    file: ../sub/start.yaml
+    env:
+      ROLE: reporter_t2
+- tapOn:
+    text: "New death"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "question-deceased_name"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- inputText: "E2E${MAESTRO_RUN_ID}regT2"
+# A label tap closes the keyboard (it hides the tab bar).
+- tapOn:
+    text: "DECEASED"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- runFlow:
+    file: ../sub/register-finish.yaml
+    env:
+      NAME: "E2E${MAESTRO_RUN_ID}regT2"
+- runFlow:
+    file: ../sub/start.yaml
+    env:
+      ROLE: interviewer_t2
+- runFlow: ../sub/refresh.yaml
+- runFlow:
+    file: ../sub/finish-case-full.yaml
+    env:
+      NAME: "E2E${MAESTRO_RUN_ID}regT2"
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertVisible: "1 Unsent\\. View"
+- tapOn:
+    id: "tab-sync"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    text: "Send now"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- extendedWaitUntil:
+    visible: "Last result: Sent 1\\..*"
+    timeout: 90000
+- tapOn:
+    text: "Cancel"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- tapOn:
+    id: "tab-home"
+    retryTapIfNoChange: false
+    waitToSettleTimeoutMs: 200
+- assertNotVisible: "\\d+ Unsent\\. View"

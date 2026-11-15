@@ -1,0 +1,899 @@
+# Subflow: answer what the current form page shows, then stop (the caller taps Next).
+# Every step is guarded by what is visible and not yet selected, so it is safe to run
+# twice on a page and on any age path. Answers: "no" to every yes/no question
+# (except consent Id10013, which the consent screens set, and Id10310, which needs
+# "yes"), then the fixed choices below, a deceased who is a 70-year-old woman. Each
+# page is swept, scrolled and swept twice more: a long page shows five or six questions at a
+# time. Built from the bundled instrument's required questions for an adult woman.
+appId: com.causeofdeathindia.digitvacollect.plus
+---
+- repeat:
+    while:
+      visible:
+        id: "question-(?!Id10013-|Id10310-|Id10020-|Id10022-).*-choice-no"
+        selected: false
+    times: 12
+    commands:
+      - tapOn:
+          id: "question-(?!Id10013-|Id10310-|Id10020-|Id10022-).*-choice-no"
+          selected: false
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10010b-choice-female"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10010b-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-language-choice-en"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-language-choice-en"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10002-choice-low"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10002-choice-low"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10003-choice-low"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10003-choice-low"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10004-choice-dry"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10004-choice-dry"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10007a-choice-female"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10007a-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10008-choice-parent"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10008-choice-parent"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10019-choice-female"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10019-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10020-choice-no"
+        selected: false
+      notVisible:
+        id: "question-Id10020-choice-yes"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10020-choice-no"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10022-choice-no"
+        selected: false
+      notVisible:
+        id: "question-Id10022-choice-yes"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10022-choice-no"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-age_group-choice-adult"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-age_group-choice-adult"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10058-choice-hospital"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10058-choice-hospital"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10059-choice-single"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10059-choice-single"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-narr_language-choice-english"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-narr_language-choice-english"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10477-choice-Chronic_kidney_disease"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10477-choice-Chronic_kidney_disease"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-id10120_unit-choice-days"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-id10120_unit-choice-days"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10310-choice-yes"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10310-choice-yes"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-sa01-choice-1"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-sa01-choice-1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-sa06-choice-1"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-sa06-choice-1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-sa03-choice-1"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-sa03-choice-1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-age_adult"
+    commands:
+      - tapOn:
+          id: "question-age_adult"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - eraseText: 10
+      - inputText: "70"
+      - pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10120_1"
+    commands:
+      - tapOn:
+          id: "question-Id10120_1"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - eraseText: 10
+      - inputText: "30"
+      - pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10010a"
+    commands:
+      - tapOn:
+          id: "question-Id10010a"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - eraseText: 10
+      - inputText: "99"
+      - pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10476"
+    commands:
+      - tapOn:
+          id: "question-Id10476"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: "e2e narrative of the final illness"
+      - pressKey: Enter
+# The deceased's name when a direct start has none (a registered case is prefilled).
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10017"
+        text: ""
+    commands:
+      - tapOn:
+          id: "question-Id10017"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: "E2E${MAESTRO_RUN_ID}direct"
+      - pressKey: Enter
+# A date question (year of death on a direct start): the picker opens on today.
+- runFlow:
+    when:
+      visible: "Select date"
+    commands:
+      - tapOn:
+          text: "Select date"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - tapOn:
+          id: "android:id/button1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- scroll
+- repeat:
+    while:
+      visible:
+        id: "question-(?!Id10013-|Id10310-|Id10020-|Id10022-).*-choice-no"
+        selected: false
+    times: 12
+    commands:
+      - tapOn:
+          id: "question-(?!Id10013-|Id10310-|Id10020-|Id10022-).*-choice-no"
+          selected: false
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10010b-choice-female"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10010b-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-language-choice-en"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-language-choice-en"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10002-choice-low"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10002-choice-low"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10003-choice-low"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10003-choice-low"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10004-choice-dry"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10004-choice-dry"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10007a-choice-female"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10007a-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10008-choice-parent"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10008-choice-parent"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10019-choice-female"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10019-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10020-choice-no"
+        selected: false
+      notVisible:
+        id: "question-Id10020-choice-yes"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10020-choice-no"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10022-choice-no"
+        selected: false
+      notVisible:
+        id: "question-Id10022-choice-yes"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10022-choice-no"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-age_group-choice-adult"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-age_group-choice-adult"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10058-choice-hospital"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10058-choice-hospital"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10059-choice-single"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10059-choice-single"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-narr_language-choice-english"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-narr_language-choice-english"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10477-choice-Chronic_kidney_disease"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10477-choice-Chronic_kidney_disease"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-id10120_unit-choice-days"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-id10120_unit-choice-days"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10310-choice-yes"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10310-choice-yes"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-sa01-choice-1"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-sa01-choice-1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-sa06-choice-1"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-sa06-choice-1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-sa03-choice-1"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-sa03-choice-1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-age_adult"
+    commands:
+      - tapOn:
+          id: "question-age_adult"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - eraseText: 10
+      - inputText: "70"
+      - pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10120_1"
+    commands:
+      - tapOn:
+          id: "question-Id10120_1"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - eraseText: 10
+      - inputText: "30"
+      - pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10010a"
+    commands:
+      - tapOn:
+          id: "question-Id10010a"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - eraseText: 10
+      - inputText: "99"
+      - pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10476"
+    commands:
+      - tapOn:
+          id: "question-Id10476"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: "e2e narrative of the final illness"
+      - pressKey: Enter
+# The deceased's name when a direct start has none (a registered case is prefilled).
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10017"
+        text: ""
+    commands:
+      - tapOn:
+          id: "question-Id10017"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: "E2E${MAESTRO_RUN_ID}direct"
+      - pressKey: Enter
+# A date question (year of death on a direct start): the picker opens on today.
+- runFlow:
+    when:
+      visible: "Select date"
+    commands:
+      - tapOn:
+          text: "Select date"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - tapOn:
+          id: "android:id/button1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- scroll
+- repeat:
+    while:
+      visible:
+        id: "question-(?!Id10013-|Id10310-|Id10020-|Id10022-).*-choice-no"
+        selected: false
+    times: 12
+    commands:
+      - tapOn:
+          id: "question-(?!Id10013-|Id10310-|Id10020-|Id10022-).*-choice-no"
+          selected: false
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10010b-choice-female"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10010b-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-language-choice-en"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-language-choice-en"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10002-choice-low"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10002-choice-low"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10003-choice-low"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10003-choice-low"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10004-choice-dry"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10004-choice-dry"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10007a-choice-female"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10007a-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10008-choice-parent"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10008-choice-parent"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10019-choice-female"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10019-choice-female"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10020-choice-no"
+        selected: false
+      notVisible:
+        id: "question-Id10020-choice-yes"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10020-choice-no"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10022-choice-no"
+        selected: false
+      notVisible:
+        id: "question-Id10022-choice-yes"
+        selected: true
+    commands:
+      - tapOn:
+          id: "question-Id10022-choice-no"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-age_group-choice-adult"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-age_group-choice-adult"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10058-choice-hospital"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10058-choice-hospital"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10059-choice-single"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10059-choice-single"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-narr_language-choice-english"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-narr_language-choice-english"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10477-choice-Chronic_kidney_disease"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10477-choice-Chronic_kidney_disease"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-id10120_unit-choice-days"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-id10120_unit-choice-days"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10310-choice-yes"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-Id10310-choice-yes"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-sa01-choice-1"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-sa01-choice-1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-sa06-choice-1"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-sa06-choice-1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-sa03-choice-1"
+        selected: false
+    commands:
+      - tapOn:
+          id: "question-sa03-choice-1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible:
+        id: "question-age_adult"
+    commands:
+      - tapOn:
+          id: "question-age_adult"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - eraseText: 10
+      - inputText: "70"
+      - pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10120_1"
+    commands:
+      - tapOn:
+          id: "question-Id10120_1"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - eraseText: 10
+      - inputText: "30"
+      - pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10010a"
+    commands:
+      - tapOn:
+          id: "question-Id10010a"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - eraseText: 10
+      - inputText: "99"
+      - pressKey: Enter
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10476"
+    commands:
+      - tapOn:
+          id: "question-Id10476"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: "e2e narrative of the final illness"
+      - pressKey: Enter
+# The deceased's name when a direct start has none (a registered case is prefilled).
+- runFlow:
+    when:
+      visible:
+        id: "question-Id10017"
+        text: ""
+    commands:
+      - tapOn:
+          id: "question-Id10017"
+          point: "95%,50%"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - inputText: "E2E${MAESTRO_RUN_ID}direct"
+      - pressKey: Enter
+# A date question (year of death on a direct start): the picker opens on today.
+- runFlow:
+    when:
+      visible: "Select date"
+    commands:
+      - tapOn:
+          text: "Select date"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - tapOn:
+          id: "android:id/button1"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200

@@ -3,6 +3,17 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-15
+
+- `d45ac7b1b`: training split into interviewer, coder and self-coding
+  sessions; per-coder random 10 of an English set; own/standard queues;
+  admin import creating accounts; graduation granting coder/interviewer only
+  (migration `b4e8c2a6d0f3`; `docs/policy/training-session-types.md`;
+  `digitva-xe2x` closed). Coding languages line and PATCH profile languages.
+- `b527dc2c8`: Maestro suite by happy path, enrolling only needed roles; web
+  supervisor check; phone stays on tab after NQA/social autopsy save.
+  Not deployed (staging `fcca7b2de`).
+
 ## 2026-11-12
 
 - `7e7007766` (D14–D26, `digitva-9xn9.14`; `digitva-8z9m`; `digitva-fowp`): run-6 low

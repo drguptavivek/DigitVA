@@ -3,7 +3,8 @@
 ## Start here
 
 Continue fully offline DORIS coding in Collect Plus (`digitva-9cll`). The
-staging runs `22a9fca67` (12 Nov), hosting Collect and Collect Plus 0.3.20. Verify the installed build and enrollment before device
+staging runs `fcca7b2de`; training session types (`d45ac7b1b`) and the
+Maestro suite (`b527dc2c8`) are on main, not deployed. Verify the installed build and enrollment before device
 acceptance. Preserve shared checkout edits, including the iOS and SmartVA
 work, parity tooling, manuscript files and Play assets. WHO notes, parity
 runs and phone measurements live in `private/`.
@@ -16,6 +17,11 @@ contrast, Large text) and refrozen.
 
 ## Ranked next steps
 
+0. Training (`digitva-9qer`): owner supplies
+   `app/services/training_corpus/english_v1.txt`; Maestro flows 96–98 need a
+   trainee setup role; training media scope; refuse outdated apps (N11);
+   hide DEMO01 in graduation; Add participant roles by session type. Low
+   audit items: `digitva-q3iu`. Old-APK audit before deploying `d45ac7b1b`.
 1. Prove the full offline coding flow on a phone (`digitva-9cll.5`), first
    standalone and then as an enrolled TST001 coder. Re-enrol the Samsung
    for device checks. Remaining coding parity work is under
@@ -83,7 +89,8 @@ contrast, Large text) and refrozen.
 
 ## Caveats
 
-- Full-suite noise: a few tests fail only under `-n 4` (`digitva-6igh`).
+- Full-suite noise: a few tests fail only under `-n 4` (`digitva-6igh`);
+  about 13 are clock-dependent between 18:30 and 24:00 UTC (`digitva-qiff`).
 - Still uncommitted from before 2026-11-12: public-demo config and docs,
   `va_smartva_02_prepdata.py`, `smartva-analysis.md`, parity tooling,
   `AGENTS.md`.

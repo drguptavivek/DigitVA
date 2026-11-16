@@ -34,6 +34,8 @@ export function createEngineIdle(
         if (!released && focused === 0 && !timer) arm(retryMs);
       });
     }, ms);
+    // Node (Jest) only: the countdown must not hold the process open. Phone timers are numbers, so this is a no-op there.
+    (timer as { unref?: () => void } | undefined)?.unref?.();
   }
 
   return {

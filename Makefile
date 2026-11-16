@@ -262,14 +262,14 @@ check-web:
 	status=$$?; if [ $$status -ne 0 ]; then grep -E "rror|Unable to resolve" "$$out.log" | head -20; fi; \
 	rm -rf "$$out" "$$out.log"; exit $$status
 
-# Local-only Maestro flows against the Android emulator (never CI). The PINs come
-# from the caller's environment (MAESTRO_PIN = test.all, MAESTRO_PIN_OTHER = test.sn.dh01);
-# see mobile/digitva-collect/.maestro/README.md.
+# Local-only Maestro e2e suite on the Android emulator (never CI, never a real phone).
+# The script creates the e2e users, enrols them, runs every flow in
+# mobile/digitva-collect/.maestro/flows, then deletes the phone profiles and tears the
+# users down. Secrets stay in its environment; see mobile/digitva-collect/.maestro/README.md.
+# Optional: make maestro-android FLOWS="10-consent 30-media" to run a subset.
 .PHONY: maestro-android
 maestro-android:
-	@test -n "$$MAESTRO_PIN" -a -n "$$MAESTRO_PIN_OTHER" || { echo "Set MAESTRO_PIN and MAESTRO_PIN_OTHER (see mobile/digitva-collect/.maestro/README.md)"; exit 1; }
-	cd mobile/digitva-collect && for f in consent-cancel media-resume lock-unlock switch-profile; do \
-	  maestro --device emulator-5554 test -e PIN="$$MAESTRO_PIN" -e PIN_OTHER="$$MAESTRO_PIN_OTHER" .maestro/$$f.yaml || exit 1; done
+	mobile/digitva-collect/.maestro/run-suite.sh $(FLOWS)
 
 # Seeds TST001 (organization, pick-and-choose) and its accounts, then lists the
 # classical (sites) projects already in the DB. Idempotent. The seed itself

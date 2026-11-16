@@ -7,20 +7,23 @@ do next and stays short (see "Ending a session"). Read `docs/current-state/READM
 
 The main session plans, decides, reviews results and commits. It delegates:
 
-- **Coding: Opus `code-writer`.** Give it the decided design, the files to
-  read first, the tests to write, and "do not commit, stash or push". It
+Model tiers (Claude / Codex): Opus / Sol, Sonnet / Terra, Haiku / Luna.
+
+- **Coding: `code-writer`, tier by complexity.** Haiku wherever it can
+  do the job (mechanical, well-specified changes); Sonnet for intermediate
+  work (a fix needing judgment, a multi-file change with a settled design);
+  Opus only for design decisions and broad or risky changes (auth,
+  migrations, cross-module refactors). Give it the decided design, the files
+  to read first, the tests to write, and "do not commit, stash or push". It
   reports files changed, where the design did not fit, and the pytest targets.
-- **Narrow-scoped tasks and code exploration: Sonnet or Luna at high
-  effort.** A small fix, a single-file change, a doc, or finding where
-  something lives goes to one of these, not to Opus or Sol. Keep Opus or Sol for broad or
-  risky multi-file changes (auth, migrations, cross-module refactors).
+- **Code exploration: Sonnet or Haiku.** Finding where something lives.
 - **Reads, audits, reviews: Sonnet or Haiku.** `code-reviewer`,
   `security-reviewer`, `auditor`, `Explore`. Read-only. Ask for verified
   findings with `file:line`, nothing speculative.
 - **Code search: semble first.** For "where does X happen" questions use
   `mcp__semble__search` (load it with ToolSearch if deferred) and tell every
   agent to do the same; grep only for an exact name or every occurrence.
-- **Tests: one dedicated read-only runner (Sonnet or Luna, low effort).** The
+- **Tests: one dedicated read-only runner (Sonnet or Haiku tier, low effort).** The
   main session keeps it for the whole session and sends it test orders. It runs pytest and reports
   exact counts and full tracebacks. It never edits. One runner at a time per
   test database, so runs do not terminate each other's connections: each
@@ -142,9 +145,7 @@ Staging has real user accounts and phones on older APKs. Deploy only with
 the app restarts, migrations at head), and only on the owner's go. Before a
 deploy, audit the diff since the deployed commit for old-APK compatibility
 (error codes, response shapes, session refusal) and for anything that could
-drop unsent work. Read-only checks over SSM: `LT_TARGET=<id> AWS_PROFILE=digitva
-AWS_REGION=ap-south-1 scripts/ssm.sh '...'`; run git there as
-`sudo -Hu ubuntu git` (the checkout belongs to ubuntu).
+drop unsent work. SSM access: `private/staging-ssm.md` (local only).
 
 ## Dev environment
 

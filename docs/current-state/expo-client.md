@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-16
 ---
 
 # Expo Client Hosting And Access
@@ -475,6 +475,16 @@ browser layout while native screens retain their existing presentation.
 Notes are available across categories in coding/review mode and remain
 private to the current author and case. See
 [Coder Browser Presentation](../policy/coder-browser-presentation.md).
+
+Access refresh: the phone re-reads `/me/access` on the first foreground poll
+of a process, then at most every 15 minutes (`ACCESS_REFRESH_INTERVAL_MS`,
+`src/nativeNotificationSync.ts`), and at once when a poll returns an
+`access_changed` notification (`drainNotificationPages` reports
+`accessChanged`, `src/notificationPoll.ts`), before the collection-access
+check, so a new grant opens collection within a poll. The browser reloads its
+session (`/me/access`) on the same notification (`src/AppState.web.tsx`).
+Notification rows are never rendered: only the cursor and a pending-sync flag
+are kept. Policy: `docs/policy/app-notifications.md`, "Access changed".
 
 On browser reload, routes wait for `GET /api/v1/me/access` before rendering. Ordinary
 sign-in recovery retains the current `/app/` route and query. Pending terms

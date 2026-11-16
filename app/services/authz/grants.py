@@ -572,7 +572,9 @@ def invalidate(user_id: uuid.UUID) -> None:
     """Forget *user_id*'s grants: the request memo now, the Redis cache when
     the session next commits. Every grant write calls it so a grant written
     and used in one request is seen; ORM writes bump the cache anyway
-    (``grant_cache``), Core statements depend on this call."""
+    (``grant_cache``), Core statements depend on this call. A Core statement
+    that changes grants also calls ``grant_cache.defer_access_notice`` for the
+    users it changed (the "access changed" notification); this call queues none."""
     from app.services.authz import grant_cache
 
     grant_cache.defer_user_bump(db.session(), user_id)

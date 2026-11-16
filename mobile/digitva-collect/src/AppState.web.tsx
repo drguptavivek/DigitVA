@@ -314,6 +314,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const retryPending = current.hasPolled;
       current.hasPolled = true;
       current.cursor = result.nextCursor;
+      // The grants changed: re-read the session (access) now rather than on the next page show.
+      if (result.accessChanged) void reloadInBackground();
       if (result.needsSync || result.hasMore) {
         current.syncPending = true;
         current.revision = nextNotificationRevision();

@@ -4,6 +4,8 @@ const MIN_POLL_INTERVAL_MS = 30_000;
 const MAX_PROJECT_ID_LENGTH = 6;
 const MAX_KIND_LENGTH = 32;
 const MAX_VA_SID_LENGTH = 64;
+/** The recipient's grants changed: re-read /me/access now (docs/policy/app-notifications.md). */
+export const ACCESS_CHANGED_KIND = "access_changed";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const OFFSET_TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(?:Z|([+-])(\d{2}):(\d{2}))$/i;
 
@@ -18,6 +20,7 @@ export type NotificationPage = {
   nextCursor: number;
   nonEmpty: boolean;
   hasMore: boolean;
+  accessChanged: boolean;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -71,6 +74,7 @@ export function parseNotificationPage(payload: unknown, after: number): Notifica
   }
 
   let lastId = after;
+  let accessChanged = false;
   for (const value of payload.notifications) {
     if (!isRecord(value)
       || !isSafeCursor(value.id)
@@ -87,6 +91,7 @@ export function parseNotificationPage(payload: unknown, after: number): Notifica
       throw new NotificationPollError();
     }
     lastId = value.id;
+    accessChanged ||= value.kind === ACCESS_CHANGED_KIND;
   }
 
   const nonEmpty = payload.notifications.length > 0;
@@ -97,7 +102,8 @@ export function parseNotificationPage(payload: unknown, after: number): Notifica
   return {
     nextCursor: payload.next_cursor,
     nonEmpty,
-    hasMore: payload.notifications.length === PAGE_SIZE
+    hasMore: payload.notifications.length === PAGE_SIZE,
+    accessChanged
   };
 }
 
@@ -112,6 +118,8 @@ export type NotificationDrainResult = {
   nextCursor: number;
   needsSync: boolean;
   hasMore: boolean;
+  /** A drained page held an access_changed row. */
+  accessChanged: boolean;
 };
 
 function isAuthorizationError(error: unknown): boolean {
@@ -140,6 +148,7 @@ export async function drainNotificationPages({
   let nextCursor = after;
   let needsSync = false;
   let hasMore = false;
+  let accessChanged = false;
 
   for (let pageNumber = 0; pageNumber < maxPages; pageNumber += 1) {
     let payload: unknown;
@@ -149,25 +158,26 @@ export async function drainNotificationPages({
       if (isAuthorizationError(error) || classifyAuthorizationError?.(error)) {
         throw error;
       }
-      return { nextCursor, needsSync: true, hasMore };
+      return { nextCursor, needsSync: true, hasMore, accessChanged };
     }
 
     let page: NotificationPage;
     try {
       page = parseNotificationPage(payload, nextCursor);
     } catch {
-      return { nextCursor, needsSync: true, hasMore };
+      return { nextCursor, needsSync: true, hasMore, accessChanged };
     }
 
     nextCursor = page.nextCursor;
     hasMore = page.hasMore;
     needsSync ||= page.nonEmpty;
+    accessChanged ||= page.accessChanged;
     if (!hasMore) {
       break;
     }
   }
 
-  return { nextCursor, needsSync, hasMore };
+  return { nextCursor, needsSync, hasMore, accessChanged };
 }
 
 export type NotificationPollGateOptions = {

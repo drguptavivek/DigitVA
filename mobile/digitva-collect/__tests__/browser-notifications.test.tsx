@@ -173,6 +173,22 @@ it("drains full pages immediately and advances across unknown kinds", async () =
   await act(async () => tree.unmount());
 });
 
+it("reloads the session (access) at once on access_changed, not on any other kind", async () => {
+  const tree = await mountProvider();
+  state.acknowledgeAuthoritativeRefresh(state.notificationGeneration);
+  const sessionLoads = (loadBrowserSession as jest.Mock).mock.calls.length;
+  (requestClientJson as jest.Mock).mockResolvedValueOnce({ notifications: [notification(1)], next_cursor: 1 });
+  await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+  expect((loadBrowserSession as jest.Mock).mock.calls.length).toBe(sessionLoads);
+
+  (requestClientJson as jest.Mock).mockResolvedValueOnce({
+    notifications: [{ ...notification(2, "access_changed"), project_id: "" }], next_cursor: 2,
+  });
+  await act(async () => { await jest.advanceTimersByTimeAsync(60_000); });
+  expect((loadBrowserSession as jest.Mock).mock.calls.length).toBe(sessionLoads + 1);
+  await act(async () => tree.unmount());
+});
+
 it("treats malformed pages as doubt without advancing the cursor", async () => {
   const tree = await mountProvider();
   state.acknowledgeAuthoritativeRefresh(state.notificationGeneration);

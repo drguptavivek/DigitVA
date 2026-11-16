@@ -255,6 +255,49 @@ it("polls role-only accounts without intake calls, then resumes sync when access
   expect(mockRefresh).toHaveBeenCalledTimes(1);
 });
 
+it("refreshes access at once on access_changed, inside the throttle and before the collection check", async () => {
+  const userId = "access-changed-account";
+  mockCollectionAccess = false;
+  mockAuthedRequest.mockResolvedValue({ body: page([]) });
+  await recordNotificationPoll(userId, 0, false);
+  const now = jest.spyOn(Date, "now");
+  const start = Date.now();
+  now.mockReturnValue(start);
+  await refreshNativeNotifications(userId, {} as never); // first poll: the throttled refresh
+  expect(mockRefreshAccessSummary).toHaveBeenCalledTimes(1);
+
+  // A new grant opens collection: the refreshed access is what the check below the poll reads.
+  mockRefreshAccessSummary.mockImplementation(async () => {
+    mockCollectionAccess = true;
+    return {};
+  });
+  mockAuthedRequest.mockResolvedValue({
+    body: page([{ ...notification(7), kind: "access_changed", project_id: "" }]),
+  });
+  now.mockReturnValue(start + 60_000); // well inside ACCESS_REFRESH_INTERVAL_MS
+  expect(await refreshNativeNotifications(userId, {} as never)).toBe(true);
+  expect(mockRefreshAccessSummary).toHaveBeenCalledTimes(3); // the poll's, then runNativeSync's
+  expect(mockSync).toHaveBeenCalledTimes(1);
+  expect(await readNotificationState(userId)).toMatchObject({ cursor: 7 });
+  for (const [key, value] of mockSecure) {
+    if (key.startsWith("notification_state.")) expect(value).not.toMatch(/access_changed/);
+  }
+
+  // A failed refresh is not remembered: the next access_changed tries again.
+  mockRefreshAccessSummary.mockReset().mockResolvedValue(undefined);
+  mockAuthedRequest.mockResolvedValue({
+    body: page([{ ...notification(8), kind: "access_changed", project_id: "" }]),
+  });
+  now.mockReturnValue(start + 120_000);
+  await refreshNativeNotifications(userId, {} as never);
+  mockRefreshAccessSummary.mockClear();
+  mockAuthedRequest.mockResolvedValue({ body: page([], 8) });
+  now.mockReturnValue(start + 180_000);
+  await refreshNativeNotifications(userId, {} as never);
+  expect(mockRefreshAccessSummary).toHaveBeenCalledTimes(1);
+  now.mockRestore();
+});
+
 it("keeps the background task polling access and notifications for role-only accounts", async () => {
   mockCollectionAccess = false;
   mockAuthedRequest.mockResolvedValue({ body: page([]) });

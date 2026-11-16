@@ -10,6 +10,8 @@ import re
 from collections import Counter
 from datetime import UTC, datetime
 
+import sqlalchemy as sa
+
 from app import db
 from app.models import (
     VaAccessRoles,
@@ -617,3 +619,65 @@ class ProjectSetupPanelTests(BaseTestCase):
         self.assertEqual(row_proj["project_grants"][0]["role"], "coder")
         self.assertFalse(row_proj["project_grants"][0]["with_pii"])
 
+
+    def _access_changed_count(self, user_id):
+        from app.models import MapUserNotification
+
+        return db.session.scalar(sa.select(sa.func.count()).select_from(MapUserNotification).where(
+            MapUserNotification.user_id == user_id, MapUserNotification.kind == "access_changed"))
+
+    def _two_phc_worker(self):
+        from app.services import organization_service as org
+
+        org.seed_default_organization(self.ORG_PROJECT)
+        levels = {lv.level_code: lv for lv in org.list_levels(self.ORG_PROJECT)}
+        cadres = {c.cadre_code: c for c in org.list_cadres(self.ORG_PROJECT)}
+        dist = org.create_unit(self.ORG_PROJECT, org_level_id=levels["district"].org_level_id,
+                               unit_code="DIST1", unit_name="District 1")
+        chc = org.create_unit(self.ORG_PROJECT, org_level_id=levels["chc"].org_level_id,
+                              parent_org_unit_id=dist.org_unit_id, unit_code="CHC1", unit_name="CHC 1")
+        phcs = [
+            org.create_unit(self.ORG_PROJECT, org_level_id=levels["phc"].org_level_id,
+                            parent_org_unit_id=chc.org_unit_id, unit_code=code, unit_name=code)
+            for code in ("PHC1", "PHC2")
+        ]
+        worker = org.create_worker(self.ORG_PROJECT, org_unit_id=phcs[0].org_unit_id,
+                                   cadre_id=cadres["MO"].cadre_id, worker_name="Dr Coder One",
+                                   phone="9876543210", user=self.base_coder_user)
+        db.session.commit()
+        return worker, phcs
+
+    def test_bulk_apply_notifies_access_changed_once_and_not_for_a_repeat(self):
+        """digitva-0rpi: a bulk-apply that writes a grant leaves one access_changed row."""
+        self._two_phc_worker()
+        self._login(self.base_admin_id)
+        before = self._access_changed_count(self.base_coder_id)
+
+        def apply_own():
+            res = self.client.post(
+                f"/admin/api/projects/{self.ORG_PROJECT}/users-grid/bulk-apply",
+                json={"user_ids": [str(self.base_coder_id)], "operation": "coder_non_pii", "scope_mode": "own"},
+                headers=self._csrf_headers(),
+            )
+            self.assertEqual(res.status_code, 200, res.get_json())
+
+        apply_own()
+        self.assertEqual(self._access_changed_count(self.base_coder_id), before + 1)
+        apply_own()  # already held: nothing changes
+        self.assertEqual(self._access_changed_count(self.base_coder_id), before + 1)
+
+    def test_worker_unit_grants_sync_notifies_access_changed(self):
+        """digitva-0rpi: a worker's (Place) unit-scope grants sync leaves one row."""
+        from app.services import organization_service as org
+
+        worker, phcs = self._two_phc_worker()
+        before = self._access_changed_count(self.base_coder_id)
+        unit_ids = [phc.org_unit_id for phc in phcs]
+        org.sync_worker_unit_scope_grants(self.ORG_PROJECT, worker, coding_unit_ids=unit_ids,
+                                          actor=self.base_admin_user)
+        db.session.commit()
+        self.assertEqual(self._access_changed_count(self.base_coder_id), before + 1)
+        org.sync_worker_unit_scope_grants(self.ORG_PROJECT, worker, coding_unit_ids=unit_ids,
+                                          actor=self.base_admin_user)
+        db.session.commit()
+        self.assertEqual(self._access_changed_count(self.base_coder_id), before + 1)

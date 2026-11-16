@@ -37,6 +37,15 @@ OTHER_DRAFT_STARTED = "other_draft_started"
 CASE_SUBMITTED_BY_OTHER = "case_submitted_by_other"
 CASE_REOPENED = "case_reopened"
 INTERVIEW_CHOSEN = "interview_chosen"
+#: The recipient's grants changed: the app re-reads /me/access now instead of
+#: on its 15-minute refresh. Account-wide, so it carries ``NO_PROJECT``
+#: (written by ``authz.grant_cache``, digitva-0rpi).
+ACCESS_CHANGED = "access_changed"
+#: ``project_id`` of an account-wide row: the column is NOT NULL and shipped
+#: apps reject a non-string ``project_id`` (a rejected page never advances
+#: their cursor), so not None. Never the training project, so the training
+#: filter in ``poll`` always delivers it outside the Training menu.
+NO_PROJECT = ""
 
 #: Rows one poll returns; a client at the limit polls again with next_cursor.
 PAGE_SIZE = 100
@@ -76,9 +85,12 @@ def _key(user_id) -> str:
     return f"{current_app.config.get('NOTIFICATION_CACHE_PREFIX', 'digitva_msg:last:')}{user_id}"
 
 
-def notify(user_ids: Iterable, kind: str, *, project_id: str, death_id=None, draft_id=None, va_sid=None) -> int:
+def notify(
+    user_ids: Iterable, kind: str, *, project_id: str, death_id=None, draft_id=None, va_sid=None, session=None
+) -> int:
     """Insert one *kind* row per recipient in the current transaction; returns
     the count. One bulk INSERT, no flush per row. The caller commits.
+    *session* defaults to ``db.session`` (a session event hook passes its own).
 
     *draft_id* is one id for every recipient, or a ``{user_id: draft_id}``
     mapping when each holds their own. At most ``MAX_RECIPIENTS`` users are
@@ -97,10 +109,11 @@ def notify(user_ids: Iterable, kind: str, *, project_id: str, death_id=None, dra
         }
         for user_id in recipients
     ]
-    inserted = db.session.execute(
+    session = session if session is not None else db.session()
+    inserted = session.execute(
         sa.insert(MapUserNotification).returning(MapUserNotification.user_id, MapUserNotification.id), rows
     ).all()
-    latest = db.session().info.setdefault(_PENDING, {})
+    latest = session.info.setdefault(_PENDING, {})
     for user_id, row_id in inserted:
         latest[user_id] = max(latest.get(user_id, 0), row_id)
     return len(inserted)

@@ -3,7 +3,7 @@ title: App Notifications Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-11-16
 ---
 
 # App Notifications Policy
@@ -44,6 +44,34 @@ changes by polling a Flask endpoint, not through a third-party push service.
 | `case_submitted_by_other` | a complete submission closes a case | every other interviewer still holding an open draft on it |
 | `case_reopened` | a supervisor reopens a terminal case | the case's starter and open draft holders (not the supervisor) |
 | `interview_chosen` | a supervisor, data manager or admin chooses between two complete interviews of a case ([Web Intake Policy](web-intake.md), "Supervisors") | the interviewer whose interview was chosen (with `va_sid`) and the one whose interview it replaced (without), neither when they made the choice |
+| `access_changed` | a grant of the person is created, reactivated, revoked or moved (role, scope, project, site, unit, cadre, status), or their mentor-institute membership turns on or off | that person, once per transaction |
+
+### Access changed (digitva-0rpi, owner decision 2026-11-16)
+
+An app re-reads `GET /me/access` only every 15 minutes on its own, so a new or
+removed role took up to that long to show while the app was open. Now:
+
+- Every grant write path reaches one funnel, the session hook in
+  `app/services/authz/grant_cache.py`: a grant or membership row that really
+  changes queues its user, and one bulk insert at commit writes one row per
+  user. A write that changes none of those columns writes nothing. A user
+  created or deleted in the same transaction gets none (no device is signed in
+  as them). A Core statement that changes grants queues its users itself
+  (the mentor-institute lapse).
+- The row is account-wide: `project_id` is `""`, never null (the column is
+  NOT NULL, and shipped apps reject a non-string `project_id`), and never the
+  training project, so the poll (always in the `exclude` training scope)
+  delivers it to a trainee too. No other
+  id is set.
+- Bounded like every event: at most 200 recipients per commit; anyone beyond
+  that catches up on the 15-minute refresh. A change of many users' reach at
+  once (an org-unit path rewrite or subtree deactivation, a project's or unit's
+  status) writes no row: it is not one person's grant, and fanning out would be
+  unbounded; those apps catch up on the 15-minute refresh.
+- The app refreshes access at once on a poll that returns `access_changed`,
+  then syncs as for any notification. An older app treats it as any unknown
+  kind: it runs its normal sync, which refreshes access first, and shows
+  nothing.
 
 Not built: `case_registered_in_my_unit` (there is no cheap, bounded way to list
 the interviewers who reach a unit: grants sit at project, site and ancestor-unit

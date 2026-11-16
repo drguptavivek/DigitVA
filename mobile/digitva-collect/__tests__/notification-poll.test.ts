@@ -27,14 +27,15 @@ describe("parseNotificationPage", () => {
     expect(parseNotificationPage(page([], 8), 12)).toEqual({
       nextCursor: 8,
       nonEmpty: false,
-      hasMore: false
+      hasMore: false,
+      accessChanged: false
     });
   });
 
   it("accepts known and unknown kinds without retaining notification rows", () => {
     expect(parseNotificationPage(page([
       notification(2), notification(3, { kind: "future_notification_kind" })
-    ]), 1)).toEqual({ nextCursor: 3, nonEmpty: true, hasMore: false });
+    ]), 1)).toEqual({ nextCursor: 3, nonEmpty: true, hasMore: false, accessChanged: false });
   });
 
   it.each([["chosen interviewer", "chosen-submission"], ["previous winner", null]])(
@@ -52,6 +53,7 @@ describe("parseNotificationPage", () => {
       nextCursor: 5,
       needsSync: true,
       hasMore: false,
+      accessChanged: false,
     });
     expect(request).toHaveBeenCalledWith(4);
     },
@@ -87,6 +89,12 @@ describe("parseNotificationPage", () => {
     expect(() => parseNotificationPage(page(notifications), 0)).toThrow(NotificationPollError);
   });
 
+  it("flags an account-wide access_changed row (empty project_id) and still asks for sync", () => {
+    expect(parseNotificationPage(page([
+      notification(2), notification(3, { kind: "access_changed", project_id: "" })
+    ]), 1)).toEqual({ nextCursor: 3, nonEmpty: true, hasMore: false, accessChanged: true });
+  });
+
   it("requires every returned id to be greater than the requested cursor", () => {
     expect(() => parseNotificationPage(page([notification(4)]), 4)).toThrow(NotificationPollError);
   });
@@ -101,7 +109,8 @@ describe("drainNotificationPages", () => {
     await expect(drainNotificationPages({ after: 0, request })).resolves.toEqual({
       nextCursor: 100,
       needsSync: true,
-      hasMore: false
+      hasMore: false,
+      accessChanged: false
     });
     expect(request.mock.calls).toEqual([[0], [100]]);
   });
@@ -114,7 +123,8 @@ describe("drainNotificationPages", () => {
     await expect(drainNotificationPages({ after: 0, request })).resolves.toEqual({
       nextCursor: 1,
       needsSync: true,
-      hasMore: false
+      hasMore: false,
+      accessChanged: false
     });
   });
 
@@ -122,7 +132,23 @@ describe("drainNotificationPages", () => {
     await expect(drainNotificationPages({
       after: 4,
       request: async () => page([notification(5, { kind: "future_kind" })])
-    })).resolves.toEqual({ nextCursor: 5, needsSync: true, hasMore: false });
+    })).resolves.toEqual({ nextCursor: 5, needsSync: true, hasMore: false, accessChanged: false });
+  });
+
+  it("keeps an access_changed seen on an earlier page when a later page is uncertain", async () => {
+    const request = jest.fn()
+      .mockResolvedValueOnce(page([
+        notification(1, { kind: "access_changed", project_id: "" }),
+        ...Array.from({ length: 99 }, (_, index) => notification(index + 2)),
+      ]))
+      .mockResolvedValueOnce({ notifications: "bad", next_cursor: 101 });
+
+    await expect(drainNotificationPages({ after: 0, request })).resolves.toEqual({
+      nextCursor: 100,
+      needsSync: true,
+      hasMore: true,
+      accessChanged: true
+    });
   });
 
   it("keeps hasMore true when a later page is uncertain", async () => {
@@ -133,7 +159,8 @@ describe("drainNotificationPages", () => {
     await expect(drainNotificationPages({ after: 0, request })).resolves.toEqual({
       nextCursor: 100,
       needsSync: true,
-      hasMore: true
+      hasMore: true,
+      accessChanged: false
     });
   });
 
@@ -143,7 +170,8 @@ describe("drainNotificationPages", () => {
     await expect(drainNotificationPages({ after: 7, request })).resolves.toEqual({
       nextCursor: 7,
       needsSync: true,
-      hasMore: false
+      hasMore: false,
+      accessChanged: false
     });
   });
 
@@ -153,7 +181,8 @@ describe("drainNotificationPages", () => {
     await expect(drainNotificationPages({ after: 7, request })).resolves.toEqual({
       nextCursor: 7,
       needsSync: true,
-      hasMore: false
+      hasMore: false,
+      accessChanged: false
     });
   });
 
@@ -185,7 +214,8 @@ describe("drainNotificationPages", () => {
     await expect(drainNotificationPages({ after: 0, request, maxPages: 1 })).resolves.toEqual({
       nextCursor: 100,
       needsSync: true,
-      hasMore: true
+      hasMore: true,
+      accessChanged: false
     });
     expect(request).toHaveBeenCalledTimes(1);
   });

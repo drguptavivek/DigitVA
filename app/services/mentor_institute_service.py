@@ -505,17 +505,21 @@ def _deactivate_institute_grants(institute: MasMentorInstitute, user_ids) -> int
             ),
         )
     )
-    # A Core UPDATE escapes the ORM hooks that bump the grant cache.
-    from app.services.authz import invalidate
+    # A Core UPDATE escapes the ORM hooks that bump the grant cache and queue
+    # the "access changed" notification: both are done here.
+    from app.services.authz import grant_cache, invalidate
 
     for user_id in user_ids:
         invalidate(user_id)
-    return db.session.execute(
+    changed = db.session.execute(
         sa.update(VaUserAccessGrants)
         .where(VaUserAccessGrants.grant_id.in_(grant_ids))
         .values(grant_status=VaStatuses.deactive)
+        .returning(VaUserAccessGrants.user_id)
         .execution_options(synchronize_session="fetch")
-    ).rowcount
+    ).scalars().all()
+    grant_cache.defer_access_notice(db.session(), changed)
+    return len(changed)
 
 
 # ---------------------------------------------------------------------------

@@ -1812,7 +1812,10 @@ submission's draft), `other_draft_started` and `case_submitted_by_other`
 (`death_id` and the recipient's own `draft_id`), `case_reopened` (`death_id`;
 `draft_id` for an open draft holder), `interview_chosen` (`death_id`, the
 recipient's own `draft_id`; `va_sid` only for the interviewer whose interview
-was chosen). An unknown kind is ignored by a client.
+was chosen), `access_changed` (the recipient's grants changed; `project_id`
+is `""` and every id null, so the training filter (the endpoint always polls
+in `exclude`) never hides it; the app
+re-reads `/me/access` at once). An unknown kind is ignored by a client.
 
 Cost: Redis key `digitva_msg:last:<user_id>` (the newest id written, 5-minute
 TTL, raised after the event's commit) answers an up-to-date poll with no

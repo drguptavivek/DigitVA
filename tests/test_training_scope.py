@@ -662,10 +662,13 @@ class HomeCountsTests(TrainingScopeBase):
             notification_service.notify([self.trainee.user_id], "case_reopened", project_id=project_id)
         db.session.commit()
         rows = db.session.scalars(sa.select(MapUserNotification).where(
-            MapUserNotification.user_id == self.trainee.user_id).order_by(MapUserNotification.id)).all()
+            MapUserNotification.user_id == self.trainee.user_id, MapUserNotification.kind == "case_reopened",
+        ).order_by(MapUserNotification.id)).all()
         self.assertEqual([r.project_id for r in rows], ["TRN01", self.BASE_PROJECT_ID, "TRN01"])
         polled = self.get("/api/v1/me/notifications?after=0").get_json()
-        self.assertEqual([n["project_id"] for n in polled["notifications"]], [self.BASE_PROJECT_ID])
+        # The trainee's own grants left an account-wide access_changed row: it is delivered.
+        self.assertEqual([(n["kind"], n["project_id"]) for n in polled["notifications"]],
+                         [("access_changed", ""), ("case_reopened", self.BASE_PROJECT_ID)])
         self.assertEqual(polled["next_cursor"], rows[-1].id)  # past the hidden rows: no re-poll forever
 
 

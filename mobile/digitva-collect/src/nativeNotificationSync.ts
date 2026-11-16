@@ -25,7 +25,8 @@ const syncs = new Map<string, {
 /**
  * The foreground poll runs every 30 s; /me/access changes rarely. A nonempty notification already
  * triggers runNativeSync, which refreshes access, so the poll itself only refreshes this often
- * (and on the first poll of a process, i.e. app start/unlock). Collection gate needs it at least daily.
+ * (and on the first poll of a process, i.e. app start/unlock, and at once when a poll returns an
+ * access_changed notification). Collection gate needs it at least daily.
  */
 export const ACCESS_REFRESH_INTERVAL_MS = 15 * 60_000;
 const lastAccessRefresh = new Map<string, number>();
@@ -59,12 +60,15 @@ function isAuthFailure(error: unknown): boolean {
     || (error instanceof ApiError && (error.status === 401 || error.status === 403));
 }
 
-/** Poll one account without retaining response rows; authorization failures remain caller-owned. */
-export function pollAccountNotifications(userId: string): Promise<void | undefined> {
+/**
+ * Poll one account without retaining response rows; authorization failures remain caller-owned.
+ * Resolves true when a drained page held an access_changed notification.
+ */
+export function pollAccountNotifications(userId: string): Promise<boolean | undefined> {
   return runNotificationPoll(userId, async () => {
     const expectedEpoch = notificationStateGeneration(userId);
     const state = await readNotificationState(userId);
-    if (!state || notificationStateGeneration(userId) !== expectedEpoch) return;
+    if (!state || notificationStateGeneration(userId) !== expectedEpoch) return false;
     const result = await drainNotificationPages({
       after: state.cursor,
       isAuthorizationError: isAuthFailure,
@@ -81,6 +85,7 @@ export function pollAccountNotifications(userId: string): Promise<void | undefin
       result.needsSync,
       expectedEpoch,
     );
+    return result.accessChanged;
   });
 }
 
@@ -148,7 +153,12 @@ export async function refreshNativeNotifications(
   if (refreshedAt === undefined || Date.now() - refreshedAt >= ACCESS_REFRESH_INTERVAL_MS) {
     rememberAccessRefresh(userId, await refreshAccessSummary(userId));
   }
-  await pollAccountNotifications(userId);
+  if (await pollAccountNotifications(userId)) {
+    // The grants changed: re-read access now, before the collection-access check below (a new
+    // grant may open it). Forget the throttle first so a failed refresh retries on the next poll.
+    lastAccessRefresh.delete(userId);
+    rememberAccessRefresh(userId, await refreshAccessSummary(userId));
+  }
   const account = (await loadAccounts()).find(({ user_id }) => user_id === userId);
   if (account?.collection_access !== true) return false;
   const state = await readNotificationState(userId);

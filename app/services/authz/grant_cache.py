@@ -362,6 +362,81 @@ def _collect(session, _flush_context):
             )
             if columns is not False and _changed(obj, columns):
                 defer_global_bump(session)
+    _collect_access_notices(session)
+
+
+# ---------------------------------------------------------------------------
+# "Access changed" notifications (digitva-0rpi, docs/policy/app-notifications.md)
+# ---------------------------------------------------------------------------
+# Every grant or mentor-membership row that really changes queues its user;
+# one notification_service.notify at the outer commit sends one row per user
+# per transaction (a savepoint release sends nothing, so a per-row savepoint
+# loop still costs one INSERT). Not on defer_user_bump: that also fires for status and
+# session-version changes and for invalidate() calls that change nothing.
+
+_NOTICES_KEY = "digitva.authz.access_notices"
+#: A dirty grant notifies only when one of these changed (cadre: a unit/cadre move).
+_NOTICE_GRANT_COLUMNS = _GRANT_SHAPE + ("cadre_id",)
+
+
+def _notices(session) -> dict:
+    return session.info.setdefault(_NOTICES_KEY, {"pending": set(), "skip": set()})
+
+
+def defer_access_notice(session, user_ids) -> None:
+    """Queue an ``access_changed`` notification for *user_ids* at the next
+    commit: for a Core statement that changes grants (the ORM rows are seen by
+    the flush hook)."""
+    _notices(session)["pending"].update(user_ids)
+
+
+def _collect_access_notices(session) -> None:
+    users, skip = set(), set()
+    for obj in session.new | session.deleted:
+        if isinstance(obj, (VaUserAccessGrants, MapMentorInstituteUser)):
+            users.add(obj.user_id)
+        elif isinstance(obj, VaUsers):
+            # Created now: no device is signed in as them. Deleted: no row may
+            # reference them.
+            skip.add(obj.user_id)
+    for obj in session.dirty:
+        if isinstance(obj, VaUserAccessGrants) and _changed(obj, _NOTICE_GRANT_COLUMNS):
+            users.add(obj.user_id)
+        elif isinstance(obj, MapMentorInstituteUser) and _changed(obj, ("is_active",)):
+            users.add(obj.user_id)
+    if users or skip:
+        notices = _notices(session)
+        notices["pending"] |= users
+        notices["skip"] |= skip
+
+
+@event.listens_for(Session, "before_commit")
+def _send_access_notices(session):
+    # before_commit runs before the commit's own flush: flush first so grant
+    # rows still pending in the session are collected too. A savepoint
+    # release also fires before_commit: send only at the outer commit. A
+    # rolled-back savepoint's users stay queued: a spurious nudge, never a lost one.
+    if not has_app_context() or session.in_nested_transaction():
+        return
+    session.flush()
+    notices = session.info.pop(_NOTICES_KEY, None)
+    if not notices:
+        return
+    users = notices["pending"] - notices["skip"]
+    if not users:
+        return
+    from app.services import notification_service
+
+    notification_service.notify(
+        sorted(users, key=str), notification_service.ACCESS_CHANGED,
+        project_id=notification_service.NO_PROJECT, session=session,
+    )
+
+
+@event.listens_for(Session, "after_soft_rollback")
+def _drop_access_notices(session, previous_transaction):
+    if previous_transaction.parent is None:
+        session.info.pop(_NOTICES_KEY, None)
 
 
 @event.listens_for(Session, "after_commit")

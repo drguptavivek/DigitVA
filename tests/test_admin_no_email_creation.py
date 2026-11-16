@@ -55,7 +55,7 @@ class AdminNoEmailCreationTests(BaseTestCase):
         self.assertEqual(response.status_code, 201, response.get_json())
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         body = response.get_json()
-        self.assertRegex(body["sign_in_code"], r"^[0-9]{6}$")
+        self.assertRegex(body["sign_in_code"], r"^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$")
         self.assertNotIn("sign_in_code", body["user"])
         self.assertTrue(body["user"]["mobile_only"])
         user = db.session.get(VaUsers, uuid.UUID(body["user"]["user_id"]))

@@ -1225,7 +1225,7 @@
     var user = (_ugData.users || []).find(function (x) { return x.user_id === uid; });
     var pw = user.primary_worker;
     var units = _ugData.units || [];
-    cell.innerHTML = '<div class="d-flex flex-column gap-1" style="min-width:14rem;">'
+    cell.innerHTML = '<div class="d-flex flex-column gap-1 w-100">'
       + '<select class="form-select form-select-sm ug-place-unit" aria-label="Unit"><option value="">Choose a unit…</option>'
       + units.map(function (x) { return '<option value="' + esc(x.org_unit_id) + '">' + esc(x.unit_code + ' · ' + x.unit_name + (x.level_code ? ' (' + x.level_code + ')' : '')) + '</option>'; }).join('')
       + '</select>'
@@ -1432,7 +1432,8 @@
         + '<div class="mt-1">' + renderPiiStatusBadge(u.pii_status) + '</div></td>'
         + '<td>' + contactHtml + '</td>'
         + '<td>' + statusBadge + '</td>'
-        + '<td class="ug-place-cell" data-uid="' + esc(uid) + '">' + ugPlacementHtml(u) + '</td>'
+        // Fixed width: opening the editor must not reflow the table (owner, 2026-11-16).
+        + '<td class="ug-place-cell" style="width:16rem;min-width:16rem;max-width:16rem;" data-uid="' + esc(uid) + '">' + ugPlacementHtml(u) + '</td>'
         + '<td>' + projRolesHtml + '</td>'
         + '<td>' + unitRolesHtml + '</td>'
         + '</tr>' + drawerHtml;
@@ -1446,7 +1447,7 @@
       + '<th>User &amp; PII tier</th>'
       + '<th>Email &amp; 10-Digit Mobile</th>'
       + '<th>Status</th>'
-      + '<th>Unit / Cadre</th>'
+      + '<th style="width:16rem;min-width:16rem;">Unit / Cadre</th>'
       + '<th>Project / Site Roles</th>'
       + '<th>Unit-Level Roles (Smart Multi-Unit Grouping)</th>'
       + '</tr>'

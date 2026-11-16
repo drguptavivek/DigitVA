@@ -870,10 +870,10 @@
   }
 
   // The code is shown once; the server keeps only its hash.
-  var CODE_HANDOVER_NOTE = 'Give this code to the person; it expires in 72 hours.';
+  var CODE_HANDOVER_NOTE = 'Give this code to the person; it expires in 90 minutes.';
 
   function codeHtml(code) {
-    return '<div class="fw-semibold">One-time sign-in code: <code class="fs-5">' + esc(code) + '</code></div>'
+    return '<div class="fw-semibold">One-time sign-in code: <code class="fs-5 font-monospace" style="letter-spacing:.15em">' + esc(code) + '</code></div>'
       + '<div>' + esc(CODE_HANDOVER_NOTE) + ' They choose "I have a code" on the sign-in page.</div>';
   }
 

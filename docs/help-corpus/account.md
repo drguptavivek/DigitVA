@@ -3,7 +3,7 @@ title: How-Do-I Corpus - Account and Sign-in
 doc_type: help-corpus
 status: draft
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-16
 ---
 
 # How-Do-I Corpus - Account and Sign-in
@@ -79,10 +79,10 @@ questionnaire translation suggestions. Format and truth rules:
 - roles: coder, reviewer, coding_tester
 - surfaces: web
 - steps:
-  1. Ask the person who created your account (for example your data manager or an administrator) for your sign-in code (6 digits).
+  1. Ask the person who created your account (for example your data manager or an administrator) for your sign-in code (8 letters and digits, like K7PQ-M3XR).
   2. On the login page press **I have a code**, enter your mobile number (or email) and the code, accept the terms and continue.
   3. Write down the new password shown once, then continue to sign in.
-- notes: The code works once and expires after 72 hours (policy). The password is shown only on that page.
+- notes: The code works once and expires after 90 minutes (policy). The password is shown only on that page.
 - sources: `app/templates/va_frontpages/va_login_code.html`; `app/templates/va_frontpages/va_login_code_password.html`; docs/policy/account-onboarding-and-passwords.md; password-reset
 - checked: 2026-11-06
 

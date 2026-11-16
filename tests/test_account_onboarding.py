@@ -568,7 +568,7 @@ class EmailAccountCodeTests(AuthzFixtureMixin, OnboardingTestBase):
     def test_unknown_email_and_wrong_code_get_the_same_answer(self):
         user = self._managed_email_user((R.reviewer, U, "P1"))
         code = self._issue(user)
-        wrong = f"{(int(code) + 1) % 1_000_000:06d}"
+        wrong = ("B" if code[0] == "A" else "A") + code[1:]
         def alerts(response):
             return re.findall(rb'role="alert">\s*([^<]+?)\s*<', response.data)
 
@@ -723,7 +723,7 @@ class ImportAndMentorTests(AuthzFixtureMixin, OnboardingTestBase):
         data = response.get_json()
         self.assertEqual(data["created_users"], 2)
         [entry] = data["sign_in_codes"]
-        self.assertRegex(entry["sign_in_code"], r"^\d{6}$")
+        self.assertRegex(entry["sign_in_code"], r"^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$")
         self.assertNotIn(fresh, response.get_data(as_text=True))
         self.assertFalse(any(entry["sign_in_code"] in line for line in logs))
         templates = [c.kwargs["template_name"] for c in send.queued.call_args_list]
@@ -743,7 +743,7 @@ class ImportAndMentorTests(AuthzFixtureMixin, OnboardingTestBase):
             )
         self.assertEqual(response.status_code, 201, response.get_json())
         self.assertEqual(response.headers["Cache-Control"], "no-store")
-        self.assertRegex(response.get_json()["sign_in_code"], r"^\d{6}$")
+        self.assertRegex(response.get_json()["sign_in_code"], r"^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$")
         send.queued.assert_not_called()
         user = db.session.scalar(sa.select(VaUsers).where(VaUsers.mobile_login == number))
         self.assertIsNone(user.email)

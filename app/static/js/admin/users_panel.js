@@ -273,8 +273,8 @@
     var old = document.getElementById('user-code-box');
     if (old) old.remove();
     var html = code
-      ? '<div class="fw-semibold">One-time sign-in code: <code class="fs-5">' + esc(code) + '</code></div>'
-        + '<div>Give this code to the person; it expires in 72 hours. Any earlier code no longer works.</div>'
+      ? '<div class="fw-semibold">One-time sign-in code: <code class="fs-5 font-monospace" style="letter-spacing:.15em">' + esc(code) + '</code></div>'
+        + '<div>Give this code to the person; it expires in 90 minutes. Any earlier code no longer works.</div>'
       : esc(error);
     document.getElementById('user-table-wrap').insertAdjacentHTML('beforebegin',
       '<div id="user-code-box" class="alert ' + (code ? 'alert-info' : 'alert-danger') + ' small" role="status">' + html + '</div>');

@@ -3,7 +3,7 @@ title: Account Onboarding and Password Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-07
+last_updated: 2026-11-16
 ---
 
 # Account Onboarding and Password Policy
@@ -135,9 +135,10 @@ email entry and requires the creator to enter and confirm the same mobile
 number using exactly ten digits. The server also checks the confirmation
 before creating the account; no placeholder email is required or generated.
 
-1. The creator saves the account. The page shows a **6-digit one-time
-   code** once; the creator gives it to the person in person or by phone.
-   It expires after 72 hours.
+1. The creator saves the account. The page shows a **one-time code** once
+   (8 capitals and digits, `XXXX-XXXX`, no 0 O 1 I L); the creator gives it to
+   the person in person or by phone. It expires after 90 minutes, so issue or
+   reissue it at the training session.
 2. The person opens the sign-in page (web or app), chooses "I have a code",
    enters their mobile number and the code, and ticks "I accept the terms
    of use" (required; redeeming records the acceptance, so the person can

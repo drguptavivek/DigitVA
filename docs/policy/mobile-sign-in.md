@@ -118,15 +118,20 @@ Owner decision: "ask to select a project rather than have a silent default".
 Owner decision 2026-10-03: mobile-only accounts never choose their own
 password. The server generates it, so every such password meets the
 hygiene rules by construction. There is no SMS provider; the data manager
-passes a short numeric code to the person instead.
+passes a short one-time code to the person instead.
 
 - **Issuing a code.** When a data manager, In-charge or admin creates a
   mobile-only account (on the web page, the project user import or as
   mentoring-institute staff), or later from the person's details panel --
   for an account without a verified email (mobile-only, or an email never
   verified; an admin may issue for any account, digitva-kmoy) -- the page
-  shows a **one-time numeric code** (6 digits) once. The issuer gives it to
-  the person in person or by phone. It expires after 72 hours, is stored
+  shows a **one-time code** once: 8 capitals and digits shown `XXXX-XXXX`,
+  without the look-alikes 0 O 1 I L, in a monospaced font, so it is never
+  mistaken for a numeric PIN (2026-11-16). It is accepted in any case, with
+  or without the dash or spaces; a 6-digit code issued before then still
+  redeems until it expires. The issuer gives it to
+  the person in person or by phone. It expires after 90 minutes (72 hours
+  before 2026-11-16), so issue it at the session, is stored
   only as a hash, and issuing a new one voids the old. Who may issue: an admin,
   or someone who may manage **every** active grant the person holds
   (`can_grant`); nobody but an admin issues a code for an admin, a project

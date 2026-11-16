@@ -152,10 +152,10 @@ sequenceDiagram
 
 1. Creator saves the account with a name, a 10-digit mobile no other
    account holds, languages, and no email. The same transaction issues a
-   6-digit sign-in code (`issue_code`); the create response carries it once
+   8-character `XXXX-XXXX` sign-in code (`issue_code`); the create response carries it once
    as `sign_in_code` (`Cache-Control: no-store`). No email is sent.
-2. The creator hands the code over in person or by phone. It is valid 72
-   hours, works once, and five wrong attempts void it.
+2. The creator hands the code over in person or by phone. It is valid 90
+   minutes, works once, and five wrong attempts void it.
 3. The person opens `/vaauth/valogin/code` ("I have a code"), enters the
    mobile number and code, ticks "I accept the terms of use above"
    (required), and solves the CAPTCHA.
@@ -173,7 +173,7 @@ sequenceDiagram
     participant S as DigitVA server
     actor P as Person
     Creator->>S: POST .../api/users {name, phone (10-digit), languages, no email}
-    S->>S: create_invited_user + issue_code (6 digits, 72 h, hash only)
+    S->>S: create_invited_user + issue_code (8 chars XXXX-XXXX, 90 min, hash only)
     S-->>Creator: 201 {user, sign_in_code} (no-store, shown once)
     Creator-->>P: code, in person or by phone
     P->>S: GET /vaauth/valogin/captcha-challenge (via page script)

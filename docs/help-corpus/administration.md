@@ -3,7 +3,7 @@ title: How-Do-I Corpus - Administration
 doc_type: help-corpus
 status: draft
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-16
 ---
 
 # How-Do-I Corpus - Administration
@@ -411,7 +411,7 @@ by anyone other than the person who owns the account.
   1. In the **Users** panel press the mobile-phone icon (**Issue sign-in code**) on the user's row. Data managers use **Issue sign-in code** in **Manage Users**.
   2. Give the code to the person privately.
   3. The person chooses "I have a code" on the sign-in page and then sees their password once.
-- notes: The code is shown only once and expires after 72 hours. It works for any account.
+- notes: The code is shown only once and expires after 90 minutes, so issue it at the session. It works for any account.
 - sources: `app/static/js/admin/users_panel.js`; `app/routes/admin.py` (`admin_issue_sign_in_code`); help page `dm-grants`
 - checked: 2026-11-06
 

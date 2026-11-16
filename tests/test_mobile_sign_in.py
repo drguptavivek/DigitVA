@@ -288,7 +288,7 @@ class RedeemCodeTests(MobileSignInTestBase):
     def test_redeem_shows_a_generated_password_once_and_it_signs_in(self):
         user = self._mobile_user(redeemed=False)
         code = self._issue(user)
-        self.assertRegex(code, r"^\d{6}$")
+        self.assertRegex(code, r"^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$")
         response = self._redeem(f"+91 {user.mobile_login}", code)
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Write this down. It will not be shown again.", response.data)
@@ -313,6 +313,24 @@ class RedeemCodeTests(MobileSignInTestBase):
             AuthSecurityEvent.user_id == user.user_id)))
         self.assertTrue({"mobile_code_issued", "mobile_code_redeemed"} <= events)
 
+    def test_code_is_typed_with_or_without_its_dash_and_old_six_digit_codes_still_redeem(self):
+        user = self._mobile_user(redeemed=False)
+        code = self._issue(user)
+        self.assertIsNotNone(mobile.redeem_code(user.mobile_login, f" {code.replace('-', ' ').lower()} "))
+        db.session.commit()
+        other = self._mobile_user(redeemed=False)
+        compact = self._issue(other).replace("-", "")
+        self.assertIsNotNone(mobile.redeem_code(other.mobile_login, compact))
+        db.session.commit()
+        # A 6-digit code issued before the change: its row holds the hash of the 6 digits.
+        legacy = self._mobile_user(redeemed=False)
+        self._issue(legacy)
+        db.session.execute(sa.update(AuthMobileCode).where(AuthMobileCode.user_id == legacy.user_id)
+                           .values(code_hash=mobile._code_hash(legacy.user_id, "123456")))
+        db.session.commit()
+        self.assertIsNotNone(mobile.redeem_code(legacy.mobile_login, "123456"))
+        db.session.commit()
+
     def test_redeem_ends_existing_sessions(self):
         user = self._mobile_user()
         self._login(user.get_id())
@@ -326,7 +344,7 @@ class RedeemCodeTests(MobileSignInTestBase):
     def test_wrong_number_and_wrong_code_get_the_same_answer(self):
         user = self._mobile_user()
         code = self._issue(user)
-        wrong = f"{(int(code) + 1) % 1_000_000:06d}"
+        wrong = ("B" if code[0] == "A" else "A") + code[1:]
         a = self._redeem(user.mobile_login, wrong)
         b = self._redeem(_number(), code)
         c = self._redeem("123", code)
@@ -343,11 +361,11 @@ class RedeemCodeTests(MobileSignInTestBase):
         db.session.commit()
         self.assertIsNone(mobile.redeem_code(user.mobile_login, code))
 
-    def test_code_lasts_72_hours(self):
+    def test_code_lasts_90_minutes(self):
         user = self._mobile_user()
         self._issue(user)
         row = db.session.scalar(sa.select(AuthMobileCode).where(AuthMobileCode.user_id == user.user_id))
-        self.assertEqual(row.expires_at - row.issued_at, timedelta(hours=72))
+        self.assertEqual(row.expires_at - row.issued_at, timedelta(minutes=90))
 
     def test_a_new_code_voids_the_old(self):
         user = self._mobile_user()
@@ -362,7 +380,7 @@ class RedeemCodeTests(MobileSignInTestBase):
     def test_five_wrong_codes_void_the_code(self):
         user = self._mobile_user()
         code = self._issue(user)
-        wrong = f"{(int(code) + 1) % 1_000_000:06d}"
+        wrong = ("B" if code[0] == "A" else "A") + code[1:]
         for _ in range(mobile.MAX_CODE_FAILURES):
             self.assertIsNone(mobile.redeem_code(user.mobile_login, wrong))
             db.session.commit()
@@ -450,7 +468,7 @@ class RedeemCodeTests(MobileSignInTestBase):
     def test_wrong_code_and_no_code_do_the_same_database_work(self):
         with_code = self._mobile_user()
         code = self._issue(with_code)
-        wrong = f"{(int(code) + 1) % 1_000_000:06d}"
+        wrong = ("B" if code[0] == "A" else "A") + code[1:]
         without_code = self._mobile_user()
         # Read the numbers first: touching an expired instance inside the
         # capture would add its own refresh SELECT.
@@ -571,7 +589,7 @@ class MobileCreatePathTests(AuthzFixtureMixin, MobileSignInTestBase):
             made = self._post("/data-management/api/users", self._dm_payload(phone=f"+91 {number}"))
         self.assertEqual(made.status_code, 201, made.get_json())
         body = made.get_json()
-        self.assertRegex(body["sign_in_code"], r"^\d{6}$")
+        self.assertRegex(body["sign_in_code"], r"^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$")
         self.assertTrue(body["user"]["mobile_only"])
         self.assertNotIn("sign_in_code", body["user"])
         dispatch.delay.assert_not_called()
@@ -617,7 +635,7 @@ class MobileCreatePathTests(AuthzFixtureMixin, MobileSignInTestBase):
                                                "phone_confirm": number,
                                                "languages": ["english"]})
         self.assertEqual(made.status_code, 201, made.get_json())
-        self.assertRegex(made.get_json()["sign_in_code"], r"^\d{6}$")
+        self.assertRegex(made.get_json()["sign_in_code"], r"^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$")
         user_id = made.get_json()["user"]["user_id"]
         url = f"/admin/api/users/{user_id}"
         held = self._mobile_user().mobile_login
@@ -657,7 +675,7 @@ class MobileCreatePathTests(AuthzFixtureMixin, MobileSignInTestBase):
         self._as("dm_c1")
         allowed = issue(inside)
         self.assertEqual(allowed.status_code, 200, allowed.get_json())
-        self.assertRegex(allowed.get_json()["sign_in_code"], r"^\d{6}$")
+        self.assertRegex(allowed.get_json()["sign_in_code"], r"^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$")
         self.assertEqual(issue(outside).status_code, 404)
         self._as("admin")
         self.assertEqual(issue(outside).status_code, 200)

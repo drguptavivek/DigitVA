@@ -414,7 +414,7 @@
       (data.invite_warnings || []).forEach(w => lines.push('WARNING: ' + w));
       if ((data.sign_in_codes || []).length) {
         // Shown once: give each person their code in person or by phone.
-        lines.push('Sign-in codes for new mobile-only accounts (shown once, valid 72 hours):');
+        lines.push('Sign-in codes for new mobile-only accounts (shown once, valid 90 minutes):');
         data.sign_in_codes.forEach(c => lines.push('Row ' + c.row + ': ' + c.name + ' (' + c.mobile + ') — ' + c.sign_in_code));
       }
     }

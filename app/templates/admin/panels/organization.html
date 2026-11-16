@@ -2411,13 +2411,14 @@
       codeLabel.className = 'mb-1';
       codeLabel.textContent = 'One-time mobile sign-in code:';
       var codeEl = document.createElement('code');
-      codeEl.className = 'fs-5 d-block mb-2';
+      codeEl.className = 'fs-5 d-block mb-2 font-monospace';
+      codeEl.style.letterSpacing = '.15em';
       codeEl.textContent = code;
       body.appendChild(codeLabel);
       body.appendChild(codeEl);
       var warning = document.createElement('p');
       warning.className = 'text-danger mb-0';
-      warning.textContent = 'Copy this code before closing. It will be shown only once and expires in 72 hours.';
+      warning.textContent = 'Copy this code before closing. It will be shown only once and expires in 90 minutes.';
       body.appendChild(warning);
       copy.classList.remove('d-none');
     }
@@ -3121,7 +3122,7 @@
         var codes = res.data.sign_in_codes || [];
         if (codes.length) {
           // Shown once: give each person their code in person or by phone.
-          lines.push('Sign-in codes for new mobile-only accounts (shown once, valid 72 hours):');
+          lines.push('Sign-in codes for new mobile-only accounts (shown once, valid 90 minutes):');
           codes.forEach(function (c) { lines.push('Row ' + c.row + ': ' + c.name + ' (' + c.mobile + ') — ' + c.sign_in_code); });
         }
       } else { lines.push('Preview only. No accounts or grants changed.'); }

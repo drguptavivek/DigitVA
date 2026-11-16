@@ -2,10 +2,10 @@
 Baseline: docs/policy/mobile-sign-in.md section 3 and
 docs/policy/account-onboarding-and-passwords.md.
 
-A data manager, In-charge or admin issues a 6-digit code for a person; the
+A data manager, In-charge or admin issues an 8-character code (capitals and digits, shown XXXX-XXXX) for a person; the
 person redeems it with their email or mobile number and gets a generated
 password, shown once. ``set_new_password`` is the one place any other path
-(email verification, reset link, Profile, CLI) generates a password. Codes are stored only as keyed hashes, expire after 72 hours,
+(email verification, reset link, Profile, CLI) generates a password. Codes are stored only as keyed hashes, expire after 90 minutes,
 are voided by a newer code or by five wrong attempts, and work once. Every
 issue, void, redemption and regeneration is audited in
 ``auth_security_events`` without the code, password or number.
@@ -16,6 +16,7 @@ Callers own authorization (``may_issue_code``) and the commit.
 from __future__ import annotations
 
 import hmac
+import re
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -42,7 +43,9 @@ from app.utils.password_policy import (
     password_breach_error_message,
 )
 
-CODE_TTL = timedelta(hours=72)
+CODE_TTL = timedelta(minutes=90)
+# Capitals and digits without the look-alikes 0 O 1 I L: read aloud or copied by hand without mistakes.
+CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 MAX_CODE_FAILURES = 5
 #: Breach-list hits before giving up; a hit is ~impossible for random words.
 _MAX_PASSWORD_DRAWS = 5
@@ -151,7 +154,7 @@ def _void_live_codes(user_id, now) -> int:
 
 
 def issue_code(user: VaUsers, *, actor_user_id) -> str:
-    """Issue a fresh 6-digit code for *user* (redeemed with their email or
+    """Issue a fresh 8-character code, shown as ``XXXX-XXXX``, for *user* (redeemed with their email or
     mobile number), voiding any live one, and return it in clear -- shown to
     the issuer once, never stored. Caller authorizes (``may_issue_code``:
     a verified-email account gets codes from an admin only) and commits.
@@ -172,7 +175,8 @@ def issue_code(user: VaUsers, *, actor_user_id) -> str:
             user_id=user.user_id, actor_user_id=actor_user_id,
             event_type="mobile_code_voided", detail={"reason": "reissued"},
         )
-    code = f"{secrets.randbelow(1_000_000):06d}"
+    # Eight characters, letters included, so it is never mistaken for a numeric PIN; the hash covers them without the dash.
+    code = "".join(secrets.choice(CODE_ALPHABET) for _ in range(8))
     db.session.add(AuthMobileCode(
         user_id=user.user_id,
         code_hash=_code_hash(user.user_id, code),
@@ -184,7 +188,19 @@ def issue_code(user: VaUsers, *, actor_user_id) -> str:
         user_id=user.user_id, actor_user_id=actor_user_id, event_type="mobile_code_issued",
     )
     db.session.flush()
-    return code
+    return f"{code[:4]}-{code[4:]}"
+
+
+def _typed_code(code: str | None) -> str:
+    """A typed code in capitals with its ``-`` and spaces removed, so
+    ``K7PQ-M3XR``, ``k7pq m3xr`` and ``K7PQM3XR`` match. A live 6-digit code
+    issued before the change still matches its hash."""
+    return re.sub(r"[\s-]", "", code or "").upper()
+
+
+def _well_formed(code: str) -> bool:
+    """A code of the current alphabet, or a 6-digit one issued before letters."""
+    return bool(code) and (code.isdigit() or all(c in CODE_ALPHABET for c in code))
 
 
 def _set_generated_password(user: VaUsers, password: str) -> None:
@@ -217,7 +233,7 @@ def redeem_code(identifier: str, code: str) -> tuple[VaUsers, str] | None:
         match = VaUsers.email == typed.lower()
     else:
         match = VaUsers.mobile_login == (canonical_mobile(typed) or "")
-    code = (code or "").strip()
+    code = _typed_code(code)
     now = datetime.now(UTC)
     # Every path runs the same three statements -- user lookup, locking read
     # of the live code, one counting write -- whether or not the number is
@@ -238,7 +254,7 @@ def redeem_code(identifier: str, code: str) -> tuple[VaUsers, str] | None:
     )
     candidate = _code_hash(user.user_id if user else "-", code)
     same = hmac.compare_digest(live.code_hash if live else candidate, candidate)
-    if not (live is not None and code.isdigit() and same):
+    if not (live is not None and _well_formed(code) and same):
         failures = db.session.execute(
             sa.update(AuthMobileCode)
             .where(AuthMobileCode.id == (live.id if live else _NO_ROW))

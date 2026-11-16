@@ -1,4 +1,4 @@
-import { acceptedServerOrigin, DEFAULT_RELEASE_SERVER, EnrolmentError, normalizeHttpsOrigin, parseEnrolmentQr, parseScannedQr } from "../src/enrolment";
+import { acceptedServerOrigin, DEFAULT_RELEASE_SERVER, EnrolmentError, manualServerAddress, normalizeHttpsOrigin, parseEnrolmentQr, parseScannedQr } from "../src/enrolment";
 
 const releaseOrigin = new URL(
   process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_RELEASE_SERVER
@@ -192,4 +192,12 @@ describe("parseScannedQr", () => {
       expect(String(caught) + JSON.stringify(caught)).not.toContain(TOKEN);
     }
   });
+});
+
+it("the manual form adds https:// to a typed host, and the server rule still decides", () => {
+  expect(manualServerAddress("  digitvav3.causeofdeathindia.com ")).toBe("https://digitvav3.causeofdeathindia.com");
+  expect(acceptedServerOrigin(manualServerAddress("digitvav3.causeofdeathindia.com"), false)).toBe("https://digitvav3.causeofdeathindia.com");
+  expect(manualServerAddress("http://digitva.causeofdeathindia.com")).toBe("http://digitva.causeofdeathindia.com");
+  expect(acceptedServerOrigin(manualServerAddress("evil.io"), false)).toBeNull();
+  expect(manualServerAddress("")).toBe("");
 });

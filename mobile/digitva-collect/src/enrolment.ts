@@ -78,6 +78,18 @@ export function normalizeHttpsOrigin(raw: string): string | null {
 /** EXPO_PUBLIC_API_BASE_URL, compiled in: one more exact origin a build accepts. */
 const compiledServer = normalizeHttpsOrigin(process.env.EXPO_PUBLIC_API_BASE_URL ?? "");
 
+/** What the manual sign-in form's Server address starts with: this build's server, so a field user need not type it. */
+export const defaultManualServer = compiledServer ?? "";
+
+/**
+ * The manual form's typed Server address, with `https://` added when no scheme was typed
+ * ("digitvav3.causeofdeathindia.com"). acceptedServerOrigin still decides; a QR's server is never passed through this.
+ */
+export function manualServerAddress(raw: string): string {
+  const typed = raw.trim();
+  return typed && !typed.includes("://") ? `https://${typed}` : typed;
+}
+
 /** https, default port, and every label of the host valid ASCII ending in ENROLMENT_DOMAIN. */
 function isDomainOrigin(url: URL): boolean {
   if (url.protocol !== "https:" || url.port !== "") return false;

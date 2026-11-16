@@ -130,6 +130,7 @@
   "errSignIn": "The email or password is incorrect.",
   "errMobile": "Enter a valid 10-digit mobile number starting with 6–9.",
   "termsRequired": "Please accept the terms before continuing.",
+  "errAccountNotActivated": "This account is not activated yet. Ask your data manager for a sign-in code and scan it, or open the link in your verification email.",
   "errNoGrant": "This account has no access to any project.",
   "errProjectIntakeOff": "Data collection is switched off for your project. Ask your project administrator.",
   "codingReviewPending": "This account has no active coding or review access.",

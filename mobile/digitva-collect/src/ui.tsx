@@ -889,6 +889,8 @@ export function errorText(error: unknown): string {
     if (error.code === "app_update_required") return t("errAppUpdateRequired");
     if (error.code === "forbidden" || error.code === "project_forbidden") return t("serverForbidden");
     if (error.code === "password_change_required" || error.code === "terms_required") return t("termsRequired");
+    // A mobile-only account until a sign-in code is redeemed, or an email not yet verified.
+    if (error.code === "email_unverified") return t("errAccountNotActivated");
     if (error.code === "no_interviewer_grant") return t("errNoGrant");
     if (error.code === "project_intake_off") return t("errProjectIntakeOff");
     if (error.code === "no_collection_access") return t("noCollectionAccess");

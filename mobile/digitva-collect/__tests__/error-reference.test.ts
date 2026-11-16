@@ -17,6 +17,7 @@ describe("errorText sign-in refusals", () => {
   it("names a project with collection switched off, and an unknown 403 stays generic", () => {
     expect(errorText(new ApiError(403, "project_intake_off"))).toBe(en.errProjectIntakeOff);
     expect(errorText(new ApiError(403, "no_interviewer_grant"))).toBe(en.errNoGrant);
+    expect(errorText(new ApiError(403, "email_unverified"))).toBe(en.errAccountNotActivated);
     expect(errorText(new ApiError(403, "some_future_code"))).toContain(en.errGeneric);
     expect(hi.errProjectIntakeOff).toBeTruthy();
   });

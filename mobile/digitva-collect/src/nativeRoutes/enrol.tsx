@@ -20,7 +20,7 @@ import { useAppState } from "../AppState";
 import { ApiError } from "../api";
 import { enrolDevice, passwordEnrolAndSignIn, redeemSignInQr, setDeviceHomeProject, type EnrolledAccount } from "../auth";
 import { DeviceLimitChoice, deviceLimitPhones, type LimitPhone } from "../DeviceLimitChoice";
-import { EnrolmentError, parseScannedQr, type ScannedQr } from "../enrolment";
+import { defaultManualServer, EnrolmentError, manualServerAddress, parseScannedQr, type ScannedQr } from "../enrolment";
 import { isPlusVariant } from "../appVariant";
 import { deviceFamilyLabel, offlineEnginePlatform } from "../platformFamily";
 import { t } from "../i18n";
@@ -47,7 +47,7 @@ export default function Enrol() {
   const [pending, setPending] = useState<ScannedQr>();
   /** Welcome menu, QR scanner or the server-and-password form; a scanned code shows Confirm server over any of them. */
   const [view, setView] = useState<"menu" | "scan" | "manual">("menu");
-  const [server, setServer] = useState("");
+  const [server, setServer] = useState(defaultManualServer);
   const [mode, setMode] = useState<"email" | "mobile">("email");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -101,7 +101,7 @@ export default function Enrol() {
         setError("login", t("errGeneric"));
         return;
       }
-      const enrolled = await passwordEnrolAndSignIn(server, submittedIdentifier, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION, replaceDeviceId);
+      const enrolled = await passwordEnrolAndSignIn(manualServerAddress(server), submittedIdentifier, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION, replaceDeviceId);
       setLimit(undefined);
       await reload();
       afterSignIn(enrolled);

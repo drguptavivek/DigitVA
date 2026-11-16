@@ -403,3 +403,12 @@ it("does not ask when exactly one project is eligible", async () => {
   expect(mockSetHome).not.toHaveBeenCalled();
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
 });
+
+it("the manual form sends a typed host as https", async () => {
+  mockPasswordEnrol.mockResolvedValueOnce({ account: { user_id: "u1", name: "Asha" }, projects: [] });
+  const tree = await render();
+  await fillManual(tree);
+  act(() => tree.root.findAllByType(TextInput).find((input) => input.props.accessibilityLabel === "enrolServerAddress")!.props.onChangeText("digitva.causeofdeathindia.com"));
+  await press(tree, "enrolManualSubmit");
+  expect(mockPasswordEnrol).toHaveBeenCalledWith(SERVER, "asha@example.org", "private-password", "Pixel", "1.0.0", undefined);
+});

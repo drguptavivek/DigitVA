@@ -597,36 +597,22 @@ def va_login_redeem_code():
             return render_template(
                 "va_frontpages/va_login_code.html", form=RedeemCodeForm(mobile=form.mobile.data)
             )
+        # The form required the terms box (onboarding policy 5.2), so the
+        # redemption records it and the person can use the app straight away.
         try:
-            result = mobile_sign_in_service.redeem_code(form.mobile.data, form.code.data)
+            password = mobile_sign_in_service.redeem_code_and_accept_terms(
+                form.mobile.data, form.code.data
+            )
         except mobile_sign_in_service.PasswordGenerationUnavailable as exc:
-            db.session.rollback()
             flash(exc.message, "warning")
             return render_template(
                 "va_frontpages/va_login_code.html", form=RedeemCodeForm(mobile=form.mobile.data)
             )
-        if result is not None:
-            # The form required the terms box (onboarding policy 5.2), so the
-            # person can use the app straight away.
-            accounts.accept_terms(result[0], via="sign_in_code")
-        db.session.commit()
-        if result is None:
+        if password is None:
             flash(INVALID_SIGN_IN_CODE_MESSAGE, "primary")
             return render_template(
                 "va_frontpages/va_login_code.html", form=RedeemCodeForm(mobile=form.mobile.data)
             )
-        user, password = result
-        if user.email:
-            # Security review: the address on file hears of the change
-            # (no password, no code). Non-critical, so never blocks the page.
-            try:
-                from app.services.email_service import send_code_redeemed_notice
-
-                send_code_redeemed_notice(user)
-            except Exception as exc:
-                current_app.logger.warning(
-                    "code redeemed notice failed | user_id=%s | %s", user.user_id, type(exc).__name__
-                )
         response = make_response(render_template(
             "va_frontpages/va_login_code_password.html", password=password
         ))

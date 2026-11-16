@@ -10,7 +10,9 @@ are voided by a newer code or by five wrong attempts, and work once. Every
 issue, void, redemption and regeneration is audited in
 ``auth_security_events`` without the code, password or number.
 
-Callers own authorization (``may_issue_code``) and the commit.
+Callers own authorization (``may_issue_code``) and the commit, except
+``redeem_code_and_accept_terms``, the whole redemption both "I have a code"
+paths (web page, ``POST /api/v1/auth/sign-in-code/redeem``) run, which commits.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import sqlalchemy as sa
+from flask import current_app
 
 from app import db
 from app.models import (
@@ -37,7 +40,7 @@ from app.models import (
 from app.services import authz
 from app.services.security_event_service import record_security_event
 from app.services.totp_service import keyed_hash
-from app.services.user_account_service import canonical_mobile
+from app.services.user_account_service import accept_terms, canonical_mobile
 from app.utils.password_policy import (
     BREACH_CHECK_UNAVAILABLE_MESSAGE,
     password_breach_error_message,
@@ -292,6 +295,41 @@ def redeem_code(identifier: str, code: str) -> tuple[VaUsers, str] | None:
         user_id=user.user_id, event_type="password_generated", detail={"path": "sign_in_code"},
     )
     return user, password
+
+
+def redeem_code_and_accept_terms(identifier: str, code: str) -> str | None:
+    """"I have a code" for the web page and the app endpoint: ``redeem_code``,
+    then record the terms acceptance the caller collected (onboarding policy
+    5.2), commit whatever the answer (a counted failure must persist) and
+    tell an email on file (no password, no code). Returns the generated
+    password to show once, or None for any mismatch.
+
+    Raises PasswordGenerationUnavailable after a rollback: nothing was read,
+    written or counted, so the caller answers "try again".
+    """
+    try:
+        result = redeem_code(identifier, code)
+    except PasswordGenerationUnavailable:
+        db.session.rollback()
+        raise
+    if result is not None:
+        accept_terms(result[0], via="sign_in_code")
+    db.session.commit()
+    if result is None:
+        return None
+    user, password = result
+    if user.email:
+        # Security review: the address on file hears of the change.
+        # Non-critical, so never blocks the redemption.
+        try:
+            from app.services.email_service import send_code_redeemed_notice
+
+            send_code_redeemed_notice(user)
+        except Exception as exc:
+            current_app.logger.warning(
+                "code redeemed notice failed | user_id=%s | %s", user.user_id, type(exc).__name__
+            )
+    return password
 
 
 def set_new_password(user: VaUsers, *, path: str, actor_user_id=None) -> str:

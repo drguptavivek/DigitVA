@@ -672,6 +672,23 @@ export async function passwordEnrolAndSignIn(
 }
 
 /**
+ * POST /sign-in-code/redeem ("I have a sign-in code", docs/policy/mobile-sign-in.md section 3): the server
+ * generates the account's password and returns it once; the caller shows it, then signs in with
+ * passwordEnrolAndSignIn. Same server rule as that call, checked before the code is sent. Throws ApiError
+ * (401 `invalid_code` for every mismatch). The code and password are never logged or stored.
+ */
+export async function redeemSignInCode(server: string, identifier: string, code: string): Promise<string> {
+  const origin = acceptedServerOrigin(server, __DEV__);
+  if (!origin || origin === DEMO_SERVER) throw new EnrolmentError("errServerNotAllowed");
+  const { body } = await requestJson<{ password?: unknown }>(origin, `${AUTH_API}/sign-in-code/redeem`, {
+    method: "POST",
+    body: { identifier: identifier.trim(), code, accept_terms: true },
+  });
+  if (typeof body?.password !== "string" || !body.password) throw new ApiError(200, "malformed_response");
+  return body.password;
+}
+
+/**
  * POST /sign-in-qr/redeem: one scan enrols this phone and opens the QR's user's
  * session, stored as enrolment plus password sign-in store them. The server
  * answers every failure with 404 `sign_in_qr_invalid`. The token is sent once

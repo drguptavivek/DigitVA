@@ -148,6 +148,31 @@ passes a short one-time code to the person instead.
   generates a new password and shows it **once**, on that screen only, with
   a prompt to write it down or save it. The code then stops working. After
   signing in, a web user may add a passkey from Profile.
+- **Redeeming it in the app (2026-11-16, `digitva-42y3`).** At the field
+  sign-in on 2026-11-16 people lost their way in the browser page and typed
+  the code into the app's password box. So the app's welcome screen offers
+  "I have a sign-in code" next to "Sign in with email or mobile": the same
+  server address, Email/Mobile identifier, the code (monospaced, capitals,
+  shown `XXXX-XXXX`) and the terms tick, which is required as on the web.
+  The app sends them to `POST /api/v1/auth/sign-in-code/redeem`, the same
+  redemption as the web page with the same answers, attempt counting,
+  notice email and terms record. On a match the app shows "Code accepted" and
+  the password **once**, in a monospaced font, with a reminder that it is
+  needed on a new phone or after signing out. "I have saved it" then signs
+  the phone in with that password itself (the manual sign-in, its project
+  choice and its device-limit chooser); nobody retypes it. The password is
+  held only on that screen: it is never stored and is dropped on success,
+  on Cancel and when the screen closes. If signing in fails (no network, too
+  many attempts) the screen stays so the person can try again without
+  losing the password. Redeeming and signing in are two calls, so a refused
+  sign-in never spends the code. If the manual form's Password box holds a
+  code (8 code characters, or 6 digits) and that sign-in is refused as a
+  wrong password, the app opens the code form with the server, identifier
+  and code carried over, asking only for the terms tick. Password sign-in is
+  tried first because a password set before generated passwords
+  ("Existing passwords keep working", account-onboarding-and-passwords.md
+  section 8) could have that shape. The app's sign-in screen on an already
+  enrolled phone still opens the web page.
 - **The generated password**: words and digits that are easy to read aloud
   and type on a phone keypad (for example three short words and a 4-digit
   number), at least 16 characters, from a cryptographic random source,
@@ -162,7 +187,10 @@ passes a short one-time code to the person instead.
   end.
 - **Guessing.** Code attempts are rate-limited per IP and per identifier;
   five wrong codes void the code (a new one must be issued). A wrong email
-  or number and a wrong code give the same answer.
+  or number and a wrong code give the same answer. The app endpoint's per-IP
+  limit is loose (200 a minute), because a training room of about 30 phones
+  shares one Wi-Fi address; the five-attempt void and 10 an hour per
+  identifier are the guess limits there.
 - **Audit** records who issued a code and when, and when it was redeemed,
   never the code or the password.
 

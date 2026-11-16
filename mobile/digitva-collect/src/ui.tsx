@@ -384,7 +384,8 @@ const CHEVRON_SLOT = 24;
 const ICON_TEXT_START = 56;
 /** Where a ChoiceRow's label starts: 16 padding + 22 ring + 12 gap. */
 const CHOICE_TEXT_START = spacing.md + 22 + spacing.sm;
-const monoFont = Platform.select({ ios: "Menlo", android: "monospace", default: "ui-monospace, Menlo, monospace" });
+/** Codes and generated passwords read character by character (sign-in code, "Code accepted"). */
+export const monoFont = Platform.select({ ios: "Menlo", android: "monospace", default: "ui-monospace, Menlo, monospace" });
 
 /**
  * A row of a grouped card: label, optional second line and trailing value; tappable when `onPress`. The chevron

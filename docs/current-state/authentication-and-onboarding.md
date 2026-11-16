@@ -158,7 +158,9 @@ sequenceDiagram
    minutes, works once, and five wrong attempts void it.
 3. The person opens `/vaauth/valogin/code` ("I have a code"), enters the
    mobile number and code, ticks "I accept the terms of use above"
-   (required), and solves the CAPTCHA.
+   (required), and solves the CAPTCHA. In the app the welcome screen's
+   "I have a sign-in code" does the same through
+   `POST /api/v1/auth/sign-in-code/redeem` (section 4.2a), with no browser.
 4. On a match the server generates a password, bumps the session version,
    sets `mobile_verified_at`, records the terms acceptance
    (`terms_accepted`, `via: sign_in_code`), and shows the password once on that response
@@ -613,6 +615,31 @@ mobile, or lower-cased email).
   and ignored.
 - The person then signs in normally (section 3) with the generated password or
   an available web passkey.
+
+### 4.2a Redeeming in the app: `POST /api/v1/auth/sign-in-code/redeem`
+
+`digitva-42y3`. JSON `{identifier, code, accept_terms}` on the native auth
+blueprint (CSRF-exempt like `/password-enroll`, in the authz exempt list).
+The web route and this one share
+`mobile_sign_in_service.redeem_code_and_accept_terms`: redeem, record terms
+(`via: sign_in_code`), commit on every answer, then send the notice to an
+email on file. `accept_terms` must be `true` (the web form requires the
+box); anything else is 400 `invalid_request` before the code is read or
+counted. No CAPTCHA: limits are 200 per minute per IP, loose because a
+training room of about 30 phones shares one Wi-Fi address, and 10 per hour
+per canonical identifier; the five-attempt void bounds guessing per code.
+Answers: 200 `{password}` (`Cache-Control: no-store`, `Pragma: no-cache`),
+401 `invalid_code` for every mismatch, 503 `breach_check_unavailable`
+(nothing counted), 404 on the public demo deployment.
+
+The app (`src/nativeRoutes/enrol.tsx`) shows "Code accepted" with the
+password once; "I have saved it" calls `/auth/password-enroll` with it,
+exactly as the manual form does (project choice, device-limit chooser). The
+password stays in that screen's React state only; it is dropped on success,
+Cancel and unmount, and kept on a failed sign-in so the person can retry. A
+code typed into the manual form's Password box is tried as a password first
+(a pre-policy password could have the shape); on 401 `invalid_credentials`
+the code form opens prefilled and asks for the terms tick.
 
 ## 5. Recovery and account links
 
@@ -1124,6 +1151,7 @@ the server's gate refuses. Every workflow API still checks scope.
 | POST `/vaauth/valogout` | form or `X-CSRFToken` | 302 `/` | default | n/a | none |
 | GET `/vaauth/site-maintenance-status` | none | 200 `{"maintenance": {...} or null}` | default | n/a | none |
 | GET/POST `/vaauth/valogin/code` | form: `mobile` (email or mobile), `code`, `accept_terms` (required), `captcha_*`, `csrf_token` | 200 password page (`no-store`, `Pragma: no-cache`); 200 form with flash | POST 10/min per IP; 10/hour per identifier | unknown identifier, inactive, no code, wrong code: one message; password generated before lookup | `mobile_code_redeemed`, `password_generated` (`sign_in_code`), `terms_accepted` (`sign_in_code`), `mobile_code_voided` (`too_many_attempts`) |
+| POST `/api/v1/auth/sign-in-code/redeem` | JSON `identifier`, `code`, `accept_terms` (must be `true`) | 200 `{password}` (`no-store`, `Pragma: no-cache`); 400 `invalid_request`; 401 `invalid_code`; 503 `breach_check_unavailable`; 404 on the public demo | 200/min per IP; 10/hour per identifier | same as the web route (shared service) | same as the web route |
 | GET/POST `/vaauth/signup` | flag on only (else 404); form: `username`, `password`, `confirm`, `accept_notice`, `captcha_*`, `csrf_token` | 302 `landing_url()` signed in; refusal: 200 form with flash | POST 10/min per IP (IPv6 per /64); `PUBLIC_DEMO_SIGNUP_RATE_LIMIT` (default 30/hour, 200/day) per IP and `PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT` (100/hour) demo-wide, counted on completed sign-ups | n/a (a taken username is said) | `account_created` (`self_signup`), `terms_accepted` (`web`), `web_sign_in` (`method: self_signup`) |
 | GET/POST `/vaauth/forgot-password` | form: `email` (email or mobile) | 302 back with flash | POST 3/hour per IP | one message per identifier kind | none |
 | GET/POST `/vaauth/reset-password/<token>` | form: `csrf_token` | GET page; POST 302 login; invalid: 200 page `token_valid=False`; CSRF fail: 400 | POST 5/min per IP | n/a | `password_generated` (`password_reset`) |
@@ -1248,7 +1276,7 @@ JSON:
 | 503 `{"error": ...}` | profile password generate | breach check or email unavailable |
 | 429 | anywhere | rate limit |
 | 403 + `Retry-After` | anywhere | temporary IP ban |
-| sign-in codes | `/api/v1/auth/*` | `invalid_request`, `payload_too_large`, `enrolment_invalid`, `device_invalid`, `device_revoked`, `invalid_credentials`, `email_unverified`, `terms_required`, `maintenance`, `no_interviewer_grant`, `project_intake_off`, `unauthorized`, `refresh_invalid`, `refresh_reused`, `refresh_retry_race`, `session_expired`, `session_ended`, `session_revoked` (sections 6.2 and 6.4) |
+| sign-in codes | `/api/v1/auth/*` | `invalid_request`, `payload_too_large`, `enrolment_invalid`, `device_invalid`, `device_revoked`, `invalid_credentials`, `invalid_code` (`/sign-in-code/redeem`), `email_unverified`, `terms_required`, `maintenance`, `no_interviewer_grant`, `project_intake_off`, `unauthorized`, `refresh_invalid`, `refresh_reused`, `refresh_retry_race`, `session_expired`, `session_ended`, `session_revoked` (sections 6.2 and 6.4) |
 | gate codes | every `/api/v1` route, `GET /api/v1/me/access` included | 401 `unauthorized`, 403 `terms_required` (+ `redirect_url` for a cookie), `maintenance` |
 
 ## 10. Things clients must never do
@@ -1259,11 +1287,12 @@ JSON:
 - Never assume `email` is non-null (`user.email` in token responses,
   `email` in `/api/v1/profile/`, user lists). Display the name; a mobile
   number is never shown partially: full to a viewer who may see it, else absent.
-- Never build a native code-redeem, forgot-password, reset or verify
-  screen that calls these endpoints directly. `/vaauth/valogin/code` and
-  the link pages are HTML forms with CSRF and CAPTCHA; open the server page
-  (browser or in-app browser). The show-once password exists only on that
-  server response.
+- Never build a native forgot-password, reset or verify screen that calls
+  these endpoints directly. The link pages and `/vaauth/valogin/code` are
+  HTML forms with CSRF and CAPTCHA; open the server page (browser or in-app
+  browser). The one native code-redeem path is
+  `POST /api/v1/auth/sign-in-code/redeem` (section 4.2a); its show-once
+  password lives only on that response and the app screen that shows it.
 - Never offer a "set password" or "change password" form; the server has no
   endpoint for it. Use Profile "Generate a new password" or the flows in
   section 5.

@@ -43,6 +43,7 @@ import {
   loadAccounts,
   NotInSlotError,
   passwordEnrolAndSignIn,
+  redeemSignInCode,
   redeemSignInQr,
   refreshAccessSummary,
   rememberTrainingProject,
@@ -1260,6 +1261,26 @@ describe("passwordEnrolAndSignIn", () => {
       .rejects.toMatchObject({ name: "NotInSlotError" });
     expect(calls).toHaveLength(0);
     expect([...mockSecure]).toEqual([["active_slot", "demo"]]);
+  });
+});
+
+describe("redeemSignInCode", () => {
+  it("posts the code with the terms accepted and returns the password, storing nothing", async () => {
+    mockServer(() => json(200, { password: "maple-otter-candle-4821" }));
+    expect(await redeemSignInCode(`${SERVER}/`, " +919876543210 ", "K7PQ-M3XR")).toBe("maple-otter-candle-4821");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(`${SERVER}/api/v1/auth/sign-in-code/redeem`);
+    expect(JSON.parse(calls[0].body!)).toEqual({ identifier: "+919876543210", code: "K7PQ-M3XR", accept_terms: true });
+    expect([...mockSecure.values()].some((value) => value.includes("maple-otter") || value.includes("K7PQ"))).toBe(false);
+  });
+
+  it("refuses the demo server and a disallowed server before the code is sent, and a reply without a password", async () => {
+    mockServer(() => json(200, {}));
+    for (const server of ["https://digitvademo.causeofdeathindia.com", "https://evil.example.com"]) {
+      await expect(redeemSignInCode(server, "asha@example.org", "K7PQ-M3XR")).rejects.toMatchObject({ key: "errServerNotAllowed" });
+    }
+    expect(calls).toHaveLength(0);
+    await expect(redeemSignInCode(SERVER, "asha@example.org", "K7PQ-M3XR")).rejects.toMatchObject({ code: "malformed_response" });
   });
 });
 

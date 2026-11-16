@@ -424,9 +424,26 @@ class PasswordEnrolTests(BaseTestCase):
         self.assertEqual(response.status_code, 201, response.get_json())
         self.assertEqual(response.get_json()["user"]["user_id"], str(self.user.user_id))
 
-    def test_rate_limited_per_ip(self):
-        statuses = [self._enrol(password="wrong").status_code for _ in range(11)]
-        self.assertEqual(statuses, [401] * 10 + [429])
+    def test_wrong_passwords_per_ip_have_their_own_budget(self):
+        # Different people, so only the per-IP failure budget applies (spraying).
+        statuses = [self._enrol(identifier=f"nobody{i}@example.org", password="wrong").status_code
+                    for i in range(61)]
+        self.assertEqual(statuses, [401] * 60 + [429])
+
+    def test_rate_limited_per_ip_for_all_requests(self):
+        # 400s do not count as refused credentials; 121 of anything is a flood.
+        statuses = [self.client.post(URL, json={"identifier": f"x{i}@example.org"}).status_code for i in range(121)]
+        self.assertEqual(statuses[:120].count(429), 0)
+        self.assertEqual(statuses[120], 429)
+
+    def test_a_training_room_on_one_address_is_not_throttled(self):
+        """30 phones on one Wi-Fi address, each with a typo then the right
+        password after redeeming a code (2026-11-16): nobody gets a 429."""
+        statuses = []
+        for i in range(30):
+            statuses.append(self._enrol(identifier=f"trainee{i}@example.org", password="wrong").status_code)
+            statuses.append(self._enrol(identifier=f"trainee{i}@example.org", password="wrong").status_code)
+        self.assertEqual(statuses.count(429), 0)
 
     def test_rate_limited_on_canonical_identifier_across_ips(self):
         self.user.mobile_login = "9876543210"

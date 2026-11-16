@@ -197,7 +197,10 @@ another person out.
 
 - The browser app signs in through the same server login pages and the
   session handoff in [expo-client.md](expo-client.md); "I have a code" and
-  the one-time password screen are the same server pages.
+  the one-time password screen are the same server pages. The native app's
+  welcome screen redeems a code in the app with the same server rules and
+  shows the password once there, then signs in with it
+  ([mobile-sign-in.md](mobile-sign-in.md) section 3, 2026-11-16).
 - The native app's interviewer sign-in (field-data-collection.md) uses the
   same identifier and password; device unlock by PIN or biometric is local
   and is not a password. A forgotten password follows section 6 and must

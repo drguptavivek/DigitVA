@@ -7,7 +7,9 @@
  * debug-build convenience for the emulator. Both enrol the Active slot. "Try the demo" switches to the
  * Demo slot (src/AppState.tsx switchSlot), opening src/nativeRoutes/demo.tsx to enrol on the public demo
  * server without a code when the phone has no demo enrolment yet. Manual server
- * and password enrolment opens the same Active account and unlock journey as a sign-in QR.
+ * and password enrolment opens the same Active account and unlock journey as a sign-in QR. "I have a sign-in code"
+ * redeems a data manager's code (POST /sign-in-code/redeem), shows the generated password once ("Code accepted"),
+ * then signs in with it through the same manual enrolment, so nobody retypes it (docs/policy/mobile-sign-in.md s.3).
  */
 import Constants from "expo-constants";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -18,18 +20,20 @@ import { Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import { ApiError } from "../api";
-import { enrolDevice, passwordEnrolAndSignIn, redeemSignInQr, setDeviceHomeProject, type EnrolledAccount } from "../auth";
+import { enrolDevice, passwordEnrolAndSignIn, redeemSignInCode, redeemSignInQr, setDeviceHomeProject, type EnrolledAccount } from "../auth";
 import { DeviceLimitChoice, deviceLimitPhones, type LimitPhone } from "../DeviceLimitChoice";
 import { defaultManualServer, EnrolmentError, manualServerAddress, parseScannedQr, type ScannedQr } from "../enrolment";
 import { isPlusVariant } from "../appVariant";
 import { deviceFamilyLabel, offlineEnginePlatform } from "../platformFamily";
 import { t } from "../i18n";
-import { mobileDigitsFromInput, normalizeMobileIdentifier } from "../nativeAuthLinks";
+import { formatSignInCode, looksLikeSignInCode, mobileDigitsFromInput, normalizeMobileIdentifier } from "../nativeAuthLinks";
 import { Icon, icons } from "../Icon";
 import { radius, spacing, useTheme } from "../theme";
-import { Button, Card, errorText, ListRow, Notice, PasswordInput, Screen, SegmentedControl, Separator, TextLink, useUiStyles } from "../ui";
+import { Button, Card, errorText, ListRow, monoFont, Notice, PasswordInput, Screen, SegmentedControl, Separator, TextLink, ThemedSwitch, useUiStyles } from "../ui";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "0.0.0";
+/** Where an error shows: the QR code (scan, paste, confirm), the login form, the demo button, the code form, Code accepted. */
+type ErrorAt = "code" | "login" | "demo" | "redeem" | "accepted";
 
 export default function Enrol() {
   const styles = useUiStyles();
@@ -38,25 +42,37 @@ export default function Enrol() {
   const { reload, switchSlot, lockNow, slot, standaloneAvailable } = useAppState();
   const [permission, requestPermission] = useCameraPermissions();
   const [pasted, setPasted] = useState("");
-  /** Each error shows next to the action that produced it: the code (scan, paste, confirm), the login form or the demo button. */
-  const [error, setErrorState] = useState<{ at: "code" | "login" | "demo"; text: string }>();
-  const setError = (at: "code" | "login" | "demo", text: string) => setErrorState(text ? { at, text } : undefined);
-  const errorAt = (at: "code" | "login" | "demo") =>
+  /** Each error shows next to the action that produced it. */
+  const [error, setErrorState] = useState<{ at: ErrorAt; text: string }>();
+  const setError = (at: ErrorAt, text: string) => setErrorState(text ? { at, text } : undefined);
+  const errorAt = (at: ErrorAt) =>
     error?.at === at ? <Notice tone="error">{error.text}</Notice> : null;
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<ScannedQr>();
-  /** Welcome menu, QR scanner or the server-and-password form; a scanned code shows Confirm server over any of them. */
-  const [view, setView] = useState<"menu" | "scan" | "manual">("menu");
+  /** Welcome menu, QR scanner, the server-and-password form or the sign-in code form; a scanned code shows Confirm
+   * server over any of them. */
+  const [view, setView] = useState<"menu" | "scan" | "manual" | "code">("menu");
   const [server, setServer] = useState(defaultManualServer);
   const [mode, setMode] = useState<"email" | "mobile">("email");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [signInCode, setSignInCode] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  /** The code form was opened by a code typed into the Password box: it says so. */
+  const [codeFromPassword, setCodeFromPassword] = useState(false);
+  /** A redeemed code's generated password, in this state only: shown once until it signs the phone in, Cancel or
+   * unmount; kept when that sign-in fails, so the person can retry without losing it. */
+  const [accepted, setAccepted] = useState<{ server: string; identifier: string; password: string }>();
   const busyRef = useRef(false);
   /** Signed in with more than one eligible project: the owner's rule is to ask, never pick silently (mobile-sign-in.md). */
   const [choice, setChoice] = useState<EnrolledAccount>();
   /** After a `409 device_limit`: the account's phones, and the refused sign-in to retry with the one picked. */
   const [limit, setLimit] = useState<{ phones: LimitPhone[]; retry: (replaceDeviceId: string) => void; cancel: () => void }>();
-  useEffect(() => () => setPassword(""), []);
+  useEffect(() => () => {
+    setPassword("");
+    setSignInCode("");
+    setAccepted(undefined);
+  }, []);
 
   /** Go on to PIN setup, or first ask for the home project when there is more than one. */
   function afterSignIn(enrolled: EnrolledAccount) {
@@ -82,38 +98,105 @@ export default function Enrol() {
     }
   }
 
-  /** Lock local work before enrolling; credentials stay in this form only and are cleared after every attempt,
-   * except while the device-limit choice is open for its retry (cleared on its Cancel or the retry's end). */
+  const typedIdentifier = () => mode === "mobile" ? normalizeMobileIdentifier(identifier) : identifier.trim();
+  const loginError = (caught: unknown) => caught instanceof EnrolmentError ? t(caught.key)
+    : caught instanceof ApiError && caught.status === 404 ? t("errPasswordEnrolUnsupported") : errorText(caught);
+
+  /** Lock every store, then enrol and sign in with a password (the manual form's or a redeemed code's). "limit": a
+   * 409 device_limit opened the chooser, whose pick calls `retry` and Cancel `cancel`. Any other refusal throws. */
+  async function enrolAndSignIn(serverAddress: string, submittedIdentifier: string, secret: string, replaceDeviceId: string | undefined,
+    retry: (replaceDeviceId: string) => void, cancel: () => void): Promise<"signed_in" | "limit" | "not_locked"> {
+    if (!(await lockNow())) return "not_locked";
+    try {
+      const enrolled = await passwordEnrolAndSignIn(serverAddress, submittedIdentifier, secret, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION, replaceDeviceId);
+      setLimit(undefined);
+      await reload();
+      afterSignIn(enrolled);
+      return "signed_in";
+    } catch (caught) {
+      const phones = deviceLimitPhones(caught);
+      setLimit(phones && { phones, retry, cancel });
+      if (phones) return "limit";
+      throw caught;
+    }
+  }
+
+  /** Credentials stay in this form only and are cleared after every attempt, except while the device-limit choice
+   * is open for its retry (cleared on its Cancel or the retry's end). */
   async function submitPassword(replaceDeviceId?: string) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError("login", "");
-    // Kept only while the device-limit choice is open, for its retry; cleared on its Cancel.
     let keepPassword = false;
     try {
-      const submittedIdentifier = mode === "mobile" ? normalizeMobileIdentifier(identifier) : identifier.trim();
+      const submittedIdentifier = typedIdentifier();
       if (!submittedIdentifier) {
         setError("login", t("errMobile"));
         return;
       }
-      if (!(await lockNow())) {
-        setError("login", t("errGeneric"));
+      const outcome = await enrolAndSignIn(manualServerAddress(server), submittedIdentifier, password, replaceDeviceId,
+        (id) => void submitPassword(id), () => setPassword(""));
+      keepPassword = outcome === "limit";
+      if (outcome === "not_locked") setError("login", t("errGeneric"));
+    } catch (caught) {
+      // Field sign-in 2026-11-16: people typed their sign-in code here. A refused password with a code's shape
+      // opens the code form with it. The password goes first: one set before generated passwords may look alike.
+      if (caught instanceof ApiError && caught.code === "invalid_credentials" && looksLikeSignInCode(password)) {
+        setSignInCode(formatSignInCode(password));
+        setCodeFromPassword(true);
+        setView("code");
         return;
       }
-      const enrolled = await passwordEnrolAndSignIn(manualServerAddress(server), submittedIdentifier, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION, replaceDeviceId);
-      setLimit(undefined);
-      await reload();
-      afterSignIn(enrolled);
-    } catch (caught) {
-      const phones = deviceLimitPhones(caught);
-      keepPassword = !!phones;
-      setLimit(phones && { phones, retry: (id) => void submitPassword(id), cancel: () => setPassword("") });
-      if (phones) return;
-      setError("login", caught instanceof EnrolmentError ? t(caught.key)
-        : caught instanceof ApiError && caught.status === 404 ? t("errPasswordEnrolUnsupported") : errorText(caught));
+      setError("login", loginError(caught));
     } finally {
       if (!keepPassword) setPassword("");
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  /** Redeem the code; nothing is stored, and the code is kept on a refusal so a typo can be fixed. */
+  async function submitCode() {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError("redeem", "");
+    try {
+      const submittedIdentifier = typedIdentifier();
+      if (!submittedIdentifier) {
+        setError("redeem", t("errMobile"));
+        return;
+      }
+      const serverAddress = manualServerAddress(server);
+      const generated = await redeemSignInCode(serverAddress, submittedIdentifier, signInCode);
+      setSignInCode("");
+      setAcceptTerms(false);
+      setCodeFromPassword(false);
+      setAccepted({ server: serverAddress, identifier: submittedIdentifier, password: generated });
+    } catch (caught) {
+      setError("redeem", caught instanceof ApiError && caught.code === "invalid_code" ? t("errSignInCodeInvalid")
+        : caught instanceof ApiError && caught.status === 404 ? t("errSignInCodeUnsupported") : loginError(caught));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+
+  /** "I have saved it": sign in with the generated password, exactly as the manual form does. */
+  async function continueWithCode(replaceDeviceId?: string) {
+    if (!accepted || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError("accepted", "");
+    try {
+      const outcome = await enrolAndSignIn(accepted.server, accepted.identifier, accepted.password, replaceDeviceId,
+        (id) => void continueWithCode(id), () => undefined);
+      if (outcome === "signed_in") setAccepted(undefined);
+      if (outcome === "not_locked") setError("accepted", t("errGeneric"));
+    } catch (caught) {
+      setError("accepted", loginError(caught));
+    } finally {
       busyRef.current = false;
       setBusy(false);
     }
@@ -277,44 +360,96 @@ export default function Enrol() {
     );
   }
 
+  // Server address and the Email/Mobile identifier: the manual form's and the code form's.
+  const accountFields = (
+    <>
+      <Text style={styles.muted}>{t("enrolServerAddress")}</Text>
+      <TextInput
+        accessibilityLabel={t("enrolServerAddress")}
+        style={styles.input}
+        autoCapitalize="none"
+        autoCorrect={false}
+        spellCheck={false}
+        keyboardType="url"
+        editable={!busy}
+        value={server}
+        onChangeText={setServer}
+      />
+      <SegmentedControl
+        accessibilityLabel={t("signInIdentifierType")}
+        options={(["email", "mobile"] as const).map((option) => ({ value: option, label: t(option) }))}
+        value={mode}
+        disabled={busy}
+        onChange={(option) => { setMode(option); setIdentifier(""); setErrorState(undefined); }}
+      />
+      <Text style={styles.muted}>{t(mode)}</Text>
+      {mode === "mobile" ? (
+        <View style={styles.phoneInputRow}>
+          <Text style={styles.phonePrefix} accessibilityLabel={t("countryCodeIndia")}>+91</Text>
+          <TextInput accessibilityLabel={t("mobile")} style={[styles.input, styles.phoneInput]} autoComplete="tel"
+            keyboardType="phone-pad" editable={!busy} value={identifier}
+            onChangeText={(value) => setIdentifier(mobileDigitsFromInput(value))} />
+        </View>
+      ) : (
+        <TextInput accessibilityLabel={t("email")} style={styles.input} autoCapitalize="none" autoCorrect={false}
+          autoComplete="username" editable={!busy} value={identifier} onChangeText={setIdentifier} />
+      )}
+    </>
+  );
+  const identifierReady = !!server.trim() && !!identifier.trim() && (mode !== "mobile" || !!normalizeMobileIdentifier(identifier));
+
+  // Code accepted: the generated password once, then "I have saved it" signs in with it.
+  if (accepted) {
+    return (
+      <Screen title={t("enrolCodeAccepted")}>
+        <Text style={styles.text}>{t("signInCodePasswordIntro")}</Text>
+        <Card>
+          <Text selectable style={[styles.headline, { fontFamily: monoFont, textAlign: "center", paddingVertical: spacing.sm }]}>
+            {accepted.password}
+          </Text>
+        </Card>
+        <Notice tone="warning">{t("signInCodePasswordKeep")}</Notice>
+        <Button label={t("signInCodeSaved")} loading={busy} disabled={busy} onPress={() => void continueWithCode()} />
+        {errorAt("accepted")}
+        <TextLink label={t("cancel")} disabled={busy} onPress={() => { setAccepted(undefined); setView("menu"); setErrorState(undefined); }} />
+      </Screen>
+    );
+  }
+
+  if (view === "code") {
+    return (
+      <Screen title={t("redeemCode")}>
+        {codeFromPassword ? <Notice tone="info">{t("signInCodeFromPassword")}</Notice> : <Text style={styles.muted}>{t("signInCodeIntro")}</Text>}
+        {accountFields}
+        <Text style={styles.muted}>{t("signInCodeLabel")}</Text>
+        <TextInput accessibilityLabel={t("signInCodeLabel")} style={[styles.input, { fontFamily: monoFont }]} autoCapitalize="characters"
+          autoCorrect={false} spellCheck={false} autoComplete="off" placeholder="XXXX-XXXX" editable={!busy} value={signInCode}
+          onChangeText={(value) => setSignInCode(formatSignInCode(value))} />
+        <Text style={styles.muted}>{t("termsConfidential")} {t("termsNoSharing")} {t("termsPurpose")}</Text>
+        <Card grouped>
+          <ListRow label={t("acceptTerms")} trailing={
+            <ThemedSwitch accessibilityLabel={t("acceptTerms")} value={acceptTerms} disabled={busy} onValueChange={setAcceptTerms} />
+          } />
+        </Card>
+        <Button label={t("signInCodeSubmit")} loading={busy}
+          disabled={busy || !identifierReady || !looksLikeSignInCode(signInCode) || !acceptTerms}
+          onPress={() => void submitCode()} />
+        {errorAt("redeem")}
+        <TextLink label={t("cancel")} disabled={busy} onPress={() => {
+          setView("menu"); setSignInCode(""); setAcceptTerms(false); setCodeFromPassword(false); setErrorState(undefined);
+        }} />
+      </Screen>
+    );
+  }
+
   if (view === "manual") {
     return (
       <Screen title={t("welcomeManualTitle")}>
-        <Text style={styles.muted}>{t("enrolServerAddress")}</Text>
-        <TextInput
-          accessibilityLabel={t("enrolServerAddress")}
-          style={styles.input}
-          autoCapitalize="none"
-          autoCorrect={false}
-          spellCheck={false}
-          keyboardType="url"
-          editable={!busy}
-          value={server}
-          onChangeText={setServer}
-        />
-        <SegmentedControl
-          accessibilityLabel={t("signInIdentifierType")}
-          options={(["email", "mobile"] as const).map((option) => ({ value: option, label: t(option) }))}
-          value={mode}
-          disabled={busy}
-          onChange={(option) => { setMode(option); setIdentifier(""); setError("login", ""); }}
-        />
-        <Text style={styles.muted}>{t(mode)}</Text>
-        {mode === "mobile" ? (
-          <View style={styles.phoneInputRow}>
-            <Text style={styles.phonePrefix} accessibilityLabel={t("countryCodeIndia")}>+91</Text>
-            <TextInput accessibilityLabel={t("mobile")} style={[styles.input, styles.phoneInput]} autoComplete="tel"
-              keyboardType="phone-pad" editable={!busy} value={identifier}
-              onChangeText={(value) => setIdentifier(mobileDigitsFromInput(value))} />
-          </View>
-        ) : (
-          <TextInput accessibilityLabel={t("email")} style={styles.input} autoCapitalize="none" autoCorrect={false}
-            autoComplete="username" editable={!busy} value={identifier} onChangeText={setIdentifier} />
-        )}
+        {accountFields}
         <Text style={styles.muted}>{t("password")}</Text>
         <PasswordInput accessibilityLabel={t("password")} autoComplete="current-password" editable={!busy} value={password} onChangeText={setPassword} />
         <Button label={t("enrolManualSubmit")} loading={busy}
-          disabled={busy || !server.trim() || !identifier.trim() || !password || (mode === "mobile" && !normalizeMobileIdentifier(identifier))}
+          disabled={busy || !identifierReady || !password}
           onPress={() => void submitPassword()} />
         {errorAt("login")}
         <TextLink label={t("cancel")} disabled={busy} onPress={() => { setView("menu"); setPassword(""); setError("login", ""); }} />
@@ -333,6 +468,9 @@ export default function Enrol() {
           <>
             <Separator />
             <ListRow icon={icons.atSign} label={t("welcomeManualTitle")} secondary={t("welcomeManualHint")} disabled={busy} onPress={() => setView("manual")} />
+            <Separator />
+            <ListRow icon={icons.lock} label={t("redeemCode")} secondary={t("signInCodeHint")} disabled={busy}
+              onPress={() => { setCodeFromPassword(false); setView("code"); }} />
           </>
         )}
       </Card>

@@ -155,6 +155,11 @@ PUBLIC_ENDPOINTS = {
     "api_v1.auth_api.password_enroll": "Native device enrol and sign-in: authenticates "
                                      "(email/mobile and password), checks native access "
                                      "and the device cap; rate-limited (mobile-sign-in.md).",
+    "api_v1.auth_api.redeem_sign_in_code": "App sign-in code redemption (mobile-sign-in.md "
+                                         "section 3): authenticates (one-time hashed code, "
+                                         "five attempts), does not authorize; the generated "
+                                         "password then goes through password_enroll; "
+                                         "rate-limited per IP and identifier.",
     "api_v1.auth_api.refresh_session": "Device session refresh: authenticates (live "
                                      "refresh token, reuse revokes), does not authorize.",
     "api_v1.auth_api.record_profile_deletion": "Phone reports deleting one profile "

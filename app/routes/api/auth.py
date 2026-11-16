@@ -28,7 +28,7 @@ from app.routes.api.request_helpers import error as _error
 from app.routes.api.request_helpers import parse_body
 from app.services import device_auth_service as devices
 from app.services import device_signing_service as signing
-from app.services import email_service, public_demo_service
+from app.services import email_service, mobile_sign_in_service, public_demo_service
 from app.services import sign_in_qr_service as sign_in_qr
 from app.services.access_summary_service import build_access_summary
 from app.services.pow_captcha_service import issue_challenge, verify_challenge
@@ -179,8 +179,22 @@ def open_session():
     return jsonify(_session_body(issued, user)), 201
 
 
+def _refused_credentials(response) -> bool:
+    """A refused password (401), counted against the failure-only limits."""
+    return response.status_code == 401
+
+
+def _wrong_code(response) -> bool:
+    """A sign-in code that did not match (401 invalid_code)."""
+    return response.status_code == 401
+
+
 @bp.post("/password-enroll")
-@limiter.limit("10 per minute")
+# A training room of ~30 phones shares one address (field sign-in 2026-11-16),
+# so per IP all requests are only a flood guard; wrong passwords have their own
+# tighter per-IP budget against spraying one password across many accounts.
+@limiter.limit("120 per minute")
+@limiter.limit("60 per 10 minutes", deduct_when=_refused_credentials)
 @limiter.limit("20 per hour", key_func=_body_key("identifier"))
 def password_enroll():
     """Enrol and sign in with an email/mobile identifier and password.
@@ -212,6 +226,52 @@ def password_enroll():
     }
     db.session.commit()
     return jsonify(body), 201
+
+
+@bp.post("/sign-in-code/redeem")
+# Per IP loose on purpose: a training room of ~30 phones shares one Wi-Fi
+# address (field sign-in 2026-11-16). The five-attempt void per code and the
+# per-identifier hour are the guess limits (docs/policy/mobile-sign-in.md s.3).
+@limiter.limit("200 per minute")
+# Wrong codes only: bounds guessing and the breach check each request makes
+# before the code is read, without throttling a room's successful redeems.
+@limiter.limit("100 per 10 minutes", deduct_when=_wrong_code)
+# Mismatches only, so a stranger cannot keep a trainee locked out with 400s,
+# and a correct code is never refused for someone else's typos.
+@limiter.limit("10 per hour", key_func=_body_key("identifier"), deduct_when=_wrong_code)
+def redeem_sign_in_code():
+    """"I have a sign-in code" in the app (docs/policy/mobile-sign-in.md
+    section 3): ``{identifier, code, accept_terms}``, the web page's
+    redemption (``redeem_code_and_accept_terms``) without its CAPTCHA.
+    ``accept_terms`` must be ``true``, as the web form requires the box;
+    otherwise, or for a missing or oversized field, 400 ``invalid_request``
+    before anything is read or counted. 200 ``{password}`` once, no-store;
+    the app then signs in through ``/password-enroll``. Every mismatch is one
+    401 ``invalid_code``; a breach-check outage is 503
+    ``breach_check_unavailable`` with nothing counted. 404 on the public-demo
+    deployment, which has no password enrolment.
+    """
+    if public_demo_service.enabled():
+        abort(404)
+    p = _body()
+    identifier, code = p.get("identifier"), p.get("code")
+    bad = [name for name, value, cap in (("identifier", identifier, 128), ("code", code, 32))
+           if not isinstance(value, str) or not value.strip() or len(value) > cap]
+    if p.get("accept_terms") is not True:
+        bad.append("accept_terms")
+    if bad:
+        return _error("Enter your email or mobile number and code, and accept the terms.",
+                      "invalid_request", 400, fields=bad)
+    try:
+        password = mobile_sign_in_service.redeem_code_and_accept_terms(identifier, code)
+    except mobile_sign_in_service.PasswordGenerationUnavailable as exc:
+        return _error(exc.message, "breach_check_unavailable", 503)
+    if password is None:
+        return _error("That email or mobile number and code do not match.", "invalid_code", 401)
+    response = jsonify({"password": password})
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return response, 200
 
 
 @bp.post("/sign-in-qr/redeem")

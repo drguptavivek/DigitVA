@@ -36,3 +36,21 @@ export function normalizeMobileIdentifier(value: string): string | undefined {
   const digits = mobileDigitsFromInput(value);
   return /^[6-9]\d{9}$/.test(digits) ? `+91${digits}` : undefined;
 }
+
+/** Sign-in code characters: capitals and digits without 0 O 1 I L (app/services/mobile_sign_in_service.py CODE_ALPHABET). */
+const CODE_CHARS = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}$/;
+
+/**
+ * Whether a typed value has a sign-in code's shape, read as the server reads it (`_typed_code`: spaces and `-`
+ * dropped, any case): 8 code characters (`K7PQ-M3XR`), or 6 digits issued before 2026-11-16.
+ */
+export function looksLikeSignInCode(value: string): boolean {
+  const typed = value.replace(/[\s-]/g, "").toUpperCase();
+  return CODE_CHARS.test(typed) || /^\d{6}$/.test(typed);
+}
+
+/** The code field as the person types: capitals, at most 8 characters, a `-` after the fourth (`K7PQ-M3XR`). */
+export function formatSignInCode(value: string): string {
+  const typed = value.replace(/[\s-]/g, "").toUpperCase().slice(0, 8);
+  return typed.length > 4 ? `${typed.slice(0, 4)}-${typed.slice(4)}` : typed;
+}

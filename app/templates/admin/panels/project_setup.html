@@ -161,18 +161,24 @@
           </div>
         </div>
 
-        {# Inline Site Coding Gates table #}
+        {# Site gates: data collection and coding, one card each (they gate different people). #}
         <div class="card mb-3">
           <div class="card-body small">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-              <div>
-                <h6 class="card-title mb-0"><i class="fa-solid fa-gauge-high me-1 text-primary"></i>Site Coding Gates (Enable / Pause Coding, Date Windows &amp; Daily Coder Limits)</h6>
-                <div class="text-muted">Control whether coders can assign causes of death on each project site, set active coding date windows, and cap daily forms per coder.{% if is_org %} Per-unit coding gates can further narrow subtrees inside <a href="#" data-jump-section="structure" data-jump-org-tab="units">Units</a>.{% endif %}</div>
-              </div>
+            <h6 class="card-title mb-0"><i class="fa-solid fa-clipboard-list me-1 text-primary"></i>Data collection by site</h6>
+            <div class="text-muted mb-2">Whether interviewers can register deaths and fill interviews on each site, between which dates, and how many per interviewer per day. Blank dates and limit mean no restriction.</div>
+            <div id="setup-collection-gates-msg" class="small mb-2" role="status"></div>
+            <div id="setup-collection-gates-wrap" class="table-responsive">
+              <div class="text-muted small py-1">Loading…</div>
             </div>
+          </div>
+        </div>
+        <div class="card mb-3">
+          <div class="card-body small">
+            <h6 class="card-title mb-0"><i class="fa-solid fa-gauge-high me-1 text-primary"></i>Coding by site</h6>
+            <div class="text-muted mb-2">Whether coders can assign causes of death on each site, between which dates, and how many forms per coder per day. Blank dates and limit mean no restriction.{% if is_org %} Per-unit coding gates can narrow this further in <a href="#" data-jump-section="structure" data-jump-org-tab="units">Units</a>.{% endif %}</div>
             <div id="setup-site-gates-msg" class="small mb-2" role="status"></div>
             <div id="setup-site-gates-wrap" class="table-responsive">
-              <div class="text-muted small py-1">Loading site coding gates…</div>
+              <div class="text-muted small py-1">Loading…</div>
             </div>
           </div>
         </div>
@@ -933,40 +939,40 @@
 
   function renderSiteGatesTable(sites) {
     var wrap = document.getElementById('setup-site-gates-wrap');
-    if (!wrap) return;
+    var cwrap = document.getElementById('setup-collection-gates-wrap');
+    if (!wrap || !cwrap) return;
     if (!sites || !sites.length) {
-      wrap.innerHTML = '<div class="text-muted small py-1">No sites attached to this project yet. Add one in <a href="#" data-jump-section="structure" data-jump-to="panel-project-sites">Structure &rarr; Project Sites</a>.</div>';
+      wrap.innerHTML = cwrap.innerHTML = '<div class="text-muted small py-1">No sites attached to this project yet. Add one in <a href="#" data-jump-section="structure" data-jump-to="panel-project-sites">Structure &rarr; Project Sites</a>.</div>';
       return;
     }
-    var rows = sites.map(function (s) {
+    // Both tables keep their sc-/sg- class prefixes and row attributes for the save handlers below.
+    function gateTable(limitHeader, rowFor) {
+      return '<table class="table table-sm table-bordered align-middle mb-0" style="min-width:720px;">'
+        + '<thead class="table-light"><tr><th>Site</th><th>Status</th><th>Start date</th><th>End date</th><th>' + limitHeader + '</th><th></th></tr></thead>'
+        + '<tbody>' + sites.map(rowFor).join('') + '</tbody></table>';
+    }
+    function gateRow(s, g) {
       var sid = esc(s.site_id);
-      return '<tr data-site-row="' + sid + '">'
+      return '<tr ' + g.attr + '="' + sid + '">'
         + '<td><code>' + sid + '</code> <span class="text-muted">' + esc(s.site_name || '') + '</span></td>'
-        + '<td style="width:130px;"><select class="form-select form-select-sm sg-enabled">'
-        + '<option value="true"' + (s.coding_enabled ? ' selected' : '') + '>Enabled</option>'
-        + '<option value="false"' + (!s.coding_enabled ? ' selected' : '') + '>Paused / Off</option>'
+        + '<td style="width:140px;"><select aria-label="Status" style="min-width:7.5rem;" class="form-select form-select-sm ' + g.p + '-enabled">'
+        + '<option value="true"' + (g.on ? ' selected' : '') + '>Enabled</option>'
+        + '<option value="false"' + (!g.on ? ' selected' : '') + '>Paused</option>'
         + '</select></td>'
-        + '<td style="width:155px;"><input type="date" class="form-control form-control-sm sg-start" value="' + esc(s.coding_start_date || '') + '"></td>'
-        + '<td style="width:155px;"><input type="date" class="form-control form-control-sm sg-end" value="' + esc(s.coding_end_date || '') + '"></td>'
-        + '<td style="width:130px;"><input type="number" min="1" class="form-control form-control-sm sg-limit" value="' + (s.daily_coder_limit != null ? esc(s.daily_coder_limit) : '') + '" placeholder="No cap"></td>'
-        + '<td class="text-end" style="width:100px;"><button type="button" class="btn btn-sm btn-outline-success py-0 px-2 sg-save-btn" data-site-id="' + sid + '"><i class="fa-solid fa-check me-1"></i>Save</button></td>'
-        + '</tr>'
-        + '<tr data-site-collection-row="' + sid + '">'
-        + '<td class="text-muted small">Data Collection &mdash; <code>' + sid + '</code></td>'
-        + '<td style="width:130px;"><label class="visually-hidden">Collection</label><select class="form-select form-select-sm sc-enabled">'
-        + '<option value="true"' + (s.collection_enabled !== false ? ' selected' : '') + '>Enabled</option>'
-        + '<option value="false"' + (s.collection_enabled === false ? ' selected' : '') + '>Paused</option>'
-        + '</select></td>'
-        + '<td style="width:155px;"><input type="date" aria-label="Start Date" class="form-control form-control-sm sc-start" value="' + esc(s.collection_start_date || '') + '"></td>'
-        + '<td style="width:155px;"><input type="date" aria-label="End Date" class="form-control form-control-sm sc-end" value="' + esc(s.collection_end_date || '') + '"></td>'
-        + '<td style="width:130px;"><input type="number" min="1" aria-label="Daily Interviewer Limit" class="form-control form-control-sm sc-limit" value="' + (s.daily_interviewer_limit != null ? esc(s.daily_interviewer_limit) : '') + '" placeholder="No limit"></td>'
-        + '<td class="text-end" style="width:100px;"><button type="button" class="btn btn-sm btn-outline-success py-0 px-2 sc-save-btn" data-site-id="' + sid + '"><i class="fa-solid fa-check me-1"></i>Save</button></td>'
+        + '<td style="width:155px;"><input type="date" aria-label="Start date" style="min-width:9rem;" class="form-control form-control-sm ' + g.p + '-start" value="' + esc(g.start || '') + '"></td>'
+        + '<td style="width:155px;"><input type="date" aria-label="End date" style="min-width:9rem;" class="form-control form-control-sm ' + g.p + '-end" value="' + esc(g.end || '') + '"></td>'
+        + '<td style="width:130px;"><input type="number" min="1" aria-label="Daily limit" style="min-width:6rem;" class="form-control form-control-sm ' + g.p + '-limit" value="' + (g.limit != null ? esc(g.limit) : '') + '" placeholder="No limit"></td>'
+        + '<td class="text-end" style="width:100px;"><button type="button" class="btn btn-sm btn-outline-success py-0 px-2 ' + g.p + '-save-btn" data-site-id="' + sid + '"><i class="fa-solid fa-check me-1"></i>Save</button></td>'
         + '</tr>';
-    }).join('');
-    wrap.innerHTML = '<table class="table table-sm table-bordered align-middle mb-0" style="min-width:820px;">'
-      + '<thead class="table-light"><tr><th>Project Site</th><th>Coding Gate</th><th>Start Date</th><th>End Date</th><th>Daily Limit / Coder</th><th></th></tr>'
-      + '<tr class="table-light small text-muted"><th>Data Collection</th><th>Collection</th><th>Start Date</th><th>End Date</th><th>Daily Interviewer Limit</th><th></th></tr></thead>'
-      + '<tbody>' + rows + '</tbody></table>';
+    }
+    cwrap.innerHTML = gateTable('Daily limit per interviewer', function (s) {
+      return gateRow(s, { p: 'sc', attr: 'data-site-collection-row', on: s.collection_enabled !== false,
+        start: s.collection_start_date, end: s.collection_end_date, limit: s.daily_interviewer_limit });
+    });
+    wrap.innerHTML = gateTable('Daily limit per coder', function (s) {
+      return gateRow(s, { p: 'sg', attr: 'data-site-row', on: !!s.coding_enabled,
+        start: s.coding_start_date, end: s.coding_end_date, limit: s.daily_coder_limit });
+    });
 
     wrap.querySelectorAll('.sg-save-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -1001,11 +1007,11 @@
           });
       });
     });
-    wrap.querySelectorAll('.sc-save-btn').forEach(function (btn) {
+    cwrap.querySelectorAll('.sc-save-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var siteId = btn.getAttribute('data-site-id');
-        var tr = wrap.querySelector('tr[data-site-collection-row="' + CSS.escape(siteId) + '"]');
-        var msg = document.getElementById('setup-site-gates-msg');
+        var tr = cwrap.querySelector('tr[data-site-collection-row="' + CSS.escape(siteId) + '"]');
+        var msg = document.getElementById('setup-collection-gates-msg');
         var limRaw = tr.querySelector('.sc-limit').value.trim();
         var payload = {
           collection_enabled: tr.querySelector('.sc-enabled').value === 'true',

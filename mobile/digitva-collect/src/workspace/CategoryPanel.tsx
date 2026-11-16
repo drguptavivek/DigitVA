@@ -34,6 +34,7 @@ function SymptomSummary({ items }: { items: JsonValue[] }) {
 export function CategoryPanel({
   category,
   renderMedia,
+  afterContent,
 }: {
   category: CategoryPayload;
   renderMedia?: (attachmentPath: string) => ReactNode;
@@ -62,6 +63,7 @@ export function CategoryPanel({
           ))}
         </View>
       ))}
+      {afterContent}
     </View>
   );
 }

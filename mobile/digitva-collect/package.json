@@ -21,6 +21,10 @@
   },
   "jest": {
     "preset": "jest-expo",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/\\.maestro/"
+    ],
     "moduleDirectories": [
       "node_modules",
       "<rootDir>/node_modules"

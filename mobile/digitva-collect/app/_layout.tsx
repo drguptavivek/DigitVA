@@ -3,7 +3,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, Dimensions, LogBox, Platform, Text, View } from "react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { GestureRoot } from "../src/GestureRoot";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { AppStateProvider, useAppState } from "../src/AppState";
@@ -100,7 +100,7 @@ export default function RootLayout() {
   }, []);
   // The gesture root wraps everything so the photo viewer's pinch and pan (src/AttachmentImageViewer.tsx) work.
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureRoot style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AppStateProvider>
           <SplashHold />
@@ -114,6 +114,6 @@ export default function RootLayout() {
           </ToastProvider>
         </AppStateProvider>
       </SafeAreaProvider>
-    </GestureHandlerRootView>
+    </GestureRoot>
   );
 }

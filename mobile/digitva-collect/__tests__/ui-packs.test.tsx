@@ -1,7 +1,7 @@
 /** Server UI language packs on the phone (digitva-dt1e, digitva-s028): list, overlay, storage, checks. */
 import React from "react";
 import { act, create } from "react-test-renderer";
-import { WHO_VA_BUILT_IN_UI_TRANSLATIONS } from "@drguptavivek/who-2022-va";
+import { ENGLISH_UI_MESSAGE_TEMPLATES, WHO_VA_BUILT_IN_UI_TRANSLATIONS } from "@drguptavivek/who-2022-va";
 import en from "../src/strings/en.json";
 import hi from "../src/strings/hi.json";
 
@@ -107,10 +107,10 @@ it("lays a pack over the bundle, drops bad keys and falls back to English per ke
   expect(t("loginTitle")).toBe(en.loginTitle); // not in the pack: English
   expect(uiLanguageTag()).toBe("pa-IN");
   expect(uiTextKnown("ਸਾਈਨ ਇਨ")).toBe(true);
-  const form = formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS);
+  const form = formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS, ENGLISH_UI_MESSAGE_TEMPLATES);
   expect(form.pa).toEqual({ next: "ਅੱਗੇ" }); // "required" lost its {label}: dropped
   expect(form.hi).toBe(WHO_VA_BUILT_IN_UI_TRANSLATIONS.hi);
-  expect(formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS)).toBe(form); // stable until a pack changes
+  expect(formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS, ENGLISH_UI_MESSAGE_TEMPLATES)).toBe(form); // stable until a pack changes
 });
 
 it("overlays a correction on a bundled language", async () => {
@@ -159,7 +159,7 @@ it("drops the pack of a language the server stops publishing, in memory and on t
   await syncUiPacks(SERVER, "hi");
   setUiLocale("hi");
   expect(t("signIn")).toBe("प्रवेश");
-  expect(formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS).hi).toMatchObject({ next: "अगला" });
+  expect(formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS, ENGLISH_UI_MESSAGE_TEMPLATES).hi).toMatchObject({ next: "अगला" });
 
   const { result, unmount } = renderLanguages();
   const unpublished = { ...LIST, version: "d".repeat(64), languages: LIST.languages.filter((l) => l.locale !== "hi") };
@@ -167,7 +167,7 @@ it("drops the pack of a language the server stops publishing, in memory and on t
   await act(() => syncUiPacks(SERVER, "hi"));
   expect(t("signIn")).toBe(hi.signIn); // the bundled Hindi again
   expect(result.current.find((entry) => entry.code === "hi")?.version).toBeUndefined(); // subscribers saw it
-  expect(formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS).hi).toBe(WHO_VA_BUILT_IN_UI_TRANSLATIONS.hi);
+  expect(formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS, ENGLISH_UI_MESSAGE_TEMPLATES).hi).toBe(WHO_VA_BUILT_IN_UI_TRANSLATIONS.hi);
   expect(mockFiles.get("doc/ui-packs/https_va_example_org-hi.json")).toBe("{}");
   unmount();
 });
@@ -215,7 +215,7 @@ describe("a list answer that is not a clean list", () => {
     respond({ "/api/v1/ui-strings": bad });
     await syncUiPacks(SERVER, "pa");
     expect(mockFiles.get(paFile)).toBe(before.storedPa);
-    expect(formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS).pa).toEqual({ next: "ਅੱਗੇ" }); // not dropped
+    expect(formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS, ENGLISH_UI_MESSAGE_TEMPLATES).pa).toEqual({ next: "ਅੱਗੇ" }); // not dropped
   });
 
   it("treats a valid empty list as nothing published and drops the packs", async () => {

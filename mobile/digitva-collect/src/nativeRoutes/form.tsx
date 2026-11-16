@@ -15,6 +15,7 @@
 import { deleteCoveredAttachments } from "../attachmentStore";
 import {
   createWhoVa2022Instrument,
+  ENGLISH_UI_MESSAGE_TEMPLATES,
   WHO_VA_BUILT_IN_UI_TRANSLATIONS,
   WHO_VA_FORM_VERSION,
   type InstrumentDefinition,
@@ -382,7 +383,7 @@ export default function Form() {
   const [locale, setLocale] = useState("en");
   // Server form-label packs (digitva-s028): the revision re-renders when a pack arrives.
   useFormPackRevision();
-  const uiTranslations = formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS);
+  const uiTranslations = formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS, ENGLISH_UI_MESSAGE_TEMPLATES);
   const [instrument, setInstrument] = useState<
     InstrumentDefinition | undefined
   >();

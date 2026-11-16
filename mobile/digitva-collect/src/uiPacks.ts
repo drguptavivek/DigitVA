@@ -12,7 +12,7 @@
  * (src/uiPackStore.ts: localStorage in a browser, a file on a phone).
  */
 import { useSyncExternalStore } from "react";
-import { ENGLISH_UI_MESSAGE_TEMPLATES, type WhoVaUiTranslations } from "@drguptavivek/who-2022-va";
+import type { WhoVaUiTranslations } from "@drguptavivek/who-2022-va";
 import { requestRaw } from "./api";
 import { readStoredPack, writeStoredPack } from "./uiPackStore";
 import {
@@ -31,7 +31,6 @@ export const UI_STRINGS_API = "/api/v1/ui-strings";
 const LOCALE_RE = /^[a-z]{2,3}$/;
 const TAG_RE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,3}$/;
 const VERSION_RE = /^[0-9a-f]{64}$/;
-const FORM_REFERENCE = ENGLISH_UI_MESSAGE_TEMPLATES as unknown as Record<string, string>;
 
 interface StoredPack {
   version: string;
@@ -39,8 +38,12 @@ interface StoredPack {
   form: Record<string, string>;
 }
 
-/** Validated WHO form labels per language; read by formUiTranslations(). */
-const formPacks: Record<string, Record<string, string>> = {};
+/**
+ * Each server pack's WHO form labels as received, checked against the English templates in
+ * formUiTranslations(). The templates come from the caller: importing them here would pull the whole
+ * WHO package (and its instrument) into the web start-up bundle, which only the interview should load.
+ */
+const formPacks: Record<string, unknown> = {};
 let formRevision = 0;
 /** Version of the pack last laid over each language: syncing an unchanged pack must not re-render the whole app. */
 const appliedVersions: Record<string, string> = {};
@@ -84,7 +87,7 @@ export function applyUiPack(code: string, pack: { strings?: unknown; form?: unkn
   if (version && appliedVersions[code] === version) return;
   if (version) appliedVersions[code] = version;
   else delete appliedVersions[code];
-  formPacks[code] = validPackStrings(pack.form, FORM_REFERENCE);
+  formPacks[code] = pack.form;
   formRevision += 1;
   setUiPack(code, pack.strings); // notifies subscribers once for both namespaces
 }
@@ -171,18 +174,23 @@ export function useFormPackRevision(): number {
   return useSyncExternalStore(subscribeUiLanguages, () => formRevision, () => formRevision);
 }
 
-let formCache: { base: WhoVaUiTranslations; revision: number; value: WhoVaUiTranslations } | undefined;
+let formCache: { base: WhoVaUiTranslations; reference: object; revision: number; value: WhoVaUiTranslations } | undefined;
 
 /**
  * The WHO form's label packs for its `uiTranslations` prop: `base` (the vendor's built-ins, which
- * that prop replaces) with each server pack's form labels over it. Stable until a pack changes.
+ * that prop replaces) with each server pack's form labels over it, each label checked against
+ * `englishTemplates` (the package's ENGLISH_UI_MESSAGE_TEMPLATES). Stable until a pack changes.
  */
-export function formUiTranslations(base: WhoVaUiTranslations): WhoVaUiTranslations {
-  if (formCache && formCache.base === base && formCache.revision === formRevision) return formCache.value;
+export function formUiTranslations(base: WhoVaUiTranslations, englishTemplates: object): WhoVaUiTranslations {
+  if (formCache && formCache.base === base && formCache.reference === englishTemplates && formCache.revision === formRevision) {
+    return formCache.value;
+  }
+  const reference = englishTemplates as Record<string, string>;
   const value: WhoVaUiTranslations = { ...base };
-  for (const [code, labels] of Object.entries(formPacks)) {
+  for (const [code, raw] of Object.entries(formPacks)) {
+    const labels = validPackStrings(raw, reference);
     if (Object.keys(labels).length) value[code] = { ...base[code], ...labels };
   }
-  formCache = { base, revision: formRevision, value };
+  formCache = { base, reference: englishTemplates, revision: formRevision, value };
   return value;
 }

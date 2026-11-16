@@ -53,7 +53,7 @@ import { formUiTranslations, useFormPackRevision } from "../uiPacks";
  */
 export function interviewUiTranslations(core: WhoCoreRuntime) {
   return Object.fromEntries(
-    Object.entries({ en: {}, ...formUiTranslations(core.WHO_VA_BUILT_IN_UI_TRANSLATIONS) }).map(([code, strings]) => [code, { ...strings, moreSectionsNote: "" }])
+    Object.entries({ en: {}, ...formUiTranslations(core.WHO_VA_BUILT_IN_UI_TRANSLATIONS, core.ENGLISH_UI_MESSAGE_TEMPLATES) }).map(([code, strings]) => [code, { ...strings, moreSectionsNote: "" }])
   );
 }
 

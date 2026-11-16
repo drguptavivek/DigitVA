@@ -17,6 +17,7 @@ import { WhoVaQuestionControls } from "@drguptavivek/who-2022-va/native";
 import {
   FormThemeContext,
   resolveUiMessages,
+  ENGLISH_UI_MESSAGE_TEMPLATES,
   WHO_VA_BUILT_IN_UI_TRANSLATIONS,
   type AnswerValue,
   type InstrumentQuestion,
@@ -358,7 +359,7 @@ export function NativeRegistrationFieldControl({
         : value || undefined) as AnswerValue | undefined,
     data: {},
     locale,
-    messages: resolveUiMessages(locale, formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS)),
+    messages: resolveUiMessages(locale, formUiTranslations(WHO_VA_BUILT_IN_UI_TRANSLATIONS, ENGLISH_UI_MESSAGE_TEMPLATES)),
     issues,
     onAnswer: (next: AnswerValue | undefined) => {
       if (

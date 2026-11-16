@@ -1141,8 +1141,10 @@
     };
     var cls = map[pii.tier] || 'secondary';
     var icon = (pii.tier === 'non_pii') ? 'fa-user-shield' : ((pii.tier === 'none') ? 'fa-ban' : 'fa-eye');
-    return '<span class="badge text-bg-' + cls + '-subtle border border-' + cls + '-subtle text-' + cls + '-emphasis" title="' + esc(pii.detail) + '">'
-      + '<i class="fa-solid ' + icon + ' me-1"></i>' + esc(pii.badge)
+    // Short label; the full tier wording ("Tier 3: PII (In-System Doctor)") stays in the tooltip.
+    var shortLabel = { full_pii: 'PII', coding_pii: 'PII', intake_pii: 'PII', own_register: 'Own register PII', non_pii: 'Non-PII', none: 'No active grants' }[pii.tier] || pii.badge;
+    return '<span class="badge text-bg-' + cls + '-subtle border border-' + cls + '-subtle text-' + cls + '-emphasis" title="' + esc(pii.badge + ': ' + pii.detail) + '">'
+      + '<i class="fa-solid ' + icon + ' me-1"></i>' + esc(shortLabel)
       + '</span>';
   }
 

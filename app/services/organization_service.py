@@ -17,6 +17,7 @@ import re
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from datetime import UTC
 from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
 
@@ -4344,6 +4345,13 @@ def get_project_users_grid(project_id: str) -> dict:
             "phone": u_obj.phone or u_obj.mobile_login or (primary_worker["phone"] if primary_worker else None),
             "user_status": u_obj.user_status.value if hasattr(u_obj.user_status, "value") else str(u_obj.user_status),
             "is_active": is_user_active,
+            # Stored naive UTC (va_users.user_created_at); sent with its offset so
+            # the grid filters on the viewer's local date.
+            "user_created_at": (
+                u_obj.user_created_at.replace(tzinfo=UTC).isoformat()
+                if u_obj.user_created_at and u_obj.user_created_at.tzinfo is None
+                else (u_obj.user_created_at.isoformat() if u_obj.user_created_at else None)
+            ),
             "primary_worker": primary_worker,
             "workers": u_workers,
             "project_grants": proj_grants_out,

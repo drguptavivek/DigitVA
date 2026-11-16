@@ -461,6 +461,8 @@ class ProjectSetupPanelTests(BaseTestCase):
         self.assertIn('id="setup-users-bulk-bar"', body)
         self.assertIn('id="setup-ug-bulk-op"', body)
         self.assertIn('id="setup-ug-bulk-scope"', body)
+        self.assertIn('id="setup-ug-created-from"', body)
+        self.assertIn('id="setup-ug-created-to"', body)
         self.assertIn('value="coder_non_pii"', body)
         self.assertIn('value="reviewer_non_pii"', body)
         self.assertIn('id="org-unit-deactivate-modal"', body)
@@ -538,6 +540,8 @@ class ProjectSetupPanelTests(BaseTestCase):
         user_row = next(u for u in grid["users"] if u["user_id"] == coder_uid)
         self.assertEqual(user_row["primary_worker"]["unit_code"], "PHC1")
         self.assertEqual(user_row["primary_worker"]["cadre_code"], "MO")
+        # The created-date filter reads this; an ISO timestamp with its offset.
+        self.assertIsNotNone(datetime.fromisoformat(user_row["user_created_at"]).tzinfo)
 
         # 2. Bulk apply: In-System Coder on own home unit (Tier 3 In-System Doctor => coding_pii)
         apply_own = self.client.post(

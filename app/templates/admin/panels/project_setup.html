@@ -395,6 +395,14 @@
                       <option value="inactive">⏸ Inactive user accounts</option>
                     </select>
                   </div>
+                  <div class="col-md-8">
+                    <div class="input-group input-group-sm">
+                      <span class="input-group-text" title="Account created between these dates (inclusive)">Account created</span>
+                      <input type="date" id="setup-ug-created-from" class="form-control" aria-label="Account created on or after">
+                      <span class="input-group-text">to</span>
+                      <input type="date" id="setup-ug-created-to" class="form-control" aria-label="Account created on or before">
+                    </div>
+                  </div>
                   <div class="col-md-4 d-flex justify-content-md-end gap-2 align-items-center">
                     <div class="btn-group btn-group-sm" role="group" aria-label="Users view mode">
                       <button type="button" class="btn btn-outline-primary active" id="setup-ug-view-list">
@@ -1063,7 +1071,17 @@
     if (!_ugData || !_ugData.users) return [];
     var q = (document.getElementById('setup-ug-search').value || '').trim().toLowerCase();
     var flt = document.getElementById('setup-ug-filter').value || '';
+    var createdFrom = document.getElementById('setup-ug-created-from').value || '';
+    var createdTo = document.getElementById('setup-ug-created-to').value || '';
     return _ugData.users.filter(function (u) {
+      if (createdFrom || createdTo) {
+        // The viewer's local calendar day of creation, compared as YYYY-MM-DD; both ends inclusive.
+        var made = u.user_created_at ? new Date(u.user_created_at) : null;
+        if (!made) return false;
+        var day = made.getFullYear() + '-' + String(made.getMonth() + 1).padStart(2, '0') + '-' + String(made.getDate()).padStart(2, '0');
+        if (createdFrom && day < createdFrom) return false;
+        if (createdTo && day > createdTo) return false;
+      }
       if (flt === 'pii' && ['full_pii', 'coding_pii', 'intake_pii', 'own_register'].indexOf(u.pii_status.tier) < 0) return false;
       if (flt === 'non_pii' && u.pii_status.tier !== 'non_pii') return false;
       if (flt === 'coder_non_pii' && !(u.grouped_unit_roles || []).some(function (g) { return g.role_key === 'coder_non_pii'; }) && !(u.project_grants || []).some(function (pg) { return pg.role === 'coder' && !pg.with_pii; })) return false;
@@ -1452,6 +1470,10 @@
   if (ugSearch) ugSearch.addEventListener('input', renderUgAll);
   var ugFilter = document.getElementById('setup-ug-filter');
   if (ugFilter) ugFilter.addEventListener('change', renderUgAll);
+  ['setup-ug-created-from', 'setup-ug-created-to'].forEach(function (id) {
+    var input = document.getElementById(id);
+    if (input) input.addEventListener('change', renderUgAll);
+  });
   var ugRefresh = document.getElementById('setup-ug-refresh-btn');
   if (ugRefresh) ugRefresh.addEventListener('click', loadUsersGrid);
 

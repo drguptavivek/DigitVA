@@ -3,7 +3,7 @@ title: Public Demo Deployment Runbook
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-11-11
 ---
 
 # Public Demo Deployment Runbook
@@ -18,21 +18,22 @@ as in [Split Production TLS](split-production-tls.md). Run each step by hand.
 Browser ─HTTPS 443─► DMZ proxy (nginx, public TLS for digitvademo.causeofdeathindia.com)
                        │  appends X-Forwarded-For, HTTPS :8001, verified as <BACKEND_TLS_NAME>
                        ▼
-App host:  demo_ingress ─► demo_app_service ◄─► demo_redis_service (own password, own volume)
-                            demo_celery_worker (queue "demo")      │
-                            demo_celery_beat (allowlisted schedule)│
-                       └──► icd_api_service  (the ONE shared container, main's)
-                       └──► PostgreSQL database minerva_demo (own role)
-                       └──► S3 prefix demo/ (own IAM user)
+App host:  demo_ingress ─► demo_app_service ◄─► demo_redis_service
+                 │         demo_celery_worker (queue "demo")
+                 │         demo_celery_beat
+                 └─► demo_doris_public_service ─► icd_api_service (shared)
+                       (database-free, own key)
+demo_app_service ───────────────────────────────► PostgreSQL minerva_demo (own role)
+demo_app_service ───────────────────────────────► S3 prefix demo/ (own IAM user)
 ```
 
 ## What is in the repository
 
 | File | Purpose |
 | --- | --- |
-| `docker-compose.demo.yml` | A separate compose project `digitva-demo`: app, worker, beat, Redis, ingress |
+| `docker-compose.demo.yml` | A separate compose project `digitva-demo`: app, worker, beat, Redis, database-free DORIS service, ingress |
 | `.env.demo.example` | Template of the demo's env file (placeholders only) |
-| `deploy/ingress-demo.conf` | nginx template of the demo ingress (client IP, 12 MB bodies, one upstream) |
+| `deploy/ingress-demo.conf` | nginx template of the demo ingress (client IP, 12 MB bodies, isolated DORIS routes) |
 
 **Why a separate project, not an overlay of `docker-compose.yml`.** An overlay
 puts the demo's services in the main project, where `make prod`,
@@ -48,9 +49,10 @@ it), tagged for the demo in step 2.
 
 **No checkout mount.** The services run the image's own code. `config.py` calls
 `load_dotenv()`, so a bind-mounted checkout would hand the demo (a public,
-self-sign-up service) main's `.env`; `doris_public_service` already runs this
-way. `docs/` is not in the image (`.dockerignore`), so help pages that read it
-answer 404 on the demo.
+self-sign-up service) main's `.env`. The database-free DORIS service also runs
+without a checkout mount and receives its own session key, with no database,
+PII credentials or demo application secrets. `docs/` is not in the image
+(`.dockerignore`), so help pages that read it answer 404 on the demo.
 
 Invocation, used throughout (always with `--env-file`; without it compose reads
 the checkout's `.env`, which is main's, and the required `DEMO_*` variables
@@ -63,8 +65,8 @@ DD="docker compose --env-file /data/digitva-demo.env -f docker-compose.demo.yml"
 
 ## 1. Prerequisites
 
-1. **Host headroom.** The demo's limits (below) add 2.3 GB of memory and
-   2.75 CPU-cap. On the app host run `nproc`, `free -m` and
+1. **Host headroom.** The demo's limits (below) add about 2.5 GB of memory
+   and 3.25 CPU-cap. On the app host run `nproc`, `free -m` and
    `docker stats --no-stream`; main's limits are 1.5 + 1.5 + 0.4 + 0.1 GB, the
    ICD container 2 GB and DORIS 0.2 GB. If main's limits plus the demo's do not
    fit, lower the demo's in `docker-compose.demo.yml` first; do not start it
@@ -76,10 +78,13 @@ DD="docker compose --env-file /data/digitva-demo.env -f docker-compose.demo.yml"
    | `demo_celery_worker` | 1 GB | 1.0 (shares 256) | concurrency 1; SmartVA run plus audio conversion; main's is 1.5 GB |
    | `demo_celery_beat` | 320 MB | 0.25 | boots the whole app, no work of its own |
    | `demo_redis_service` | 160 MB | 0.25 | `--maxmemory 96mb`, headroom for the snapshot fork |
+   | `demo_doris_public_service` | 192 MB | 0.5 | Independent public DORIS UI and processor |
    | `demo_ingress` | 64 MB | 0.25 | nginx |
 
    `cpu_shares: 256` against the default 1024 means main wins when the host's
-   CPUs are contended; the caps bound the demo when they are not.
+   CPUs are contended; the caps bound the demo when they are not. Only the
+   ingress and the database-free DORIS service join the private `doris_public`
+   network. The DORIS service also joins `digitva_icd` to reach the WHO API.
 2. **DNS.** `digitvademo.causeofdeathindia.com` A record to the DMZ proxy's public IP.
    It must be a `*.causeofdeathindia.com` host: release builds of
    digitva-collect accept only those (`mobile/digitva-collect/src/enrolment.ts`).
@@ -170,17 +175,18 @@ DD="docker compose --env-file /data/digitva-demo.env -f docker-compose.demo.yml"
    The database must be empty and hold only the demo project: the purge and
    the demo's startup work refuse a database with any other project, so a
    demo pointed at the main database by mistake does nothing.
-7. **ICD container network.** The demo reaches `icd_api_service` over the
-   external network `digitva_icd`, which `docker-compose.yml` creates and
-   attaches only `icd_api_service` to (alias `icd_api_service`, in addition to
-   main's default network). Only the demo's app and worker join it; the demo's
-   beat, Redis and ingress do not, and the demo is never on main's default
-   network, so it cannot reach main's Redis, database or app. Start main's
-   ICD container (`docker compose --profile icd11 up -d icd_api_service`) once
-   after pulling the compose change, so the network exists; check with
-   `docker network inspect digitva_icd`. If you run the opt-in Rust ICD host
-   (`icd_api_rust_service`) instead, it is not attached to `digitva_icd` yet:
-   add it there first or the demo has no ICD service.
+7. **ICD container networks.** The app, worker and database-free DORIS service
+   reach `icd_api_service` over the external network `digitva_icd`, which
+   `docker-compose.yml` creates and attaches only `icd_api_service` to
+   (alias `icd_api_service`). The app and worker also use the demo network for
+   the demo Redis and database URL. The DORIS service receives its own session
+   key, a SQLite URL for shared application configuration, and the ICD API URL.
+   It has no PostgreSQL credentials or PII keys. It joins the internal
+   `doris_public` network with the ingress and joins `digitva_icd`; the ingress
+   stays off the ICD network. No demo service joins main's default network.
+   Start main's ICD container (`docker compose --profile icd11 up -d icd_api_service`)
+   once after pulling the compose change, so the network exists; check with
+   `docker network inspect digitva_icd`.
    A database on the same host is reached by its published address, not
    `minerva_db_service` (that name lives on main's network).
 
@@ -206,7 +212,23 @@ python3 -c "import secrets; print(secrets.token_hex(32))"   # DEMO_SECRET_KEY
 openssl rand -hex 32                                         # DEMO_CAPTCHA_HMAC_KEY
 openssl rand -base64 32 | tr '+/' '-_'                       # DEMO_AUTH_FACTOR_ENCRYPTION_KEY
 openssl rand -hex 24                                         # DEMO_REDIS_PASSWORD
+openssl rand -hex 32                                         # DEMO_DORIS_PUBLIC_SECRET_KEY
 ```
+
+Set `DEMO_BUILD_REVISION` to the full 40-character OCI revision label of the
+image tagged above, and check it against the expected source revision before
+starting the services:
+
+```bash
+docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$(docker inspect -f '{{.Image}}' minerva_app)"
+```
+
+The demo app reports this SHA at `/api/v1/app/version`. Set
+`DEMO_DORIS_PUBLIC_SECRET_KEY` to the independently generated key above. The
+public DORIS service requires it for CSRF sessions. Although the shared Flask
+package requires a `SECRET_KEY` and `DATABASE_URL` at import, Compose supplies
+this dedicated key and `sqlite://`. The public DORIS app does not connect to a
+database.
 
 **Registration-number keys.** The demo registers deaths, and production refuses
 to start without the key set, so it gets its own pair (never main's). The
@@ -245,7 +267,13 @@ few minutes; the check allows 3). Then the rest, except the ingress:
 ```bash
 $DD up -d demo_celery_worker demo_celery_beat
 $DD logs --tail 30 demo_celery_worker demo_celery_beat
+$DD up -d demo_doris_public_service
 ```
+
+The public DORIS service becomes healthy after its synthetic WHO DORIS
+certificate succeeds. Its `DATABASE_URL=sqlite://` only satisfies imports from
+the shared app package. The service has no database credentials, data volume or
+database network.
 
 Check what runs and what does not:
 
@@ -295,6 +323,21 @@ daily demo purge and `run_db_backup`; nothing else (no ODK sync).
 
 ## 5. Ingress and the DMZ route
 
+For an existing demo, prepare `DEMO_BUILD_REVISION` and
+`DEMO_DORIS_PUBLIC_SECRET_KEY` in the protected env file before this step.
+Read the revision from the running demo image's OCI label and confirm it is
+a lowercase 40-character SHA. If the live app checkout does not yet contain
+the demo configuration, place the Compose file and its ingress template in
+a dedicated demo directory. Preserve the relative `deploy/` path and link
+`docs/` to the live checkout's documentation. Keep the Compose project name
+`digitva-demo` and use that directory for subsequent demo commands.
+Start and health-check `demo_doris_public_service` first. Then recreate only
+the app and ingress with `$DD up -d --no-deps demo_app_service demo_ingress`.
+When the image SHA is unchanged, leave the database, Redis, worker and
+scheduler containers running.
+
+For a first deployment, start the ingress after the DORIS service:
+
 ```bash
 $DD up -d demo_ingress
 $DD ps
@@ -303,6 +346,8 @@ curl -ks https://<DEMO_BIND_IP>:8001/health -H 'Host: localhost'   # on the app 
 
 Then, on the DMZ proxy: enable the demo site, `sudo nginx -t && sudo systemctl reload nginx`.
 `curl -sI https://digitvademo.causeofdeathindia.com/vaauth/signup` returns 200.
+The demo ingress's `/help/doris-demo` and `/api/v1/doris-demo/*` routes go to
+the demo-owned public DORIS service.
 
 ## 6. Verify
 
@@ -356,8 +401,12 @@ team; the 30-day rule applies). Each is a pass or fail.
     the configured values printed in step 3 are the check, and
     `tests/test_public_demo.py` covers the behaviour.
 11. **Bounds.** `docker stats --no-stream` shows the demo's memory limits
-    (768 / 1024 / 320 / 160 / 64 MiB); `docker inspect -f '{{.HostConfig.NanoCpus}}' <container>`
+    (768 / 1024 / 320 / 160 / 192 / 64 MiB); `docker inspect -f '{{.HostConfig.NanoCpus}}' <container>`
     is non-zero for each. Main's `/health` and its containers are unaffected.
+12. **Public DORIS.** `/help/doris-demo` and
+    `/api/v1/doris-demo/config` return 200. From the page, run one synthetic
+    certificate and confirm DORIS and CoDEdit results appear. The app version
+    endpoint reports the expected full deployed image SHA.
 
 ## 7. Backups, and only then the purge
 
@@ -424,24 +473,31 @@ refused ("The demo is full") and no one is deleted.
 
 ## 9. Upgrade and rollback
 
-The demo runs the same release as main.
+The demo app, worker, scheduler and public DORIS service run the same release
+as main. The app reports its full image revision from `DEMO_BUILD_REVISION`.
 
 1. Deploy main as usual (`make prod-build`).
 2. Record the demo's current tag (`grep DEMO_APP_IMAGE /data/digitva-demo.env`)
    and take a dump: `$DD exec demo_app_service flask backups db-dump`.
 3. Tag the new image: `docker tag "$(docker inspect -f '{{.Image}}' minerva_app)" digitva-demo-app:$(git rev-parse --short HEAD)`.
-4. Set `DEMO_APP_IMAGE` to it and bump `DEMO_STATIC_ASSET_VERSION` in
-   `/data/digitva-demo.env`.
-5. `$DD up -d`. The app migrates the demo database on start (`boot.sh`), then the
-   worker and beat follow; a new `.env` key listed in the release notes goes in
-   the env file first. Re-run step 6 items 1, 3 and 9.
+4. Set `DEMO_APP_IMAGE` to it, set `DEMO_BUILD_REVISION` to the image's full
+   `org.opencontainers.image.revision` label, and bump
+   `DEMO_STATIC_ASSET_VERSION` in `/data/digitva-demo.env`.
+5. Start `demo_doris_public_service` first with `$DD up -d --no-deps demo_doris_public_service`;
+   wait until its health check passes. Then recreate the app and ingress using
+   `$DD up -d --no-deps demo_app_service demo_ingress`. Start the worker and
+   beat with the same image using `$DD up -d --no-deps demo_celery_worker demo_celery_beat`.
+   The app migrates the demo database on start (`boot.sh`). A new `.env` key
+   listed in the release notes goes in the env file first. Re-run step 6,
+   including the public DORIS check.
 
-**Rollback.** Set `DEMO_APP_IMAGE` back to the recorded tag and `$DD up -d`. If
-the new release ran a migration the old code cannot read, stop the services and
-restore the pre-upgrade dump (as step 7.2, into `minerva_demo` with the
-services stopped, after dropping and recreating it), then start the old tag.
-Migrations are additive and reversible by policy, so a `flask db downgrade` is
-the other path.
+**Rollback.** Restore the recorded `DEMO_APP_IMAGE`,
+`DEMO_BUILD_REVISION` and `DEMO_STATIC_ASSET_VERSION` values, then recreate
+the app, worker, beat, public DORIS service and ingress. If the new release ran
+a migration the old code cannot read, stop the services and restore the
+pre-upgrade dump (as step 7.2, into `minerva_demo` with the services stopped,
+after dropping and recreating it), then start the old tag. Migrations are
+additive and reversible by policy, so a `flask db downgrade` is the other path.
 
 ## 10. What the demo shares with main, and how it is bounded
 
@@ -451,7 +507,8 @@ the other path.
 | Host CPU and memory | Hard limits on every demo service (step 1), `cpu_shares 256` against main's default, log rotation |
 | The database server (if main's) | A separate database and role; 14 connections at most; `idle_in_transaction_session_timeout` applies |
 | The S3 bucket | A separate prefix and an IAM user that cannot read main's keys; per-account upload limits |
-| A Docker network | Only `digitva_icd`, which holds `icd_api_service` and the demo's app and worker (step 1.7); the demo is not on main's default network |
+| ICD API network | `digitva_icd` carries only the WHO ICD API and the demo app, worker and DORIS service |
+| DORIS ingress network | Internal `doris_public` joins only the demo ingress and database-free DORIS service |
 
 Not shared: Redis (own password, own volume, own key prefix and Celery queue as
 a second guard), the database, the secrets and keys, the volumes, the image

@@ -31,6 +31,10 @@ rule in [web-intake.md](web-intake.md). Nothing else in those policies changes.
   container.
 - **Real VA data never lives on the demo database.** The demo database is
   never restored from, synced with or pointed at the main one.
+- The demo hostname serves the public DORIS training page and its API through
+  its own database-free service. That service receives only its own session
+  key and access to the shared WHO ICD-11/DORIS API. The demo ingress forwards
+  the verified client address for the training service's rate limits.
 - Host under `causeofdeathindia.com` (for example `demo.causeofdeathindia.com`),
   so release builds of digitva-collect accept it
   (`mobile/digitva-collect/src/enrolment.ts` allows any https

@@ -325,10 +325,37 @@ class TestPublicDorisApi:
             (root / "deploy" / name).read_text()
             for name in ("doris-public-nginx.conf", "doris-public-nginx-tls.conf", "ingress-common.conf", "ingress-routes.conf")
         )
+        demo_ingress = (root / "deploy" / "ingress-demo.conf").read_text()
+        demo_compose = (root / "docker-compose.demo.yml").read_text()
         boot = (root / "boot-public-doris.sh").read_text()
         assert "location = /help/doris-demo" in nginx
         assert "location ^~ /api/v1/doris-demo/" in nginx
         assert "doris_public_service:5001" in nginx
+        help_route = re.search(
+            r"location = /help/doris-demo\s*\{([^}]*)\}", demo_ingress
+        )
+        api_route = re.search(
+            r"location \^~ /api/v1/doris-demo/\s*\{([^}]*)\}", demo_ingress
+        )
+        assert help_route is not None
+        assert api_route is not None
+        assert "proxy_pass $doris_upstream;" in help_route.group(1)
+        assert "proxy_pass $doris_upstream;" in api_route.group(1)
+        assert "set $doris_upstream http://demo_doris_public_service:5001;" in demo_ingress
+        assert "set $demo_upstream http://demo_app_service:5000;" in demo_ingress
+        assert "log_format privacy '$remote_addr - $request_method $uri " in demo_ingress
+        assert "$request_uri" not in demo_ingress
+
+        service = demo_compose.split("  demo_doris_public_service:", 1)[1].split(
+            "\n  demo_ingress:", 1
+        )[0]
+        assert "SECRET_KEY: ${DEMO_DORIS_PUBLIC_SECRET_KEY:" in service
+        assert "DATABASE_URL: sqlite://" in service
+        assert "ICD11_API_BASE_URL:" in service
+        assert "PII_KEM" not in service
+        assert "DEMO_SECRET_KEY" not in service
+        assert "networks: [doris_public, digitva_icd]" in service
+        assert "DIGITVA_BUILD_REVISION: ${DEMO_BUILD_REVISION:" in demo_compose
         assert "--threads 6" in boot
         assert "%(U)s" in boot
         assert "%(q)s" not in boot

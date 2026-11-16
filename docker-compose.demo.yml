@@ -16,16 +16,14 @@
 # SECRET_KEY, PII blind-index key and S3 credentials). doris_public_service
 # does the same.
 #
-# The app, worker and beat run the image the main stack built (no `build:`, so
-# the release pins in docker-compose.yml are not duplicated here): tag it as
-# the runbook says and set DEMO_APP_IMAGE.
+# The app, worker, beat and public DORIS service use the main stack's image.
+# Tag it as the runbook says and set DEMO_APP_IMAGE.
 #
 # The demo shares exactly one thing with main, the WHO ICD-11/DORIS container,
 # reached over the external network digitva_icd, which docker-compose.yml
 # creates and attaches only icd_api_service to (start main's icd11 profile
-# first). Only the demo's app and worker join it; the demo is never on main's
-# default network. Its own Redis, database, volumes, secrets and ingress are
-# listed below.
+# first). The demo app, worker and public DORIS service join it. The demo
+# keeps its own networks, Redis, database, volumes, secrets and ingress.
 
 name: digitva-demo
 
@@ -112,6 +110,7 @@ services:
     <<: *demo-service
     environment:
       <<: *demo-env
+      DIGITVA_BUILD_REVISION: ${DEMO_BUILD_REVISION:?set the demo image's full OCI revision SHA}
       GUNICORN_WORKERS: "1"
       GUNICORN_CMD_ARGS: "--threads 6"
       # Pool at least the thread count: 6 + 2 = 8 connections.
@@ -242,6 +241,41 @@ services:
       timeout: 5s
       retries: 5
 
+  # Synthetic DORIS exercises use a separate service and session key.
+  demo_doris_public_service:
+    <<: *demo-service
+    entrypoint: []
+    command: ./boot-public-doris.sh
+    environment:
+      # Importing the Flask package requires these keys, even for this app.
+      SECRET_KEY: ${DEMO_DORIS_PUBLIC_SECRET_KEY:?generate a dedicated DORIS session key}
+      DATABASE_URL: sqlite://
+      DORIS_PUBLIC_COOKIE_SECURE: "true"
+      ICD11_API_BASE_URL: ${DEMO_ICD11_API_BASE_URL:-http://icd_api_service}
+    networks: [doris_public, digitva_icd]
+    cpu_shares: 128
+    deploy:
+      resources:
+        limits:
+          memory: 192m
+          cpus: "0.5"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import os, urllib.request as u;
+          u.urlopen('http://localhost:5001/health', timeout=3).close();
+          u.urlopen(u.Request(os.environ['ICD11_API_BASE_URL'] + '/icd/release/11/2026-01/doris',
+          data=b'{"ICDVersion":"ICD11","AdministrativeData":{"Sex":1,"EstimatedAge":"P62Y"},"Part1":[{"Conditions":[{"Code":"BA41.Z"}]}]}',
+          headers={'Accept': 'application/json', 'API-Version': 'v2', 'Accept-Language': 'en',
+          'Content-Type': 'application/json'}), timeout=6).close()
+      interval: 2m
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   # TLS ingress for the DMZ reverse proxy (deploy/ingress-demo.conf), the
   # demo's counterpart of digitva_ingress on port 8000: the proxy sends
   # digitvademo.causeofdeathindia.com to https://<APP_PRIVATE_IP>:8001 and verifies
@@ -258,6 +292,7 @@ services:
       - ./deploy/ingress-demo.conf:/etc/nginx/templates/default.conf.template:ro
       # Certificate and key of the app host, as for digitva_ingress.
       - ${DEMO_TLS_DIR:-/etc/digitva-app/tls}:/etc/digitva-app/tls:ro
+    networks: [default, doris_public]
     depends_on:
       demo_app_service:
         condition: service_healthy
@@ -279,6 +314,8 @@ services:
       start_period: 10s
 
 networks:
+  doris_public:
+    internal: true
   # The WHO ICD-11/DORIS container's own network (runbook step 1.7), created
   # by docker-compose.yml. The only thing the demo shares with main.
   digitva_icd:

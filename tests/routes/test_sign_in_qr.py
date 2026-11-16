@@ -312,6 +312,29 @@ class SignInQrTests(AuthzFixtureMixin, BaseTestCase):
         db.session.commit()
         self.assertEqual(self._redeem(token).status_code, 201)
 
+    def test_redeem_at_device_limit_lists_phones_and_replaces_one(self):
+        user = self.users["interviewer_p1"]
+        existing = []
+        for index in range(3):
+            device, _secret = devices._add_device("AZTA01", f"Existing {index}", "android", "1.2.3", None)
+            existing.append(devices._open_authorized_session(device, user)[0].session)
+        db.session.commit()
+        token = self._token()
+
+        refused = self._redeem(token)
+        listed = {item["device_id"] for item in refused.get_json()["devices"]}
+        self.assertEqual(listed, {str(session.device_id) for session in existing})
+        bad = self._redeem(token, replace_device_id=str(uuid.uuid4()))
+        self.assertEqual((bad.status_code, bad.get_json()["code"]), (400, "invalid_request"))
+        self.assertIsNone(self._row().redeemed_at)
+
+        res = self._redeem(token, replace_device_id=str(existing[0].device_id))
+
+        self.assertEqual(res.status_code, 201, res.get_json())
+        db.session.expire_all()
+        self.assertEqual(db.session.get(AuthDeviceSession, existing[0].session_id).revoked_reason,
+                         "device_decommissioned")
+
     def test_single_use(self):
         token = self._token()
         self.assertEqual(self._redeem(token).status_code, 201)

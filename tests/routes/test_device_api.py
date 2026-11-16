@@ -459,6 +459,35 @@ class DeviceApiTests(BaseTestCase):
         self.assertIn(f"device sign-in refused | device={device['device_id']} | reason=device_limit", line)
         self.assertNotIn("device.interviewer@test.local", line)
 
+    def test_device_limit_lists_the_accounts_phones_and_replace_signs_one_out(self):
+        phones = [self._session() for _ in range(3)]
+        _other_device, other_tokens = self._session(email="device.teammate@test.local")
+        fourth = self._enrol()
+
+        refused = self._sign_in(fourth)
+
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (409, "device_limit"))
+        listed = {item["device_id"] for item in refused.get_json()["devices"]}
+        self.assertEqual(listed, {device["device_id"] for device, _tokens in phones})
+        self.assertNotIn(_other_device["device_id"], listed)
+        mine_wrong = self._sign_in(fourth, replace_device_id=fourth["device_id"])
+        self.assertEqual((mine_wrong.status_code, mine_wrong.get_json()["fields"]), (400, ["replace_device_id"]))
+        theirs = self._sign_in(fourth, replace_device_id=_other_device["device_id"])
+        self.assertEqual(theirs.status_code, 400)
+
+        response = self._sign_in(fourth, replace_device_id=phones[0][0]["device_id"])
+
+        self.assertEqual(response.status_code, 201, response.get_json())
+        ended = self._refresh(phones[0][1]["refresh_token"])
+        self.assertEqual((ended.status_code, ended.get_json()["code"]), (401, "session_ended"))
+        self.assertIsNotNone(devices.resolve_access_token(other_tokens["access_token"]))
+
+    def test_replace_below_the_device_limit_is_ignored(self):
+        device, tokens = self._session()
+        response = self._sign_in(self._enrol(), replace_device_id=device["device_id"])
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertIsNotNone(devices.resolve_access_token(tokens["access_token"]))
+
     def test_sign_in_needs_an_interviewer_grant_in_some_project(self):
         device = self._enrol()
         response = self._sign_in(device, email="device.outsider@test.local")

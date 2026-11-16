@@ -118,13 +118,16 @@ _DUMMY_PASSWORD_HASH = generate_password_hash("digitva-device-timing-equaliser")
 
 class DeviceAuthError(Exception):
     """A refused device call: ``code`` is the contract's machine code;
-    ``fields`` names the inputs to fix, when the refusal names any."""
+    ``fields`` names the inputs to fix, when the refusal names any;
+    ``extra`` holds further reply keys (the ``devices`` of a ``device_limit``)."""
 
-    def __init__(self, message: str, code: str, status_code: int, fields: list[str] | None = None):
+    def __init__(self, message: str, code: str, status_code: int, fields: list[str] | None = None,
+                 extra: dict | None = None):
         super().__init__(message)
         self.code = code
         self.status_code = status_code
         self.fields = fields
+        self.extra = extra
 
 
 @dataclass
@@ -496,9 +499,12 @@ def set_device_project(device_id: uuid.UUID, user: VaUsers, project_id) -> AuthD
 
 
 def enrol_with_password(
-    *, identifier, password, device_name, platform, app_version, client_device_uuid=None
+    *, identifier, password, device_name, platform, app_version, client_device_uuid=None,
+    replace_device_id=None,
 ) -> tuple[AuthDevice, str, IssuedTokens, VaUsers]:
     """Authenticate, enrol and open one native session; caller commits.
+    *replace_device_id*: the phone to sign out at the device cap
+    (``check_device_slot``), in this transaction.
 
     The optional install UUID is parsed before writes. The home is the first
     accessible collection project, otherwise the first native coding/review
@@ -532,8 +538,9 @@ def enrol_with_password(
         raise _no_access_error(user, resolved)
     project_id = _default_home_project(
         context, register_context, resolved, _eligible_projects(context, register_context, resolved))
-    # Hold the account lock through creation and issuance; no phone is evicted.
-    check_device_slot(user)
+    # Hold the account lock through creation and issuance; a phone is signed
+    # out only when the user named it (replace_device_id).
+    check_device_slot(user, replace_device_id=replace_device_id)
     device, secret = _add_device(project_id, name, platform, version, None, client_uuid)
     issued, user = _create_session(device, user)
     return device, secret, issued, user
@@ -711,40 +718,70 @@ def _live_session(user: VaUsers):
     )
 
 
-def check_device_slot(user: VaUsers, device_id=None) -> None:
+def check_device_slot(user: VaUsers, device_id=None, replace_device_id=None) -> None:
     """Lock *user* and refuse a new live device pair at the account cap.
 
     A device already holding a live session for this user is a re-login and
     does not consume another slot. Only native device sessions are counted;
     browser sessions have no ``AuthDeviceSession`` row, and a session a
     password or factor reset ended (older ``user_session_version``) is not.
+
+    Every caller has verified the user's credential in this request, so the
+    409 ``device_limit`` carries ``devices``: that account's live phones
+    ``[{device_id, label, last_seen_at, unsent_count}]``. At the cap,
+    *replace_device_id* (one of those phones; docs/policy/mobile-sign-in.md,
+    replacing a phone at sign-in) is decommissioned as Profile does, actor the
+    user, in the caller's transaction; any other value is 400
+    ``invalid_request``. Below the cap it is ignored.
     """
     db.session.execute(
         sa.select(VaUsers.user_id).where(VaUsers.user_id == user.user_id).with_for_update()
     )
-    live = sa.and_(_live_session(user), AuthDevice.revoked_at.is_(None))
     if device_id is not None:
         try:
             device_id = uuid.UUID(str(device_id))
         except (ValueError, TypeError, AttributeError):
             device_id = None
-    if device_id is not None:
-        existing = db.session.scalar(
-            sa.select(AuthDevice.device_id)
-            .join(AuthDeviceSession, AuthDeviceSession.device_id == AuthDevice.device_id)
-            .where(live, AuthDevice.device_id == device_id)
-            .limit(1)
-        )
-        if existing is not None:
+    # One row per live session; a pair normally has one (re-login ends the older).
+    rows = db.session.execute(
+        sa.select(AuthDevice.device_id, AuthDevice.name, AuthDeviceSession.last_seen_at,
+                  AuthDeviceSession.outstanding_count)
+        .join(AuthDeviceSession, AuthDeviceSession.device_id == AuthDevice.device_id)
+        .where(_live_session(user), AuthDevice.revoked_at.is_(None))
+    ).all()
+    live: dict[uuid.UUID, dict] = {}
+    for row in rows:
+        entry = live.setdefault(row.device_id, {"name": row.name, "last_seen_at": None, "unsent_count": None})
+        if row.last_seen_at and (entry["last_seen_at"] is None or row.last_seen_at > entry["last_seen_at"]):
+            entry["last_seen_at"] = row.last_seen_at
+        if row.outstanding_count is not None:
+            entry["unsent_count"] = max(entry["unsent_count"] or 0, row.outstanding_count)
+    if device_id in live or len(live) < MAX_ACTIVE_USER_DEVICES:
+        return
+    if replace_device_id is not None:
+        try:
+            replaced = uuid.UUID(str(replace_device_id))
+        except (ValueError, TypeError, AttributeError):
+            replaced = None
+        # Not one of this account's live phones: another user's, revoked, ended or this one.
+        if replaced is None or replaced not in live or replaced == device_id:
+            raise DeviceAuthError("replace_device_id is not one of your signed-in phones.",
+                                  "invalid_request", 400, fields=["replace_device_id"])
+        # Only when that frees the slot: open_session commits a 409's audit.
+        if len(live) - 1 < MAX_ACTIVE_USER_DEVICES:
+            decommission_account_device(user.user_id, replaced, user, reason="replaced_at_sign_in")
             return
-    count = db.session.scalar(
-        sa.select(sa.func.count(sa.distinct(AuthDevice.device_id)))
-        .select_from(AuthDeviceSession)
-        .join(AuthDevice, AuthDevice.device_id == AuthDeviceSession.device_id)
-        .where(live)
-    ) or 0
-    if count >= MAX_ACTIVE_USER_DEVICES:
-        raise DeviceAuthError(DEVICE_LIMIT_MESSAGE, "device_limit", 409)
+    devices = sorted(live.items(), key=lambda item: item[1]["last_seen_at"] or datetime.min.replace(tzinfo=UTC),
+                     reverse=True)
+    raise DeviceAuthError(DEVICE_LIMIT_MESSAGE, "device_limit", 409, extra={"devices": [
+        {
+            "device_id": str(did),
+            "label": entry["name"],
+            "last_seen_at": entry["last_seen_at"].isoformat() if entry["last_seen_at"] else None,
+            "unsent_count": entry["unsent_count"],
+        }
+        for did, entry in devices
+    ]})
 
 
 def _end_existing_pair_sessions(device: AuthDevice, user: VaUsers) -> None:
@@ -819,13 +856,16 @@ def _no_access_error(user: VaUsers, resolved=None) -> DeviceAuthError:
     return DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
 
 
-def _open_authorized_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedTokens, VaUsers]:
-    """Issue the normal device session after authentication and access checks."""
+def _open_authorized_session(
+    device: AuthDevice, user: VaUsers, replace_device_id=None
+) -> tuple[IssuedTokens, VaUsers]:
+    """Issue the normal device session after authentication and access checks;
+    *replace_device_id* as ``check_device_slot``."""
     if not has_device_access(user):
         error = _no_access_error(user)
         _sign_in_failed(device, user, error.code)
         raise error
-    check_device_slot(user, device.device_id)
+    check_device_slot(user, device.device_id, replace_device_id)
     _end_existing_pair_sessions(device, user)
     return _create_session(device, user)
 
@@ -897,8 +937,9 @@ def list_account_devices(user_id, current_device_id=None) -> list[dict]:
     ]
 
 
-def decommission_account_device(user_id, device_id, actor: VaUsers) -> int:
-    """End only *user_id*'s sessions on *device_id*, retaining all data."""
+def decommission_account_device(user_id, device_id, actor: VaUsers, reason: str | None = None) -> int:
+    """End only *user_id*'s sessions on *device_id*, retaining all data.
+    *reason* is a fixed code put in the audit detail (``replaced_at_sign_in``)."""
     try:
         parsed_device_id = uuid.UUID(str(device_id))
     except (ValueError, TypeError, AttributeError):
@@ -921,7 +962,8 @@ def decommission_account_device(user_id, device_id, actor: VaUsers) -> int:
         user_id=user_id,
         actor_user_id=actor.user_id,
         event_type="device_decommissioned",
-        detail={"device_id": str(parsed_device_id), "sessions_ended": len(sessions)},
+        detail={"device_id": str(parsed_device_id), "sessions_ended": len(sessions),
+                **({"reason": reason} if reason else {})},
     )
     return len(sessions)
 
@@ -996,11 +1038,12 @@ def record_profile_deletion(*, device_id, device_secret, user_id, unsent_count, 
     return True
 
 
-def open_session(*, device_id, device_secret, email, password) -> tuple[IssuedTokens, VaUsers]:
+def open_session(*, device_id, device_secret, email, password, replace_device_id=None) -> tuple[IssuedTokens, VaUsers]:
     """Sign an interviewer in on an enrolled device (the web login's checks,
     with the device credential in place of the CAPTCHA). *email* is the
     contract's field name; it holds an email, a mobile number or a
-    public-demo username. Raises
+    public-demo username. *replace_device_id*: the phone to sign out at the
+    device cap (``check_device_slot``). Raises
     DeviceAuthError; a refused attempt is audited and committed. Caller
     commits a success."""
     device = _authenticate_device(device_id, device_secret)
@@ -1019,7 +1062,7 @@ def open_session(*, device_id, device_secret, email, password) -> tuple[IssuedTo
 
     # ``no_interviewer_grant`` (or ``project_intake_off``) when there is no access.
     try:
-        return _open_authorized_session(device, user)
+        return _open_authorized_session(device, user, replace_device_id)
     except DeviceAuthError as exc:
         if exc.code == "device_limit":
             _sign_in_failed(device, user, "device_limit")

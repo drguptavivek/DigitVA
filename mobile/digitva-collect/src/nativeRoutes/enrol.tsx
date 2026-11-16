@@ -19,6 +19,7 @@ import { Text, TextInput, View } from "react-native";
 import { useAppState } from "../AppState";
 import { ApiError } from "../api";
 import { enrolDevice, passwordEnrolAndSignIn, redeemSignInQr, setDeviceHomeProject, type EnrolledAccount } from "../auth";
+import { DeviceLimitChoice, deviceLimitPhones, type LimitPhone } from "../DeviceLimitChoice";
 import { EnrolmentError, parseScannedQr, type ScannedQr } from "../enrolment";
 import { isPlusVariant } from "../appVariant";
 import { deviceFamilyLabel, offlineEnginePlatform } from "../platformFamily";
@@ -53,6 +54,8 @@ export default function Enrol() {
   const busyRef = useRef(false);
   /** Signed in with more than one eligible project: the owner's rule is to ask, never pick silently (mobile-sign-in.md). */
   const [choice, setChoice] = useState<EnrolledAccount>();
+  /** After a `409 device_limit`: the account's phones, and the refused sign-in to retry with the one picked. */
+  const [limit, setLimit] = useState<{ phones: LimitPhone[]; retry: (replaceDeviceId: string) => void; cancel: () => void }>();
   useEffect(() => () => setPassword(""), []);
 
   /** Go on to PIN setup, or first ask for the home project when there is more than one. */
@@ -79,12 +82,15 @@ export default function Enrol() {
     }
   }
 
-  /** Lock local work before enrolling; credentials stay in this form only and are cleared after every attempt. */
-  async function submitPassword() {
+  /** Lock local work before enrolling; credentials stay in this form only and are cleared after every attempt,
+   * except while the device-limit choice is open for its retry (cleared on its Cancel or the retry's end). */
+  async function submitPassword(replaceDeviceId?: string) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
     setError("login", "");
+    // Kept only while the device-limit choice is open, for its retry; cleared on its Cancel.
+    let keepPassword = false;
     try {
       const submittedIdentifier = mode === "mobile" ? normalizeMobileIdentifier(identifier) : identifier.trim();
       if (!submittedIdentifier) {
@@ -95,14 +101,19 @@ export default function Enrol() {
         setError("login", t("errGeneric"));
         return;
       }
-      const enrolled = await passwordEnrolAndSignIn(server, submittedIdentifier, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION);
+      const enrolled = await passwordEnrolAndSignIn(server, submittedIdentifier, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION, replaceDeviceId);
+      setLimit(undefined);
       await reload();
       afterSignIn(enrolled);
     } catch (caught) {
+      const phones = deviceLimitPhones(caught);
+      keepPassword = !!phones;
+      setLimit(phones && { phones, retry: (id) => void submitPassword(id), cancel: () => setPassword("") });
+      if (phones) return;
       setError("login", caught instanceof EnrolmentError ? t(caught.key)
         : caught instanceof ApiError && caught.status === 404 ? t("errPasswordEnrolUnsupported") : errorText(caught));
     } finally {
-      setPassword("");
+      if (!keepPassword) setPassword("");
       busyRef.current = false;
       setBusy(false);
     }
@@ -119,7 +130,7 @@ export default function Enrol() {
     }
   }
 
-  async function submit(payload: ScannedQr) {
+  async function submit(payload: ScannedQr, replaceDeviceId?: string) {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
@@ -133,8 +144,9 @@ export default function Enrol() {
       }
       const deviceName = Constants.deviceName ?? deviceFamilyLabel();
       if (payload.kind === "sign_in") {
-        const enrolled = await redeemSignInQr(payload.server, payload.token, deviceName, APP_VERSION);
+        const enrolled = await redeemSignInQr(payload.server, payload.token, deviceName, APP_VERSION, replaceDeviceId);
         setPending(undefined);
+        setLimit(undefined);
         await reload();
         afterSignIn(enrolled);
       } else {
@@ -144,8 +156,14 @@ export default function Enrol() {
       }
     } catch (caught) {
       setPending(undefined);
+      // The QR is not spent by a device_limit refusal: the retry redeems it again with the phone picked.
+      const phones = payload.kind === "sign_in" ? deviceLimitPhones(caught) : undefined;
+      setLimit(phones && { phones, retry: (id) => void submit(payload, id), cancel: () => undefined });
+      if (phones) return;
       // One message for every refusal of a sign-in QR; the token and the server's detail are never shown or logged.
-      const refused = payload.kind === "sign_in" && caught instanceof ApiError && (caught.status === 404 || caught.status === 400);
+      // A 400 on a retry refuses the phone picked (signed out meanwhile), not the QR.
+      const refused = payload.kind === "sign_in" && caught instanceof ApiError
+        && (caught.status === 404 || (caught.status === 400 && replaceDeviceId === undefined));
       const limited = payload.kind === "sign_in" && caught instanceof ApiError && caught.status === 429;
       setError("code", refused ? t("errSignInQrInvalid") : limited ? t("errSignInQrRateLimited") : errorText(caught));
     } finally {
@@ -159,6 +177,17 @@ export default function Enrol() {
   const tryDemo = () => void switchSlot?.("demo").catch((caught) => setError("demo", errorText(caught)));
   const cancel = <TextLink label={t("cancel")} disabled={busy} onPress={() => { setView("menu"); setError("code", ""); }} />;
   const working = busy ? <Text style={styles.muted}>{t("enrolWorking")}</Text> : null;
+
+  if (limit) {
+    return (
+      <DeviceLimitChoice
+        phones={limit.phones}
+        busy={busy}
+        onPick={limit.retry}
+        onCancel={() => { limit.cancel(); setLimit(undefined); }}
+      />
+    );
+  }
 
   // Home project (digitva-kspl): one grouped card of the projects, the welcome screen's own row vocabulary.
   if (choice) {

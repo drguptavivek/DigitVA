@@ -103,7 +103,7 @@ def _too_large(_exc):
 def _device_auth_error(exc):
     db.session.rollback()
     extra = {"fields": exc.fields} if exc.fields else {}
-    return _error(str(exc), exc.code, exc.status_code, **extra)
+    return _error(str(exc), exc.code, exc.status_code, **(exc.extra or {}), **extra)
 
 
 # ---------------------------------------------------------------------------
@@ -166,11 +166,13 @@ def open_session():
     ``PUBLIC_DEMO_ENABLED`` deployment a public-demo username
     (``user_account_service.sign_in_identifier``). Rate limits match the web
     password step (docs/policy/authentication-factors.md section 1), per IP,
-    per device and per account; the device credential replaces the CAPTCHA."""
+    per device and per account; the device credential replaces the CAPTCHA.
+    Optional ``replace_device_id``: at the device cap, the phone to sign out
+    (``devices.check_device_slot``; mobile-sign-in.md)."""
     p = _body()
     issued, user = devices.open_session(
         device_id=p.get("device_id"), device_secret=p.get("device_secret"),
-        email=p.get("email"), password=p.get("password"),
+        email=p.get("email"), password=p.get("password"), replace_device_id=p.get("replace_device_id"),
     )
     devices.record_app_version(issued.session, p.get("app_version"))
     db.session.commit()
@@ -183,8 +185,9 @@ def open_session():
 def password_enroll():
     """Enrol and sign in with an email/mobile identifier and password.
 
-    Accepts ``identifier, password, device_name, platform, app_version?`` and
-    ``client_device_uuid?``. Returns the combined QR enrolment/session body
+    Accepts ``identifier, password, device_name, platform, app_version?``,
+    ``client_device_uuid?`` and ``replace_device_id?`` (at the device cap, the
+    phone to sign out; ``devices.check_device_slot``). Returns the combined QR enrolment/session body
     plus ``projects`` (every eligible home; ``project`` stays the default);
     any refusal rolls back both device and session (mobile-sign-in.md).
     404 on the public-demo deployment, which has its own enrolment flow.
@@ -196,6 +199,7 @@ def password_enroll():
         identifier=p.get("identifier"), password=p.get("password"),
         device_name=p.get("device_name"), platform=p.get("platform"),
         app_version=p.get("app_version"), client_device_uuid=p.get("client_device_uuid"),
+        replace_device_id=p.get("replace_device_id"),
     )
     project = db.session.get(VaProjectMaster, device.project_id)
     body = {
@@ -215,7 +219,8 @@ def password_enroll():
 @limiter.limit("5 per minute", key_func=lambda: sign_in_qr.token_limit_key(_safe_body().get("token")))
 def redeem_sign_in_qr():
     """Scan a sign-in QR (docs/policy/mobile-sign-in.md section 8): ``{token,
-    device_name, platform, app_version?, signing_public_key?, client_device_uuid?}``. Enrols the
+    device_name, platform, app_version?, signing_public_key?, client_device_uuid?,
+    replace_device_id?}`` (at the device cap, the phone to sign out). Enrols the
     device and opens that user's device session in one step; the reply is
     ``/enroll``'s plus ``/sessions``'s: 201 ``{device_id, device_secret,
     signing_key_id?, project, server_time, ...tokens, access}``. Every
@@ -230,6 +235,7 @@ def redeem_sign_in_qr():
     device, secret, issued, user = sign_in_qr.redeem(
         p.get("token"), device_name=p.get("device_name"), platform=p.get("platform"),
         app_version=p.get("app_version"), client_device_uuid=client_uuid,
+        replace_device_id=p.get("replace_device_id"),
     )
     reply = {"device_id": str(device.device_id), "device_secret": secret}
     if public_key is not None:

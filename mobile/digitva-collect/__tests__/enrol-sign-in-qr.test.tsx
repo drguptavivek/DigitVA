@@ -31,10 +31,12 @@ jest.mock("../src/api", () => ({
   ApiError: class ApiError extends Error {
     status: number;
     code?: string;
-    constructor(status: number, code?: string) {
+    payload?: Record<string, unknown>;
+    constructor(status: number, code?: string, _redirect?: string, _csrf?: unknown, payload?: Record<string, unknown>) {
       super(`HTTP ${status}`);
       this.status = status;
       this.code = code;
+      this.payload = payload;
     }
   },
 }));
@@ -113,7 +115,7 @@ it("redeems on confirm, then goes to PIN setup through unlock with the refresh f
   await enterServer(tree);
   scan(tree, signInQr);
   await press(tree, "enrolConfirm");
-  expect(mockRedeem).toHaveBeenCalledWith(SERVER, TOKEN, "Pixel", "1.0.0");
+  expect(mockRedeem).toHaveBeenCalledWith(SERVER, TOKEN, "Pixel", "1.0.0", undefined);
   expect(mockEnrol).not.toHaveBeenCalled();
   expect(mockReload).toHaveBeenCalled();
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
@@ -214,13 +216,64 @@ async function fillManual(tree: ReactTestRenderer, password = "private-password"
   }
 }
 
+it("at the device limit keeps the password for the chosen phone's retry, and Cancel clears it", async () => {
+  const { Alert } = jest.requireActual("react-native") as typeof import("react-native");
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+  const devices = [{ device_id: "d-old", label: "Old phone", last_seen_at: null, unsent_count: null }];
+  const limit = () => new ApiError(409, "device_limit", undefined, undefined, { code: "device_limit", devices });
+  mockPasswordEnrol.mockRejectedValueOnce(limit()).mockResolvedValueOnce({ account: { user_id: "u1", name: "Asha" }, projects: [] });
+  const tree = await render();
+  await fillManual(tree);
+  await press(tree, "enrolManualSubmit");
+
+  await press(tree, "Old phone");
+  const actions = alert.mock.calls[0][2] as Array<{ text: string; onPress?: () => void }>;
+  await act(async () => actions.find((a) => a.text === "deviceLimitConfirm")!.onPress!());
+
+  expect(mockPasswordEnrol).toHaveBeenLastCalledWith(SERVER, "asha@example.org", "private-password", "Pixel", "1.0.0", "d-old");
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
+  expect(tree.root.findAllByType(TextInput).find((input) => input.props.secureTextEntry)!.props.value).toBe("");
+
+  // Cancel instead: back on the form with the password gone and no retry.
+  mockPasswordEnrol.mockReset();
+  mockPasswordEnrol.mockRejectedValueOnce(limit());
+  const again = await render();
+  await fillManual(again);
+  await press(again, "enrolManualSubmit");
+  await press(again, "cancel");
+  expect(mockPasswordEnrol).toHaveBeenCalledTimes(1);
+  expect(again.root.findAllByType(TextInput).find((input) => input.props.secureTextEntry)!.props.value).toBe("");
+  alert.mockRestore();
+});
+
+it("a sign-in QR at the device limit redeems the same token again with the chosen phone", async () => {
+  const { Alert } = jest.requireActual("react-native") as typeof import("react-native");
+  const alert = jest.spyOn(Alert, "alert").mockImplementation(() => undefined);
+  const devices = [{ device_id: "d-old", label: "Old phone", last_seen_at: null, unsent_count: 2 }];
+  mockRedeem
+    .mockRejectedValueOnce(new ApiError(409, "device_limit", undefined, undefined, { code: "device_limit", devices }))
+    .mockRejectedValueOnce(new ApiError(400, "invalid_request"));
+  const tree = await render();
+  await enterServer(tree);
+  await scan(tree, signInQr);
+  await press(tree, "enrolConfirm");
+  await press(tree, "Old phone");
+  const actions = alert.mock.calls[0][2] as Array<{ text: string; onPress?: () => void }>;
+  await act(async () => actions.find((a) => a.text === "deviceLimitConfirm")!.onPress!());
+
+  expect(mockRedeem).toHaveBeenLastCalledWith(SERVER, TOKEN, "Pixel", "1.0.0", "d-old");
+  // A 400 on the retry refuses the phone picked, not the QR.
+  expect(text(tree)).not.toContain("errSignInQrInvalid");
+  alert.mockRestore();
+});
+
 it("enrols manually, clears the password and follows the QR unlock journey", async () => {
   mockPasswordEnrol.mockResolvedValueOnce({ account: { user_id: "u1", name: "Asha" }, projects: [] });
   const tree = await render();
   await fillManual(tree);
   await press(tree, "enrolManualSubmit");
   expect(mockLockNow).toHaveBeenCalledTimes(1);
-  expect(mockPasswordEnrol).toHaveBeenCalledWith(SERVER, "asha@example.org", "private-password", "Pixel", "1.0.0");
+  expect(mockPasswordEnrol).toHaveBeenCalledWith(SERVER, "asha@example.org", "private-password", "Pixel", "1.0.0", undefined);
   expect(mockReload).toHaveBeenCalledTimes(1);
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
   expect(tree.root.findAllByType(TextInput).find((input) => input.props.secureTextEntry)!.props.value).toBe("");
@@ -265,7 +318,7 @@ it("uses the existing canonical mobile identifier in the manual form", async () 
     act(() => tree.root.findAllByType(TextInput).find((input) => input.props.accessibilityLabel === label)!.props.onChangeText(value));
   }
   await press(tree, "enrolManualSubmit");
-  expect(mockPasswordEnrol).toHaveBeenCalledWith(SERVER, "+919876543210", "pw", "Pixel", "1.0.0");
+  expect(mockPasswordEnrol).toHaveBeenCalledWith(SERVER, "+919876543210", "pw", "Pixel", "1.0.0", undefined);
 });
 
 /** Labels and texts in render order, so an error's place next to its button can be asserted. */

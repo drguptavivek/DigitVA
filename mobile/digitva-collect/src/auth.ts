@@ -505,6 +505,14 @@ async function clientDeviceUuid(): Promise<{ client_device_uuid?: string }> {
   return identity ? { client_device_uuid: identity.uuid } : {};
 }
 
+/**
+ * The phone to sign out at the account's device limit, picked from a `409 device_limit` reply's `devices`
+ * (src/DeviceLimitChoice.tsx); {} otherwise, so a first attempt sends nothing extra.
+ */
+function replaceDevice(deviceId: string | undefined): { replace_device_id?: string } {
+  return deviceId ? { replace_device_id: deviceId } : {};
+}
+
 /** POST /enroll and keep the device record in the Active slot, which becomes the chosen one. */
 export async function enrolDevice(
   server: string,
@@ -583,7 +591,7 @@ export async function signIn(
   identifier: string,
   password: string,
   slot?: Slot,
-  options: { forPinReset?: boolean } = {},
+  options: { forPinReset?: boolean; replaceDeviceId?: string } = {},
 ): Promise<Account> {
   const snapshot = await selectedSlotSnapshot();
   if (slot !== undefined && slot !== snapshot.slot) throw new NotInSlotError();
@@ -601,6 +609,7 @@ export async function signIn(
       email: identifier,
       password,
       app_version: APP_VERSION,
+      ...replaceDevice(options.replaceDeviceId),
     },
   });
   const account = await storeSession(slot, device.server, body, snapshot.generation);
@@ -622,6 +631,7 @@ export async function passwordEnrolAndSignIn(
   password: string,
   deviceName: string,
   appVersion: string,
+  replaceDeviceId?: string,
 ): Promise<EnrolledAccount> {
   const origin = acceptedServerOrigin(server, __DEV__);
   if (!origin || origin === DEMO_SERVER) throw new EnrolmentError("errServerNotAllowed");
@@ -638,6 +648,7 @@ export async function passwordEnrolAndSignIn(
       platform: Platform.OS === "ios" ? "ios" : "android",
       app_version: appVersion,
       ...(await clientDeviceUuid()),
+      ...replaceDevice(replaceDeviceId),
     },
   });
   if (!body || typeof body.device_id !== "string" || !body.device_id ||
@@ -668,6 +679,7 @@ export async function redeemSignInQr(
   token: string,
   deviceName: string,
   appVersion: string,
+  replaceDeviceId?: string,
 ): Promise<EnrolledAccount> {
   const snapshot = await selectedSlotSnapshot();
   // Before the request, so a refusal does not spend the one-time token.
@@ -680,6 +692,7 @@ export async function redeemSignInQr(
       platform: Platform.OS === "ios" ? "ios" : "android",
       app_version: appVersion,
       ...(await clientDeviceUuid()),
+      ...replaceDevice(replaceDeviceId),
     },
   });
   const account = await storeEnrolledSession("active", server, body, snapshot);

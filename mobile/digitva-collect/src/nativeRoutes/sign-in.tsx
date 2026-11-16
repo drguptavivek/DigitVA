@@ -7,6 +7,7 @@ import { ApiError } from "../api";
 import { useAppState } from "../AppState";
 import { forgetDevice, loadActiveSlot, loadDevice, recoverSignOut, signIn, verifyPasswordForDelete, WrongAccountError, type Slot } from "../auth";
 import { normalizeUsername } from "../demoRules";
+import { DeviceLimitChoice, deviceLimitPhones, type LimitPhone } from "../DeviceLimitChoice";
 import { isDemoServer } from "../enrolment";
 import { t } from "../i18n";
 import {
@@ -36,6 +37,8 @@ export default function SignIn() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  /** The account's phones after a `409 device_limit`: pick one to sign out and retry this sign-in. */
+  const [limitPhones, setLimitPhones] = useState<LimitPhone[]>();
 
   async function openServerPage(path: (typeof NATIVE_AUTH_PATHS)[keyof typeof NATIVE_AUTH_PATHS]) {
     try {
@@ -47,7 +50,7 @@ export default function SignIn() {
     }
   }
 
-  async function submit() {
+  async function submit(replaceDeviceId?: string) {
     const submittedIdentifier = demo
       ? normalizeUsername(identifier)
       : mode === "mobile" ? normalizeMobileIdentifier(identifier) : identifier.trim();
@@ -72,7 +75,8 @@ export default function SignIn() {
         router.dismissTo({ pathname: "/unlock", params: { userId, delete: "1" } });
         return;
       }
-      const account = await signIn(submittedIdentifier, password, slot, { forPinReset: resetPin === "1" && !!userId });
+      const account = await signIn(submittedIdentifier, password, slot, { forPinReset: resetPin === "1" && !!userId, replaceDeviceId });
+      setLimitPhones(undefined);
       await reload();
       // Forgot PIN: a new PIN only for the account that just signed in (interviewerDb.resetInterviewerPin checks it too).
       if (resetPin === "1" && account.user_id === userId) {
@@ -82,6 +86,10 @@ export default function SignIn() {
       // Unlock sends an interviewer without a PIN yet to PIN setup.
       router.dismissTo({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
     } catch (caught) {
+      // Only the plain sign-in can retry with a phone signed out; recovery and delete keep the plain message.
+      const phones = recover === "1" || deleteProfile === "1" ? undefined : deviceLimitPhones(caught);
+      setLimitPhones(phones);
+      if (phones) return;
       // Forgetting the Demo device hands the phone back to Active, a slot change: lock first, or keep it.
       if (caught instanceof ApiError && caught.code === "device_revoked" && slot !== undefined
         && (slot === "active" || await lockNow())) {
@@ -92,6 +100,10 @@ export default function SignIn() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (limitPhones) {
+    return <DeviceLimitChoice phones={limitPhones} busy={busy} onPick={(id) => void submit(id)} onCancel={() => setLimitPhones(undefined)} />;
   }
 
   return (

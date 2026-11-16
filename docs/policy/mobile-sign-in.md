@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-13
+last_updated: 2026-11-16
 ---
 
 # Sign-in by Mobile Number
@@ -449,13 +449,16 @@ ended (its session version is current), on an unrevoked device. Web sessions do 
 consume app-device slots. Re-login on an existing phone replaces its old
 sessions without using another slot; refresh does not create a slot. The
 issuer locks the account while checking and adding a device session. A fourth
-phone receives an explicit `409 device_limit`; no device is silently evicted.
+phone receives an explicit `409 device_limit`; no device is silently evicted
+(a phone is signed out only when the user picks it, below).
 This applies to password, sign-in QR and demo entry. A refused QR remains
 retryable and no unused device is created by the refusal.
 
 Users can list and decommission their own devices from Profile or an already
 signed-in app. A user blocked on phone four can use a normal web login to
-free a slot. Do not add a pre-authenticated device-management credential flow.
+free a slot, or pick a phone to sign out in the refused sign-in itself
+(below). Do not add any other pre-authenticated device-management credential
+flow.
 Admins can manage any account. A data manager may act only when their existing
 writer scope covers all the target account's active native-device-role grants;
 partial shared-project access does not confer global device authority. Project
@@ -466,3 +469,33 @@ revoke the shared physical device, another person's sessions, server cases or
 interviews. The app receives a keep-data session-ended reason: encrypted local
 work remains available for safe sign-in/recovery and is never silently wiped.
 Every management action is audited without credentials or clinical payloads.
+
+### Replacing a phone at sign-in (owner 2026-11-16)
+
+The cap stays three. When a sign-in is refused at the cap, the phone says the
+device limit is reached and sign-in cannot continue here, that a phone can be
+removed from Profile on the web portal, and offers the account's signed-in
+phones to sign one out now.
+
+- The `409 device_limit` reply of `POST /auth/sessions`, `/auth/password-enroll`,
+  `/auth/sign-in-qr/redeem` and `/auth/demo-enroll` adds `devices`: that
+  account's live phones (the ones counted against the cap), each
+  `{device_id, label (the stored device name), last_seen_at (ISO or null),
+  unsent_count (the last reported outstanding count, or null)}`, most recently
+  seen first. It is sent only because the cap check runs after the caller's
+  password, device credential or one-time QR token was verified in that request.
+  It carries no other account's phones, no tokens and no IP addresses. An older
+  app ignores the field and shows its usual message.
+- The same sign-in request may be repeated with `replace_device_id`
+  (`/auth/sessions`, `/auth/password-enroll`, `/auth/sign-in-qr/redeem`; not
+  demo enrolment). At the cap it must name one of those live phones, other than
+  the phone signing in, else 400 `invalid_request` with
+  `fields: ["replace_device_id"]` and nothing changes. The server then
+  decommissions that phone exactly as Profile does (only this account's sessions
+  on it end, reason `device_decommissioned`, so that phone keeps its data and
+  must sign in again; audited `device_decommissioned` with the user as actor and
+  `reason: replaced_at_sign_in`) and continues the sign-in, in one transaction
+  under the account lock. A refusal after that point rolls the decommission back.
+  Below the cap `replace_device_id` is ignored. Rate limits are unchanged.
+- The app confirms the choice first and warns when the chosen phone reported
+  unsent items: they stay on that phone, which must sign in again to send them.

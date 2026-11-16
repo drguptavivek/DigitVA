@@ -200,3 +200,85 @@ class DeviceLimitServiceTests(BaseTestCase):
 
         first_statement = execute.call_args_list[0].args[0]
         self.assertIsNotNone(first_statement._for_update_arg)
+
+    # The 409 phone list and replacing one at sign-in (mobile-sign-in.md, device limit).
+
+    def _fill(self):
+        rows = []
+        for index in range(3):
+            device, _secret = self._device(f"full-phone-{index}")
+            rows.append((device, self._session(self.user, device, refresh=f"full-refresh-{index}")))
+        return rows
+
+    def _refused(self, **kwargs):
+        with self.assertRaises(devices.DeviceAuthError) as refused:
+            devices.check_device_slot(self.user, **kwargs)
+        return refused.exception
+
+    def test_device_limit_lists_only_this_accounts_live_phones(self):
+        rows = self._fill()
+        rows[1][1].outstanding_count = 4
+        other_device, _secret = self._device("other-users-phone")
+        self._session(self.other_user, other_device, refresh="other-live")
+        db.session.flush()
+
+        listed = self._refused().extra["devices"]
+
+        ids = {item["device_id"] for item in listed}
+        self.assertEqual(ids, {str(device.device_id) for device, _session in rows})
+        self.assertNotIn(str(other_device.device_id), ids)
+        for item in listed:
+            self.assertEqual(set(item), {"device_id", "label", "last_seen_at", "unsent_count"})
+        by_id = {item["device_id"]: item for item in listed}
+        self.assertEqual(by_id[str(rows[1][0].device_id)]["unsent_count"], 4)
+        self.assertIsNone(by_id[str(rows[0][0].device_id)]["unsent_count"])
+        self.assertEqual(by_id[str(rows[0][0].device_id)]["label"], "full-phone-0")
+
+    def test_replace_signs_out_the_named_phone_keeping_data_and_audits(self):
+        rows = self._fill()
+        replaced, replaced_session = rows[0]
+        new_device, _secret = self._device("new-phone")
+
+        issued, _user = devices._open_authorized_session(
+            new_device, self.user, replace_device_id=str(replaced.device_id))
+
+        self.assertIsNone(issued.session.revoked_at)
+        self.assertIsNone(replaced.revoked_at)  # the phone itself is not revoked
+        self.assertEqual(replaced_session.revoked_reason, "device_decommissioned")
+        self.assertEqual(devices._revoked_error(replaced_session).code, "session_ended")
+        for _device, session in rows[1:]:
+            self.assertIsNone(session.revoked_at)
+        event = db.session.scalars(sa.select(AuthSecurityEvent).where(
+            AuthSecurityEvent.event_type == "device_decommissioned",
+            AuthSecurityEvent.detail["device_id"].astext == str(replaced.device_id),
+        )).one()
+        self.assertEqual((event.user_id, event.actor_user_id), (self.user.user_id, self.user.user_id))
+        self.assertEqual(event.detail["reason"], "replaced_at_sign_in")
+
+    def test_replace_must_name_one_of_this_accounts_live_phones(self):
+        rows = self._fill()
+        other_device, _secret = self._device("other-owned")
+        self._session(self.other_user, other_device, refresh="other-owned-live")
+        revoked, _secret = self._device("revoked-phone")
+        self._session(self.user, revoked, refresh="revoked-live")
+        revoked.revoked_at = datetime.now(UTC)
+        requesting, _secret = self._device("requesting")
+        db.session.flush()
+
+        for value in (str(other_device.device_id), str(revoked.device_id), "not-a-uuid", 7):
+            with self.subTest(value=value):
+                refused = self._refused(replace_device_id=value)
+                self.assertEqual((refused.code, refused.status_code, refused.fields),
+                                 ("invalid_request", 400, ["replace_device_id"]))
+        refused = self._refused(device_id=requesting.device_id, replace_device_id=str(requesting.device_id))
+        self.assertEqual((refused.code, refused.status_code), ("invalid_request", 400))
+        for _device, session in rows:
+            self.assertIsNone(session.revoked_at)
+
+    def test_replace_below_the_cap_is_ignored(self):
+        device, _secret = self._device("only-phone")
+        session = self._session(self.user, device, refresh="only-live")
+
+        devices.check_device_slot(self.user, replace_device_id=str(device.device_id))
+
+        self.assertIsNone(session.revoked_at)

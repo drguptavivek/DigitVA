@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-16
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -839,6 +839,15 @@ per hour per identifier (canonical mobile for a number). Checks, in order:
 | non-admin after the maintenance cutoff | 403 `maintenance` |
 | no device access (`has_device_access`: `interviewer_context` non-empty, which skips projects with web intake off, or an explicit coder, coding_tester or reviewer grant whose gate is open) | 403 `no_interviewer_grant`, "You have no access in any project." |
 | no device access, but an active `interviewer` grant on an active project whose web intake is `off` (no other grant) | 403 `project_intake_off`, "Data collection is switched off for your project. Ask your project administrator." |
+| three other live phones on the account (`check_device_slot`, under the account row lock) | 409 `device_limit` with `devices` `[{device_id, label, last_seen_at, unsent_count}]`, the account's live phones |
+
+Optional `replace_device_id` (also on `/password-enroll` and
+`/sign-in-qr/redeem`): at the cap it must name one of those `devices` (else
+400 `invalid_request`, `fields: ["replace_device_id"]`); that phone is
+decommissioned as Profile does (`decommission_account_device`, actor the user,
+audit `reason: replaced_at_sign_in`) in the same transaction and the sign-in
+continues. Ignored below the cap. Policy: mobile-sign-in.md, replacing a phone
+at sign-in.
 
 Every refusal after the device check is audited as `device_session_failed`
 with the device id and reason only. Success records
@@ -1004,7 +1013,8 @@ password, an inactive account and an account that is **not** a public-demo
 account all get 401 `invalid_credentials` ("Invalid username or password."),
 audited as `demo_device_enrol_failed` (reason only). Then, under the account's
 row lock, the shared three-active-device limit is checked. At the cap it
-returns `409 device_limit` without enrolling or evicting another phone. The
+returns `409 device_limit` (with `devices`, as section 6.2) without enrolling
+or evicting another phone; demo enrolment takes no `replace_device_id`. The
 user frees a slot through Profile or another signed-in device. Success is 201 with
 `/enroll`'s body, `{device_id, device_secret, project, server_time}`, the secret
 shown once; the app then signs in through `POST /sessions` (section 6.2:
@@ -1152,8 +1162,8 @@ signed-in user id.
 | Method, path | Auth | Request | Response | Limits | Audit |
 | --- | --- | --- | --- | --- | --- |
 | POST `/auth/enroll` | none | `{code, device_name, platform: "android", app_version?}` | 201 `{device_id, device_secret, project, server_time}`; 400 `invalid_request`; 404 `enrolment_invalid` | 10/min per IP | `device_enrolled` |
-| POST `/auth/sign-in-qr/redeem` | none (one-time token) | `{token, device_name, platform, app_version?, signing_public_key?}` | 201 enrol reply plus token response (6.1a); 400 `invalid_request`; 404 `sign_in_qr_invalid` | 10/min per IP; 5/min per token digest | `sign_in_qr_redeemed`, `device_enrolled`, `device_session_opened` |
-| POST `/auth/sessions` | device id + secret | `{device_id, device_secret, email (email, mobile or, on the demo, username), password}` | 201 token response; refusals in 6.2 | 10/min per IP; 10/min per device; 20/hour per identifier | `device_session_opened`, `device_session_failed` |
+| POST `/auth/sign-in-qr/redeem` | none (one-time token) | `{token, device_name, platform, app_version?, signing_public_key?, replace_device_id?}` | 201 enrol reply plus token response (6.1a); 400 `invalid_request`; 404 `sign_in_qr_invalid`; 409 `device_limit` with `devices` (6.2) | 10/min per IP; 5/min per token digest | `sign_in_qr_redeemed`, `device_enrolled`, `device_session_opened` |
+| POST `/auth/sessions` | device id + secret | `{device_id, device_secret, email (email, mobile or, on the demo, username), password, replace_device_id?}` | 201 token response; refusals in 6.2 | 10/min per IP; 10/min per device; 20/hour per identifier | `device_session_opened`, `device_session_failed` |
 | GET `/auth/demo-signup/challenge` | none; flag on only (else 404) | none | 200 `{salt, difficulty, expires, signature}` (section 6.7) | 30/min per IP | none |
 | POST `/auth/demo-signup` | none; flag on only (else 404) | `{username, password, captcha}` (section 6.7) | 201 `{user_id, username}`, no session; 400 `captcha_failed` / `invalid_username` / `invalid_password` / `breached_password` with `fields`; 409 `username_taken`; 429 `rate_limited`; 503 `cap_reached`, `breach_check_unavailable`, `project_missing`, `maintenance` | 10/min per IP (IPv6 per /64); `PUBLIC_DEMO_SIGNUP_RATE_LIMIT` per IP and `PUBLIC_DEMO_SIGNUP_GLOBAL_RATE_LIMIT` demo-wide, on successes | `account_created` (`self_signup`), `terms_accepted` (`api`) |
 | POST `/auth/demo-enroll` | demo username and password; flag on only (else 404) | `{username, password, device_name, platform, app_version?}` (section 6.8) | 201 as `/auth/enroll`; 409 `device_limit` (no silent eviction); 401 `invalid_credentials` (also for a non-demo account); 503 `wrong_database`, `project_missing` | 10/min per IP (IPv6 per /64); 20/hour per username | `device_enrolled`, `demo_device_enrol_failed` |

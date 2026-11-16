@@ -302,12 +302,13 @@ def _burn(token_id, user_id, reason: str) -> devices.DeviceAuthError:
     return _invalid()
 
 
-def redeem(token, *, device_name, platform, app_version, client_device_uuid=None):
+def redeem(token, *, device_name, platform, app_version, client_device_uuid=None, replace_device_id=None):
     """Consume a sign-in QR: enrol a device and open the user's normal device
     session. Returns ``(device, device_secret, IssuedTokens, user)``. Every
     ordinary failure is one 404 ``sign_in_qr_invalid``. A full account returns
-    409 ``device_limit`` before the token is claimed, so it remains retryable.
-    Caller commits a success."""
+    409 ``device_limit`` (with ``devices``) before the token is claimed, so it
+    remains retryable; *replace_device_id* then signs out that phone in this
+    transaction (``devices.check_device_slot``). Caller commits a success."""
     name, version = devices._device_fields(device_name, platform, app_version)
     if not isinstance(token, str) or not token.strip() or len(token) > _TOKEN_MAX:
         raise _invalid()
@@ -346,7 +347,7 @@ def redeem(token, *, device_name, platform, app_version, client_device_uuid=None
 
     # Hold the account lock before claiming the one-use token or creating a
     # device. A refused fourth phone therefore leaves the QR retryable.
-    devices.check_device_slot(user)
+    devices.check_device_slot(user, replace_device_id=replace_device_id)
     claimed = db.session.execute(
         sa.update(table)
         .where(

@@ -224,6 +224,34 @@ class PasswordEnrolTests(BaseTestCase):
             self.assertIsNone(device.revoked_at)
             self.assertIsNotNone(devices.resolve_access_token(body["access_token"]))
 
+    def test_fourth_phone_lists_the_phones_and_can_replace_one(self):
+        bodies = [self._enrol().get_json() for _ in range(3)]
+        refused = self._enrol()
+        self.assertEqual(refused.status_code, 409)
+        listed = refused.get_json()["devices"]
+        self.assertEqual({item["device_id"] for item in listed}, {body["device_id"] for body in bodies})
+        self.assertNotIn("access_token", str(listed))
+
+        response = self._enrol(replace_device_id=bodies[0]["device_id"])
+
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertIsNone(devices.resolve_access_token(bodies[0]["access_token"]))
+        replaced = db.session.get(AuthDevice, uuid.UUID(bodies[0]["device_id"]))
+        self.assertIsNone(replaced.revoked_at)
+        for body in bodies[1:]:
+            self.assertIsNotNone(devices.resolve_access_token(body["access_token"]))
+        self.assertIsNotNone(devices.resolve_access_token(response.get_json()["access_token"]))
+
+    def test_bad_replace_at_the_cap_creates_nothing(self):
+        for _ in range(3):
+            self._enrol()
+        before = self._counts()
+        response = self._enrol(replace_device_id=str(uuid.uuid4()))
+        body = response.get_json()
+        self.assertEqual((response.status_code, body["code"], body["fields"]),
+                         (400, "invalid_request", ["replace_device_id"]))
+        self.assertEqual(self._counts(), before)
+
     def test_session_failure_rolls_back_both_flushed_rows(self):
         create_session = devices._create_session
         before = self._counts()

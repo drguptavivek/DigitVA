@@ -18,6 +18,7 @@ jest.mock("expo-constants", () => ({ __esModule: true, default: { deviceName: "P
 jest.mock("expo-camera", () => ({ CameraView: "camera", useCameraPermissions: () => [{ granted: true }, jest.fn()] }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ reload: jest.fn(), switchSlot: mockSwitchSlot }) }));
 jest.mock("../src/auth", () => ({ enrolDevice: jest.fn() }));
+jest.mock("../src/DeviceLimitChoice", () => ({ DeviceLimitChoice: () => null, deviceLimitPhones: () => undefined }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;

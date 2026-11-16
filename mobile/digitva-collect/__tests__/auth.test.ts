@@ -218,6 +218,17 @@ it("keeps a fourth-phone refusal retryable for device management", async () => {
   mockServer(() => json(409, { code: "device_limit" }));
   await expect(signIn("a@example.org", "pw")).rejects.toMatchObject({ status: 409, code: "device_limit" });
   expect(mockSecure.has("device")).toBe(true);
+  expect(JSON.parse(calls[0].body ?? "{}")).not.toHaveProperty("replace_device_id");
+});
+
+it("names the phone to sign out only on the device-limit retry", async () => {
+  mockSecure.set("device_secret", "dev-secret");
+  mockSecure.set("device", JSON.stringify({ device_id: "d1", server: SERVER, project_id: "P", project_name: "P" }));
+  mockServer(() => json(409, { code: "device_limit", devices: [{ device_id: "d0", label: "Old", last_seen_at: null, unsent_count: 2 }] }));
+  await expect(signIn("a@example.org", "pw", undefined, { replaceDeviceId: "d0" })).rejects.toMatchObject({
+    code: "device_limit", payload: { devices: [{ device_id: "d0" }] },
+  });
+  expect(JSON.parse(calls[0].body ?? "{}")).toMatchObject({ replace_device_id: "d0", device_id: "d1" });
 });
 
 it("retains the terms flag returned at sign-in", async () => {

@@ -41,7 +41,7 @@ import type { WhoCoreRuntime } from "../whoCoreRuntime";
 import { RefusalPanel } from "../RefusalPanel";
 import { useWhoNoConfirm } from "../useWhoNoConfirm";
 import { ConfirmDialog } from "../ConfirmDialog";
-import { isRefused, refusalAnswers } from "../refusalBoundary";
+import { agreeConsentOnPage, isRefused, refusalAnswers, type ConsentSession } from "../refusalBoundary";
 import { formUiTranslations, useFormPackRevision } from "../uiPacks";
 
 /**
@@ -1128,6 +1128,12 @@ export default function InterviewScreen() {
       return prev;
     });
   }, []);
+  const webSessionRef = useRef<ConsentSession | undefined>(undefined);
+  const consentDecision = consentGate?.status.decision;
+  const handleFormReady = useCallback((session: ConsentSession) => {
+    webSessionRef.current = session;
+    if (!(store instanceof RevisionMemoryStore)) agreeConsentOnPage(session, consentDecision);
+  }, [consentDecision, store]);
   const handleFormChange = useCallback((data: SubmissionData) => {
     // A consent "No" asks once before it wipes the draft; the change is handled when confirmed or put back.
     if (!(store instanceof RevisionMemoryStore)) {
@@ -1143,7 +1149,10 @@ export default function InterviewScreen() {
     if (!(store instanceof RevisionMemoryStore) && loadedBootstrap) {
       writeWebRecall(loadedBootstrap.user.user_id, recallFromData(data));
     }
-  }, [loadedBootstrap, store, updateLiveAnswers, whoNo.onChange]);
+    // Last, so its own change event (the "yes") is the one this handler sees latest. A section change or a restored
+    // draft landing on the consent page: agreed means "yes" (owner 2026-11-13). Revisions are never gated.
+    if (!(store instanceof RevisionMemoryStore)) agreeConsentOnPage(webSessionRef.current, consentDecision);
+  }, [consentDecision, loadedBootstrap, store, updateLiveAnswers, whoNo.onChange]);
   const handleDraftSaved = useCallback((saved?: { data?: SubmissionData }) => {
     if (!(store instanceof ServerDraftStore)) return;
     saveFailedRef.current = false;
@@ -1471,6 +1480,7 @@ export default function InterviewScreen() {
               autoSaveDraftOnChange
               autoSaveDraftIntervalMs={signedOut || saveHeld ? false : undefined}
               onDraftController={setController}
+              onReady={handleFormReady}
               onChange={handleFormChange}
               onDraftSaved={handleDraftSaved}
               onDraftError={handleDraftError}

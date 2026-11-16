@@ -3,7 +3,7 @@ title: Native Location Capture (Collect and Collect Plus)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-07
+last_updated: 2026-11-13
 ---
 
 # Native location capture
@@ -61,3 +61,24 @@ WHO VA 2022 instrument has no geopoint question; none is added to it.
   consent is not granted: it shares the address's audience.
 - **Deletable.** While a registration may be edited, "Clear" removes the fix
   and the correction sends `null` for all three fields.
+
+## Directions and sharing on the case screen
+
+Owner request 2026-11-13. On the Collect Plus case screen, a reported death
+whose registration carries a GPS fix shows "Directions" and "Share location".
+
+- **Who sees it.** Anyone who can open the case on the phone and receives the
+  fix from the server (the audience of `shows_gps`: the written address's
+  audience within personal-data access, plus the reporter's own
+  registrations). A registration still queued on the reporter's phone shows
+  them from its own captured fix (owner 2026-11-13). The phone adds no other
+  audience; no fix, no buttons. Hindi labels approved by the owner 2026-11-13.
+- **Never logged.** The coordinates are not logged, put in telemetry or error
+  reports by these controls.
+- **Directions.** Android opens Google Maps navigation (`google.navigation:`),
+  falling back to any `geo:` app; iOS asks Google Maps or Apple Maps (Google Maps falls back to its web directions when the app is not installed). The coordinates pass
+  to the maps app the user's phone opens, on a deliberate tap.
+- **Share.** "Share location" sends a Google Maps link through the phone's own
+  share sheet, as a deliberate act by the user. Nothing is sent by the app
+  itself.
+- The fix's accuracy is shown beside the buttons when known.

@@ -13,7 +13,7 @@ import {
   useRouter,
 } from "expo-router";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { Linking, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Platform, Share, Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import {
@@ -37,7 +37,10 @@ import { sendRefusal } from "../unsentWork";
 import {
   canFollowUpDeath,
   canStartDeathInterview,
+  deathDirectionsUrls,
+  deathFix,
   deathPhoneUrl,
+  deathShareUrl,
 } from "../deathWorkflow";
 import { draftSyncDefaults, fetchCaseDetail, getCachedReferenceData } from "../sync";
 import { reconcileCaseDraft } from "../draftSync";
@@ -448,6 +451,83 @@ export default function Case() {
     }
   }
 
+  const foundFix = deathFix(found?.household_address);
+  // A registration not yet sent keeps its fix flat in its fields.
+  const localFix = registration ? deathFix(registration.fields as { latitude?: unknown; longitude?: unknown; accuracy_m?: unknown }) : null;
+
+  // Same busy and error handling as callPhone. Coordinates are never logged.
+  async function openDirections(fix: NonNullable<typeof foundFix>, iosApp?: "apple" | "google") {
+    if (actionBusy) return;
+    if (Platform.OS === "ios" && !iosApp) {
+      // Map app names are brand names, the same in every language.
+      Alert.alert(t("directions"), undefined, [
+        { text: "Google Maps", onPress: () => void openDirections(fix, "google") },
+        { text: "Apple Maps", onPress: () => void openDirections(fix, "apple") },
+        { text: t("cancel"), style: "cancel" },
+      ]);
+      return;
+    }
+    setActionBusy(true);
+    setMessage("");
+    let failure: unknown;
+    try {
+      for (const url of deathDirectionsUrls(fix, Platform.OS, iosApp)) {
+        try {
+          await Linking.openURL(url);
+          failure = undefined;
+          break;
+        } catch (error) {
+          failure = error;
+        }
+      }
+      if (failure) setMessage(errorText(failure));
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function shareLocation(fix: NonNullable<typeof foundFix>) {
+    if (actionBusy) return;
+    setActionBusy(true);
+    setMessage("");
+    try {
+      await Share.share({ message: deathShareUrl(fix) });
+    } catch (error) {
+      setMessage(errorText(error));
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  // Directions and Share for a fix from the server case or this phone's queued registration.
+  function locationActions(fix: NonNullable<typeof foundFix>) {
+    return (
+            <View style={{ gap: 4 }}>
+              <Row>
+                <Button
+                  kind="secondary"
+                  label={t("directions")}
+                  disabled={actionBusy}
+                  onPress={() => void openDirections(fix)}
+                />
+                <Button
+                  kind="secondary"
+                  label={t("shareLocation")}
+                  disabled={actionBusy}
+                  onPress={() => void shareLocation(fix)}
+                />
+              </Row>
+              {fix.accuracy_m !== null ? (
+                <Text style={styles.muted}>
+                  {t("locationAccuracyAbout", {
+                    meters: Math.round(fix.accuracy_m),
+                  })}
+                </Text>
+              ) : null}
+            </View>
+    );
+  }
+
   return (
     <Screen title={t("deathDetails")}>
       {name ? <Text style={styles.headline}>{name}</Text> : null}
@@ -516,6 +596,7 @@ export default function Case() {
                 {value}
               </Text>
             ))}
+          {foundFix ? locationActions(foundFix) : null}
           {foundPhones.map((phone) => (
             <Row key={phone}>
               <Text style={styles.text}>{phone}</Text>
@@ -614,6 +695,7 @@ export default function Case() {
                 {value}
               </Text>
             ))}
+          {localFix ? locationActions(localFix) : null}
           {localPhones.length ? (
             localPhones.map((phone) => (
               <Row key={phone}>

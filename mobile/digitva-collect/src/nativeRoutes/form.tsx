@@ -37,7 +37,7 @@ import { ActivityIndicator, AppState, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppState } from "../AppState";
-import { getOfflineProfile, standaloneProfileMissing, standalonePrefill } from "../offlineProfile";
+import { getOfflineProfile, profileInterviewerAnswers, standaloneProfileMissing, standalonePrefill } from "../offlineProfile";
 import { standaloneProfileMissingText } from "../offlineProfileForm";
 import { standaloneConsentConfigWithSavedNotice } from "../standalone/noticeSettings";
 import { STANDALONE_DEFAULT_EXTENSIONS } from "../standalone/config";
@@ -133,7 +133,7 @@ import {
   type SmartVaTarget,
 } from "../smartva/options";
 import { RefusalPanel } from "../RefusalPanel";
-import { isRefused, refusalAnswers } from "../refusalBoundary";
+import { agreeConsentOnPage, isRefused, refusalAnswers, withConsentAgreed } from "../refusalBoundary";
 import { useWhoNoConfirm } from "../useWhoNoConfirm";
 import { runInTransaction } from "../dbTransaction";
 import { ensureLocalSmartVa } from "../smartva/ensureLocal";
@@ -149,6 +149,8 @@ interface Loaded extends DraftHost {
   hasStartedSection: boolean;
   /** The interviewer's own details from their last interview (src/interviewerRecall.ts). */
   recall?: InterviewerRecall;
+  /** The interviewer's profile answers, which outrank the recall (owner decision 2026-11-14). */
+  profileAnswers?: InterviewerRecall;
   accountName?: string;
   /** Path C: no server project; the bundled form, the bundled consent notice, local translations only. */
   standalone?: boolean;
@@ -306,10 +308,10 @@ async function rebuiltPrefill(loaded: Loaded): Promise<Prefill | undefined> {
  * interviewer's recall added, answers a consent does not cover left out).
  */
 async function storeResumedPrefill(db: Db, loaded: Loaded, draftId: string, prefill: Prefill | undefined,
-                                   covered: readonly string[] = []): Promise<void> {
+                                   covered: readonly string[] = [], decision?: ConsentDecision): Promise<void> {
   if (!prefill) return;
-  const initial = withInterviewerRecall(initialDataFromPrefill(prefill), loaded.recall, loaded.accountName) ?? {};
-  await restoreResumedPrefill(db, draftId, prefill, withoutCovered(initial, covered) as Record<string, unknown>);
+  const initial = withInterviewerRecall(initialDataFromPrefill(prefill), loaded.recall, loaded.accountName, loaded.profileAnswers) ?? {};
+  await restoreResumedPrefill(db, draftId, prefill, withConsentAgreed(withoutCovered(initial, covered), decision) as Record<string, unknown>);
 }
 
 function mergeProjectPrefill(
@@ -838,6 +840,7 @@ export default function Form() {
           };
         }
         const recall = await getMeta<InterviewerRecall>(db, RECALL_META_KEY);
+        const profileAnswers = profileInterviewerAnswers(await getOfflineProfile().catch(() => null));
         if (!active || generation !== loadGeneration.current) return;
         const hasStartedSection = Boolean(existingDraft && (!envelope || envelope.currentSection));
         setLoaded({
@@ -848,6 +851,7 @@ export default function Form() {
           accessVersion: lockVersion,
           hasStartedSection,
           recall,
+          profileAnswers,
           accountName: referenceData?.bootstrap.user?.name,
           ...host,
         });
@@ -1077,9 +1081,11 @@ export default function Form() {
   const covered = consentView.kind === "ready" ? consentView.covered : [];
   const initialData = useMemo(() => {
     if (!loaded) return undefined;
-    const data = withInterviewerRecall(initialDataFromPrefill(loaded.prefill), loaded.recall, loaded.accountName);
-    return covered.length ? withoutCovered(data, covered) : data;
-  }, [loaded, covered]);
+    const data = withInterviewerRecall(initialDataFromPrefill(loaded.prefill), loaded.recall, loaded.accountName, loaded.profileAnswers);
+    const answers = covered.length ? withoutCovered(data, covered) : data;
+    // Agreed on the consent screens: the WHO consent question is answered, not asked again (owner 2026-11-13).
+    return withConsentAgreed(answers, consentView.kind === "ready" ? consentView.decision : undefined);
+  }, [loaded, covered, consentView]);
   const lockedNames = useMemo(
     () => (covered.length ? [...new Set([...(loaded?.prefill?.lockedQuestionNames ?? []), ...covered])] : loaded?.prefill?.lockedQuestionNames),
     [loaded, covered],
@@ -1172,7 +1178,7 @@ export default function Form() {
         if (envelope.decision === "granted" && (serverRefused || (changing && consentView.kind === "ready" && consentView.decision === "refused"))) {
           await setMeta(loaded!.db, `consent:resume-who:${draftId}`, true);
           const prefill = await rebuiltPrefill(loaded!);
-          await storeResumedPrefill(loaded!.db, loaded!, draftId!, prefill);
+          await storeResumedPrefill(loaded!.db, loaded!, draftId!, prefill, [], "granted");
           setLoaded((current) => current ? { ...current, prefill, binding: { ...current.binding, prefill } } : current);
         }
         if (envelope.decision === "refused") {
@@ -1546,6 +1552,8 @@ export default function Form() {
           onChange={(data) => {
             noHeld.current = isRefused(data); // set before the autosave that follows this change; cleared by the first non-No one
             whoNo.onChange(data);
+            // A section change or a restored draft landing on the consent page: agreed means "yes" (owner 2026-11-13).
+            agreeConsentOnPage(session.current, consentView.kind === "ready" ? consentView.decision : undefined);
           }}
           autoSaveDraftOnChange
           onDraftController={(next) => {
@@ -1557,6 +1565,7 @@ export default function Form() {
             if (loaded.accessVersion === lockVersionRef.current) {
               session.current = next;
               whoNo.onReady(next);
+              agreeConsentOnPage(next, consentView.kind === "ready" ? consentView.decision : undefined);
               // A saved draft may hold covered answers from before the refusal: they are dropped, not sent.
               const held = next.getSnapshot().data;
               if (covered.some((name) => name in held)) {

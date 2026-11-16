@@ -636,6 +636,9 @@ instead of raising errors.
   header's Offline marker. All work stays in the encrypted store.
 - **Send now offline:** a calm info toast, "You're offline. Your work is saved
   and will send when you're back online." No request, no error.
+- **Sync sheet offline:** owner rule, 2026-11-14: the Sync sheet shows the
+  offline notice in place of "Ready to send" and disables Send now while the
+  phone is offline; it returns to normal when the phone is back online.
 - **Reconnect:** on the change to connected the app runs one pass (debounced
   2 seconds): the foreground poll and, for each unlocked account, one sync so
   queued work goes out.

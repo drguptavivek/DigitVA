@@ -34,14 +34,12 @@ export default function NativeIcd11DorisFirstLaunchGate({ children }: { children
 
   // The gate sits above the routes, so the account is known only once a route names one.
   const account = accounts.find((item) => item.user_id === shell.userId);
-  // Plain Collect never asks; returning early also avoids a blocked, remounted tree while the preference loads.
+  // Plain Collect never asks. While unanswered the children are not mounted: on Android a covered tree stays in the
+  // accessibility tree and takes UI-automator taps, so only the prompt may exist until the user answers.
   if (!isPlusVariant() || (preference.ready && preference.answered)) return children;
   return (
-    <View style={{ flex: 1 }}>
-      <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={{ flex: 1 }}>
-        {children}
-      </View>
-      <View style={{ position: "absolute", inset: 0, paddingTop: shell.header ? insets.top : 0, paddingBottom: shell.tabs ? insets.bottom : 0 }} accessibilityViewIsModal>
+    <>
+      <View style={{ flex: 1, paddingTop: shell.header ? insets.top : 0, paddingBottom: shell.tabs ? insets.bottom : 0 }} accessibilityViewIsModal>
         <ModeBanner />
         <Screen title={t("icd11DorisPreferenceTitle")}>
           {!preference.ready ? <ActivityIndicator accessibilityLabel={t("loading")} /> : null}
@@ -52,6 +50,6 @@ export default function NativeIcd11DorisFirstLaunchGate({ children }: { children
           <Button kind="secondary" label={t("icd11DorisPreferenceNotNow")} loading={busy} disabled={busy || !preference.ready} onPress={() => void answer(false)} />
         </Screen>
       </View>
-    </View>
+    </>
   );
 }

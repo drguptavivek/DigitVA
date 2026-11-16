@@ -701,7 +701,7 @@ export default function NativeSettings() {
       >
         <ListRow
           label={t("codingOnPhone")}
-          trailing={<RowSwitch label={t("codingOnPhone")} value={icd11DorisPreference.enabled} disabled={!icd11DorisPreference.ready} onChange={(value) => void changeIcd11DorisPreference(value)} />}
+          trailing={<RowSwitch testID="coding-on-phone" label={t("codingOnPhone")} value={icd11DorisPreference.enabled} disabled={!icd11DorisPreference.ready} onChange={(value) => void changeIcd11DorisPreference(value)} />}
         />
       </Card>
       {icd11DorisError ? <Notice tone="error">{icd11DorisError}</Notice> : null}

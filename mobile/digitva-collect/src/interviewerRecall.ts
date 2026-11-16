@@ -2,7 +2,9 @@
  * The interviewer's own answers (Id10010 name, Id10010a age, Id10010b sex,
  * Id10010c ID) recalled from their last interview into a new one
  * (docs/policy/digitva-who-form-overrides.md, "Interviewer's own details
- * recalled"). Only these four are ever kept; the respondent's data never is.
+ * recalled"). Only these four are ever kept; the respondent's data never is
+ * (owner decision 2026-11-14: the deceased's details come only from the death
+ * report, and the interviewer's profile outranks the recall).
  * The phone stores the value in the signed-in user's encrypted meta table;
  * the browser in localStorage keyed by user id.
  */
@@ -41,13 +43,14 @@ export const interviewerNameFromAccount = (name: string): string =>
   name.normalize("NFD").replace(/\p{M}/gu, "").replace(/[^A-Za-z ]/g, "").replace(/ +/g, " ").trim();
 
 /**
- * Initial answers with the recalled ones in the empty slots; with no recall,
- * the account's display name for Id10010. Id10010 is always reduced to a valid name (see above). Never overwrites a typed answer.
+ * Initial answers with the interviewer's own details in the empty slots: the profile's first, then the recalled
+ * ones; with no recall, the account's display name for Id10010. Id10010 is always reduced to a valid name (see above). Never overwrites a typed answer.
  */
 export function withInterviewerRecall(
   data: SubmissionData | undefined,
   recall: InterviewerRecall | undefined,
   accountName?: string,
+  profile?: InterviewerRecall,
 ): SubmissionData {
   const out: SubmissionData = { ...(data ?? {}) };
   // The server's and the cached prefill carry the raw account name; reduce it here so every path meets the constraint.
@@ -58,7 +61,7 @@ export function withInterviewerRecall(
     else delete out.Id10010;
   }
   const accountValue = accountName ? interviewerNameFromAccount(accountName) : "";
-  const source: InterviewerRecall = recall ?? (accountValue ? { Id10010: accountValue } : {});
+  const source: InterviewerRecall = { ...(recall ?? (accountValue ? { Id10010: accountValue } : {})), ...profile };
   for (const name of RECALL_NAMES) {
     const value = source[name];
     if (!filled(out[name]) && filled(value)) out[name] = value;

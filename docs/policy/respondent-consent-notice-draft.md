@@ -449,6 +449,22 @@ alone; theme tokens). It is absent when the project does not require consent.
 - Cancelling the consent screen changes nothing. After a send, the decision
   can no longer be changed on the phone (see "Not on the phone").
 
+## Agreement answers the WHO consent question (owner 2026-11-13)
+
+The client fills it, never the server (owner 2026-11-13). When the respondent
+has agreed in the consent step, the app (native Collect Plus and the web
+interview) answers the WHO form's own consent question `Id10013` with "yes",
+so the interviewer is not asked for consent twice.
+
+- Only when the stored decision is agreed and `Id10013` is empty. An existing
+  "yes" or "no" is never overwritten, and a refused interview is never touched
+  (the refusal boundary above stands).
+- The client re-checks this when the form's consent page opens, so a new
+  draft, a resumed saved draft and a refused interview agreed afresh all get
+  it; the answer is then saved with the draft like any other answer.
+- The server does not write `Id10013` on consent: a server-side write changes
+  the draft under the client and makes its next save stale.
+
 ## In-progress saves (owner 2026-10-24)
 
 The covered-fields-only behaviour described in this historical section is superseded by the 2026-10-28 refusal boundary above.

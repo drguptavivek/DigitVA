@@ -1200,7 +1200,7 @@ the device while unenrolled.
   engine's progress. No "Try on web" button yet (comes with WP7).
   `src/icd11DorisPreference.ts` decides the default once: plain Collect reads a missing
   preference as enabled and answered (no first-launch gate; an explicit stored off wins),
-  Collect Plus reads it as off and unanswered, so `NativeIcd11DorisFirstLaunchGate` asks.
+  Collect Plus reads it as off and unanswered, so `NativeIcd11DorisFirstLaunchGate` asks, rendering only the prompt (children unmounted) until answered.
 - **React ICD-11 picker (digitva-9cll.2, 2026-10-29).** In the Collect Plus
   build only (`isPlusVariant()`), `IcdPickerModal` renders
   `src/workspace/doris/picker/IcdPicker.tsx` instead of `IcdPickerFrame`, for

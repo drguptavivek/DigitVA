@@ -706,6 +706,17 @@ describe("sync sheet", () => {
     await press(tree, "2 in progress → Interviews");
     expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: "/worklist", params: { userId: "u1", view: "interviews", filter: "drafts" } });
   });
+  it("offline shows the offline notice in place of Ready to send and disables Send now; online shows the normal state", async () => {
+    const work = { unsent: 1, attention: 0, inProgress: 0, items: [{ key: "r:1", kind: "registration" as const, title: "Sunita Devi", state: "ready" as const }] };
+    const off = await render(<SyncSheet />, shellValue({ sheet: "sync", sync: { ...SYNC, work, offline: true } }));
+    expect(texts(off)).toContain(en.offlineNotice);
+    expect(texts(off)).not.toContain(en.unsentState_ready);
+    expect(byLabel(off, "Send now")[0].props.disabled).toBe(true);
+    const on = await render(<SyncSheet />, shellValue({ sheet: "sync", sync: { ...SYNC, work } }));
+    expect(texts(on)).not.toContain(en.offlineNotice);
+    expect(texts(on)).toContain(en.unsentState_ready);
+    expect(byLabel(on, "Send now")[0].props.disabled).toBeFalsy();
+  });
   it("disables both actions while busy", async () => {
     const tree = await render(<SyncSheet />, shellValue({ sheet: "sync", sync: { ...SYNC, busy: true } }));
     expect(byLabel(tree, "Send now")[0].props.disabled).toBe(true);

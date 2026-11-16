@@ -10,7 +10,7 @@ import * as SecureStore from "expo-secure-store";
 import { isPlusVariant } from "./appVariant";
 import { offlineEnginePlatform } from "./platformFamily";
 import type { Prefill } from "./cases";
-import { interviewerNameFromAccount } from "./interviewerRecall";
+import { interviewerNameFromAccount, type InterviewerRecall } from "./interviewerRecall";
 
 export interface OfflineProfile {
   /** Coder name. */
@@ -169,5 +169,15 @@ export function standalonePrefill(profile: OfflineProfile): Prefill {
     },
     answers,
     lockedQuestionNames: [...LOCKED],
+  };
+}
+
+/** The interviewer's own form answers (Id10010, Id10010a, Id10010b) from their profile, for the prefill that outranks the recall. */
+export function profileInterviewerAnswers(profile: OfflineProfile | null | undefined): InterviewerRecall {
+  const name = interviewerNameFromAccount(profile?.name ?? "");
+  return {
+    ...(name ? { Id10010: name } : {}),
+    ...(formAcceptsAge(profile?.age_years) ? { Id10010a: profile!.age_years! } : {}),
+    ...(profile?.sex ? { Id10010b: FORM_SEX[profile.sex] } : {}),
   };
 }

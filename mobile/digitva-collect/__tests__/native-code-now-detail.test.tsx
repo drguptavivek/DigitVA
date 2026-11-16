@@ -34,7 +34,7 @@ jest.mock("../src/sync", () => ({
 }));
 jest.mock("../src/draftSync", () => ({ reconcileCaseDraft: async () => ({ draft: null, conflict: false }) }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
-jest.mock("../src/deathWorkflow", () => ({ canFollowUpDeath: () => false, canStartDeathInterview: () => false, deathPhoneUrl: () => undefined }));
+jest.mock("../src/deathWorkflow", () => ({ ...jest.requireActual("../src/deathWorkflow"), canFollowUpDeath: () => false, canStartDeathInterview: () => false, deathPhoneUrl: () => undefined }));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   const { View } = jest.requireActual("react-native") as typeof import("react-native");

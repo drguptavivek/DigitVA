@@ -16,6 +16,7 @@ import { isPlusVariant } from "../appVariant";
 import { displayProjectName } from "../projectName";
 import { canTryDorisDemo } from "../dorisDemoAccess";
 import { icons } from "../Icon";
+import { OfflineNotice } from "../ui/StateView";
 import { Button, Card, ListRow, Notice, SectionLabel, Separator, TextField } from "../ui";
 import { UiLanguageRow } from "../ui/LanguagePicker";
 import { BulletItem } from "../ui/controls";
@@ -210,13 +211,15 @@ export function SyncSheet() {
       {/* One status line, then the count: what the sheet is for. */}
       <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{syncedText(sync.lastAt)}</Text>
       <Text style={{ ...typography.body, color: ui.popoverForeground }}>{work ? unsentText(work.unsent) : t("syncUnsentUnknown")}</Text>
+      {/* Offline: say so here, in place of "Ready to send"; the header chip is covered by this sheet. */}
+      {sync.offline ? <OfflineNotice /> : null}
       {work?.attention ? <Notice tone="error">{t("syncAttentionCount", { count: work.attention })}</Notice> : null}
       {/* Refused items first, under their own label, only when there are any; then the rest of the unsent work. */}
       {attention.length ? <View style={{ marginTop: spacing.sm, marginLeft: -spacing.md }}><SectionLabel>{t("syncNeedsAttention")}</SectionLabel></View> : null}
       {[...attention, ...queued].map((item) => (
         <View key={item.key} testID="sync-item" style={{ paddingVertical: spacing.xxs }}>
           <Text style={{ ...typography.body, color: ui.popoverForeground }}>{`${t(`unsentKind_${item.kind}`)}: ${item.title}`}</Text>
-          <Text style={{ ...typography.caption, color: item.state === "attention" ? ui.destructiveText : ui.mutedForeground }}>{t(`unsentState_${item.state}`)}</Text>
+          {sync.offline && item.state === "ready" ? null : <Text style={{ ...typography.caption, color: item.state === "attention" ? ui.destructiveText : ui.mutedForeground }}>{t(`unsentState_${item.state}`)}</Text>}
           {item.reason ? <Text style={{ ...typography.caption, color: ui.destructiveText }}>{t("refusalNotAccepted", { reason: item.reason })}</Text> : null}
           {item.error ? <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{t("unsentRef", { ref: item.error })}</Text> : null}
         </View>

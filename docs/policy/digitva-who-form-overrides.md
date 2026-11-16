@@ -3,7 +3,7 @@ title: DigitVA overrides and extensions to the WHO VA form
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-14
 ---
 
 # DigitVA overrides and extensions to the WHO VA form
@@ -85,6 +85,8 @@ Always-on core overrides in `vendor/who-va-2022/src/instrument.ts`, carried as `
 ### Interviewer's own details recalled (owner decision 2026-10-24)
 
 In a new interview, `Id10010` (interviewer name), `Id10010a` (age), `Id10010b` (sex) and `Id10010c` (interviewer ID) are filled from the same signed-in interviewer's last interview, so they are not retyped. Only empty answers of a new draft are filled (never overwritten; never in a revision); the interviewer can edit them; nothing else is copied. The phone keeps the four answers in the signed-in user's own encrypted store each time a draft is saved; the browser keeps them in `localStorage` keyed by user id (no server storage; the details are the interviewer's own, not the respondent's). With no earlier interview, `Id10010` defaults to the account's display name and the rest stay empty. A prefill that already supplies one of these (a registered case's account name and id) wins. No "Filled from your last interview" hint is shown: the form engine has no hint for prefilled answers.
+
+Owner decision 2026-11-14: the deceased's details (name, sex, age or dates of birth and death, and every other deceased answer) are filled only from the case's death report (the registration), never from an earlier interview of another death; a field the report lacks stays empty. Recall carries only the four interviewer answers above (`Id10010a` is the interviewer's age, `Id10010b` the interviewer's sex, not the deceased's). On the phone the interviewer's profile (name, age, sex) is applied first and the recall only fills what the profile lacks. The browser has no profile and keeps the recall.
 
 The desktop station (`desktop/crates/digitva-db`) still prefills `Id10057` and `Id10051` from the organization path; it is not aligned (the station is paused and `cargo` is not available to test it).
 

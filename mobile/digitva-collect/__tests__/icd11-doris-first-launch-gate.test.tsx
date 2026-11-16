@@ -39,6 +39,8 @@ it("asks once at first run in Plus and persists an explicit Not now choice", asy
   });
   expect(tree.toJSON()).toBeTruthy();
   expect(JSON.stringify(tree.toJSON())).toContain(en.icd11DorisPreferenceTitle);
+  // The children are not mounted under the prompt: Android keeps a covered tree reachable.
+  expect(JSON.stringify(tree.toJSON())).not.toContain("App home");
   expect(tree.root.findByProps({ accessibilityViewIsModal: true }).props.style).toMatchObject({ paddingTop: 24, paddingBottom: 12 });
   const notNow = tree.root.findByProps({ accessibilityLabel: en.icd11DorisPreferenceNotNow });
   await act(async () => { await notNow.props.onPress(); });

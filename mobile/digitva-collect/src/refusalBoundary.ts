@@ -13,3 +13,32 @@ export function refusalAnswers(data: Record<string, unknown> | undefined): Recor
   if (["male", "female", "unknown"].includes(String(data?.refusal_sex))) result.refusal_sex = data?.refusal_sex;
   return result;
 }
+
+/**
+ * The respondent agreed on the consent screens (owner 2026-11-13): answer the WHO consent question Id10013 "yes" so
+ * the interviewer is not asked twice. Only an empty Id10013 is filled; an existing "yes" or "no" is never changed.
+ */
+export function withConsentAgreed<T extends object>(data: T | undefined, decision?: string | null): T | undefined {
+  if (decision !== "granted") return data;
+  const current = (data as Record<string, unknown> | undefined)?.Id10013;
+  if (current !== undefined && current !== null && String(current).trim() !== "") return data;
+  return { ...(data ?? {}), Id10013: "yes" } as unknown as T;
+}
+
+/** Structural slice of WhoVaSession that the consent-page check needs. */
+export type ConsentSession = {
+  getSnapshot(): { data: object; questions: ReadonlyArray<{ name: string }> };
+  setAnswer(name: string, value: string): void;
+};
+
+/**
+ * When the page that asks Id10013 is shown (a form opened on it, a section change to it, a saved draft restored
+ * onto it) and the respondent agreed, answer it "yes" through the form's own answer path so the draft save keeps it.
+ * Idempotent: call it on every form change and ready.
+ */
+export function agreeConsentOnPage(session: ConsentSession | undefined, decision?: string | null): void {
+  if (!session || decision !== "granted") return;
+  const snapshot = session.getSnapshot();
+  if (!snapshot.questions.some((question) => question.name === "Id10013")) return;
+  if (withConsentAgreed(snapshot.data, decision) !== snapshot.data) session.setAnswer("Id10013", "yes");
+}

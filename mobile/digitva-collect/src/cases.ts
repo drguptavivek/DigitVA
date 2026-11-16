@@ -113,6 +113,10 @@ export interface CaseDetail
     house_street: string | null;
     village_ward: string | null;
     landmark: string | null;
+    /** Present only when the server sends the registration's GPS fix (docs/policy/native-location-capture.md). */
+    latitude?: number | null;
+    longitude?: number | null;
+    accuracy_m?: number | null;
   };
   informant: { name: string | null; phone: string | null; phone_2: string | null };
   remarks: string | null;

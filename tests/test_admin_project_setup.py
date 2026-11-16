@@ -465,6 +465,8 @@ class ProjectSetupPanelTests(BaseTestCase):
         self.assertIn('value="no_unit"', body)
         self.assertIn('id="setup-ug-role"', body)
         self.assertIn('id="setup-ug-fullscreen-btn"', body)
+        self.assertIn("Unit / Cadre", body)
+        self.assertNotIn("<th>Effective PII Visibility</th>", body)
         self.assertIn('id="setup-ug-created-to"', body)
         self.assertIn('value="coder_non_pii"', body)
         self.assertIn('value="reviewer_non_pii"', body)

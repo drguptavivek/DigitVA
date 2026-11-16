@@ -1197,6 +1197,95 @@
       })
       .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not remove the grant.'); });
   }
+  // Unit / Cadre column: the user's worker placement (home unit and cadre), edited inline.
+  // Placing creates the worker record linked to the account (POST .../workers), which also
+  // applies that cadre's default roles at the unit; editing moves it (PATCH), grants unchanged.
+  function ugPlacementHtml(u) {
+    var pw = u.primary_worker;
+    if (!_ugData || _ugData.structure_mode !== 'organization') {
+      return pw ? esc(pw.cadre_code + ' at ' + pw.unit_code) : '<span class="text-muted">—</span>';
+    }
+    return pw
+      ? '<span class="badge text-bg-light border text-dark">' + esc(pw.cadre_code) + '</span> at <strong>' + esc(pw.unit_code) + '</strong>'
+        + (pw.is_active === false ? ' <span class="badge text-bg-secondary">inactive</span>' : '')
+        + '<div class="text-muted" style="font-size:0.72rem;">' + esc(pw.unit_name) + '</div>'
+        + '<button type="button" class="btn btn-sm btn-link p-0 ug-place-edit" aria-label="' + esc('Edit unit and cadre of ' + u.name) + '"><i class="fa-solid fa-pen me-1"></i>Edit</button>'
+      : '<span class="text-muted">Not placed in a unit</span><br>'
+        + '<button type="button" class="btn btn-sm btn-outline-primary py-0 mt-1 ug-place-edit" aria-label="' + esc('Place ' + u.name + ' in a unit') + '"><i class="fa-solid fa-location-dot me-1"></i>Place</button>';
+  }
+  function ugCadresAtLevel(levelId) {
+    var byId = {};
+    (_ugData.cadres || []).forEach(function (c) { byId[c.cadre_id] = c; });
+    return (_ugData.level_cadres || []).filter(function (lc) {
+      return lc.org_level_id === levelId && lc.is_active !== false && byId[lc.cadre_id] && byId[lc.cadre_id].is_active !== false;
+    }).map(function (lc) { return { cadre_id: lc.cadre_id, cadre_code: lc.cadre_code, cadre_name: byId[lc.cadre_id].cadre_name, default_roles: lc.default_roles || [] }; });
+  }
+  function ugOpenPlacementEditor(cell) {
+    var uid = cell.getAttribute('data-uid');
+    var user = (_ugData.users || []).find(function (x) { return x.user_id === uid; });
+    var pw = user.primary_worker;
+    var units = _ugData.units || [];
+    cell.innerHTML = '<div class="d-flex flex-column gap-1" style="min-width:14rem;">'
+      + '<select class="form-select form-select-sm ug-place-unit" aria-label="Unit"><option value="">Choose a unit…</option>'
+      + units.map(function (x) { return '<option value="' + esc(x.org_unit_id) + '">' + esc(x.unit_code + ' · ' + x.unit_name + (x.level_code ? ' (' + x.level_code + ')' : '')) + '</option>'; }).join('')
+      + '</select>'
+      + '<select class="form-select form-select-sm ug-place-cadre" aria-label="Cadre"><option value="">Choose a cadre…</option></select>'
+      + '<div class="small text-muted ug-place-note"></div>'
+      + '<div class="d-flex gap-1"><button type="button" class="btn btn-sm btn-success ug-place-save">Save</button>'
+      + '<button type="button" class="btn btn-sm btn-outline-secondary ug-place-cancel">Cancel</button></div></div>';
+    var unitSel = cell.querySelector('.ug-place-unit');
+    var cadreSel = cell.querySelector('.ug-place-cadre');
+    var note = cell.querySelector('.ug-place-note');
+    var picker = null;
+    function unitObj() { var id = picker ? picker.getValue() : unitSel.value; return units.find(function (x) { return x.org_unit_id === id; }); }
+    function fillCadres(keep) {
+      var unit = unitObj();
+      var cadres = unit ? ugCadresAtLevel(unit.org_level_id) : [];
+      cadreSel.innerHTML = '<option value="">' + (unit && !cadres.length ? 'No cadre is defined at this level' : 'Choose a cadre…') + '</option>'
+        + cadres.map(function (c) { return '<option value="' + esc(c.cadre_id) + '">' + esc(c.cadre_code + ' · ' + c.cadre_name) + '</option>'; }).join('');
+      if (keep && cadres.some(function (c) { return c.cadre_id === keep; })) cadreSel.value = keep;
+      showNote();
+    }
+    function showNote() {
+      var unit = unitObj();
+      var c = unit && ugCadresAtLevel(unit.org_level_id).find(function (x) { return x.cadre_id === cadreSel.value; });
+      if (!c) { note.textContent = ''; return; }
+      note.textContent = pw
+        ? 'Moving does not change grants; adjust them under View / Edit units.'
+        : (c.default_roles.length ? 'Also grants this cadre\'s default roles here: ' + c.default_roles.join(', ') + '.' : 'This cadre has no default roles here; add grants under View / Edit units.');
+    }
+    unitSel.addEventListener('change', function () { fillCadres(cadreSel.value); });
+    cadreSel.addEventListener('change', showNote);
+    if (pw) unitSel.value = pw.org_unit_id;
+    fillCadres(pw && pw.cadre_id);
+    ugWithTomSelect(function () {
+      if (window.TomSelect && unitSel.isConnected) {
+        picker = new TomSelect(unitSel, { maxOptions: null, placeholder: 'Search units…', allowEmptyOption: true, onChange: function () { fillCadres(cadreSel.value); } });
+      }
+    });
+    cell.querySelector('.ug-place-cancel').addEventListener('click', function () { cell.innerHTML = ugPlacementHtml(user); cell.querySelector('.ug-place-edit').addEventListener('click', function () { ugOpenPlacementEditor(cell); }); });
+    cell.querySelector('.ug-place-save').addEventListener('click', function () {
+      var unit = unitObj();
+      if (!unit || !cadreSel.value) { note.textContent = 'Choose both a unit and a cadre.'; return; }
+      var base = '/admin/api/organization/' + encodeURIComponent(projectId) + '/workers';
+      var req = pw
+        ? fetch(base + '/' + encodeURIComponent(pw.worker_id), { method: 'PATCH', headers: csrfHeaders(), body: JSON.stringify({ org_unit_id: unit.org_unit_id, cadre_id: cadreSel.value, is_active: true }) })
+        : fetch(base, { method: 'POST', headers: csrfHeaders(), body: JSON.stringify({ org_unit_id: unit.org_unit_id, cadre_id: cadreSel.value, worker_name: user.name, user: uid }) });
+      cell.querySelector('.ug-place-save').disabled = true;
+      req.then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            cell.querySelector('.ug-place-save').disabled = false;
+            note.textContent = (res.data && res.data.error) || 'Could not save the placement.';
+            return;
+          }
+          var made = res.data.onboarding && res.data.onboarding.changed_grants;
+          ugShowMsg('success', pw ? 'Moved.' : ('Placed' + (made ? '; ' + made + ' default grant(s) added.' : '.')));
+          loadUsersGrid();
+        })
+        .catch(function () { cell.querySelector('.ug-place-save').disabled = false; note.textContent = 'Could not save the placement.'; });
+    });
+  }
   function ugUnitsWithRole(user, rawRole) {
     var byUnit = (user && user.unit_roles_by_unit) || {};
     return Object.keys(byUnit).filter(function (k) { return (byUnit[k] || []).indexOf(rawRole) >= 0; });
@@ -1236,9 +1325,6 @@
       var checked = _ugSelected[uid] ? 'checked' : '';
       var isExpanded = !!_ugExpandedUsers[uid];
 
-      var workerLine = pw
-        ? '<div class="text-muted" style="font-size:0.75rem;"><code>' + esc(pw.worker_code) + '</code> · <span class="badge text-bg-light border text-dark">' + esc(pw.cadre_code) + '</span> at <strong>' + esc(pw.unit_code) + '</strong> (' + esc(pw.unit_name) + ')</div>'
-        : '<div class="text-muted" style="font-size:0.74rem;">No unit worker placement (Account / Grant only)</div>';
 
       var contactHtml = ''
         + (u.email
@@ -1341,10 +1427,12 @@
 
       return '<tr class="' + (u.is_active ? '' : 'opacity-75') + '" data-ug-uid="' + esc(uid) + '">'
         + '<td style="width:32px;"><input type="checkbox" class="form-check-input setup-ug-row-cb" value="' + esc(uid) + '" ' + checked + ' aria-label="Select ' + esc(u.name) + '"></td>'
-        + '<td><div class="fw-semibold">' + esc(u.name) + '</div>' + workerLine + '</td>'
+        + '<td><div class="fw-semibold">' + esc(u.name) + '</div>'
+        + (pw ? '<div class="text-muted" style="font-size:0.72rem;"><code>' + esc(pw.worker_code) + '</code></div>' : '')
+        + '<div class="mt-1">' + renderPiiStatusBadge(u.pii_status) + '</div></td>'
         + '<td>' + contactHtml + '</td>'
         + '<td>' + statusBadge + '</td>'
-        + '<td>' + renderPiiStatusBadge(u.pii_status) + '</td>'
+        + '<td class="ug-place-cell" data-uid="' + esc(uid) + '">' + ugPlacementHtml(u) + '</td>'
         + '<td>' + projRolesHtml + '</td>'
         + '<td>' + unitRolesHtml + '</td>'
         + '</tr>' + drawerHtml;
@@ -1355,10 +1443,10 @@
       + '<thead class="table-light">'
       + '<tr>'
       + '<th style="width:32px;"><input type="checkbox" class="form-check-input" id="setup-ug-select-all" ' + (allChecked ? 'checked' : '') + ' aria-label="Select all visible users"></th>'
-      + '<th>User, Worker Code &amp; Home Unit</th>'
+      + '<th>User &amp; PII tier</th>'
       + '<th>Email &amp; 10-Digit Mobile</th>'
       + '<th>Status</th>'
-      + '<th>Effective PII Visibility</th>'
+      + '<th>Unit / Cadre</th>'
       + '<th>Project / Site Roles</th>'
       + '<th>Unit-Level Roles (Smart Multi-Unit Grouping)</th>'
       + '</tr>'
@@ -1379,6 +1467,9 @@
         _ugSelected[cb.value] = cb.checked;
         updateUgSelectionCount();
       });
+    });
+    wrap.querySelectorAll('.ug-place-edit').forEach(function (btn) {
+      btn.addEventListener('click', function () { ugOpenPlacementEditor(btn.closest('.ug-place-cell')); });
     });
     wrap.querySelectorAll('.ug-remove-grant').forEach(function (btn) {
       btn.addEventListener('click', function () { ugRemoveGrant(btn); });

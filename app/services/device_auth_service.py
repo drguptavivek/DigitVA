@@ -551,7 +551,8 @@ def _demo_code_hash(user: VaUsers) -> str:
 
 
 def enrol_demo_device(
-    *, username, password, device_name, platform, app_version, client_device_uuid=None
+    *, username, password, device_name, platform, app_version, client_device_uuid=None,
+    replace_device_id=None,
 ) -> tuple[AuthDevice, str]:
     """Enrol a device on the public demo project for a public-demo account,
     without an enrolment code (docs/policy/public-demo.md section 10). The
@@ -566,7 +567,11 @@ def enrol_demo_device(
     ``enrolled_via``. Both the three active-device limit (409
     ``device_limit``) and ``PUBLIC_DEMO_DEVICES_PER_ACCOUNT`` (429
     ``demo_limit``, unopened devices included) are checked before a device
-    row is created; no older device is silently evicted.
+    row is created; no older device is silently evicted. At the first cap the
+    409 lists the account's phones and *replace_device_id* signs one out
+    (``check_device_slot``); that phone has no live session afterwards, so it
+    no longer counts toward ``demo_limit``, and a ``demo_limit`` refusal rolls
+    the sign-out back with the request.
     Raises DeviceAuthError; a refused credential is audited and committed.
     Caller commits a success."""
     from app.services import public_demo_service as demo
@@ -585,7 +590,7 @@ def enrol_demo_device(
     if not _project_active(project_id):
         raise DeviceAuthError(demo.WRONG_DATABASE_MESSAGE, "project_missing", 503)
     demo._lock_account(user)
-    check_device_slot(user)
+    check_device_slot(user, replace_device_id=replace_device_id)
     digest = _demo_code_hash(user)
     code_id = db.session.scalar(
         sa.select(AuthDeviceEnrolmentCode.id).where(AuthDeviceEnrolmentCode.code_hash == digest)

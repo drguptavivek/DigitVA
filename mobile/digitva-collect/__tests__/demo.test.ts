@@ -228,6 +228,36 @@ describe("enrolAndSignInDemo", () => {
     expect((await loadAccounts()).map((a) => a.user_id)).toEqual([USER]);
   });
 
+  it("sends the chosen phone as replace_device_id to the enrolment and the sign-in", async () => {
+    mockServer((call) => call.url.endsWith("/demo-enroll")
+      ? json(201, { device_id: "dev1", device_secret: "sec1", project: { project_id: "PUB01", name: "Public demo" } })
+      : json(201, {
+        access_token: "a", access_expires_at: "x", refresh_token: "r", refresh_expires_at: "y",
+        user: { user_id: USER, name: "demo.user" }, access: ACCESS,
+      }));
+    await enrolAndSignInDemo("demo.user", "a-long-demo-password", undefined, "old-phone");
+    expect(calls[0].body).toMatchObject({ replace_device_id: "old-phone" });
+    expect(calls[1].body).toMatchObject({ replace_device_id: "old-phone" });
+  });
+
+  it("retries a sign-in the cap refused without enrolling twice", async () => {
+    let sessions = 0;
+    mockServer((call) => {
+      if (call.url.endsWith("/demo-enroll")) {
+        return json(201, { device_id: "dev1", device_secret: "sec1", project: { project_id: "PUB01", name: "Public demo" } });
+      }
+      if (sessions++ === 0) return json(409, { code: "device_limit", devices: [{ device_id: "old-phone", label: "Old" }] });
+      return json(201, {
+        access_token: "a", access_expires_at: "x", refresh_token: "r", refresh_expires_at: "y",
+        user: { user_id: USER, name: "demo.user" }, access: ACCESS,
+      });
+    });
+    await expect(enrolAndSignInDemo("demo.user", "a-long-demo-password")).rejects.toMatchObject({ status: 409 });
+    await enrolAndSignInDemo("demo.user", "a-long-demo-password", undefined, "old-phone");
+    expect(calls.map((c) => c.url.split("/").pop())).toEqual(["demo-enroll", "sessions", "sessions"]);
+    expect(calls[2].body).toMatchObject({ replace_device_id: "old-phone" });
+  });
+
   it("keeps nothing when the device cap refuses, and never retries it", async () => {
     mockServer(() => json(429, { code: "demo_limit" }));
     await expect(enrolAndSignInDemo("demo.user", "a-long-demo-password")).rejects.toMatchObject({ status: 429, code: "demo_limit" });

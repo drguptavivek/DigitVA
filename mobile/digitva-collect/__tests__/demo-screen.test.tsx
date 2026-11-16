@@ -5,7 +5,7 @@ import { act, create, type ReactTestInstance } from "react-test-renderer";
 const mockRouter = { replace: jest.fn(), push: jest.fn(), back: jest.fn() };
 const mockReload = jest.fn(async () => undefined);
 const mockSignUp = jest.fn<Promise<void>, [string, string, unknown]>();
-const mockEnrol = jest.fn<Promise<{ user_id: string; name: string }>, [string, string, unknown]>();
+const mockEnrol = jest.fn<Promise<{ user_id: string; name: string }>, [string, string, unknown, string?]>();
 
 jest.mock("react-native", () => ({ Platform: { OS: "android" }, Pressable: "pressable", Text: "text", TextInput: "textinput", View: "view" }));
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter }));
@@ -26,15 +26,22 @@ jest.mock("../src/ui", () => {
     useUiStyles: () => ({ text: {}, muted: {}, error: {}, input: {}, card: {} }),
   };
 });
+// The chooser itself is covered by device-limit-choice.test.tsx; here only that this screen shows it and retries.
+jest.mock("../src/DeviceLimitChoice", () => ({
+  DeviceLimitChoice: () => null,
+  deviceLimitPhones: (error: { code?: string; payload?: { devices?: unknown[] } }) =>
+    error.code === "device_limit" && error.payload?.devices?.length ? error.payload.devices : undefined,
+}));
 jest.mock("../src/demo", () => {
   return {
     signUpDemoAccount: (name: string, password: string, options: unknown) => mockSignUp(name, password, options),
-    enrolAndSignInDemo: (name: string, password: string, onProgress: unknown) => mockEnrol(name, password, onProgress),
+    enrolAndSignInDemo: (name: string, password: string, onProgress: unknown, replaceId?: string) => mockEnrol(name, password, onProgress, replaceId),
     demoErrorText: (error: { code?: string }) => `error:${error.code}`,
   };
 });
 
 import { ApiError } from "../src/api";
+import { DeviceLimitChoice } from "../src/DeviceLimitChoice";
 import Demo from "../src/nativeRoutes/demo";
 
 const GOOD = "a-long-demo-password";
@@ -93,9 +100,50 @@ it("signs up, enrols, signs in and goes to unlock", async () => {
   await fillCreate(tree);
   await press(button(tree, "demoSubmitCreate"));
   expect(mockSignUp).toHaveBeenCalledWith("demo.user", GOOD, expect.anything());
-  expect(mockEnrol).toHaveBeenCalledWith("demo.user", GOOD, expect.any(Function));
+  expect(mockEnrol).toHaveBeenCalledWith("demo.user", GOOD, expect.any(Function), undefined);
   expect(mockReload).toHaveBeenCalled();
   expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
+});
+
+const PHONES = [{ device_id: "old-phone", label: "Old phone", last_seen_at: null, unsent_count: null }];
+const limited = () => new ApiError(409, "device_limit", undefined, undefined, { code: "device_limit", devices: PHONES });
+
+it("offers the account's phones at the device limit and retries with the one chosen", async () => {
+  mockEnrol.mockRejectedValueOnce(limited());
+  const tree = await render();
+  await press(button(tree, "demoHaveAccount"));
+  await type(tree, "demoUsername", "demo.user");
+  await type(tree, "password", GOOD);
+  await press(button(tree, "demoSubmitExisting"));
+  const chooser = tree.root.findByType(DeviceLimitChoice);
+  expect(chooser.props.phones).toEqual(PHONES);
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  await act(async () => chooser.props.onPick("old-phone"));
+  expect(mockEnrol).toHaveBeenLastCalledWith("demo.user", GOOD, expect.any(Function), "old-phone");
+  expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
+});
+
+it("returns to the form with the password cleared when the device-limit choice is cancelled", async () => {
+  mockEnrol.mockRejectedValueOnce(limited());
+  const tree = await render();
+  await press(button(tree, "demoHaveAccount"));
+  await type(tree, "demoUsername", "demo.user");
+  await type(tree, "password", GOOD);
+  await press(button(tree, "demoSubmitExisting"));
+  await act(async () => tree.root.findByType(DeviceLimitChoice).props.onCancel());
+  expect(tree.root.findAllByType(DeviceLimitChoice)).toHaveLength(0);
+  expect(input(tree, "password").props.value).toBe("");
+});
+
+it("keeps the plain message when the device-limit reply lists no phones", async () => {
+  mockEnrol.mockRejectedValueOnce(new ApiError(409, "device_limit", undefined, undefined, { code: "device_limit" }));
+  const tree = await render();
+  await press(button(tree, "demoHaveAccount"));
+  await type(tree, "demoUsername", "demo.user");
+  await type(tree, "password", GOOD);
+  await press(button(tree, "demoSubmitExisting"));
+  expect(tree.root.findAllByType(DeviceLimitChoice)).toHaveLength(0);
+  expect(texts(tree)).toContain("error:device_limit");
 });
 
 it("saves and locks every store before anything is sent, and stops when that fails", async () => {
@@ -187,6 +235,6 @@ it("an existing account only enrols and signs in", async () => {
   await type(tree, "password", GOOD);
   await press(button(tree, "demoSubmitExisting"));
   expect(mockSignUp).not.toHaveBeenCalled();
-  expect(mockEnrol).toHaveBeenCalledWith("demo.user", GOOD, expect.any(Function));
+  expect(mockEnrol).toHaveBeenCalledWith("demo.user", GOOD, expect.any(Function), undefined);
   expect(mockRouter.replace).toHaveBeenCalled();
 });

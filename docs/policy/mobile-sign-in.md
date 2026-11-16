@@ -487,15 +487,17 @@ phones to sign one out now.
   It carries no other account's phones, no tokens and no IP addresses. An older
   app ignores the field and shows its usual message.
 - The same sign-in request may be repeated with `replace_device_id`
-  (`/auth/sessions`, `/auth/password-enroll`, `/auth/sign-in-qr/redeem`; not
-  demo enrolment). At the cap it must name one of those live phones, other than
+  (`/auth/sessions`, `/auth/password-enroll`, `/auth/sign-in-qr/redeem`,
+  `/auth/demo-enroll`). At the cap it must name one of those live phones, other than
   the phone signing in, else 400 `invalid_request` with
   `fields: ["replace_device_id"]` and nothing changes. The server then
   decommissions that phone exactly as Profile does (only this account's sessions
   on it end, reason `device_decommissioned`, so that phone keeps its data and
   must sign in again; audited `device_decommissioned` with the user as actor and
   `reason: replaced_at_sign_in`) and continues the sign-in, in one transaction
-  under the account lock. A refusal after that point rolls the decommission back.
+  under the account lock. A refusal after that point (for demo enrolment, 429 `demo_limit`) rolls the
+  decommission back; the replaced phone has no live session, so it does not
+  count toward that limit.
   Below the cap `replace_device_id` is ignored. Rate limits are unchanged.
 - The app confirms the choice first and warns when the chosen phone reported
   unsent items: they stay on that phone, which must sign in again to send them.

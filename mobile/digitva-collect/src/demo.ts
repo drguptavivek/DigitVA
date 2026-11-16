@@ -10,7 +10,7 @@ import Constants from "expo-constants";
 
 import { ApiError, AUTH_API, requestJson } from "./api";
 import { APP_VERSION } from "./appVersion";
-import { enrolDemoDevice, signIn, type Account } from "./auth";
+import { enrolDemoDevice, loadDevice, signIn, type Account } from "./auth";
 import { demoServerOrigin } from "./enrolment";
 import { normalizeUsername } from "./demoRules";
 import { t } from "./i18n";
@@ -89,17 +89,24 @@ export async function signUpDemoAccount(
   });
 }
 
-/** Enrol this phone on the demo server and sign the demo account in (the normal POST /sessions). */
+/**
+ * Enrol this phone on the demo server and sign the demo account in (the normal POST /sessions).
+ * `replaceDeviceId` retries a `409 device_limit` with the phone chosen to sign out. When that 409 came from
+ * the sign-in, the device is already enrolled, so the retry skips enrolment.
+ */
 export async function enrolAndSignInDemo(
   username: string,
   password: string,
   onProgress?: (progress: DemoProgress) => void,
+  replaceDeviceId?: string,
 ): Promise<Account> {
   const name = normalizeUsername(username);
-  onProgress?.({ stage: "enrol" });
-  await enrolDemoDevice(demoServer(), name, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION);
+  if (!(replaceDeviceId && (await loadDevice("demo")))) {
+    onProgress?.({ stage: "enrol" });
+    await enrolDemoDevice(demoServer(), name, password, Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION, replaceDeviceId);
+  }
   onProgress?.({ stage: "signin" });
   // Pinned to Demo: a switch while this ran keeps neither the account nor its tokens.
-  return signIn(name, password, "demo");
+  return signIn(name, password, "demo", { replaceDeviceId });
 }
 

@@ -262,7 +262,7 @@ def redeem_sign_in_qr():
 def demo_enroll():
     """Enrol the app on the public demo without a QR code (docs/policy/
     public-demo.md section 10): ``{username, password, device_name, platform,
-    app_version?}``. The credentials are checked as ``POST /sessions`` checks
+    app_version?, replace_device_id?}``. The credentials are checked as ``POST /sessions`` checks
     them, with its uniform answer: 401 ``invalid_credentials`` for an unknown
     name, a wrong password or an account that is not a public-demo account.
     Then a device is enrolled on the demo project and the reply is
@@ -270,7 +270,9 @@ def demo_enroll():
     (the secret is shown once). At most ``PUBLIC_DEMO_DEVICES_PER_ACCOUNT``
     live devices per account: 429 ``demo_limit``. 404 unless
     ``PUBLIC_DEMO_ENABLED``; 503 ``wrong_database`` on a database that holds
-    another project. The app then signs in through ``POST /sessions``."""
+    another project. At the three-phone cap 409 ``device_limit`` lists the
+    account's phones; ``replace_device_id`` signs one out as ``/sessions``
+    does. The app then signs in through ``POST /sessions``."""
     if not public_demo_service.enabled():
         abort(404)
     p = _body()
@@ -282,6 +284,7 @@ def demo_enroll():
     device, secret = devices.enrol_demo_device(
         username=p.get("username"), password=p.get("password"), device_name=p.get("device_name"),
         platform=p.get("platform"), app_version=p.get("app_version"), client_device_uuid=client_uuid,
+        replace_device_id=p.get("replace_device_id"),
     )
     project = db.session.get(VaProjectMaster, device.project_id)
     db.session.commit()

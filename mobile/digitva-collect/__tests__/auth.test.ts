@@ -37,6 +37,7 @@ import {
   authedRequest,
   decommissionMyDevice,
   enrolDemoDevice,
+  forgetDevice,
   getAuthenticatedAttachmentSource,
   listMyDevices,
   loadAccounts,
@@ -175,6 +176,15 @@ it("binds demo enrolment to the Collect Plus install UUID", async () => {
   mockServer(() => json(201, { device_id: "demo-device", device_secret: "secret", project: { project_id: "PUB01", name: "Demo" } }));
   await enrolDemoDevice(SERVER, "demo.user", "pw", "Pixel", APP_VERSION);
   expect(JSON.parse(calls[0].body!)).toMatchObject({ client_device_uuid: "plus-install-uuid" });
+});
+
+it("sends replace_device_id to demo enrolment only when one is chosen", async () => {
+  mockServer(() => json(201, { device_id: "demo-device", device_secret: "secret", project: { project_id: "PUB01", name: "Demo" } }));
+  await enrolDemoDevice(SERVER, "demo.user", "pw", "Pixel", APP_VERSION);
+  expect(JSON.parse(calls[0].body!)).not.toHaveProperty("replace_device_id");
+  await forgetDevice("demo");
+  await enrolDemoDevice(SERVER, "demo.user", "pw", "Pixel", APP_VERSION, "old-phone");
+  expect(JSON.parse(calls[1].body!)).toMatchObject({ replace_device_id: "old-phone" });
 });
 
 it("keeps the local store when the session has ended", async () => {

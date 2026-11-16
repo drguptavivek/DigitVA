@@ -539,7 +539,8 @@ export async function enrolDevice(
  * POST /demo-enroll (public demo, no QR code): the demo account's username and
  * password enrol this phone on the demo server, kept in the Demo slot (which
  * becomes the chosen one) as a QR enrolment keeps its server in Active. The caller
- * passes a server the build's demo rule accepts (src/enrolment.ts).
+ * passes a server the build's demo rule accepts (src/enrolment.ts). `replaceDeviceId`
+ * retries a `409 device_limit` with the phone the person chose to sign out, as for `signIn`.
  */
 export async function enrolDemoDevice(
   server: string,
@@ -547,6 +548,7 @@ export async function enrolDemoDevice(
   password: string,
   deviceName: string,
   appVersion: string,
+  replaceDeviceId?: string,
 ): Promise<Device> {
   await refuseEnrolled("demo");
   const { body } = await requestJson<EnrolReply>(server, `${AUTH_API}/demo-enroll`, {
@@ -557,6 +559,7 @@ export async function enrolDemoDevice(
       device_name: deviceName,
       platform: Platform.OS === "ios" ? "ios" : "android",
       app_version: appVersion,
+      ...replaceDevice(replaceDeviceId),
       ...(await clientDeviceUuid()),
     },
   });

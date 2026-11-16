@@ -3,7 +3,7 @@ title: Public Demo
 doc_type: policy
 status: approved baseline
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-16
 ---
 
 # Public demo
@@ -338,7 +338,8 @@ ended (its session version is current), on an unrevoked device. Web sessions do 
 consume app-device slots. Re-login on an existing phone replaces its old
 sessions without using another slot; refresh does not create a slot. The
 issuer locks the account while checking and adding a device session. A fourth
-phone receives an explicit `409 device_limit`; no device is silently evicted.
+phone receives an explicit `409 device_limit`; no device is silently evicted
+(the user may choose a phone to sign out at demo entry, as in mobile-sign-in.md).
 This applies to password, sign-in QR and demo entry. A refused QR remains
 retryable and no unused device is created by the refusal.
 

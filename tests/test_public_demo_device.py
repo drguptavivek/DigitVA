@@ -127,6 +127,58 @@ class DemoEnrolTests(PublicDemoBase):
         self.assertEqual(self._enrol(username="demo.enrol2").status_code, 201)
         self.assertEqual(len([d for d in self._devices(other) if d.revoked_at is None]), 1)
 
+    def _three_signed_in(self):
+        bodies = [self._enrol().get_json() for _ in range(3)]
+        for body in bodies:
+            signed_in = self.client.post("/api/v1/auth/sessions", json={
+                "device_id": body["device_id"], "device_secret": body["device_secret"],
+                "email": self.user.username, "password": PASSWORD,
+            })
+            self.assertEqual(signed_in.status_code, 201, signed_in.get_json())
+        return bodies
+
+    def _live_sessions(self, device_id):
+        return db.session.scalars(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.device_id == device_id, AuthDeviceSession.revoked_at.is_(None))).all()
+
+    def test_replace_device_id_at_the_cap_signs_that_phone_out_and_enrols(self):
+        bodies = self._three_signed_in()
+        replaced = bodies[0]["device_id"]
+        listed = self._enrol().get_json()
+        self.assertEqual(listed["code"], "device_limit")
+        self.assertIn(replaced, [d["device_id"] for d in listed["devices"]])
+        response = self._enrol(replace_device_id=replaced)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        self.assertEqual(self._live_sessions(replaced), [])
+        ended = db.session.scalars(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.device_id == replaced)).all()
+        self.assertEqual([s.revoked_reason for s in ended], ["device_decommissioned"])
+        event = db.session.scalars(sa.select(AuthSecurityEvent).where(
+            AuthSecurityEvent.event_type == "device_decommissioned",
+            AuthSecurityEvent.actor_user_id == self.user.user_id)).one()
+        self.assertEqual(event.detail["reason"], "replaced_at_sign_in")
+        self.assertEqual(len(self._devices()), 4)
+
+    def test_a_replace_device_id_that_is_not_one_of_the_phones_is_400_and_changes_nothing(self):
+        bodies = self._three_signed_in()
+        for value in (str(uuid.uuid4()), "not-a-uuid"):
+            refused = self._enrol(replace_device_id=value)
+            self.assertEqual((refused.status_code, refused.get_json()["code"]), (400, "invalid_request"), value)
+        self.assertEqual(len(self._devices()), 3)
+        self.assertTrue(all(self._live_sessions(b["device_id"]) for b in bodies))
+
+    def test_demo_limit_after_a_replace_rolls_the_sign_out_back(self):
+        bodies = self._three_signed_in()
+        with mock.patch.dict(self.app.config, PUBLIC_DEMO_DEVICES_PER_ACCOUNT=2):
+            refused = self._enrol(replace_device_id=bodies[0]["device_id"])
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (429, "demo_limit"))
+        db.session.expire_all()
+        self.assertTrue(all(self._live_sessions(b["device_id"]) for b in bodies))
+        self.assertEqual(db.session.scalars(sa.select(AuthSecurityEvent).where(
+            AuthSecurityEvent.event_type == "device_decommissioned",
+            AuthSecurityEvent.actor_user_id == self.user.user_id)).all(), [])
+        self.assertEqual(len(self._devices()), 3)
+
     def test_unopened_demo_devices_count_toward_the_demo_device_cap(self):
         cap = self.app.config["PUBLIC_DEMO_DEVICES_PER_ACCOUNT"]
         statuses = [self._enrol().status_code for _ in range(cap)]

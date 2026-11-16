@@ -14,6 +14,7 @@ import { Pressable, Text, TextInput, View } from "react-native";
 
 import { ApiError } from "../api";
 import { useAppState } from "../AppState";
+import { DeviceLimitChoice, deviceLimitPhones, type LimitPhone } from "../DeviceLimitChoice";
 import {
   demoErrorText,
   enrolAndSignInDemo,
@@ -56,6 +57,8 @@ export default function Demo() {
   const [progress, setProgress] = useState<DemoProgress>();
   // A demo limit is final for this attempt: nothing offers or runs a retry.
   const [limited, setLimited] = useState(false);
+  // After a `409 device_limit` that lists phones: choose one to sign out, then retry. The password stays only while this is open.
+  const [limitPhones, setLimitPhones] = useState<LimitPhone[]>();
   const busyRef = useRef(false);
   const cancel = useRef({ aborted: false });
   // The account created by a previous press whose later step failed: pressing
@@ -78,7 +81,7 @@ export default function Demo() {
     createdRef.current = undefined;
   }
 
-  async function submit() {
+  async function submit(replaceDeviceId?: string) {
     if (busyRef.current) return;
     if (mode === "create") {
       const problem = validateSignUp(username, password, confirm);
@@ -91,6 +94,7 @@ export default function Demo() {
     busyRef.current = true;
     setError("");
     setLimited(false);
+    let keepPassword = false;
     try {
       // Enrolling chooses the Demo slot, so every store is saved and locked first (section 10.1).
       if (!(await lockNow())) {
@@ -101,18 +105,37 @@ export default function Demo() {
         await signUpDemoAccount(name, password, { onProgress: setProgress, signal: cancel.current });
         createdRef.current = name;
       }
-      const account = await enrolAndSignInDemo(name, password, setProgress);
+      const account = await enrolAndSignInDemo(name, password, setProgress, replaceDeviceId);
       await reload();
       // Unlock sends a new account to PIN setup, as after a QR enrolment's sign-in.
       router.replace({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
     } catch (caught) {
       if (caught instanceof PowCancelled) return;
+      const phones = deviceLimitPhones(caught);
+      if (phones) {
+        keepPassword = true;
+        setLimitPhones(phones);
+        return;
+      }
       setLimited(caught instanceof ApiError && caught.code === "demo_limit");
       setError(demoErrorText(caught));
     } finally {
+      // A refused attempt that is not offering the choice drops the old limit state.
+      if (!keepPassword) setLimitPhones(undefined);
       busyRef.current = false;
       setProgress(undefined);
     }
+  }
+
+  if (limitPhones) {
+    return (
+      <DeviceLimitChoice
+        phones={limitPhones}
+        busy={busy}
+        onPick={(id) => void submit(id)}
+        onCancel={() => { setLimitPhones(undefined); setPassword(""); setConfirm(""); }}
+      />
+    );
   }
 
   return (

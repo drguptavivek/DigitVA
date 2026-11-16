@@ -464,6 +464,7 @@ class ProjectSetupPanelTests(BaseTestCase):
         self.assertIn('id="setup-ug-created-from"', body)
         self.assertIn('value="no_unit"', body)
         self.assertIn('id="setup-ug-role"', body)
+        self.assertIn('id="setup-ug-fullscreen-btn"', body)
         self.assertIn('id="setup-ug-created-to"', body)
         self.assertIn('value="coder_non_pii"', body)
         self.assertIn('value="reviewer_non_pii"', body)

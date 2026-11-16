@@ -1183,21 +1183,37 @@
   }
   // Remove = deactivate through the audited grant on/off endpoint (same admin / project PI
   // checks as the Access Grants panel), so it is logged and can be turned back on there.
+  // Confirmed inline, not with window.confirm: embedded browsers can dismiss that dialog
+  // silently, and the x then did nothing (owner, 2026-11-16).
   function ugRemoveGrant(btn) {
-    if (!window.confirm('Remove this grant? It is deactivated (kept in the audit log) and can be turned back on in Access Grants.')) return;
+    if (btn.dataset.confirming) return;
+    btn.dataset.confirming = '1';
+    var ask = document.createElement('span');
+    ask.className = 'd-inline-flex align-items-center gap-1 ms-1';
+    ask.innerHTML = '<span class="small">Remove?</span>'
+      + '<button type="button" class="btn btn-sm btn-danger py-0 px-1" style="font-size:0.7rem;">Yes</button>'
+      + '<button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" style="font-size:0.7rem;">No</button>';
+    btn.style.display = 'none';
+    btn.insertAdjacentElement('afterend', ask);
+    var buttons = ask.querySelectorAll('button');
+    buttons[1].addEventListener('click', function () { ask.remove(); btn.style.display = ''; delete btn.dataset.confirming; });
+    buttons[0].addEventListener('click', function () { buttons[0].disabled = true; ugDeactivateGrant(btn, ask); });
+    buttons[0].focus();
+  }
+  function ugDeactivateGrant(btn, ask) {
     btn.disabled = true;
     fetch('/admin/api/access-grants/' + encodeURIComponent(btn.getAttribute('data-grant-id')) + '/toggle', { method: 'POST', headers: csrfHeaders() })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
         if (!res.ok || res.data.status !== 'deactive') {
-          btn.disabled = false;
+          btn.disabled = false; ask.remove(); btn.style.display = ''; delete btn.dataset.confirming;
           ugShowMsg('danger', (res.data && res.data.error) || 'Could not remove the grant.');
           return;
         }
         ugShowMsg('success', 'Grant removed.');
         loadUsersGrid();
       })
-      .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not remove the grant.'); });
+      .catch(function () { btn.disabled = false; ask.remove(); btn.style.display = ''; delete btn.dataset.confirming; ugShowMsg('danger', 'Could not remove the grant.'); });
   }
   // Unit / Cadre column: the user's worker placement (home unit and cadre), edited inline.
   // Placing creates the worker record linked to the account (POST .../workers), which also

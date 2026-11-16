@@ -1355,20 +1355,19 @@
         unitRolesHtml = '<span class="text-muted">No unit grants</span>';
       } else {
         unitRolesHtml = unitGroups.map(function (grp) {
-          var piiCls = grp.with_pii ? 'danger' : 'success';
           var scopeBadgeCls = grp.scope_kind === 'own'
             ? 'text-bg-light border text-dark'
             : (grp.scope_kind === 'cross_level' || grp.scope_kind === 'all_level'
                 ? 'text-bg-primary-subtle border border-primary-subtle text-primary-emphasis'
                 : 'text-bg-info-subtle border border-info-subtle text-info-emphasis');
           return '<div class="d-inline-flex align-items-center gap-1 border rounded px-2 py-1 me-1 mb-1 bg-white shadow-xs">'
-            + '<span class="fw-semibold">' + esc(grp.label) + '</span>'
-            + '<span class="badge text-bg-' + piiCls + '-subtle border border-' + piiCls + '-subtle text-' + piiCls + '-emphasis" style="font-size:0.62rem;">' + esc(grp.pii_badge) + '</span>'
+            // "Role: unit name" (owner, 2026-11-16); the tier shows on the user's badge.
+            + '<span class="fw-semibold">' + esc(grp.label) + ':</span>'
             + grp.units.map(function (x) {
                 // One badge per unit, each removable on its own (the PII tier is the badge before).
                 var grantId = ugGrantIdFor(u, x.org_unit_id, grp.role_key);
                 return '<span class="badge ' + scopeBadgeCls + ' d-inline-flex align-items-center gap-1">'
-                  + esc(x.unit_code + ' (' + x.unit_name + ')')
+                  + '<span title="' + esc(x.unit_code) + '">' + esc(x.unit_name || x.unit_code) + '</span>'
                   + (grantId ? '<button type="button" class="btn-close ug-remove-grant" style="font-size:0.5rem;" data-grant-id="' + esc(grantId) + '"'
                     + ' aria-label="' + esc('Remove ' + grp.label + ' on ' + x.unit_code) + '" title="Remove this grant"></button>' : '')
                   + '</span>';

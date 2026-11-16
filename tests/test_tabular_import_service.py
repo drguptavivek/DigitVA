@@ -22,6 +22,12 @@ class TabularImportTests(unittest.TestCase):
         self.assertEqual(rows[0]["unit_name"], "Café")
         self.assertEqual(rows[0]["latitude"], "-12.5")
 
+    def test_excel_utf8_csv_with_bom(self):
+        # Excel's "CSV UTF-8" starts with a byte-order mark; the first header must still match.
+        rows = _parse("\ufeffunit_code,unit_name,latitude\r\nP01,प्राथमिक केंद्र,28.6\r\n".encode("utf-8"))
+        self.assertEqual(rows[0]["unit_code"], "P01")
+        self.assertEqual(rows[0]["unit_name"], "प्राथमिक केंद्र")
+
     def test_first_workbook_sheet(self):
         workbook = Workbook()
         workbook.active.append([" UNIT_CODE ", "UNIT_NAME", "latitude"])

@@ -2,7 +2,7 @@
   "expo": {
     "name": "DigitVA",
     "slug": "digitva-collect",
-    "version": "0.3.21",
+    "version": "0.3.22",
     "orientation": "default",
     "platforms": [
       "android",

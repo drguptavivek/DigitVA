@@ -1208,9 +1208,9 @@
       return pw ? esc(pw.cadre_code + ' at ' + pw.unit_code) : '<span class="text-muted">—</span>';
     }
     return pw
-      ? '<span class="badge text-bg-light border text-dark">' + esc(pw.cadre_code) + '</span> at <strong>' + esc(pw.unit_code) + '</strong>'
+      ? '<span class="badge text-bg-light border text-dark">' + esc(pw.cadre_code) + '</span> at <strong title="' + esc(pw.unit_code) + '">' + esc(pw.unit_name || pw.unit_code) + '</strong>'
         + (pw.is_active === false ? ' <span class="badge text-bg-secondary">inactive</span>' : '')
-        + '<div class="text-muted" style="font-size:0.72rem;">' + esc(pw.unit_name) + '</div>'
+        + '<br>'
         + '<button type="button" class="btn btn-sm btn-link p-0 ug-place-edit" aria-label="' + esc('Edit unit and cadre of ' + u.name) + '"><i class="fa-solid fa-pen me-1"></i>Edit</button>'
       : '<span class="text-muted">Not placed in a unit</span><br>'
         + '<button type="button" class="btn btn-sm btn-outline-primary py-0 mt-1 ug-place-edit" aria-label="' + esc('Place ' + u.name + ' in a unit') + '"><i class="fa-solid fa-location-dot me-1"></i>Place</button>';

@@ -1166,6 +1166,30 @@
       return lc.org_level_id === unitObj.org_level_id && lc.is_active !== false && lc[flag];
     });
   }
+  var UG_RAW_ROLE_BY_DISPLAY = { coder_pii: 'coder', coder_non_pii: 'coder', reviewer_pii: 'reviewer', reviewer_non_pii: 'reviewer' };
+  function ugGrantIdFor(user, unitId, displayKey) {
+    var raw = UG_RAW_ROLE_BY_DISPLAY[displayKey] || displayKey;
+    var hit = ((user && user.unit_grants) || []).find(function (g) { return g.org_unit_id === unitId && g.role === raw; });
+    return hit ? hit.grant_id : null;
+  }
+  // Remove = deactivate through the audited grant on/off endpoint (same admin / project PI
+  // checks as the Access Grants panel), so it is logged and can be turned back on there.
+  function ugRemoveGrant(btn) {
+    if (!window.confirm('Remove this grant? It is deactivated (kept in the audit log) and can be turned back on in Access Grants.')) return;
+    btn.disabled = true;
+    fetch('/admin/api/access-grants/' + encodeURIComponent(btn.getAttribute('data-grant-id')) + '/toggle', { method: 'POST', headers: csrfHeaders() })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok || res.data.status !== 'deactive') {
+          btn.disabled = false;
+          ugShowMsg('danger', (res.data && res.data.error) || 'Could not remove the grant.');
+          return;
+        }
+        ugShowMsg('success', 'Grant removed.');
+        loadUsersGrid();
+      })
+      .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not remove the grant.'); });
+  }
   function ugUnitsWithRole(user, rawRole) {
     var byUnit = (user && user.unit_roles_by_unit) || {};
     return Object.keys(byUnit).filter(function (k) { return (byUnit[k] || []).indexOf(rawRole) >= 0; });
@@ -1242,15 +1266,18 @@
             : (grp.scope_kind === 'cross_level' || grp.scope_kind === 'all_level'
                 ? 'text-bg-primary-subtle border border-primary-subtle text-primary-emphasis'
                 : 'text-bg-info-subtle border border-info-subtle text-info-emphasis');
-          var previewCodes = grp.units.slice(0, 3).map(function (x) { return x.unit_code; }).join(', ');
-          var extraCount = grp.units.length > 3 ? (' +' + (grp.units.length - 3) + ' more') : '';
           return '<div class="d-inline-flex align-items-center gap-1 border rounded px-2 py-1 me-1 mb-1 bg-white shadow-xs">'
             + '<span class="fw-semibold">' + esc(grp.label) + '</span>'
             + '<span class="badge text-bg-' + piiCls + '-subtle border border-' + piiCls + '-subtle text-' + piiCls + '-emphasis" style="font-size:0.62rem;">' + esc(grp.pii_badge) + '</span>'
-            + '<span class="badge ' + scopeBadgeCls + '" title="' + esc(grp.units.map(function (x) { return x.unit_code + ' (' + x.unit_name + ')'; }).join(', ')) + '">'
-            + esc(grp.scope_summary)
-            + (grp.scope_kind === 'multi' ? ': ' + esc(previewCodes + extraCount) : '')
-            + '</span>'
+            + grp.units.map(function (x) {
+                // One badge per unit, each removable on its own (the PII tier is the badge before).
+                var grantId = ugGrantIdFor(u, x.org_unit_id, grp.role_key);
+                return '<span class="badge ' + scopeBadgeCls + ' d-inline-flex align-items-center gap-1">'
+                  + esc(x.unit_code + ' (' + x.unit_name + ')')
+                  + (grantId ? '<button type="button" class="btn-close ug-remove-grant" style="font-size:0.5rem;" data-grant-id="' + esc(grantId) + '"'
+                    + ' aria-label="' + esc('Remove ' + grp.label + ' on ' + x.unit_code) + '" title="Remove this grant"></button>' : '')
+                  + '</span>';
+              }).join('')
             + '</div>';
         }).join('');
       }
@@ -1346,6 +1373,9 @@
         updateUgSelectionCount();
       });
     });
+    wrap.querySelectorAll('.ug-remove-grant').forEach(function (btn) {
+      btn.addEventListener('click', function () { ugRemoveGrant(btn); });
+    });
     wrap.querySelectorAll('.ug-toggle-drawer').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var uid = btn.getAttribute('data-uid');
@@ -1399,23 +1429,7 @@
         runBulkApply([uid], roleSel.value, 'custom', [unitId], true);
       });
       row.querySelectorAll('.ug-drawer-remove').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          if (!window.confirm('Remove this grant? It is deactivated (kept in the audit log) and can be turned back on in Access Grants.')) return;
-          btn.disabled = true;
-          // The audited grant on/off endpoint: same admin / project PI checks as the Access Grants panel.
-          fetch('/admin/api/access-grants/' + encodeURIComponent(btn.getAttribute('data-grant-id')) + '/toggle', { method: 'POST', headers: csrfHeaders() })
-            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-            .then(function (res) {
-              if (!res.ok || res.data.status !== 'deactive') {
-                btn.disabled = false;
-                ugShowMsg('danger', (res.data && res.data.error) || 'Could not remove the grant.');
-                return;
-              }
-              ugShowMsg('success', 'Grant removed.');
-              loadUsersGrid();
-            })
-            .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not remove the grant.'); });
-        });
+        btn.addEventListener('click', function () { ugRemoveGrant(btn); });
       });
     });
   }

@@ -14,7 +14,7 @@ from unittest.mock import patch
 
 import sqlalchemy as sa
 
-from app import db
+from app import db, limiter
 from app.models import (
     MapProjectMember,
     VaAccessRoles,
@@ -64,10 +64,20 @@ class ProjectMembersUploadTests(BaseTestCase):
             user_id=cls.other_pi.user_id, role=VaAccessRoles.project_pi,
             scope_type=VaAccessScopeTypes.project, project_id=cls.OTHER, grant_status=VaStatuses.active,
         ))
+        cls.other_dm = cls._make_user("member.other.dm@test.local", "OtherDm123")
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.other_dm.user_id, role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project, project_id=cls.OTHER, grant_status=VaStatuses.active,
+        ))
         db.session.commit()
+        cls.other_dm_id = str(cls.other_dm.user_id)
         cls.email_user_id = cls.email_user.user_id
         cls.mobile_user_id = cls.mobile_user.user_id
         cls.other_pi_id = str(cls.other_pi.user_id)
+
+    def setUp(self):
+        super().setUp()
+        limiter.reset()  # in-memory buckets outlive a test; the import allows 30 an hour
 
     def _upload(self, text, dry_run="1", project_id=None, headers=None, reactivate=""):
         return self.client.post(
@@ -83,9 +93,9 @@ class ProjectMembersUploadTests(BaseTestCase):
             sa.select(MapProjectMember.user_id).where(MapProjectMember.project_id == self.PROJECT)
         ))
 
-    def _apply(self, text, reactivate=""):
+    def _apply(self, text, reactivate="", project_id=None):
         with patch("app.services.email_service.is_mail_configured", return_value=False):
-            return self._upload(text, dry_run="0", reactivate=reactivate)
+            return self._upload(text, dry_run="0", reactivate=reactivate, project_id=project_id)
 
     def test_template_is_header_only(self):
         self._login(self.base_admin_id)
@@ -288,3 +298,76 @@ class ProjectMembersUploadTests(BaseTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("CSRF", response.get_json()["error"])
         self.assertEqual(self._members(), set())
+
+    # -- a project-scope data manager (owner, 2026-11-16) -----------------
+
+    def test_project_dm_creates_accounts_on_their_own_project_only(self):
+        self._login(self.other_dm_id)
+        self.assertEqual(self._upload("name,email,phone\nN,dm.elsewhere@test.local,\n").status_code, 403)
+        self.assertEqual(self.client.get(
+            f"/admin/api/projects/{self.OTHER}/users-grid/members/template.csv").status_code, 200)
+        applied = self._apply("name,email,phone\nDm New,dm.new@test.local,\nDm Field,,9123450066\n",
+                              project_id=self.OTHER)
+        self.assertEqual(applied.status_code, 200, applied.get_json())
+        self.assertEqual(applied.get_json()["counts"]["create"], 2)
+        created = db.session.scalars(sa.select(VaUsers).where(sa.or_(
+            VaUsers.email == "dm.new@test.local", VaUsers.mobile_login == "9123450066"))).all()
+        self.assertEqual(len(created), 2)
+        members = set(db.session.scalars(sa.select(MapProjectMember.user_id).where(
+            MapProjectMember.project_id == self.OTHER)))
+        self.assertTrue({u.user_id for u in created} <= members)
+        # New accounts get no grant and no sign-in code at upload.
+        ids = [u.user_id for u in created]
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id.in_(ids))), 0)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(AuthMobileCode).where(
+            AuthMobileCode.user_id.in_(ids))), 0)
+        self.assertEqual({u.user_status for u in created}, {VaStatuses.active})
+
+    def test_project_dm_gets_the_unavailable_collapse_and_no_reactivation(self):
+        # Another account holds 9123450055 as its phone (not its sign-in number).
+        holder = self._make_user("member.phone.holder@test.local", "Holder123")
+        holder.phone = "9123450055"
+        db.session.commit()
+        self._login(self.other_dm_id)
+        rows = self._upload("name,email,phone\n"
+                            "I,member.inactive@test.local,\n"
+                            "M,member.existing@test.local,9123450001\n"
+                            "P,dm.phone.clash@test.local,9123450055\n"
+                            "E,member.existing@test.local,\n",
+                            project_id=self.OTHER, reactivate="2").get_json()["rows"]
+        unavailable = ("refuse", "account is unavailable for this project import")
+        self.assertEqual([(r["action"], r["reason"]) for r in rows],
+                         [unavailable, unavailable, unavailable, ("add_existing", None)])
+        self.assertFalse(any(r["can_reactivate"] for r in rows))
+        self.assertEqual(db.session.get(VaUsers, self.inactive_user.user_id).user_status, VaStatuses.deactive)
+        applied = self._apply("name,email,phone\nI,member.inactive@test.local,\n",
+                              reactivate="2", project_id=self.OTHER)
+        self.assertEqual(applied.status_code, 400, applied.get_json())
+        db.session.expire_all()
+        self.assertEqual(db.session.get(VaUsers, self.inactive_user.user_id).user_status, VaStatuses.deactive)
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(MapProjectMember).where(
+            MapProjectMember.user_id == self.inactive_user.user_id)), 0)
+        # The admin sees the real reason for the same clash.
+        self._login(self.base_admin_id)
+        rows = self._upload("name,email,phone\nP,dm.phone.clash@test.local,9123450055\n",
+                            project_id=self.OTHER).get_json()["rows"]
+        self.assertEqual(rows[0]["reason"], "mobile number is already used by another account")
+
+    def test_project_pi_page_says_who_creates_accounts(self):
+        self._login(self.other_pi_id)
+        html = self.client.get(f"/admin/project-roster?project_id={self.OTHER}").get_data(as_text=True)
+        self.assertIn("by an admin or the project's data manager only", html)
+        self._login(self.other_dm_id)
+        html = self.client.get(f"/admin/project-roster?project_id={self.OTHER}").get_data(as_text=True)
+        self.assertIn('id="setup-ug-members-toggle"', html)
+        self.assertNotIn("by an admin or the project's data manager only", html)
+
+    def test_import_is_rate_limited_per_caller_dry_runs_included(self):
+        self._login(self.base_admin_id)
+        statuses = [self._upload("name,email,phone\n").status_code for _ in range(31)]
+        self.assertNotIn(429, statuses[:30])
+        self.assertEqual(statuses[30], 429)
+        # Another caller has their own bucket.
+        self._login(self.other_pi_id)
+        self.assertNotEqual(self._upload("name,email,phone\n", project_id=self.OTHER).status_code, 429)

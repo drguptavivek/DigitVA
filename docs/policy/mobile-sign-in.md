@@ -143,6 +143,71 @@ passes a short one-time code to the person instead.
   that address is sent a short notice ("your password was changed using a
   sign-in code; if this wasn't you, contact your administrator") carrying
   no password and no code.
+- **From the project roster (owner 2026-11-16, `digitva-dcdb`).** The
+  Project Setup People roster ("All Users") has a **Generate code** button
+  in each row's contact cell, shown only when the server says the viewer
+  may issue for that row. There the rule is project-scoped
+  (`may_issue_code_in_project`): an admin always; otherwise the issuer must
+  be the project's `project_pi` or a project-scope `data_manager` of that
+  project (not a site- or unit-scope DM, not an In-charge, not through the
+  training project), **and** either
+  (a) the rule above holds (they may manage every active grant the person
+  holds, none privileged, no verified email), or
+  (b) the person is an **unplaced roster member**: holds no active grant
+  anywhere, is a member of this project (`map_project_members`), every
+  project they are a member of is one the issuer manages in the same sense,
+  has no verified email, is not an admin and the account is active.
+  Rule (b) exists for people uploaded with the roster CSV who are not
+  placed yet, so rule (a) has no grant to reason about. The "every
+  membership" clause stops a PI from adding another project's unplaced
+  member to their own roster and then taking the account over with a code:
+  being added to a roster must never hand the account to that roster's
+  managers alone while another project also holds it. Refusals answer 404,
+  like an unknown account.
+  **Both rules also require** (security review of digitva-dcdb) that the
+  person is already **on this project's roster** (a member of it, holding
+  an active grant in it, or a worker in it) and is a member of no project
+  the issuer does not manage. Without the first, a PI or data manager could
+  grant a role to an arbitrary account from the bulk bar or Place and then
+  issue its code; those writes are refused for a non-admin whose target is
+  not on the roster (access-control-model.md, "Project membership"). Without
+  the second, an admin's grant here to another project's member would hand
+  the account to this project's managers.
+  **Who can be adopted by rule (b), stated plainly.** A PI or project data
+  manager who adds an existing account to the roster with the members
+  upload may then issue it a code when that account holds no active grant
+  anywhere, has no verified email, is active, is not an admin and is a
+  member of no other project they do not manage. This is accepted by
+  design: such an account has no access to take and no verified email to
+  reset by, so a code is the only way its owner can sign in, and the
+  person it belongs to gets their access only through that roster anyway.
+  Every code issued from the roster is audited as `mobile_code_issued` with
+  the issuer, the project id and `via = "project_roster"`.
+- **Nobody signed in on a phone gets a code from a non-admin (owner
+  2026-11-16).** A person who moves projects keeps their account, password
+  and phone, so someone already signed in on a phone never needs a code.
+  On **both** code endpoints a non-admin issuer is refused (the same 404)
+  when the person has a **live phone sign-in**: a device session that is
+  not revoked, whose refresh token has not expired, on a device that is not
+  revoked -- the same rule as the roster's "on N phones" count
+  (`device_auth_service.live_session_clauses`). The roster then shows no
+  Generate code button on that row, only "Signed in on a phone; no code
+  needed". An admin may still issue one (a lost phone, say).
+- **From the data-management pages (security review of digitva-dcdb).**
+  A data manager may grant a role to any account it looks up
+  (`GET /data-management/api/users/lookup`; owner 2026-11-16, no roster
+  restriction on those grant writes), so the rule above alone would let
+  them grant a stranger a role and then take the account over with a code.
+  `POST /data-management/api/users/<id>/sign-in-code` therefore also
+  requires, for a non-admin (`may_issue_code_from_data_management`), that
+  the person is a member (`map_project_members`) of no project outside the
+  projects of the issuer's grant-writing grants (`authz.writer_grants`:
+  project PI, data manager at any scope, In-charge) and has no live phone
+  sign-in. **Accepted residual:** an account with no grant elsewhere, no
+  membership elsewhere, no live phone and no verified email can still be
+  granted a role and given a code by a data manager who looked it up. Such
+  an account has no access to take and no verified email to reset by; its
+  owner has never signed in on a phone.
 - **Redeeming it.** On the sign-in page the person chooses "I have a code",
   enters their email or mobile number and the code. If both match, the server
   generates a new password and shows it **once**, on that screen only, with

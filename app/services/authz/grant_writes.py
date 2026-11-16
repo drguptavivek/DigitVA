@@ -118,6 +118,18 @@ def writer_grants(g: ResolvedGrants) -> list[Grant]:
     ]
 
 
+def roster_project_ids(g: ResolvedGrants) -> frozenset[str]:
+    """Projects whose People roster *g*'s holder manages: ``project_pi``
+    there or a project-scope ``data_manager`` (``writer_grants``, so never
+    through the training project or a virtual grant). Not for admins: the
+    caller checks ``g.is_admin`` first. Policy: access-control-model.md,
+    "Project membership" (roster access); mobile-sign-in.md section 3."""
+    return frozenset(
+        x.project_id for x in writer_grants(g)
+        if x.role == _R.project_pi or (x.role == _R.data_manager and x.scope_type == _P)
+    )
+
+
 def _allows(actor: Grant, role: VaAccessRoles, scope: VaAccessScopeTypes, where: _Where) -> bool:
     """Whether one actor grant lets them write *role* at *where*."""
     if actor.project_id != where.project_id:

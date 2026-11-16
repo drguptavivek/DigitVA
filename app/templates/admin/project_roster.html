@@ -1,0 +1,15 @@
+{% extends "va_frontpages/va_base.html" %}
+
+{% block title %}Project roster — DigitVA{% endblock %}
+
+{#
+  The Project Setup People roster ("All Users") on its own page (digitva-dcdb)
+  for an admin, the project's PI or a project-scope data manager. Project Setup
+  itself stays admin only; roster_only leaves every other section out.
+#}
+{% block content %}
+<div class="container-fluid py-3">
+  <script>window._adminCsrf = {{ csrf_token()|tojson }};</script>
+  {% include "admin/panels/project_setup.html" %}
+</div>
+{% endblock %}

@@ -131,10 +131,15 @@ class WorkerActiveLinkTests(BaseTestCase):
         )
 
     def test_roster_only_create_rejects_inactive_uuid(self):
+        # A PI naming an account gets one refusal for unknown, inactive and
+        # off-roster alike (digitva-dcdb); the admin's messages are unchanged.
         inactive = self._user("inactive-uuid@example.org", status=VaStatuses.deactive)
-        self._assert_inactive_create_rejected(
-            {"user": str(inactive.user_id)}, code="W00001"
-        )
+        unit, cadre = self._fixture()
+        response = self._post_worker(unit, cadre, worker_code="W00001", user=str(inactive.user_id))
+        self.assertEqual(response.status_code, 400, response.get_json())
+        self.assertEqual(response.get_json()["error"], "One or more selected users were not found.")
+        self.assertEqual(db.session.scalar(sa.select(sa.func.count()).select_from(MasOrgUnitWorker).where(
+            MasOrgUnitWorker.project_id == self.PROJECT)), 0)
 
     def test_roster_only_create_rejects_inactive_mobile(self):
         self._user(

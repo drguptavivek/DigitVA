@@ -10,13 +10,22 @@ import re
 import uuid
 
 import sqlalchemy as sa
-from flask import current_app, jsonify, render_template, request
+from flask import abort, current_app, jsonify, render_template, request
 from flask_login import current_user
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from app import db, limiter
 from app.decorators import role_required
-from app.models import MapOrgLevelCadre, MasCadre, MasOrgUnit, VaUsers
+from app.models import (
+    MapOrgLevelCadre,
+    MasCadre,
+    MasOrgUnit,
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaProjectMaster,
+    VaStatuses,
+    VaUsers,
+)
 from app.routes.admin import _current_user_can_manage_project, _json_error, admin
 from app.services import collection_hold, org_grant_service
 from app.services import organization_service as org
@@ -29,7 +38,7 @@ log = logging.getLogger(__name__)
 _API = "/api/organization/<project_id>"
 
 
-def _guard(project_id):
+def _guard(project_id, *, roster=False):
     """Return an error response when the user may not manage this project.
 
     Every route here calls this first, so it is also the one place that
@@ -38,8 +47,12 @@ def _guard(project_id):
     'organization' structure mode. Reads stay open so an existing tree can
     still be inspected and exported. Policy: docs/policy/organization-model.md
     ("Project structure mode").
+
+    *roster*: the route also serves the project's People roster, so a
+    project-scope data manager of it passes too (``_may_use_roster``); the
+    route then applies the data-manager limits itself (``_roster_dm``).
     """
-    if not _current_user_can_manage_project(project_id):
+    if not (_current_user_can_manage_project(project_id) or (roster and _may_use_roster(project_id))):
         return _json_error("You do not have access to that project.", 403)
     if request.method != "GET":
         try:
@@ -51,6 +64,12 @@ def _guard(project_id):
 
 def _payload():
     return request.get_json(silent=True) or {}
+
+
+def _roster_dm(project_id):
+    """Whether the caller passed ``_guard(..., roster=True)`` only as the
+    project's data manager (not an admin or its PI)."""
+    return not _current_user_can_manage_project(project_id)
 
 
 def _include_inactive():
@@ -553,10 +572,27 @@ def admin_org_upsert_level_cadre(project_id):
 _WORKER_FIELDS = ("org_unit_id", "cadre_id", "worker_code", "worker_name", "phone", "user", "remarks")
 
 
+#: A non-admin's refusal for an unknown, inactive or off-roster account alike
+#: (``org.require_on_project_roster`` words it so).
+_USER_NOT_FOUND = "One or more selected users were not found."
+
+
+def _resolve_worker_user(raw, *, require_active=True):
+    """``org.resolve_user``, except that a non-admin gets ``_USER_NOT_FOUND``
+    for an unknown or inactive account, the message an off-roster one gets,
+    so the refusal never says which accounts exist."""
+    try:
+        return org.resolve_user(raw, require_active=require_active)
+    except org.OrganizationError:
+        if current_user.is_admin():
+            raise
+        raise org.OrganizationError(_USER_NOT_FOUND) from None
+
+
 def _worker_identity(payload):
     """Resolve identity fields without ever changing an existing profile."""
     raw_user = str(payload.get("user") or "").strip()
-    linked = org.resolve_user(raw_user) if raw_user else None
+    linked = _resolve_worker_user(raw_user) if raw_user else None
     email = str(payload.get("email") or "").strip().lower()
     if email and (len(email) > 128 or not user_import.EMAIL_RE.fullmatch(email)):
         raise org.OrganizationError("invalid email")
@@ -570,6 +606,8 @@ def _worker_identity(payload):
     ) if mobile else None
     # Email/mobile lookups include inactive rows so an existing account cannot
     # be silently treated as an unlinked roster-only worker.
+    # By email or mobile an unknown account means a new one, so these keep
+    # the "inactive" refusal: it tells nothing creating one would not.
     if email_user:
         org.resolve_user(email_user)
     if mobile_user:
@@ -643,12 +681,57 @@ def admin_org_workers(project_id):
     return jsonify({"workers": workers})
 
 
+# What a data manager may send when placing or moving someone from the roster
+# (the roster's own requests); account fields and extra unit scopes stay with
+# the admin and the PI.
+_DM_PLACE_FIELDS = frozenset({"org_unit_id", "cadre_id", "worker_name", "user"})
+_DM_MOVE_FIELDS = frozenset({"org_unit_id", "cadre_id", "is_active"})
+
+
+def _may_place_at(raw_unit_id):
+    """Whether the caller may grant at this unit, the data-manager Place and
+    move check: ``authz.can_grant`` of ``interviewer`` there, a role every
+    data manager writes throughout their subtree (DM_TREE_ASSIGNABLE), so
+    the answer is "is this unit inside their grant-writing scope". The
+    cadre's default grants are each checked again when written."""
+    from app.services import authz
+
+    try:
+        unit_id = uuid.UUID(str(raw_unit_id))
+    except (TypeError, ValueError, AttributeError):
+        return False
+    return bool(authz.can_grant(current_user, authz.GrantTarget(
+        role=VaAccessRoles.interviewer, scope_type=VaAccessScopeTypes.org_unit, org_unit_id=unit_id,
+    )))
+
+
 @admin.post(f"{_API}/workers")
-@role_required("admin", "project_pi")
+@role_required("admin", "project_pi", "data_manager")
 def admin_org_create_worker(project_id):
-    if err := _guard(project_id):
+    """Create a worker (Place from the roster, or enrol from the Organization
+    panel). An admin or the PI as before; a project-scope data manager only
+    places an existing account already on the roster, at a unit inside their
+    grant-writing scope, never creating an account (they create accounts
+    with the members upload). For every non-admin the linked account must
+    already be on the project's roster; each cadre default grant passes
+    ``can_grant`` in ``user_import.prepare`` or the whole request is refused,
+    worker row included."""
+    if err := _guard(project_id, roster=True):
         return err
     p = _payload()
+    if _roster_dm(project_id):
+        if set(p) - _DM_PLACE_FIELDS:
+            return _json_error("You are not permitted to set those worker fields.", 403)
+        if not str(p.get("user") or "").strip():
+            return _json_error("Add the person to the roster first, then place them.", 400)
+        # By id and before any lookup by email, so the refusal is the same
+        # for an unknown, inactive or off-roster account.
+        try:
+            org.require_on_project_roster(project_id, [p["user"]], actor=current_user)
+        except (org.OrganizationError, ValueError):
+            return _json_error(_USER_NOT_FOUND, 400)
+        if not _may_place_at(p.get("org_unit_id")):
+            return _json_error("You are not permitted to place people at that unit.", 403)
     invitations = []
     changed_grants = []
     sign_in_codes = []
@@ -666,6 +749,8 @@ def admin_org_create_worker(project_id):
         ):
             raise org.OrganizationError("Phone must contain exactly 10 digits.")
         linked, email, phone, _mobile = _worker_identity(p)
+        if linked:
+            org.require_on_project_roster(project_id, [linked.user_id], actor=current_user)
         defaults = _worker_default_roles(project_id, p)
         # An existing email/mobile resolves to the account even when the
         # roster payload does not carry the internal user UUID.
@@ -724,7 +809,7 @@ def admin_org_create_worker(project_id):
         queued, warnings = user_import.finalize_apply(
             project_id,
             actor_user_id=current_user.user_id,
-            actor_role="admin" if current_user.is_admin() else "project_pi",
+            actor_role=_actor_role(project_id),
             changed_grants=changed_grants,
             invitations=invitations,
             request_ip=request.remote_addr,
@@ -749,11 +834,30 @@ def admin_org_create_worker(project_id):
 
 
 @admin.patch(f"{_API}/workers/<worker_id>")
-@role_required("admin", "project_pi")
+@role_required("admin", "project_pi", "data_manager")
 def admin_org_update_worker(project_id, worker_id):
-    if err := _guard(project_id):
+    """Edit a worker; moving it changes no grant. A project-scope data
+    manager only moves (unit, cadre, active) and only when both the old and
+    the new unit lie inside their grant-writing scope (``_may_place_at``).
+    A non-admin relinking the worker must name an account on the roster."""
+    if err := _guard(project_id, roster=True):
         return err
     p = _payload()
+    if _roster_dm(project_id):
+        if set(p) - _DM_MOVE_FIELDS:
+            return _json_error("You are not permitted to set those worker fields.", 403)
+        try:
+            current_unit = org._get_worker(project_id, worker_id).org_unit_id
+        except org.OrganizationError as exc:
+            return _json_error(str(exc), 400)
+        if not (_may_place_at(current_unit) and _may_place_at(p.get("org_unit_id") or current_unit)):
+            return _json_error("You are not permitted to place people at that unit.", 403)
+    if str(p.get("user") or "").strip():
+        try:
+            target = _resolve_worker_user(p["user"], require_active=False)
+            org.require_on_project_roster(project_id, [target.user_id], actor=current_user)
+        except org.OrganizationError as exc:
+            return _json_error(str(exc), 400)
     allowed = {k: p[k] for k in _WORKER_FIELDS + ("is_active",) if k in p}
     scope_changed = []
     try:
@@ -776,7 +880,7 @@ def admin_org_update_worker(project_id, worker_id):
         user_import.finalize_apply(
             project_id,
             actor_user_id=current_user.user_id,
-            actor_role="admin" if current_user.is_admin() else "project_pi",
+            actor_role=_actor_role(project_id),
             changed_grants=scope_changed,
             invitations=[],
             request_ip=request.remote_addr,
@@ -1249,23 +1353,114 @@ def admin_org_mentoring_districts(project_id):
 # ---------------------------------------------------------------------------
 
 
+def _roster_projects():
+    """Projects whose People roster the caller uses besides an admin: the PI
+    projects (``can_manage_project``, as before) and those where they are
+    project_pi or a project-scope data manager (``authz.roster_project_ids``,
+    access-control-model.md "Project membership"). Admins: None (all)."""
+    from app.services import authz
+
+    grants = authz.resolve_grants(current_user)
+    if grants.is_admin:
+        return None
+    return set(current_user.get_project_pi_projects()) | authz.roster_project_ids(grants)
+
+
+def _may_use_roster(project_id):
+    projects = _roster_projects()
+    return projects is None or project_id in projects
+
+
+def _actor_role(project_id):
+    """The audit actor role for a roster grant write in *project_id*."""
+    if current_user.is_admin():
+        return "admin"
+    return "project_pi" if current_user.can_manage_project(project_id) else "data_manager"
+
+
+@admin.get("/project-roster", strict_slashes=False)
+@role_required("admin", "project_pi", "data_manager")
+def project_roster_page():
+    """The Project Setup People roster ("All Users") on its own page, for an
+    admin, the project's PI or a project-scope data manager (digitva-dcdb).
+
+    Renders the Project Setup template with ``roster_only``: every other
+    section and tab is left out server-side and their APIs refuse these
+    callers as before. 403 when the caller manages no roster; a
+    ``project_id`` outside their projects is 404, like an unknown one.
+    """
+    projects = _roster_projects()
+    stmt = sa.select(VaProjectMaster).where(VaProjectMaster.project_status == VaStatuses.active)
+    if projects is not None:
+        if not projects:
+            abort(403)
+        stmt = stmt.where(VaProjectMaster.project_id.in_(sorted(projects)))
+    choices = list(db.session.scalars(stmt.order_by(VaProjectMaster.project_id)))
+    if not choices:
+        abort(403)
+    requested = (request.args.get("project_id") or "").strip().upper()
+    project = next((p for p in choices if p.project_id == requested), None)
+    if requested and project is None:
+        abort(404)
+    project = project or choices[0]
+    return render_template(
+        "admin/project_roster.html",
+        project=project,
+        all_projects=choices if len(choices) > 1 else [],
+        roster_only=True,
+        can_manage_structure=_current_user_can_manage_project(project.project_id),
+        may_create_accounts=user_import.may_create_member_accounts(current_user, project.project_id),
+    )
+
+
 @admin.get("/api/projects/<project_id>/users-grid")
 @admin.get(f"{_API}/users-grid")
-@role_required("admin", "project_pi")
+@role_required("admin", "project_pi", "data_manager")
 def admin_project_users_grid(project_id):
-    if not _current_user_can_manage_project(project_id):
+    if not _may_use_roster(project_id):
         return _json_error("You do not have access to that project.", 403)
     try:
-        data = org.get_project_users_grid(project_id)
+        data = org.get_project_users_grid(project_id, viewer=current_user)
     except org.OrganizationError as exc:
         return _json_error(str(exc), 404)
     return jsonify(data)
 
 
+@admin.post("/api/projects/<project_id>/users-grid/<uuid:target_user_id>/sign-in-code")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("20 per hour")
+def admin_project_users_grid_sign_in_code(project_id, target_user_id):
+    """Issue a one-time sign-in code from the project roster, shown once
+    (docs/policy/mobile-sign-in.md section 3, roster rule). Allowed when
+    ``may_issue_code_in_project`` (for a non-admin, never for someone
+    already signed in on a phone); anyone else gets the same 404 as an
+    unknown account. Issuing voids the previous code and audits
+    ``mobile_code_issued``; the code is never logged.
+    """
+    from app.services import mobile_sign_in_service
+
+    user = db.session.get(VaUsers, target_user_id)
+    if not user or not mobile_sign_in_service.may_issue_code_in_project(
+        current_user, target_user_id, project_id
+    ):
+        return _json_error("User not found.", 404)
+    try:
+        code = mobile_sign_in_service.issue_code(
+            user, actor_user_id=current_user.user_id,
+            audit_detail={"project_id": project_id, "via": "project_roster"},
+        )
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
+    db.session.commit()
+    response = jsonify({"sign_in_code": code, **mobile_sign_in_service.code_lifetime()})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @admin.get("/api/projects/<project_id>/users-grid/members/template.csv")
-@role_required("admin", "project_pi")
+@role_required("admin", "project_pi", "data_manager")
 def admin_project_members_template(project_id):
-    if err := _guard(project_id):
+    if err := _guard(project_id, roster=True):
         return err
     return current_app.response_class(
         user_import.template_csv(user_import.MEMBER_HEADERS), mimetype="text/csv",
@@ -1274,7 +1469,8 @@ def admin_project_members_template(project_id):
 
 
 @admin.post("/api/projects/<project_id>/users-grid/members/import")
-@role_required("admin", "project_pi")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("30 per hour")
 def admin_project_members_import(project_id):
     """Upload ``name, email, phone`` rows as project members (digitva-plgm).
 
@@ -1282,9 +1478,12 @@ def admin_project_members_import(project_id):
     nothing; ``dry_run=0`` writes every row or, when any row is refused,
     nothing (400 with the rows). Membership grants no access
     (docs/policy/access-control-model.md, "Project membership"); no sign-in
-    code is issued here.
+    code is issued here. An admin or the project's project-scope data manager
+    may create accounts (``user_import.may_create_member_accounts``), the PI
+    adds existing ones only; reactivation is admin-only. 30 requests an hour
+    per caller, dry runs included.
     """
-    if err := _guard(project_id):
+    if err := _guard(project_id, roster=True):
         return err
     actor_user_id = current_user.user_id
     request.max_content_length = user_import.MAX_BYTES + 64 * 1024
@@ -1331,7 +1530,7 @@ def admin_project_members_import(project_id):
     invitations_queued, invite_warnings = user_import.finalize_apply(
         project_id,
         actor_user_id=actor_user_id,
-        actor_role="admin" if current_user.is_admin() else "project_pi",
+        actor_role=_actor_role(project_id),
         changed_grants=[],
         invitations=invitations,
         request_ip=request.remote_addr,
@@ -1344,9 +1543,13 @@ def admin_project_members_import(project_id):
 
 @admin.post("/api/projects/<project_id>/users-grid/bulk-apply")
 @admin.post(f"{_API}/users-grid/bulk-apply")
-@role_required("admin", "project_pi")
+@role_required("admin", "project_pi", "data_manager")
 def admin_project_users_grid_bulk_apply(project_id):
-    if not _current_user_can_manage_project(project_id):
+    """Every grant written here passes ``authz.can_grant`` for the caller,
+    account activation is admin-only and a non-admin selects only people on
+    the project's roster (``bulk_apply_project_users_grid``), so opening it to
+    a project-scope data manager widens no grant write."""
+    if not _may_use_roster(project_id):
         return _json_error("You do not have access to that project.", 403)
     p = _payload()
     try:
@@ -1363,7 +1566,7 @@ def admin_project_users_grid_bulk_apply(project_id):
         user_import.finalize_apply(
             project_id,
             actor_user_id=current_user.user_id,
-            actor_role="admin" if current_user.is_admin() else "project_pi",
+            actor_role=_actor_role(project_id),
             changed_grants=changed_grants,
             invitations=[],
             request_ip=request.remote_addr,
@@ -1374,6 +1577,6 @@ def admin_project_users_grid_bulk_apply(project_id):
         getattr(current_user, "user_id", None),
         summary,
     )
-    grid = org.get_project_users_grid(project_id)
+    grid = org.get_project_users_grid(project_id, viewer=current_user)
     return jsonify({"summary": summary, "grid": grid, **grid})
 

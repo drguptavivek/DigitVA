@@ -741,19 +741,21 @@ below a `project_site` grant there is nothing.
 - `project_pi` creates `data_manager` grants at any level of their project.
 - An **In-charge** creates `data_manager` grants at their own level and on
   units beneath it, within their own area (the District in-charge creates the
-  District Programme Manager), and the seven roles below anywhere in their
+  District Programme Manager), and the eight roles below anywhere in their
   area, as a data manager does.
 - A `data_manager` creates:
   - `data_manager` grants only strictly below their own grant, inside their
     own subtree;
-  - `interviewer`, `death_reporter`, `coder`, `reviewer`, `coding_tester`,
-    `collaborator` and `collaborator_pii` grants at any level inside their own
-    subtree, their own level included.
+  - `interviewer`, `interview_supervisor`, `death_reporter`, `coder`,
+    `reviewer`, `coding_tester`, `collaborator` and `collaborator_pii` grants
+    at any level inside their own subtree, their own level included
+    (`interview_supervisor` added by the owner 2026-11-16, digitva-dcdb: a
+    data manager places field supervisors; the cadre must allow supervision).
 - The same rule applies to every data manager of a district project, whatever
   the grant's scope. A project-scope data manager's subtree is the whole
   project.
-- No data manager creates In-charge, `interview_supervisor`, `site_pi`,
-  `project_pi` or `admin` grants, and none grants above or outside their own
+- No data manager creates In-charge, `site_pi`, `project_pi`, `admin` or
+  mentor grants, and none grants above or outside their own
   subtree.
 - Cadre validation and the mentoring-institute guard apply to every grant
   written this way.
@@ -845,10 +847,13 @@ grantee's authorization cache invalidated, as the importer's
 
 A project member is a row in `map_project_members` (project, user, who
 added it, when). It records that a person belongs on a project's roster so
-a trainer can place them later. **It grants nothing.** No authorization
-path reads it: `authz.resolve_grants`, `can_manage_project`, PII scope,
-device access and every project route ignore it, so a member with no grant
-has exactly the access of a stranger. Access still comes only from
+a trainer can place them later. **It grants the member nothing.** No
+authorization path gives the member access from it: `authz.resolve_grants`,
+`can_manage_project`, PII scope, device access and every project route
+ignore it, so a member with no grant has exactly the access of a stranger.
+The one place it is read is the roster's sign-in code rule for an
+unplaced member (mobile-sign-in.md section 3, rule (b)), which decides who
+may issue *for* the member, never what the member may do. Access still comes only from
 `va_user_access_grants`; placing a member (unit + cadre on the roster)
 writes the cadre's default grants through the usual `can_grant` checks.
 
@@ -861,6 +866,39 @@ the account rules are in
 Each membership added is audited (`project_member_added` security event,
 project id only, no name, email or phone). Removing a member is not offered
 yet.
+
+**Roster access (owner 2026-11-16, digitva-dcdb).** Besides admins, the
+project's `project_pi` and a project-scope `data_manager` of the project
+use that project's People roster (the "All Users" tab) on its own page,
+`/admin/project-roster?project_id=<id>`, linked from the user menu. They
+see the rows and filters, may generate sign-in codes (mobile-sign-in.md
+section 3), and may apply roles from the bulk bar and the row drawer only
+where `authz.can_grant` already lets them; nothing about grant writes is
+widened. The PI and the data manager may also use the members CSV upload
+(account creation there: admin and project-scope data manager only,
+account-onboarding-and-passwords.md "Roster upload") and **Place** people in
+a unit and move them. A data manager's Place and move are bounded: the
+person must already be on the roster and linked by account id (Place never
+creates an account for a data manager; they create it with the upload),
+the unit, and on a move both the old and the new unit, must lie inside
+their grant-writing scope (`authz.can_grant` of `interviewer` there), every
+default grant of the cadre must pass `authz.can_grant` or the whole
+placement is refused with no worker row written, and only unit, cadre and
+active may change on a move. A site- or unit-scope data manager or an
+In-charge does not get the page.
+
+**Roster targets only (security review of digitva-dcdb).** A non-admin's
+roster writes (bulk bar and row drawer grants, Place, move, relinking a
+worker) and roster sign-in codes target only someone already on that
+project's roster: a member of it, a holder of an active grant in it (the
+project, one of its pairs or units), or a worker in it
+(`organization_service.on_project_roster`, one query). Anyone else is
+refused as an unknown account. Otherwise a PI or data manager could grant
+an arbitrary account a role and then take it over with a sign-in code. Every other Project Setup section and
+tab (basics, structure, data collection, coding, gates, devices, the grants
+tab, the capability matrix, runtime switches) stays admin-only, and their
+APIs refuse as before. A manager of project A is refused (404 on the page,
+403 on the APIs) for project B.
 
 ## Closed Projects
 

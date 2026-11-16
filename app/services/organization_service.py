@@ -17,7 +17,7 @@ import re
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import UTC
+from datetime import UTC, datetime
 from datetime import date as date_type
 from decimal import Decimal, InvalidOperation
 
@@ -25,6 +25,8 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    AuthDevice,
+    AuthDeviceSession,
     MapMentorInstituteUser,
     MapOrgLevelCadre,
     MapOrgUnitCodingGate,
@@ -3936,7 +3938,48 @@ _DISPLAY_ROLE_META: dict[str, dict[str, object]] = {
 }
 
 
-def get_project_users_grid(project_id: str) -> dict:
+def on_project_roster(project_id: str, user_id_col) -> sa.ColumnElement:
+    """SQL predicate: the account *user_id_col* is already on *project_id*'s
+    People roster -- a member of it, holding an active grant in it (project,
+    one of its pairs, or one of its units), or a worker in it.
+
+    A non-admin roster write (bulk-apply, Place, move) and a roster sign-in
+    code target only such an account, so a PI or data manager cannot grant a
+    role to an arbitrary account and then take it over with a code
+    (docs/policy/access-control-model.md, "Project membership")."""
+    G = VaUserAccessGrants
+    in_project = sa.or_(
+        sa.and_(G.scope_type == VaAccessScopeTypes.project, G.project_id == project_id),
+        sa.and_(G.scope_type == VaAccessScopeTypes.project_site, G.project_site_id.in_(
+            sa.select(VaProjectSites.project_site_id).where(VaProjectSites.project_id == project_id)
+        )),
+        sa.and_(G.scope_type == VaAccessScopeTypes.org_unit, G.org_unit_id.in_(
+            sa.select(MasOrgUnit.org_unit_id).where(MasOrgUnit.project_id == project_id)
+        )),
+    )
+    return sa.or_(
+        sa.exists().where(MapProjectMember.user_id == user_id_col, MapProjectMember.project_id == project_id),
+        sa.exists().where(G.user_id == user_id_col, G.grant_status == VaStatuses.active, in_project),
+        sa.exists().where(MasOrgUnitWorker.user_id == user_id_col, MasOrgUnitWorker.project_id == project_id),
+    )
+
+
+def require_on_project_roster(project_id: str, user_ids, *, actor) -> None:
+    """Raise OrganizationError unless every one of *user_ids* is on
+    *project_id*'s roster (``on_project_roster``); one query. Admins pass.
+    The refusal names no account, as for an unknown id."""
+    ids = {uuid.UUID(str(u)) for u in user_ids}
+    if not ids or authz.resolve_grants(actor).is_admin:
+        return
+    found = db.session.scalar(
+        sa.select(sa.func.count()).select_from(VaUsers)
+        .where(VaUsers.user_id.in_(ids), on_project_roster(project_id, VaUsers.user_id))
+    )
+    if found != len(ids):
+        raise OrganizationError("One or more selected users were not found.")
+
+
+def get_project_users_grid(project_id: str, viewer: VaUsers | None = None) -> dict:
     """Return a consolidated 1-row-per-user roster for *project_id* with zero N+1 queries.
 
     Merges ``VaUsers``, ``MasOrgUnitWorker``, ``MapProjectMember`` (roster members
@@ -3944,7 +3987,18 @@ def get_project_users_grid(project_id: str) -> dict:
     and unit-scoped ``VaUserAccessGrants`` (combining ``coder`` + ``collaborator_pii``
     on the same unit into ``coder_pii`` vs ``coder_non_pii``, and similarly for
     ``reviewer_pii`` vs ``reviewer_non_pii``).
+
+    Each row also carries its enrolment status (``activated``: the person
+    knows a working password, ``has_usable_password``; ``phone_count``: live
+    device sessions on non-revoked devices, any project; ``last_sign_in_at``)
+    and ``can_issue_code``: *viewer* may issue a sign-in code for it from this
+    roster (``mobile_sign_in_service.issuable_user_ids``: for a non-admin,
+    never someone with a live phone, who needs no code), the account is
+    active and has an email or mobile number to redeem with. Without a
+    *viewer* it is False for every row. One query each, for all rows.
     """
+    from app.services.mobile_sign_in_service import issuable_user_ids
+    from app.services.user_account_service import has_usable_password
     project = _get_project(project_id)
     levels = [serialize_level(lv) for lv in list_levels(project_id, include_inactive=False)]
     units = list_units(project_id, include_inactive=False)
@@ -4087,6 +4141,20 @@ def get_project_users_grid(project_id: str) -> dict:
                 )
             ).all()
         )
+
+    phone_counts: dict[uuid.UUID, int] = {}
+    issuable: set[uuid.UUID] = set()
+    if all_user_ids:
+        from app.services.device_auth_service import live_session_clauses
+
+        phone_counts = dict(db.session.execute(
+            sa.select(AuthDeviceSession.user_id, sa.func.count(sa.distinct(AuthDeviceSession.device_id)))
+            .join(AuthDevice, AuthDevice.device_id == AuthDeviceSession.device_id)
+            .where(AuthDeviceSession.user_id.in_(all_user_ids), *live_session_clauses(datetime.now(UTC)))
+            .group_by(AuthDeviceSession.user_id)
+        ).all())
+        if viewer is not None:
+            issuable = issuable_user_ids(viewer, project_id, all_user_ids)
 
     has_tree = bool(units)
 
@@ -4360,6 +4428,13 @@ def get_project_users_grid(project_id: str) -> dict:
                 if u_obj.user_created_at and u_obj.user_created_at.tzinfo is None
                 else (u_obj.user_created_at.isoformat() if u_obj.user_created_at else None)
             ),
+            "activated": has_usable_password(u_obj),
+            "phone_count": phone_counts.get(uid, 0),
+            "last_sign_in_at": u_obj.last_signed_in_at.isoformat() if u_obj.last_signed_in_at else None,
+            "can_issue_code": (
+                uid in issuable and is_user_active
+                and (u_obj.email is not None or u_obj.mobile_login is not None)
+            ),
             "primary_worker": primary_worker,
             "workers": u_workers,
             "project_grants": proj_grants_out,
@@ -4423,6 +4498,8 @@ def bulk_apply_project_users_grid(
 
     Automatically resolves each user's home cadre (or an active capable cadre at
     the target unit's level) so the operator never needs a 3rd Cadre dropdown.
+    A non-admin *actor* is refused, before any write, when a selected user is
+    not on the project's roster (``require_on_project_roster``).
     """
     from app.services.org_grant_service import (
         CADRE_FLAG_BY_ROLE,
@@ -4451,6 +4528,8 @@ def bulk_apply_project_users_grid(
     }
     if len(users_map) != len(target_user_uuids):
         raise OrganizationError("One or more selected users were not found.")
+    # A non-admin writes grants only for people already on this roster.
+    require_on_project_roster(project_id, target_user_uuids, actor=actor)
 
     operation = str(payload.get("operation") or "").strip()
     scope_mode = str(payload.get("scope_mode") or "own").strip()

@@ -628,6 +628,20 @@ def create_account(item, *, actor_user_id, sign_in_code=True):
     return user, code
 
 
+def may_create_member_accounts(actor, project_id) -> bool:
+    """Whether *actor* may create new accounts through *project_id*'s members
+    upload: an admin, or a data manager at project scope of *project_id*
+    (who already creates accounts on the data-management Users panel). A
+    project PI adds existing accounts only. Policy:
+    account-onboarding-and-passwords.md, "Roster upload"."""
+    grants = authz.resolve_grants(actor)
+    return grants.is_admin or any(
+        g.role == VaAccessRoles.data_manager and g.scope_type == VaAccessScopeTypes.project
+        and g.project_id == project_id
+        for g in authz.writer_grants(grants)
+    )
+
+
 def prepare_members(project_id, rows, *, actor, reactivate_rows=frozenset()):
     """Resolve each ``MEMBER_HEADERS`` row to a roster action without writing.
 
@@ -645,15 +659,18 @@ def prepare_members(project_id, rows, *, actor, reactivate_rows=frozenset()):
     account holding a different email or sign-in mobile, is refused; an
     inactive account is refused unless an admin ticked its line in
     *reactivate_rows* (action ``reactivate``; never another admin's
-    account); only an admin creates accounts, a non-admin
-    getting the project import's single "unavailable" refusal for a missing
-    or inactive account. Raises ProjectUserImportError for an inactive or
-    unknown project.
+    account); an admin or a project-scope data manager of *project_id*
+    creates accounts (``may_create_member_accounts``). Every non-admin gets
+    the project import's single "unavailable" refusal for an inactive
+    account, for a mismatch between accounts and for a mobile number another
+    account holds, and a project PI also for a missing account.
+    Raises ProjectUserImportError for an inactive or unknown project.
     """
     project = db.session.get(VaProjectMaster, project_id)
     if not project or project.project_status != VaStatuses.active:
         raise ProjectUserImportError("Active project not found.")
     is_admin = authz.resolve_grants(actor).is_admin
+    may_create = may_create_member_accounts(actor, project_id)
     active_languages = set(db.session.scalars(
         sa.select(MasLanguages.language_code).where(MasLanguages.is_active.is_(True))
     ))
@@ -700,7 +717,8 @@ def prepare_members(project_id, rows, *, actor, reactivate_rows=frozenset()):
             # A non-admin gets one refusal for a missing or inactive account,
             # before any detail about which account an identifier names.
             found = [account for account in (by_email, by_mobile) if account]
-            if not is_admin and (not found or any(a.user_status != VaStatuses.active for a in found)):
+            if not is_admin and ((not found and not may_create)
+                                 or any(a.user_status != VaStatuses.active for a in found)):
                 raise ProjectUserImportError("account is unavailable for this project import")
             if by_email and by_mobile and by_email.user_id != by_mobile.user_id:
                 raise ProjectUserImportError(detail("email and mobile number belong to different accounts"))
@@ -725,6 +743,8 @@ def prepare_members(project_id, rows, *, actor, reactivate_rows=frozenset()):
             elif user:
                 item.update(user=user, action="already_member" if user.user_id in members else "add_existing")
             else:
+                if mobile and mobile in taken_mobiles:
+                    raise ProjectUserImportError(detail("mobile number is already used by another account"))
                 _check_new_account(row, identity, mobile, list(MEMBER_LANGUAGES), active_languages,
                                    taken_mobiles, mobile_rows, new_profiles)
                 item.update(action="create", email=email or None, name=row["name"], phone=row["phone"],

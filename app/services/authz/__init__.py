@@ -49,6 +49,7 @@ from app.services.authz.grant_writes import (
     GrantTarget,
     can_grant,
     grant_list_filter,
+    roster_project_ids,
     user_list_filter,
     writer_grants,
 )
@@ -110,6 +111,7 @@ __all__ = [
     "redacts_pii",
     "require",
     "role_flags",
+    "roster_project_ids",
     "resolve_grants",
     "scope_filter",
     "subtree_select",

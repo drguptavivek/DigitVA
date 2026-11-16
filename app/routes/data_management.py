@@ -91,8 +91,9 @@ _U = VaAccessScopeTypes.org_unit
 
 #: The roles this interface writes and lists, for every caller (admin
 #: included): what a data manager assigns in either project kind. Who may
-#: write which role where is ``authz.can_grant``'s; site_pi,
-#: interview_supervisor, project_pi and admin stay on the admin panel.
+#: write which role where is ``authz.can_grant``'s; interview_supervisor is
+#: one of them since owner 2026-11-16 (digitva-dcdb), at unit scope only;
+#: site_pi, project_pi and admin stay on the admin panel.
 _DM_INTERFACE_ROLES = DM_SITE_ASSIGNABLE | DM_TREE_ASSIGNABLE
 _DM_INTERFACE_ROLE_LIST = sorted(_DM_INTERFACE_ROLES, key=lambda r: r.value)
 
@@ -1006,14 +1007,16 @@ def manage_issue_sign_in_code(target_user_id):
     """Issue a one-time sign-in code for any account (redeemed with its email
     or mobile number) and return it once (docs/policy/mobile-sign-in.md
     section 3). Allowed for admin, and for anyone who may manage every one of
-    the person's active grants, none privileged (``may_issue_code``); anyone
+    the person's active grants, none privileged, when the person is a member
+    of no project outside the caller's grant-writing projects and is not
+    signed in on a phone (``may_issue_code_from_data_management``); anyone
     else gets the same 404 as an unknown account. Issuing voids the previous
     code.
     """
     from app.services import mobile_sign_in_service
 
     user = db.session.get(VaUsers, target_user_id)
-    if not user or not mobile_sign_in_service.may_issue_code(current_user, target_user_id):
+    if not user or not mobile_sign_in_service.may_issue_code_from_data_management(current_user, target_user_id):
         return _json_error("User not found.", 404)
     try:
         code = mobile_sign_in_service.issue_code(user, actor_user_id=current_user.user_id)

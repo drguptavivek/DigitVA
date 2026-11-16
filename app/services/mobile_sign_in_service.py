@@ -10,7 +10,9 @@ are voided by a newer code or by five wrong attempts, and work once. Every
 issue, void, redemption and regeneration is audited in
 ``auth_security_events`` without the code, password or number.
 
-Callers own authorization (``may_issue_code``) and the commit, except
+Callers own authorization (``may_issue_code``; from the data-management
+pages ``may_issue_code_from_data_management``; from a project roster
+``may_issue_code_in_project``) and the commit, except
 ``redeem_code_and_accept_terms``, the whole redemption both "I have a code"
 paths (web page, ``POST /api/v1/auth/sign-in-code/redeem``) run, which commits.
 """
@@ -150,6 +152,112 @@ def may_issue_code(actor, target_user_id) -> bool:
     ))))
 
 
+def issuable_user_ids(actor, project_id: str, user_ids) -> set[uuid.UUID]:
+    """The ids among *user_ids* that *actor* may issue a code for from
+    *project_id*'s People roster (``may_issue_code_in_project``), in one
+    query whatever the number of ids; the roster grid flags every row with it.
+
+    Admin: all of them. Anyone else must manage *project_id*'s roster
+    (``authz.roster_project_ids``: its project_pi or a project-scope
+    data_manager), and then a target must be on *project_id*'s roster
+    (``organization_service.on_project_roster``), a member of no project the
+    actor does not manage, without a live phone sign-in, without a verified
+    email, and qualify under
+    (a) ``may_issue_code``'s grant rule (every active grant managed by the
+    actor, none privileged), or
+    (b) an unplaced member: no active grant anywhere, a member of
+    *project_id*, account active.
+    The roster, membership and live-phone (``_outside_or_signed_in``)
+    clauses apply to both rules: without them a PI could add another
+    project's member to their roster, or grant an arbitrary account a role
+    here, and take it over with a code (docs/policy/mobile-sign-in.md
+    section 3).
+    """
+    ids = {uuid.UUID(str(u)) for u in user_ids}
+    if not ids:
+        return set()
+    grants = authz.resolve_grants(actor)
+    if grants.is_admin:
+        return ids
+    managed_projects = authz.roster_project_ids(grants)
+    if project_id not in managed_projects:
+        return set()
+    from app.models import MapProjectMember
+    from app.services.organization_service import on_project_roster
+
+    U, G, M = VaUsers, VaUserAccessGrants, MapProjectMember
+    active = (G.user_id == U.user_id, G.grant_status == VaStatuses.active)
+    # coalesce: a NULL from the filter's comparisons must count as outside.
+    managed = sa.func.coalesce(authz.grant_list_filter(actor, _grants=grants), sa.false())
+    unmanaged = sa.or_(
+        sa.not_(managed),
+        G.role.in_(_PRIVILEGED_ROLES),
+        G.scope_type == VaAccessScopeTypes.global_scope,
+    )
+    rule_a = sa.and_(sa.exists().where(*active), sa.not_(sa.exists().where(*active, unmanaged)))
+    rule_b = sa.and_(
+        sa.not_(sa.exists().where(*active)),
+        U.user_status == VaStatuses.active,
+        sa.exists().where(M.user_id == U.user_id, M.project_id == project_id),
+    )
+    verified_email = sa.and_(U.email.is_not(None), U.email_verified.is_(True))
+    return set(db.session.scalars(
+        sa.select(U.user_id).where(
+            U.user_id.in_(ids), on_project_roster(project_id, U.user_id),
+            sa.not_(_outside_or_signed_in(U.user_id, managed_projects)),
+            sa.not_(verified_email), sa.or_(rule_a, rule_b),
+        )
+    ))
+
+
+def _outside_or_signed_in(user_id_col, project_ids) -> sa.ColumnElement:
+    """SQL: the account is a member (``map_project_members``) of a project
+    outside *project_ids*, or already has a live phone sign-in
+    (``device_auth_service.live_session_clauses``, the rule of the roster's
+    ``phone_count``). Either refuses a non-admin's code: a member elsewhere
+    is not theirs to take over, and someone signed in on a phone needs no
+    code -- a person moving projects keeps their account, password and phone
+    (owner 2026-11-16; docs/policy/mobile-sign-in.md section 3)."""
+    from app.models import AuthDevice, AuthDeviceSession, MapProjectMember
+    from app.services.device_auth_service import live_session_clauses
+
+    M, S = MapProjectMember, AuthDeviceSession
+    outside_member = sa.exists().where(M.user_id == user_id_col, M.project_id.not_in(sorted(project_ids)))
+    live_phone = sa.exists().where(
+        S.user_id == user_id_col, S.device_id == AuthDevice.device_id, *live_session_clauses(datetime.now(UTC)),
+    )
+    return sa.or_(outside_member, live_phone)
+
+
+def may_issue_code_from_data_management(actor, target_user_id) -> bool:
+    """Whether *actor* may issue a code for *target_user_id* from the
+    data-management pages (``POST /data-management/api/users/<id>/sign-in-code``).
+
+    Admin always. Anyone else needs ``may_issue_code`` and, because a data
+    manager may grant a role to any account it looks up, the clauses of the
+    roster rule that stop grant-then-issue: the target is a member of no
+    project outside those of the actor's grant-writing grants
+    (``authz.writer_grants``) and has no live phone sign-in
+    (``_outside_or_signed_in``). Accepted residual: an account with no other
+    grant, membership, phone or verified email can still be granted a role
+    and given a code (docs/policy/mobile-sign-in.md section 3).
+    """
+    grants = authz.resolve_grants(actor)
+    if grants.is_admin:
+        return True
+    if not may_issue_code(actor, target_user_id):
+        return False
+    projects = {x.project_id for x in authz.writer_grants(grants)}
+    return not db.session.scalar(sa.select(_outside_or_signed_in(target_user_id, projects)))
+
+
+def may_issue_code_in_project(actor, target_user_id, project_id: str) -> bool:
+    """Whether *actor* may issue a code for *target_user_id* from
+    *project_id*'s roster; the rule is ``issuable_user_ids``. ``may_issue_code``
+    stays the rule for every other caller."""
+    return uuid.UUID(str(target_user_id)) in issuable_user_ids(actor, project_id, [target_user_id])
+
+
 def _void_live_codes(user_id, now) -> int:
     result = db.session.execute(
         sa.update(AuthMobileCode)
@@ -163,13 +271,15 @@ def _void_live_codes(user_id, now) -> int:
     return result.rowcount
 
 
-def issue_code(user: VaUsers, *, actor_user_id) -> str:
+def issue_code(user: VaUsers, *, actor_user_id, audit_detail: dict | None = None) -> str:
     """Issue a fresh 8-character code, shown as ``XXXX-XXXX``, for *user* (redeemed with their email or
     mobile number), voiding any live one, and return it in clear -- shown to
     the issuer once, never stored. Caller authorizes (``may_issue_code``:
     a verified-email account gets codes from an admin only) and commits.
     Raises ValueError for an account with neither an email nor a sign-in
     number (a public-demo username account): no code could ever be redeemed.
+    *audit_detail* (no code in it) goes on the ``mobile_code_issued`` event,
+    e.g. the project roster's project id and route.
     """
     if user.email is None and user.mobile_login is None:
         raise ValueError("This account has no email or mobile number to redeem a code with.")
@@ -196,6 +306,7 @@ def issue_code(user: VaUsers, *, actor_user_id) -> str:
     ))
     record_security_event(
         user_id=user.user_id, actor_user_id=actor_user_id, event_type="mobile_code_issued",
+        detail=audit_detail,
     )
     db.session.flush()
     return f"{code[:4]}-{code[4:]}"

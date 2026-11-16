@@ -154,6 +154,8 @@ DM_SITE_ASSIGNABLE = frozenset({
 # district project, own level included. data_manager itself goes strictly below.
 DM_TREE_ASSIGNABLE = frozenset({
     VaAccessRoles.interviewer,
+    # Owner 2026-11-16 (digitva-dcdb): a data manager places field supervisors too.
+    VaAccessRoles.interview_supervisor,
     VaAccessRoles.death_reporter,
     VaAccessRoles.coder,
     VaAccessRoles.reviewer,

@@ -132,11 +132,12 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
             (R.data_manager, U, "F1", 403),        # another project's unit
         ])
 
-    def test_only_admin_or_project_pi_create_site_pi_or_interview_supervisor(self):
+    def test_only_admin_or_project_pi_create_site_pi(self):
+        # interview_supervisor left this list on 2026-11-16: data managers grant it (digitva-dcdb).
         for actor in ("dm_ta", "dm_c1", "incharge_c1", "pi_ta", "admin"):
             with self.subTest(actor=actor):
                 self._as(actor)
-                for role in (R.site_pi, R.interview_supervisor, R.project_pi, R.admin):
+                for role in (R.site_pi, R.project_pi, R.admin):
                     response = self._post(DM_GRANTS, self._body(role, U, "P1"))
                     self.assertIn(response.status_code, (400, 403), response.get_json())
                     self.assertIsNone(self._held_by_grantee(role))
@@ -209,6 +210,31 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
         project = self._post(DM_GRANTS, self._body(R.death_reporter, P, TA))
         self.assertEqual(project.status_code, 400, project.get_json())
         self.assertIn("cannot use project scope", project.get_json()["error"])
+
+    def test_a_dm_interview_supervisor_grant_is_unit_only_and_needs_a_supervising_cadre(self):
+        # Owner 2026-11-16 (digitva-dcdb): data managers grant field supervisors.
+        self.assertIn(R.interview_supervisor, DM_TREE_ASSIGNABLE)
+        self._as("dm_c1")
+        none = self._post(DM_GRANTS, self._body(R.interview_supervisor, U, "P1"))
+        self.assertEqual(none.status_code, 400, none.get_json())
+        self.assertIn("requires a cadre", none.get_json()["error"])
+        cho = self._post(DM_GRANTS, self._body(R.interview_supervisor, U, "P1",
+                                               cadre_id=str(self._cadre("CHO").cadre_id)))
+        self.assertEqual(cho.status_code, 400, cho.get_json())
+        self.assertIn("may not supervise interviews", cho.get_json()["error"])
+        self.assertIsNone(self._held_by_grantee(R.interview_supervisor))
+        mo = self._post(DM_GRANTS, self._body(R.interview_supervisor, U, "P1",
+                                              cadre_id=str(self._cadre("MO").cadre_id)))
+        self.assertEqual(mo.status_code, 201, mo.get_json())
+        self.assertIsNotNone(self._held_by_grantee(R.interview_supervisor))
+        # Never at project or pair scope (DB CHECK): a 400, not a 500.
+        self._as("dm_ta")
+        for scope, where, message in ((P, TA, "cannot use project scope"),
+                                      (PS, (TA, "AZS1"), "cannot use project_site scope")):
+            with self.subTest(scope=scope.value):
+                response = self._post(DM_GRANTS, self._body(R.interview_supervisor, scope, where))
+                self.assertEqual(response.status_code, 400, response.get_json())
+                self.assertIn(message, response.get_json()["error"])
 
     def test_a_refusal_never_discloses_institute_membership(self):
         mentor = self.users["mentor"]
@@ -639,7 +665,8 @@ class DmGrantPickerDefaultRolesTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual(self._grantable("dm_c1", "D1"), set())   # above its own unit
         self.assertEqual(self._grantable("dm_c1", "D2"), set())   # outside
         # Never a role the page does not write, whoever asks.
-        self.assertFalse({"site_pi", "interview_supervisor", "project_pi", "admin"} & below)
+        self.assertFalse({"site_pi", "project_pi", "admin"} & below)
+        self.assertIn("interview_supervisor", below)  # owner 2026-11-16 (digitva-dcdb)
         # The answer is the write path's: each offered role posts, the withheld one is refused.
         grantee = self._get_or_make_user("authz.dm.picker.grantee@test.local", "AuthzTest123")
         body = {"user_id": str(grantee.user_id), "scope_type": "org_unit",

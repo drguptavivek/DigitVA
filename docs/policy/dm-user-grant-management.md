@@ -3,7 +3,7 @@ title: Data-Manager User and Grant Management Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-16
 ---
 
 # Data-Manager User and Grant Management Policy
@@ -17,14 +17,15 @@ depends on the project's kind:
 - **Site projects** (today's rule, unchanged): `coder`, `coding_tester` and
   `data_manager` grants at their own project or project-site scope.
 - **District (organizational) projects** (decision 2026-10-02): other data
-  managers strictly below their own level, and interviewer, coder, reviewer,
-  coding-tester and viewer grants at any level of their subtree.
+  managers strictly below their own level, and interviewer, interview
+  supervisor, coder, reviewer, coding-tester and viewer grants at any level of
+  their subtree (supervisor since 2026-11-16, digitva-dcdb).
 
 This policy governs the `/data-management/users` page and its supporting API
 endpoints. The rule for who creates which grants is in
 [Access Control Model](access-control-model.md), "Who creates which grants".
 Every write on this page asks `authz.can_grant` (digitva-0wc stage 6); the
-page offers only the roles below, so `site_pi`, `interview_supervisor`,
+page offers only the roles below, so `site_pi`,
 `project_pi` and `admin` grants stay on the admin panel for everyone.
 
 ## Route Family
@@ -103,8 +104,9 @@ district project, whatever the scope of their grant:
 
 - `data_manager` grants only **strictly below** their own grant, inside their
   subtree;
-- `interviewer`, `death_reporter`, `coder`, `reviewer`, `coding_tester`,
-  `collaborator` and `collaborator_pii` grants at **any level** inside their
+- `interviewer`, `interview_supervisor`, `death_reporter`, `coder`,
+  `reviewer`, `coding_tester`, `collaborator` and `collaborator_pii` grants at
+  **any level** inside their
   subtree, their own level included (`death_reporter` at unit scope only).
 
 So a project-scoped data-manager assigns `data_manager` at project-site or
@@ -113,8 +115,8 @@ any unit level but never at project level; a unit-scoped data-manager assigns
 data-manager assigns no `data_manager` grant, since nothing lies below a
 project-site grant. Never on a unit above or outside their own.
 
-Data-managers may **not** assign `admin`, `project_pi`, `site_pi`,
-`interview_supervisor` or In-charge grants.
+Data-managers may **not** assign `admin`, `project_pi`, `site_pi`, In-charge
+or mentor grants.
 
 Cadre validation applies to every unit grant, and the mentor guard applies
 when the grantee is a mentoring institute member (see
@@ -191,8 +193,7 @@ their own scope:
   In-charge, at their own level too)
 - never their own `data_manager` grant, which they may not revoke
 
-They do not see `admin`, `project_pi`, `site_pi`, `interview_supervisor` or
-In-charge grants, nor any grant outside their scope.
+They do not see `admin`, `project_pi`, `site_pi` or In-charge grants, nor any grant outside their scope.
 
 From the user-details modal, a `Manage Grants` action navigates to the grants
 tab and pre-applies the selected user's email as the grants-table text filter.

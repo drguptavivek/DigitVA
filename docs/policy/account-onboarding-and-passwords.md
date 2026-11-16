@@ -112,17 +112,26 @@ every row or none (any refused row blocks the apply). Per row:
   The apply then reactivates the account, records `account_reactivated`
   (`via = "roster_upload"`, the project id) and adds it as a member. An
   admin's account is never reactivated here (the admin Users panel), and a
-  project PI cannot reactivate.
+  project PI or data manager cannot reactivate.
 - **Already a member**: nothing written, reported as such.
 - **New account**: created as the project user import creates one (active,
   random unknown password, `created_via = "import"`, `account_created`
   audit), with English as its coding language. An email account gets the
   verification email of section 5.1 after the apply. A mobile-only account
   gets **no sign-in code at upload**: codes last 90 minutes, so the trainer
-  issues one later from the roster row. Only an admin creates accounts here,
-  as in the project user import; a project PI's new-account rows are
+  issues one later from the roster row. An admin, or a **project-scope
+  data manager of this project** (owner 2026-11-16, digitva-dcdb: they
+  already create accounts on the data-management Users panel), creates
+  accounts here with these same rules; a project PI's new-account rows are
   refused ("account is unavailable for this project import"), the same
-  refusal as for an inactive account.
+  refusal as for an inactive account. A site- or unit-scope data manager
+  has no roster and no upload.
+- **Every non-admin** (PI or data manager) gets that one "unavailable"
+  refusal, never the reason, for a deactivated account, for an email and a
+  mobile naming different accounts, for a matched account holding another
+  email or sign-in mobile, and for a new account's mobile that another
+  account already holds: the reason would confirm another account's
+  identifiers.
 - A repeat of an earlier row's account, a bad email, or a phone that is not
   a full mobile number is refused with its reason.
 

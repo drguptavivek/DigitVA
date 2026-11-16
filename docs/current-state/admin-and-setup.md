@@ -49,9 +49,33 @@ The `/admin` interface provides the following management panels:
        phone`; template `GET .../users-grid/members/template.csv`, preview then
        apply `POST .../users-grid/members/import`, digitva-plgm) adds project
        members, which grant nothing and appear as "Not placed in a unit" until
-       Place gives unit, cadre and the cadre's default roles; an admin sees
-       **Issue code** on mobile-only or unverified-email rows (the admin
-       sign-in-code endpoint, shown once). Its sticky **2-Dropdown Bulk Apply Bar** pairs **Dropdown 1 (Role
+       Place gives unit, cadre and the cadre's default roles. Each row's
+       contact cell shows **Not activated** / **Activated** (activated =
+       `user_account_service.has_usable_password`: terms accepted after a
+       first sign-in, or a sign-in code redeemed), **on N phones** (live,
+       non-revoked device sessions on non-revoked devices, any project:
+       devices are not per-project, so the count includes phones signed in
+       for another project) and
+       **last sign-in** (`va_users.last_signed_in_at`, in the viewer's
+       timezone), plus **Generate code** when the row's `can_issue_code`
+       says the viewer may issue (`POST /admin/api/projects/<project_id>/users-grid/<user_id>/sign-in-code`,
+       `may_issue_code_in_project`; code shown once, `XXXX-XXXX`, valid 90
+       minutes; digitva-dcdb). The same tab is served on its own page,
+       `GET /admin/project-roster?project_id=<id>` (the Project Setup
+       template with `roster_only`: only the All Users tab, no other
+       section), for admins, the project's PI and a project-scope data
+       manager. All three get Place and the CSV upload; a data manager
+       creates accounts through the upload (a PI adds existing ones only),
+       places only roster people by account id at units inside their
+       grant-writing scope (the cadre's default grants each pass
+       `can_grant` or nothing is written) and moves only unit, cadre and
+       active between two such units (`POST`/`PATCH
+       /admin/api/organization/<project_id>/workers`), and removes grants
+       through the data-management toggle. A non-admin's bulk apply, Place
+       and move refuse anyone not already on the roster
+       (`organization_service.on_project_roster`: member, active grant in
+       the project, or worker in it) with "One or more selected users were
+       not found.". Its sticky **2-Dropdown Bulk Apply Bar** pairs **Dropdown 1 (Role
        or Action)** — exposing `Coder (Non-PII)` (`coder_non_pii`), `Coder (with PII)`
        (`coder_pii`, pairing `coder` + `collaborator_pii`), `Reviewer (Non-PII)`
        (`reviewer_non_pii`), `Reviewer (with PII)` (`reviewer_pii`), `Coding Tester`,

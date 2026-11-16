@@ -1243,7 +1243,10 @@ link to a verified email -- never a password.
 **Sign-in codes.** A data manager may issue one only when the person has no
 verified email (mobile-only, or an email never verified), and they may manage
 *every* active grant the person holds and none is privileged
-(`may_issue_code`); an admin may issue for any account
+(`may_issue_code`); from the data-management pages also only when the person
+is a member of no project outside the issuer's grant-writing projects and is
+not signed in on a phone (`may_issue_code_from_data_management`,
+mobile-sign-in.md section 3); an admin may issue for any account
 (`POST /data-management/api/users/<id>/sign-in-code`,
 `POST /admin/api/users/<id>/sign-in-code`, and automatically in the create
 response for a mobile-only account -- admin, data manager, mentoring

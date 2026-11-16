@@ -902,18 +902,25 @@ def _create_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedTokens, Va
     return issued, user
 
 
+def live_session_clauses(now: datetime) -> tuple:
+    """SQL clauses for a live phone sign-in: a device session not revoked,
+    its refresh token unexpired, on a device not revoked (the caller joins
+    ``AuthDevice`` to ``AuthDeviceSession``). The one rule behind the account
+    devices list, the roster's ``phone_count`` and the sign-in-code refusal
+    for someone already signed in (docs/policy/mobile-sign-in.md section 3)."""
+    return (
+        AuthDeviceSession.revoked_at.is_(None),
+        AuthDeviceSession.refresh_expires_at > now,
+        AuthDevice.revoked_at.is_(None),
+    )
+
+
 def list_account_devices(user_id, current_device_id=None) -> list[dict]:
     """List this account's live native device pairs, newest activity first."""
-    now = _now()
     rows = db.session.execute(
         sa.select(AuthDevice, AuthDeviceSession.last_seen_at)
         .join(AuthDeviceSession, AuthDeviceSession.device_id == AuthDevice.device_id)
-        .where(
-            AuthDeviceSession.user_id == user_id,
-            AuthDeviceSession.revoked_at.is_(None),
-            AuthDeviceSession.refresh_expires_at > now,
-            AuthDevice.revoked_at.is_(None),
-        )
+        .where(AuthDeviceSession.user_id == user_id, *live_session_clauses(_now()))
     ).all()
     latest: dict[uuid.UUID, tuple[AuthDevice, datetime | None]] = {}
     for device, last_seen in rows:

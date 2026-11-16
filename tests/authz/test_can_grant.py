@@ -59,7 +59,7 @@ CASES = [
     ("dm_ta", R.interviewer, U, "P1", T),
     ("dm_ta", R.collaborator_pii, PS, (TA, "AZS2"), T),
     ("dm_ta", R.site_pi, PS, (TA, "AZS1"), F),           # never site_pi / In-charge
-    ("dm_ta", R.interview_supervisor, U, "C1", F),
+    ("dm_ta", R.interview_supervisor, U, "C1", T),  # owner 2026-11-16: DM role list includes supervisor
     ("dm_ta", R.project_pi, P, TA, F),
     ("dm_ta", R.coder, U, "F1", F),
     # district project, pair DM: nothing lies below a pair
@@ -81,13 +81,13 @@ CASES = [
     ("dm_c1", R.coder, PS, (TA, "AZS1"), F),
     ("dm_c1", R.coder, P, TA, F),
     ("dm_c1", R.data_manager, U, "F1", F),
-    ("dm_c1", R.interview_supervisor, U, "P1", F),
+    ("dm_c1", R.interview_supervisor, U, "P1", T),  # owner 2026-11-16: DM role list includes supervisor
     # In-charge (site_pi at a unit): DM at own level and below, plus DM powers
     ("incharge_c1", R.data_manager, U, "C1", T),
     ("incharge_c1", R.data_manager, U, "P1", T),
     ("incharge_c1", R.coder, U, "SC1", T),
     ("incharge_c1", R.data_manager, U, "D1", F),
-    ("incharge_c1", R.interview_supervisor, U, "C1", F),
+    ("incharge_c1", R.interview_supervisor, U, "C1", T),  # owner 2026-11-16: DM role list includes supervisor
     ("incharge_c1", R.site_pi, U, "P1", F),
     ("incharge_c1", R.coder, PS, (TA, "AZS1"), F),
     # no grant-writing grant

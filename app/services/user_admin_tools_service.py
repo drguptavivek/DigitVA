@@ -414,17 +414,23 @@ def _audit(grant: VaUserAccessGrants, action: str):
                  cadre_id=grant.cadre_id), action)
 
 
+def clean_user_name(name) -> str:
+    """An account name as the grid and the roster user panel accept it:
+    1-128 characters once stripped, not starting with ``= + - @`` (a
+    spreadsheet formula in an export). Raises UserDirectoryError."""
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > _MAX_NAME:
+        raise UserDirectoryError("name is required (at most 128 characters).")
+    if name.strip()[0] in "=+-@":
+        raise UserDirectoryError("name must not start with =, +, - or @.")
+    return name.strip()
+
+
 def _apply_profile(viewer, user: VaUsers, body: Mapping) -> None:
     # Another admin's account is managed on the admin Users panel, not here: the
     # grid must not let one admin deactivate, rename or re-number the others.
     before = (user.name, user.phone, user.user_status)
     if "name" in body:
-        name = body.get("name")
-        if not isinstance(name, str) or not name.strip() or len(name.strip()) > _MAX_NAME:
-            raise UserDirectoryError("name is required (at most 128 characters).")
-        if name.strip()[0] in "=+-@":
-            raise UserDirectoryError("name must not start with =, +, - or @.")
-        user.name = name.strip()
+        user.name = clean_user_name(body.get("name"))
     if "phone" in body:
         phone = body.get("phone")
         if phone is not None and not isinstance(phone, str):

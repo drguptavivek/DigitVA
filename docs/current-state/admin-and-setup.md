@@ -75,7 +75,29 @@ The `/admin` interface provides the following management panels:
        and move refuse anyone not already on the roster
        (`organization_service.on_project_roster`: member, active grant in
        the project, or worker in it) with "One or more selected users were
-       not found.". Its sticky **2-Dropdown Bulk Apply Bar** pairs **Dropdown 1 (Role
+       not found.". Clicking a person's name (list or matrix view) links to
+       the **roster person page** (`GET /admin/project-roster/<project_id>/people/<user_id>`,
+       `admin/project_person.html` + `static/js/admin/project_person.js`, digitva-eyp3; policy
+       `docs/policy/dm-user-grant-management.md`, "Roster User Panel"):
+       Profile, Grants, Phones, Activity and Actions, filled with
+       `textContent` from `GET /admin/api/projects/<project_id>/users-grid/<user_id>`
+       (profile, active grants in the viewer's managed projects, live phones
+       from `list_account_devices`, the last 100 submission actions in this
+       project as time/action/form id and the last 100 allowlisted account
+       events as type/time/actor name, and `may_edit_account`,
+       `may_issue_code`, `may_remove`). A person not on the roster is 404,
+       admins included. `PATCH .../profile` (name, `year_of_birth` or `age`,
+       `sex`, `languages`; one `account_profile_changed` event naming the
+       fields) and `POST .../password-reset` (verified email only, the admin
+       action's `send_reset_link`, `password_reset_sent`, 20 an hour) need
+       `mobile_sign_in_service.may_edit_account`. `POST .../remove`
+       (`organization_service.remove_from_project`) revokes the person's
+       active grants in the project, deactivates their workers there and
+       deletes their membership, all or nothing (refused with the roles
+       named when the viewer may not revoke one), audited as
+       `removed_from_project`; refused for oneself and, to a non-admin, for
+       an admin. All three are `_guard(project_id, roster=True)`, so like
+       every roster write they answer 409 outside organization mode. Its sticky **2-Dropdown Bulk Apply Bar** pairs **Dropdown 1 (Role
        or Action)** — exposing `Coder (Non-PII)` (`coder_non_pii`), `Coder (with PII)`
        (`coder_pii`, pairing `coder` + `collaborator_pii`), `Reviewer (Non-PII)`
        (`reviewer_non_pii`), `Reviewer (with PII)` (`reviewer_pii`), `Coding Tester`,

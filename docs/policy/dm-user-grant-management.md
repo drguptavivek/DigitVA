@@ -259,6 +259,87 @@ The details panel includes:
 - language update action for data-managers/admins
 - a `Manage Grants` action that opens the grants tab focused on that user
 
+## Roster User Panel (owner 2026-11-16, digitva-eyp3)
+
+On the Project roster (`/admin/project-roster`) and Project Setup "All
+Users", clicking a person opens one page for that person in that project
+(`/admin/project-roster/<project_id>/people/<user_id>`, with a "Back to
+roster" link).
+
+**Who.** The roster gate (`_guard(project_id, roster=True)`: admin, the
+project's PI, a project-scope data manager of it) answers 403 to anyone
+else. A person not on that project's roster
+(`organization_service.on_project_roster`) is 404, so the page cannot probe
+for accounts.
+
+**Shown.**
+
+- Profile: name, age (from `year_of_birth`), sex, languages
+  (`vacode_language`); contacts as the roster grid already shows them.
+- Effective grants: the person's active grants in the projects the viewer
+  manages (`authz.roster_project_ids`; every project for an admin). Grants in
+  other projects are neither listed nor counted.
+- Phones: `device_auth_service.list_account_devices` (label, model, last
+  seen, signed in or not). No tokens, keys or device secrets.
+- Activity: the person's submission actions in this project
+  (`_build_activity_rows(project_id=…, user_id=…)`, reduced to time, action
+  and form id), and their account security events of these types only:
+  `web_sign_in`, `web_sign_in_failed`, `device_enrolled`, `device_revoked`,
+  `device_session_opened`, `device_session_revoked`, `mobile_code_issued`,
+  `mobile_code_redeemed`, `mobile_code_voided`, `sign_in_qr_issued`,
+  `sign_in_qr_redeemed`, `password_generated`, `factor_reset`,
+  `email_verified`, `verification_email_sent`, `account_created`,
+  `account_reactivated`, `project_member_added`, `coding_languages_changed`,
+  and the new `account_profile_changed`, `password_reset_sent`,
+  `removed_from_project`. Type, time and actor name only; event detail is
+  not shown.
+
+**Who may change the account.** Name, age, sex, languages and the reset
+email change the person's account everywhere, so a non-admin (PI or data
+manager) may do them only when all of these hold. It is the sign-in-code
+roster rule (`mobile_sign_in_service.issuable_user_ids`) without its
+verified-email and live-phone clauses:
+
+- the person is on this project's roster, active, and not an admin;
+- they are a member (`map_project_members`) of no project outside the
+  viewer's managed projects;
+- the viewer manages every active grant the person holds anywhere, or the
+  person holds no grants at all.
+
+Otherwise the page shows these fields read-only and says the account is
+shared with other projects.
+
+**Edits.**
+
+- Name, year of birth (entered as year or age, stored as year, validated by
+  `VaUsers.set_interviewer_profile`), sex and languages. Name rules as the
+  admin grid (1–128 characters, no leading `= + - @`). Each save is one
+  `account_profile_changed` security event naming the fields changed, never
+  their values. The phone reads these from the server; a person may still
+  change their own year of birth and sex from the phone
+  (`PATCH /api/v1/profile/interviewer`), and the later write wins.
+- Reset password: a verified email gets the standard single-use reset link
+  at its own address (`password_reset_sent`, rate limited), the same send as
+  the admin action; nobody sets a password for someone else. An unverified
+  email gets "resend verification" instead; a mobile-only account gets
+  Generate code under the existing roster rule
+  (`may_issue_code_in_project`).
+- Remove from this project: set every active grant the person holds in this
+  project (project, site and unit scope) inactive, mark their workers in it
+  inactive, and delete their membership row (it has no status column; the
+  audit event keeps who added them and when). All or nothing: if any of those
+  grants is one the viewer may not revoke (`authz.can_grant`, e.g. a PI or
+  mentor grant for a data manager), nothing changes and the page names the
+  roles. Not offered for oneself or, to a non-admin, for an admin account.
+  The account, its password, phones and other projects are untouched.
+  Submissions and death reports the person made stay; nothing is reassigned
+  or deleted. The revoke reaches the phone through `access_changed`, and
+  unsent work on the phone is not deleted. Audited as `removed_from_project`
+  with the project id and counts.
+
+Data managers get no account-level power here: no deactivation, no email
+change beyond the existing creator rule, no admin flag.
+
 ## CSRF
 
 All mutating endpoints require a valid CSRF token in the `X-CSRFToken` header,

@@ -152,41 +152,28 @@ def may_issue_code(actor, target_user_id) -> bool:
     ))))
 
 
-def issuable_user_ids(actor, project_id: str, user_ids) -> set[uuid.UUID]:
-    """The ids among *user_ids* that *actor* may issue a code for from
-    *project_id*'s People roster (``may_issue_code_in_project``), in one
-    query whatever the number of ids; the roster grid flags every row with it.
+def _roster_rule(actor, project_id: str, user_id_col):
+    """The clauses ``issuable_user_ids`` and ``editable_user_ids`` share, for a
+    non-admin *actor*: a clause, or None when *actor* does not manage
+    *project_id*'s roster (``authz.roster_project_ids``).
 
-    Admin: all of them. Anyone else must manage *project_id*'s roster
-    (``authz.roster_project_ids``: its project_pi or a project-scope
-    data_manager), and then a target must be on *project_id*'s roster
-    (``organization_service.on_project_roster``), a member of no project the
-    actor does not manage, without a live phone sign-in, without a verified
-    email, and qualify under
-    (a) ``may_issue_code``'s grant rule (every active grant managed by the
-    actor, none privileged), or
-    (b) an unplaced member: no active grant anywhere, a member of
-    *project_id*, account active.
-    The roster, membership and live-phone (``_outside_or_signed_in``)
-    clauses apply to both rules: without them a PI could add another
-    project's member to their roster, or grant an arbitrary account a role
-    here, and take it over with a code (docs/policy/mobile-sign-in.md
-    section 3).
+    *clause* holds when the account *user_id_col* is on *project_id*'s roster
+    (``organization_service.on_project_roster``), a member of no project
+    outside the actor's managed ones (``_outside_member``), and either
+    (a) holds at least one active grant, every one managed by the actor
+    (``authz.grant_list_filter``) and none privileged (``_PRIVILEGED_ROLES``
+    or global scope), or (b) is an unplaced member: no active grant
+    anywhere, a member of *project_id*, account active.
     """
-    ids = {uuid.UUID(str(u)) for u in user_ids}
-    if not ids:
-        return set()
     grants = authz.resolve_grants(actor)
-    if grants.is_admin:
-        return ids
     managed_projects = authz.roster_project_ids(grants)
     if project_id not in managed_projects:
-        return set()
+        return None
     from app.models import MapProjectMember
     from app.services.organization_service import on_project_roster
 
     U, G, M = VaUsers, VaUserAccessGrants, MapProjectMember
-    active = (G.user_id == U.user_id, G.grant_status == VaStatuses.active)
+    active = (G.user_id == user_id_col, G.grant_status == VaStatuses.active)
     # coalesce: a NULL from the filter's comparisons must count as outside.
     managed = sa.func.coalesce(authz.grant_list_filter(actor, _grants=grants), sa.false())
     unmanaged = sa.or_(
@@ -198,35 +185,109 @@ def issuable_user_ids(actor, project_id: str, user_ids) -> set[uuid.UUID]:
     rule_b = sa.and_(
         sa.not_(sa.exists().where(*active)),
         U.user_status == VaStatuses.active,
-        sa.exists().where(M.user_id == U.user_id, M.project_id == project_id),
+        sa.exists().where(M.user_id == user_id_col, M.project_id == project_id),
     )
+    return sa.and_(
+        on_project_roster(project_id, user_id_col),
+        sa.not_(_outside_member(user_id_col, managed_projects)),
+        sa.or_(rule_a, rule_b),
+    )
+
+
+def issuable_user_ids(actor, project_id: str, user_ids) -> set[uuid.UUID]:
+    """The ids among *user_ids* that *actor* may issue a code for from
+    *project_id*'s People roster (``may_issue_code_in_project``), in one
+    query whatever the number of ids; the roster grid flags every row with it.
+
+    Admin: all of them. Anyone else must manage *project_id*'s roster, and
+    then a target must pass ``_roster_rule`` (on the roster, a member of no
+    project the actor does not manage, every active grant managed and none
+    privileged, or an unplaced member), have no live phone sign-in and no
+    verified email. The roster, membership and live-phone clauses apply to
+    both of ``_roster_rule``'s branches: without them a PI could add another
+    project's member to their roster, or grant an arbitrary account a role
+    here, and take it over with a code (docs/policy/mobile-sign-in.md
+    section 3).
+    """
+    ids = {uuid.UUID(str(u)) for u in user_ids}
+    if not ids:
+        return set()
+    if authz.resolve_grants(actor).is_admin:
+        return ids
+    U = VaUsers
+    clause = _roster_rule(actor, project_id, U.user_id)
+    if clause is None:
+        return set()
     verified_email = sa.and_(U.email.is_not(None), U.email_verified.is_(True))
     return set(db.session.scalars(
         sa.select(U.user_id).where(
-            U.user_id.in_(ids), on_project_roster(project_id, U.user_id),
-            sa.not_(_outside_or_signed_in(U.user_id, managed_projects)),
-            sa.not_(verified_email), sa.or_(rule_a, rule_b),
+            U.user_id.in_(ids), clause,
+            sa.not_(_live_phone(U.user_id)),
+            sa.not_(verified_email),
         )
     ))
 
 
-def _outside_or_signed_in(user_id_col, project_ids) -> sa.ColumnElement:
+def editable_user_ids(actor, project_id: str, user_ids) -> set[uuid.UUID]:
+    """The ids among *user_ids* whose account (name, year of birth, sex,
+    languages, password reset email) *actor* may change from *project_id*'s
+    roster user panel, in one query. Policy: dm-user-grant-management.md,
+    "Roster User Panel".
+
+    Admin: all of them. Anyone else, the project's PI included: the
+    sign-in-code roster rule (``_roster_rule``) without its verified-email
+    and live-phone clauses, for an active account. Such an account belongs
+    to the actor's projects alone, so changing it touches no one else's.
+    """
+    ids = {uuid.UUID(str(u)) for u in user_ids}
+    if not ids:
+        return set()
+    if authz.resolve_grants(actor).is_admin:
+        return ids
+    U = VaUsers
+    clause = _roster_rule(actor, project_id, U.user_id)
+    if clause is None:
+        return set()
+    return set(db.session.scalars(
+        sa.select(U.user_id).where(U.user_id.in_(ids), clause, U.user_status == VaStatuses.active)
+    ))
+
+
+def may_edit_account(actor, target_user_id, project_id: str) -> bool:
+    """Whether *actor* may change *target_user_id*'s account from
+    *project_id*'s roster panel; the rule is ``editable_user_ids``."""
+    return uuid.UUID(str(target_user_id)) in editable_user_ids(actor, project_id, [target_user_id])
+
+
+def _outside_member(user_id_col, project_ids) -> sa.ColumnElement:
     """SQL: the account is a member (``map_project_members``) of a project
-    outside *project_ids*, or already has a live phone sign-in
+    outside *project_ids*: not the actor's to take over or edit."""
+    from app.models import MapProjectMember
+
+    M = MapProjectMember
+    return sa.exists().where(M.user_id == user_id_col, M.project_id.not_in(sorted(project_ids)))
+
+
+def _live_phone(user_id_col) -> sa.ColumnElement:
+    """SQL: the account has a live phone sign-in
     (``device_auth_service.live_session_clauses``, the rule of the roster's
-    ``phone_count``). Either refuses a non-admin's code: a member elsewhere
-    is not theirs to take over, and someone signed in on a phone needs no
-    code -- a person moving projects keeps their account, password and phone
-    (owner 2026-11-16; docs/policy/mobile-sign-in.md section 3)."""
-    from app.models import AuthDevice, AuthDeviceSession, MapProjectMember
+    ``phone_count``)."""
+    from app.models import AuthDevice, AuthDeviceSession
     from app.services.device_auth_service import live_session_clauses
 
-    M, S = MapProjectMember, AuthDeviceSession
-    outside_member = sa.exists().where(M.user_id == user_id_col, M.project_id.not_in(sorted(project_ids)))
-    live_phone = sa.exists().where(
+    S = AuthDeviceSession
+    return sa.exists().where(
         S.user_id == user_id_col, S.device_id == AuthDevice.device_id, *live_session_clauses(datetime.now(UTC)),
     )
-    return sa.or_(outside_member, live_phone)
+
+
+def _outside_or_signed_in(user_id_col, project_ids) -> sa.ColumnElement:
+    """SQL: ``_outside_member`` or ``_live_phone``. Either refuses a
+    non-admin's code: a member elsewhere is not theirs to take over, and
+    someone signed in on a phone needs no code -- a person moving projects
+    keeps their account, password and phone (owner 2026-11-16;
+    docs/policy/mobile-sign-in.md section 3)."""
+    return sa.or_(_outside_member(user_id_col, project_ids), _live_phone(user_id_col))
 
 
 def may_issue_code_from_data_management(actor, target_user_id) -> bool:

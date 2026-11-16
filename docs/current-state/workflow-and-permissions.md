@@ -1086,6 +1086,26 @@ Admins hold a `global` grant and are not grant-resolved against a project, so
 admin access is unaffected. Policy:
 `docs/policy/access-control-model.md`, "Closed Projects".
 
+### Roster user panel account edits
+
+A non-admin (the project's PI or a project-scope data manager) changes a
+person's account (name, year of birth, sex, languages, password reset email)
+from the roster user panel only when
+`mobile_sign_in_service.may_edit_account` holds: `editable_user_ids`, the
+sign-in-code roster rule (`_roster_rule`, shared with `issuable_user_ids`)
+without its verified-email and live-phone clauses, for an active account.
+The person is on the project's roster, a member of no project outside the
+viewer's managed projects, and either holds active grants that the viewer
+manages, none of them privileged, or holds no grant and is a member of this
+project. Admins always pass. Removing a person from a project instead needs
+the viewer to be able to revoke every one of their active grants in it
+(`authz.grant_list_filter`); revoking those grants queues `access_changed` as
+the grant toggle does. Deactivating the person's worker rows only takes them
+out of unit placement and people counts. No table references a worker row,
+and death reports, case history and coding allocations stay keyed to the
+account. Policy: `docs/policy/dm-user-grant-management.md`, "Roster User
+Panel".
+
 ### Coder implies interviewer in a self-coding project
 
 `authz.grants._resolve` adds one non-virtual `interviewer` grant per `coder`

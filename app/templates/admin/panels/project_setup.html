@@ -684,6 +684,11 @@
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // The roster person page (digitva-eyp3) for this grid's project.
+  function personUrl(uid) {
+    return '/admin/project-roster/' + encodeURIComponent(projectId) + '/people/' + encodeURIComponent(uid);
+  }
+
   function csrfHeaders() {
     return { 'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf || '' };
   }
@@ -1642,7 +1647,7 @@
 
       return '<tr class="' + (u.is_active ? '' : 'opacity-75') + '" data-ug-uid="' + esc(uid) + '">'
         + '<td style="width:32px;"><input type="checkbox" class="form-check-input setup-ug-row-cb" value="' + esc(uid) + '" ' + checked + ' aria-label="Select ' + esc(u.name) + '"></td>'
-        + '<td><div class="fw-semibold">' + esc(u.name) + '</div>'
+        + '<td><a class="fw-semibold text-start" href="' + personUrl(uid) + '">' + esc(u.name) + '</a>'
         // No worker code here: it read as a username (owner, 2026-11-16).
         + '<div class="mt-1">' + renderPiiStatusBadge(u.pii_status) + '</div></td>'
         + '<td>' + contactHtml + '</td>'
@@ -1791,7 +1796,7 @@
           + '</td>';
       }).join('');
       return '<tr>'
-        + '<td class="text-nowrap fw-semibold">' + esc(u.name) + (pw ? ' <span class="badge text-bg-light border">' + esc(pw.cadre_code) + '</span>' : '') + '</td>'
+        + '<td class="text-nowrap fw-semibold"><a class="fw-semibold" href="' + personUrl(u.user_id) + '">' + esc(u.name) + '</a>' + (pw ? ' <span class="badge text-bg-light border">' + esc(pw.cadre_code) + '</span>' : '') + '</td>'
         + '<td>' + renderPiiStatusBadge(u.pii_status) + '</td>'
         + cells
         + '</tr>';
@@ -1978,6 +1983,7 @@
       renderUgAll();
     });
   }
+
 
   loadUsersGrid();
 

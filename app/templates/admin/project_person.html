@@ -1,0 +1,27 @@
+{% extends "va_frontpages/va_base.html" %}
+
+{% block title %}{{ person.name }} — DigitVA{% endblock %}
+
+{#
+  One person in one project (digitva-eyp3). The shell is rendered here; the
+  sections are filled with textContent by js/admin/project_person.js from
+  GET /admin/api/projects/<project_id>/users-grid/<user_id>. Policy:
+  docs/policy/dm-user-grant-management.md, "Roster User Panel".
+#}
+{% block content %}
+<div class="container py-3" id="person-root"
+     data-project-id="{{ project_id }}" data-user-id="{{ person.user_id }}"
+     data-timezone="{{ current_user.timezone or 'UTC' }}"
+     data-roster-url="{{ url_for('admin.project_roster_page', project_id=project_id) }}">
+  <script>window._adminCsrf = {{ csrf_token()|tojson }};</script>
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h4 class="mb-0" id="person-name">{{ person.name }}</h4>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.project_roster_page', project_id=project_id) }}">Back to roster</a>
+  </div>
+  <div class="small">
+    <div id="person-msg" class="d-none mb-2" role="status"></div>
+    <div id="person-body"><div class="text-muted">Loading…</div></div>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/admin/project_person.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}"></script>
+{% endblock %}

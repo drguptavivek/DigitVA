@@ -3938,6 +3938,21 @@ _DISPLAY_ROLE_META: dict[str, dict[str, object]] = {
 }
 
 
+def _grant_in_project(project_id: str) -> sa.ColumnElement:
+    """SQL over ``VaUserAccessGrants``: a grant in *project_id* at project,
+    project-site or unit scope (any unit of the project, active or not)."""
+    G = VaUserAccessGrants
+    return sa.or_(
+        sa.and_(G.scope_type == VaAccessScopeTypes.project, G.project_id == project_id),
+        sa.and_(G.scope_type == VaAccessScopeTypes.project_site, G.project_site_id.in_(
+            sa.select(VaProjectSites.project_site_id).where(VaProjectSites.project_id == project_id)
+        )),
+        sa.and_(G.scope_type == VaAccessScopeTypes.org_unit, G.org_unit_id.in_(
+            sa.select(MasOrgUnit.org_unit_id).where(MasOrgUnit.project_id == project_id)
+        )),
+    )
+
+
 def on_project_roster(project_id: str, user_id_col) -> sa.ColumnElement:
     """SQL predicate: the account *user_id_col* is already on *project_id*'s
     People roster -- a member of it, holding an active grant in it (project,
@@ -3948,18 +3963,9 @@ def on_project_roster(project_id: str, user_id_col) -> sa.ColumnElement:
     role to an arbitrary account and then take it over with a code
     (docs/policy/access-control-model.md, "Project membership")."""
     G = VaUserAccessGrants
-    in_project = sa.or_(
-        sa.and_(G.scope_type == VaAccessScopeTypes.project, G.project_id == project_id),
-        sa.and_(G.scope_type == VaAccessScopeTypes.project_site, G.project_site_id.in_(
-            sa.select(VaProjectSites.project_site_id).where(VaProjectSites.project_id == project_id)
-        )),
-        sa.and_(G.scope_type == VaAccessScopeTypes.org_unit, G.org_unit_id.in_(
-            sa.select(MasOrgUnit.org_unit_id).where(MasOrgUnit.project_id == project_id)
-        )),
-    )
     return sa.or_(
         sa.exists().where(MapProjectMember.user_id == user_id_col, MapProjectMember.project_id == project_id),
-        sa.exists().where(G.user_id == user_id_col, G.grant_status == VaStatuses.active, in_project),
+        sa.exists().where(G.user_id == user_id_col, G.grant_status == VaStatuses.active, _grant_in_project(project_id)),
         sa.exists().where(MasOrgUnitWorker.user_id == user_id_col, MasOrgUnitWorker.project_id == project_id),
     )
 
@@ -3977,6 +3983,78 @@ def require_on_project_roster(project_id: str, user_ids, *, actor) -> None:
     )
     if found != len(ids):
         raise OrganizationError("One or more selected users were not found.")
+
+
+def remove_from_project(project_id: str, user: VaUsers, *, actor) -> tuple[dict, list]:
+    """Take *user* off *project_id*: every active grant they hold in it
+    (project, site and unit scope) set inactive, their active workers in it
+    set inactive (``update_worker``) and their membership row deleted, with
+    one ``removed_from_project`` security event (project id, counts, and who
+    added the membership and when, as the row has no status column).
+
+    All or nothing: when *actor* may not revoke one of the grants
+    (``authz.grant_list_filter``, the rule of ``authz.can_grant`` over the
+    table), raises OrganizationError naming those roles and changes nothing.
+    The caller refuses oneself and, for a non-admin, an admin account, and
+    commits; the grants are ORM rows, so the commit queues the person's
+    ``access_changed`` notice. The account, its password, phones, other
+    projects, submissions and death reports are untouched.
+    Policy: dm-user-grant-management.md, "Roster User Panel".
+
+    Returns ``(detail, changed_grants)``: the event detail, and the revoked
+    grants in ``project_user_import_service.finalize_apply``'s shape.
+    """
+    from app.services.security_event_service import record_security_event
+
+    G = VaUserAccessGrants
+    managed = sa.func.coalesce(authz.grant_list_filter(actor), sa.false())
+    rows = db.session.execute(
+        sa.select(G, managed.label("managed")).where(
+            G.user_id == user.user_id, G.grant_status == VaStatuses.active, _grant_in_project(project_id),
+        ).with_for_update(of=G)
+    ).all()
+    refused = sorted({g.role.value for g, ok in rows if not ok})
+    if refused:
+        raise OrganizationError(
+            "You may not remove this person's " + ", ".join(refused)
+            + " access here; nothing was changed."
+        )
+    changed = []
+    for grant, _ in rows:
+        grant.grant_status = VaStatuses.deactive
+        changed.append((dict(
+            user_id=grant.user_id, grant_id=grant.grant_id, role=grant.role.value,
+            scope_type=grant.scope_type.value, org_unit_id=grant.org_unit_id, cadre_id=grant.cadre_id,
+        ), "grant_toggled_inactive"))
+    workers = db.session.scalars(
+        sa.select(MasOrgUnitWorker).where(
+            MasOrgUnitWorker.user_id == user.user_id,
+            MasOrgUnitWorker.project_id == project_id,
+            MasOrgUnitWorker.is_active.is_(True),
+        )
+    ).all()
+    for worker in workers:
+        update_worker(project_id, worker.worker_id, is_active=False)
+    member = db.session.scalar(
+        sa.select(MapProjectMember).where(
+            MapProjectMember.project_id == project_id, MapProjectMember.user_id == user.user_id,
+        )
+    )
+    detail = {
+        "project_id": project_id,
+        "grants_revoked": len(changed),
+        "workers_deactivated": len(workers),
+        "membership_removed": member is not None,
+        "member_added_by_user_id": str(member.added_by_user_id) if member and member.added_by_user_id else None,
+        "member_added_at": member.added_at.isoformat() if member else None,
+    }
+    if member is not None:
+        db.session.delete(member)
+    record_security_event(
+        user_id=user.user_id, actor_user_id=actor.user_id, event_type="removed_from_project", detail=detail,
+    )
+    db.session.flush()
+    return detail, changed
 
 
 def get_project_users_grid(project_id: str, viewer: VaUsers | None = None) -> dict:

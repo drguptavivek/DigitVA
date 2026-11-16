@@ -2740,6 +2740,14 @@ def admin_send_password_reset(target_user_id):
     target_user = db.session.get(VaUsers, target_user_id)
     if not target_user:
         return _json_error("User not found.", 404)
+    return send_reset_link(target_user) or jsonify({"message": "Password reset link sent."})
+
+
+def send_reset_link(target_user):
+    """Queue the single-use reset link to *target_user*'s verified email, as
+    the admin action and the project roster panel send it. Returns an error
+    response, or None once queued (account-onboarding-and-passwords.md
+    section 6)."""
     if not target_user.email or not target_user.email_verified:
         return _json_error(
             "This account has no verified email; resend verification or issue a "
@@ -2753,11 +2761,11 @@ def admin_send_password_reset(target_user_id):
             target_user, generate_token(target_user.user_id, "password_reset")
         )
     except Exception as exc:
-        log.warning("admin reset link failed | user_id=%s | %s", target_user.user_id, type(exc).__name__)
+        log.warning("reset link failed | user_id=%s | %s", target_user.user_id, type(exc).__name__)
         return _json_error("Failed to send the reset link.", 500)
     if not queued:
         return _json_error("Email delivery is off for this address; issue a sign-in code instead.", 400)
-    return jsonify({"message": "Password reset link sent."})
+    return None
 
 
 @admin.post("/api/users/<uuid:target_user_id>/sign-in-code")

@@ -8,6 +8,7 @@ import io
 import logging
 import re
 import uuid
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from flask import abort, current_app, jsonify, render_template, request
@@ -24,6 +25,7 @@ from app.models import (
     VaAccessScopeTypes,
     VaProjectMaster,
     VaStatuses,
+    VaUserAccessGrants,
     VaUsers,
 )
 from app.routes.admin import _current_user_can_manage_project, _json_error, admin
@@ -1455,6 +1457,283 @@ def admin_project_users_grid_sign_in_code(project_id, target_user_id):
     response = jsonify({"sign_in_code": code, **mobile_sign_in_service.code_lifetime()})
     response.headers["Cache-Control"] = "no-store"
     return response
+
+
+# ---------------------------------------------------------------------------
+# Roster user panel (digitva-eyp3)
+# Policy: docs/policy/dm-user-grant-management.md, "Roster User Panel".
+# ---------------------------------------------------------------------------
+
+_PANEL = "/api/projects/<project_id>/users-grid/<uuid:target_user_id>"
+#: The account events the panel lists: type, time and actor name, never detail.
+_PANEL_EVENT_TYPES = (
+    "web_sign_in", "web_sign_in_failed", "device_enrolled", "device_revoked",
+    "device_session_opened", "device_session_revoked", "mobile_code_issued",
+    "mobile_code_redeemed", "mobile_code_voided", "sign_in_qr_issued",
+    "sign_in_qr_redeemed", "password_generated", "factor_reset", "email_verified",
+    "verification_email_sent", "account_created", "account_reactivated",
+    "project_member_added", "coding_languages_changed", "account_profile_changed",
+    "password_reset_sent", "removed_from_project",
+)
+_PANEL_LIMIT = 100
+_MAX_AGE = 130
+
+
+def _roster_person(project_id, user_id):
+    """The account *user_id* when it is on *project_id*'s roster, else None
+    (the route answers 404, for admins too, so the panel cannot probe)."""
+    return db.session.scalar(
+        sa.select(VaUsers).where(VaUsers.user_id == user_id, org.on_project_roster(project_id, VaUsers.user_id))
+    )
+
+
+def _panel_grants(user_id):
+    """The person's active grants in the projects the caller manages
+    (``authz.roster_project_ids``; every project for an admin)."""
+    from app.models import VaProjectSites
+    from app.routes.admin import (
+        _grant_org_unit_columns,
+        _grant_project_id_expression,
+        _grant_site_id_expression,
+    )
+    from app.services import authz
+
+    G = VaUserAccessGrants
+    project_expr = _grant_project_id_expression()
+    stmt = (
+        sa.select(G.grant_id, G.role, G.scope_type, project_expr.label("project_id"),
+                  _grant_site_id_expression().label("site_id"), *_grant_org_unit_columns())
+        .outerjoin(VaProjectSites, VaProjectSites.project_site_id == G.project_site_id)
+        .where(G.user_id == user_id, G.grant_status == VaStatuses.active)
+        .order_by(project_expr, G.role)
+    )
+    grants = authz.resolve_grants(current_user)
+    if not grants.is_admin:
+        stmt = stmt.where(project_expr.in_(sorted(authz.roster_project_ids(grants))))
+    return [
+        {"grant_id": str(r.grant_id), "role": r.role.value, "scope_type": r.scope_type.value,
+         "project_id": r.project_id, "site_id": r.site_id, "unit_code": r.resolved_unit_code,
+         "unit_name": r.resolved_unit_name, "cadre_code": r.resolved_cadre_code}
+        for r in db.session.execute(stmt).all()
+    ]
+
+
+def _panel_activity(project_id, user_id):
+    """Submission actions in *project_id* (time, action, form id) and the
+    allowlisted account events (type, time, actor name), newest first."""
+    from app.models.auth_factors import AuthSecurityEvent
+    from app.routes.admin import _build_activity_rows
+
+    rows, _ = _build_activity_rows(limit=_PANEL_LIMIT, project_id=project_id, user_id=str(user_id))
+    actor = sa.orm.aliased(VaUsers)
+    E = AuthSecurityEvent
+    events = db.session.execute(
+        sa.select(E.event_type, E.occurred_at, actor.name)
+        .outerjoin(actor, actor.user_id == E.actor_user_id)
+        .where(E.user_id == user_id, E.event_type.in_(_PANEL_EVENT_TYPES))
+        .order_by(E.occurred_at.desc())
+        .limit(_PANEL_LIMIT)
+    ).all()
+    return {
+        "submissions": [{"at": r.created_at.isoformat() if r.created_at else None,
+                         "action": r.action, "form_id": r.form_id} for r in rows],
+        "events": [{"type": t, "at": at.isoformat(), "actor_name": name} for t, at, name in events],
+    }
+
+
+@admin.get("/project-roster/<project_id>/people/<uuid:user_id>")
+@role_required("admin", "project_pi", "data_manager")
+def project_roster_person_page(project_id, user_id):
+    """One person in one project as a page (digitva-eyp3). Same gate as the
+    JSON API below (``_guard(roster=True)``: 403), 404 for a person not on the
+    roster; the page itself fetches ``admin_project_user_panel``."""
+    if not (_current_user_can_manage_project(project_id) or _may_use_roster(project_id)):
+        abort(403)
+    user = _roster_person(project_id, user_id)
+    if user is None:
+        abort(404)
+    return render_template("admin/project_person.html", project_id=project_id, person=user)
+
+
+@admin.get(_PANEL)
+@role_required("admin", "project_pi", "data_manager")
+def admin_project_user_panel(project_id, target_user_id):
+    """One person in one project for the roster panel: profile, grants in the
+    caller's managed projects, live phones, activity, and the actions the
+    caller may take (``may_edit_account``, ``may_issue_code``, ``may_remove``)."""
+    if err := _guard(project_id, roster=True):
+        return err
+    user = _roster_person(project_id, target_user_id)
+    if user is None:
+        return _json_error("User not found.", 404)
+    from app.models.mas_languages import MasLanguages
+    from app.services import mobile_sign_in_service as mobile
+    from app.services.device_auth_service import list_account_devices
+
+    may_edit = mobile.may_edit_account(current_user, user.user_id, project_id)
+    target_admin = user.is_admin()
+    phones = [{k: d[k] for k in ("name", "platform", "app_version", "enrolled_at", "last_seen_at")}
+              for d in list_account_devices(user.user_id)]
+    body = {
+        "user": {
+            "user_id": str(user.user_id), "name": user.name, "email": user.email,
+            "email_verified": bool(user.email_verified), "phone": user.phone,
+            "mobile_only": user.is_mobile_only, "is_active": user.is_active, "is_admin": target_admin,
+            "year_of_birth": user.year_of_birth,
+            "age": (datetime.now(UTC).year - user.year_of_birth) if user.year_of_birth else None,
+            "sex": user.sex, "languages": list(user.vacode_language or []),
+        },
+        "may_edit_account": may_edit,
+        "may_issue_code": user.is_active and mobile.may_issue_code_in_project(current_user, user.user_id, project_id),
+        "may_remove": user.user_id != current_user.user_id and (current_user.is_admin() or not target_admin),
+        "grants": _panel_grants(user.user_id),
+        "phones": phones,
+        "activity": _panel_activity(project_id, user.user_id),
+    }
+    if may_edit:
+        body["language_options"] = [
+            {"code": c, "name": n} for c, n in db.session.execute(
+                sa.select(MasLanguages.language_code, MasLanguages.language_name)
+                .where(MasLanguages.is_active.is_(True)).order_by(MasLanguages.language_name)
+            ).all()
+        ]
+    response = jsonify(body)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def _panel_year_of_birth(p):
+    """The year from ``year_of_birth`` or ``age`` (converted to a year);
+    ``set_interviewer_profile`` validates the result. Raises ValueError."""
+    if "age" not in p:
+        return p.get("year_of_birth")
+    if "year_of_birth" in p:
+        raise ValueError("Give a year of birth or an age, not both.")
+    age = p["age"]
+    if age in (None, ""):
+        return None
+    if isinstance(age, bool) or not isinstance(age, (int, str)) or not str(age).strip().isdigit():
+        raise ValueError("Age must be a whole number.")
+    if int(age) > _MAX_AGE:
+        raise ValueError(f"Age must be at most {_MAX_AGE}.")
+    return datetime.now(UTC).year - int(age)
+
+
+@admin.patch(f"{_PANEL}/profile")
+@role_required("admin", "project_pi", "data_manager")
+def admin_project_user_panel_profile(project_id, target_user_id):
+    """Change name, year of birth (or age), sex and languages, when
+    ``may_edit_account``. One ``account_profile_changed`` event names the
+    fields changed, never their values."""
+    if err := _guard(project_id, roster=True):
+        return err
+    user = _roster_person(project_id, target_user_id)
+    if user is None:
+        return _json_error("User not found.", 404)
+    from app.models.mas_languages import MasLanguages
+    from app.services import mobile_sign_in_service as mobile
+    from app.services.security_event_service import record_security_event
+    from app.services.user_admin_tools_service import clean_user_name
+    from app.services.user_directory_service import UserDirectoryError
+
+    if not mobile.may_edit_account(current_user, user.user_id, project_id):
+        return _json_error("This account is shared with other projects; only an admin may change it.", 403)
+    p = _payload()
+    if not {"name", "year_of_birth", "age", "sex", "languages"} & set(p):
+        return _json_error("Provide name, year_of_birth or age, sex and/or languages.", 400)
+    before = {"name": user.name, "year_of_birth": user.year_of_birth, "sex": user.sex,
+              "languages": list(user.vacode_language or [])}
+    try:
+        name = clean_user_name(p["name"]) if "name" in p else user.name
+        year = _panel_year_of_birth(p) if {"year_of_birth", "age"} & set(p) else user.year_of_birth
+        user.set_interviewer_profile(year, p["sex"] if "sex" in p else user.sex)
+    except (ValueError, UserDirectoryError) as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    user.name = name
+    if "languages" in p:
+        languages = p["languages"]
+        if not isinstance(languages, list) or not languages or not all(isinstance(c, str) for c in languages):
+            db.session.rollback()
+            return _json_error("At least one language must be selected.", 400)
+        valid = set(db.session.scalars(
+            sa.select(MasLanguages.language_code).where(MasLanguages.is_active.is_(True))
+        ))
+        if set(languages) - valid:
+            db.session.rollback()
+            return _json_error("Unknown language code.", 400)
+        if languages != before["languages"]:
+            user.vacode_language = languages
+    after = {"name": user.name, "year_of_birth": user.year_of_birth, "sex": user.sex,
+             "languages": list(user.vacode_language or [])}
+    changed = sorted(k for k in before if before[k] != after[k])
+    if changed:
+        record_security_event(
+            user_id=user.user_id, actor_user_id=current_user.user_id, event_type="account_profile_changed",
+            detail={"fields": changed, "project_id": project_id, "via": "project_roster"},
+        )
+        db.session.commit()
+    log.info("roster profile | project=%s | by=%s | user=%s | fields=%s",
+             project_id, current_user.user_id, user.user_id, changed)
+    return jsonify({"changed": changed})
+
+
+@admin.post(f"{_PANEL}/password-reset")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("20 per hour")
+def admin_project_user_panel_password_reset(project_id, target_user_id):
+    """Email the person the standard single-use reset link at their own
+    verified address (the admin action's send), when ``may_edit_account``;
+    audited as ``password_reset_sent``."""
+    if err := _guard(project_id, roster=True):
+        return err
+    user = _roster_person(project_id, target_user_id)
+    if user is None:
+        return _json_error("User not found.", 404)
+    from app.routes.admin import send_reset_link
+    from app.services import mobile_sign_in_service as mobile
+    from app.services.security_event_service import record_security_event
+
+    if not mobile.may_edit_account(current_user, user.user_id, project_id):
+        return _json_error("This account is shared with other projects; only an admin may reset it.", 403)
+    if err := send_reset_link(user):
+        return err
+    record_security_event(
+        user_id=user.user_id, actor_user_id=current_user.user_id, event_type="password_reset_sent",
+        detail={"project_id": project_id, "via": "project_roster"},
+    )
+    db.session.commit()
+    return jsonify({"message": "Password reset link sent."})
+
+
+@admin.post(f"{_PANEL}/remove")
+@role_required("admin", "project_pi", "data_manager")
+def admin_project_user_panel_remove(project_id, target_user_id):
+    """Remove the person from this project, all or nothing
+    (``organization_service.remove_from_project``). Refused for oneself and,
+    to a non-admin, for an admin account."""
+    if err := _guard(project_id, roster=True):
+        return err
+    user = _roster_person(project_id, target_user_id)
+    if user is None:
+        return _json_error("User not found.", 404)
+    if user.user_id == current_user.user_id:
+        return _json_error("You cannot remove yourself from a project.", 400)
+    if user.is_admin() and not current_user.is_admin():
+        return _json_error("Only an admin may remove an admin account.", 403)
+    try:
+        detail, changed = org.remove_from_project(project_id, user, actor=current_user)
+        db.session.commit()
+    except org.OrganizationError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 403)
+    user_import.finalize_apply(
+        project_id, actor_user_id=current_user.user_id, actor_role=_actor_role(project_id),
+        changed_grants=changed, invitations=[], request_ip=request.remote_addr,
+    )
+    log.info("roster remove | project=%s | by=%s | user=%s | grants=%s workers=%s",
+             project_id, current_user.user_id, user.user_id, detail["grants_revoked"], detail["workers_deactivated"])
+    return jsonify({"removed": detail})
 
 
 @admin.get("/api/projects/<project_id>/users-grid/members/template.csv")

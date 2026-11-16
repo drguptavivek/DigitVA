@@ -3,7 +3,7 @@ title: SmartVA Generation Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-11-16
 ---
 
 # SmartVA Generation Policy
@@ -97,6 +97,17 @@ Current implementation note:
 - raw SmartVA-generated files may also be retained under the configured
   `APP_SMARTVA_RUNS` base directory as an operational/debug artifact layer,
   not in DB — see **Run Directory Archival** below for where they end up
+
+### Whole-number input values (owner decision 2026-11-16)
+
+The server writes a whole-number float in `smartva_input.csv` as an integer
+(`5.0` becomes `5`), as the Collect Plus phone already does; other values are
+unchanged (`_stringify`, `va_smartva_02_prepdata.py`). With `5.0` the engine can
+miss symptoms in some duration and age fields: on the 8,399-case parity run,
+37 of 193 affected cases scored differently with `5`, 36 with more symptoms
+endorsed. New and rerun analyses use the new spelling. Existing stored results
+are not re-scored; a case gets the new reading only when it is rerun through
+the usual paths. Details: `docs/current-state/smartva-analysis.md`.
 
 ## Run Directory Archival
 

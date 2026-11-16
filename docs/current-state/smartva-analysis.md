@@ -3,7 +3,7 @@ title: SmartVA Analysis
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-23
+last_updated: 2026-11-16
 ---
 
 # SmartVA Analysis
@@ -685,6 +685,52 @@ not roll back others.
 
 ---
 
+## Offline engine parity on the phone (Android and iOS)
+
+`scripts/smartva-parity/run.sh corpus|ios|android` (README there) sends every case the
+dev server has scored through the phone's SmartVA library and compares the result
+with the server's. One row per case: the `active` result, which for all 8,399 cases
+points at the submission's current payload version. The input is built as the phone
+builds it: the server's `_clean_payload_for_smartva` row, cut to the fields
+`cleanSmartVaInput` keeps, through `createSmartVaRequest` (`src/smartva/input.ts`).
+The harness calls `smartva_score_json` as `SmartVaJni.cpp` and the Swift module do.
+`rescore_server.py` re-scores the same cases with the server's current pipeline
+(batches of 50, nothing stored) so a difference can be put down to the phone or to an
+older server engine. The cases are research data: the corpus, the replies and every
+case-level example stay in `private/smartva-parity/` (git-ignored); the committed
+`scripts/smartva-parity/results/` hold only counts, latencies, versions and sha256s.
+
+Run of 2026-11-05, engine `SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)`, options
+IND, HIV off, malaria off, HCE on, free text on (every case):
+
+| server engine of the stored row | cases | phone vs stored row | phone vs current server engine |
+| --- | --: | --- | --- |
+| not recorded (Python SmartVA, before 2026-10-22) | 7,306 | 7,103 identical, 203 differ in key symptoms only | 7,306 identical |
+| smartva-rust 0.2.0 | 1,086 | 969 identical, 117 no prediction on either side | same |
+| smartva-rust 3.0.2 | 4 | 2 identical, 2 never reached the engine (TRN01 `execution` failure) | 4 identical |
+| options recorded, engine not | 3 | 2 identical, 1 had no server output | 3 identical |
+
+- Android (SM-E146B, library sha256 `db33cf21…`, as shipped) and the iOS Simulator
+  (iPhone 17, iOS 26.5, simulator slice sha256 `19df01db…`) gave byte-identical
+  replies for all 8,399 cases; no engine error on either.
+- Against the current server engine every case matches, so the stored-row
+  differences come from older server engines, not the phone. The 203 key-symptom
+  rows differ in `keysymptom1-3` only (causes, likelihoods, age, sex, ICD codes
+  equal).
+- Latency per case: Android first call 295 ms, then median 92 ms, peak RSS 49 MiB
+  (the phone was busy); simulator median 26 ms (the Mac's CPU, not an iPhone's).
+- Input differences that change no result here: the phone drops `Id10476_audio`
+  (in its PII list) in 8,278 cases. In 193 cases a whole-number JSON float is
+  written `N` by the phone's cleaner and was written `N.0` by the server's
+  (`Id10120`, `age*`, `Id10161`, `Id10413_d`); fed the `N` spelling, 37 of them
+  score differently, 36 with more symptoms endorsed. Since 2026-11-16 the server
+  writes `N` too (`_stringify` in `va_smartva_02_prepdata.py`), so new and rerun
+  analyses match the phone; stored results were not re-scored (policy:
+  "Whole-number input values"). Open: whether phone drafts ever hold JSON
+  numbers for these fields.
+- Not covered: a real iPhone, a release build, other option sets, and the 117
+  no-prediction replies through `projectSmartVaResult` (it throws on them).
+
 ## Mandatory Fields for SmartVA
 
 When integrating a new ODK server or form, the following fields must be present in the ODK form schema. Missing fields at the wrong tier cause silent degradation or hard failures.
@@ -854,3 +900,12 @@ The full SmartVA-Analyze v3.0.0 source is at `vendor/smartva-analyze`. Key files
 | `src/smartva/common_prep.py` | `gen_5_4*` validation, adult/child/neonate routing |
 | `src/smartva/data/common_data.py` | `AGE_VARS` definition, default column list |
 | `src/smartva/data/who_data.py` | Full `Id10xxx` → `gen_5_*` column mapping table |
+
+## Phone result display (Collect Plus)
+
+- An engine reply with no prediction (`total_vas` 0) is projected to a `no_result` reference, not an error. The server
+  records the same case as a failed run (`missing_row`) and shows no result; the phone card says "SmartVA produced no
+  result for this case."
+- The phone shows gender with the server's rule from `engine.rs` (1 Male, 2 Female, anything else Missing)
+  (`src/smartva/gender.ts`). The projected `gender` stays the raw engine code: it is local only (never sent to the
+  server) and the engine-check golden compares it.

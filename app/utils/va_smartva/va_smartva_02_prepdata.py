@@ -51,6 +51,10 @@ def _is_blank(value) -> bool:
 def _stringify(value) -> str:
     if _is_blank(value):
         return ""
+    # Payloads from the old pandas loader hold whole numbers as floats; SmartVA parses
+    # durations with int(), so "5.0" would read as blank. Write 5 as ODK and the phone do.
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
     return str(value)
 
 

@@ -2166,5 +2166,8 @@
   "draftNotSaved": "Your latest answers could not be saved. They are still on this screen. Try again.",
   "whoNoConfirmTitle": "Delete this interview?",
   "whoNoConfirmMessage": "The respondent said No to the interview. Continuing removes every answer, recording and photograph from this interview. This cannot be undone. Cancel keeps the interview as it was.",
-  "whoNoConfirmAction": "Yes, delete the interview"
+  "whoNoConfirmAction": "Yes, delete the interview",
+  "directions": "Directions",
+  "shareLocation": "Share location",
+  "locationAccuracyAbout": "Location accurate to about {meters} m"
 }

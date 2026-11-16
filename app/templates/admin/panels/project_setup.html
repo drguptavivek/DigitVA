@@ -1156,6 +1156,16 @@
   }
   var UG_OP_BY_ROLE_KEY = { coder_pii: 'coder_non_pii', coder_non_pii: 'coder_non_pii', reviewer_pii: 'reviewer_non_pii', reviewer_non_pii: 'reviewer_non_pii', site_pi: 'in_charge', collaborator: 'viewer_non_pii' };
   var UG_RAW_ROLE_BY_OP = { coder_non_pii: 'coder', reviewer_non_pii: 'reviewer', in_charge: 'site_pi', viewer_non_pii: 'collaborator' };
+  // Roles a unit grant may carry only where a cadre at that level permits them
+  // (org_grant_service.CADRE_FLAG_BY_ROLE); the server refuses the rest.
+  var UG_CADRE_FLAG = { coder: 'can_code_va_form', interview_supervisor: 'can_supervise_interviews', death_reporter: 'can_report_deaths' };
+  function ugUnitAllows(unitObj, rawRole) {
+    var flag = UG_CADRE_FLAG[rawRole];
+    if (!flag) return true;
+    return (_ugData.level_cadres || []).some(function (lc) {
+      return lc.org_level_id === unitObj.org_level_id && lc.is_active !== false && lc[flag];
+    });
+  }
   function ugUnitsWithRole(user, rawRole) {
     var byUnit = (user && user.unit_roles_by_unit) || {};
     return Object.keys(byUnit).filter(function (k) { return (byUnit[k] || []).indexOf(rawRole) >= 0; });
@@ -1334,13 +1344,32 @@
       var unitSel = row.querySelector('.ug-drawer-unit-sel');
       var note = row.querySelector('.ug-drawer-note');
       var picker = null;
+      var allUnitsHere = _ugData.units || [];
       function sync() {
-        var units = ugUnitsWithRole(user, UG_RAW_ROLE_BY_OP[roleSel.value] || roleSel.value);
+        var rawRole = UG_RAW_ROLE_BY_OP[roleSel.value] || roleSel.value;
+        var units = ugUnitsWithRole(user, rawRole);
         var value = units.length ? units[0] : '';
-        if (picker) picker.setValue(value, true); else unitSel.value = value;
-        note.textContent = units.length > 1
-          ? 'Currently on ' + units.length + ' units; saving keeps it on the one chosen here only.'
-          : (units.length ? '' : 'Not granted on any unit yet.');
+        // Offer only units whose level has a cadre allowed this role.
+        var allowed = allUnitsHere.filter(function (x) { return ugUnitAllows(x, rawRole); });
+        var allowedIds = {};
+        allowed.forEach(function (x) { allowedIds[x.org_unit_id] = true; });
+        Array.prototype.forEach.call(unitSel.options, function (o) { if (o.value) o.disabled = !allowedIds[o.value]; });
+        if (picker) {
+          allUnitsHere.forEach(function (x) { picker.updateOption(x.org_unit_id, Object.assign({}, picker.options[x.org_unit_id] || {}, { value: x.org_unit_id, disabled: !allowedIds[x.org_unit_id] })); });
+          picker.refreshOptions(false);
+          picker.setValue(value, true);
+        } else unitSel.value = value;
+        var flagLabel = { coder: "'Code VA'", interview_supervisor: "'Supervise interviews'", death_reporter: "'Report deaths'" }[rawRole];
+        if (!allowed.length) {
+          note.textContent = 'No unit level allows this role yet: tick ' + flagLabel + ' for a cadre in Structure & Cadres → Cadres & Role Matrix.';
+        } else if (flagLabel && allowed.length < allUnitsHere.length) {
+          note.textContent = 'Only units at levels where a cadre may ' + flagLabel.replace(/'/g, '').toLowerCase() + ' are offered; change that in the Cadres & Role Matrix.'
+            + (units.length > 1 ? ' Currently on ' + units.length + ' units; saving keeps only the one chosen.' : '');
+        } else {
+          note.textContent = units.length > 1
+            ? 'Currently on ' + units.length + ' units; saving keeps it on the one chosen here only.'
+            : (units.length ? '' : 'Not granted on any unit yet.');
+        }
       }
       ugWithTomSelect(function () {
         if (window.TomSelect && unitSel.isConnected) picker = new TomSelect(unitSel, { maxOptions: null, placeholder: 'Search units…', allowEmptyOption: true });

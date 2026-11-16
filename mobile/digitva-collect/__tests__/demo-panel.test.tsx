@@ -36,6 +36,8 @@ jest.mock("../src/ui", () => {
 });
 
 jest.mock("../src/appVariant", () => ({ isPlusVariant: () => false }));
+// The first-install language rows (react-native-svg) are not under test here.
+jest.mock("../src/ui/controls", () => ({ MenuChoiceRow: () => null }));
 import Enrol from "../src/nativeRoutes/enrol";
 
 const labels = (tree: ReturnType<typeof create>) => tree.root.findAllByType("button" as never).map((n) => n.props.label);

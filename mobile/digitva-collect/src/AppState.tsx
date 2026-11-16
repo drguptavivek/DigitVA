@@ -85,6 +85,8 @@ interface AppState {
    */
   switchSlot?(slot: Slot): Promise<boolean>;
   uiLocale: string;
+  /** False on a fresh install until the person picks a UI language (sign-in asks first); phones only. */
+  uiLocaleChosen?: boolean;
   reload(): Promise<void>;
   chooseUiLocale(code: string): Promise<void>;
   /** Bumps on every lock or unlock so screens re-read isUnlocked(). */
@@ -135,6 +137,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [standaloneAvailable, setStandaloneAvailable] = useState(false);
   const [slot, setSlot] = useState<Slot>("active");
   const [uiLocale, setLocaleState] = useState("en");
+  const [uiLocaleChosen, setUiLocaleChosen] = useState(true);
   const [lockVersion, setLockVersion] = useState(0);
   const [lockWarning, setLockWarning] = useState(false);
   const [error, setErrorText] = useState<string>();
@@ -439,6 +442,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     void (async () => {
       const saved = await SecureStore.getItemAsync(UI_LOCALE_KEY);
       setLocaleState(setUiLocale(saved ?? getLocales()[0]?.languageCode));
+      setUiLocaleChosen(saved !== null);
       await reload();
     })().catch(reportBackgroundError);
   }, [reload, reportBackgroundError]);
@@ -535,6 +539,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const chooseUiLocale = useCallback(async (code: string) => {
     setLocaleState(setUiLocale(code));
+    setUiLocaleChosen(true);
     refreshUiPacks(code);
     await SecureStore.setItemAsync(UI_LOCALE_KEY, code);
   }, [refreshUiPacks]);
@@ -550,6 +555,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       slot,
       switchSlot,
       uiLocale,
+      uiLocaleChosen,
       reload,
       chooseUiLocale,
       lockVersion,
@@ -576,6 +582,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       slot,
       switchSlot,
       uiLocale,
+      uiLocaleChosen,
       reload,
       chooseUiLocale,
       lockVersion,

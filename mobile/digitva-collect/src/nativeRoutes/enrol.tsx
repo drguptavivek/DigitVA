@@ -26,6 +26,8 @@ import { defaultManualServer, EnrolmentError, manualServerAddress, parseScannedQ
 import { isPlusVariant } from "../appVariant";
 import { deviceFamilyLabel, offlineEnginePlatform } from "../platformFamily";
 import { t } from "../i18n";
+import { useUiLanguages } from "../uiPacks";
+import { MenuChoiceRow } from "../ui/controls";
 import { formatSignInCode, looksLikeSignInCode, mobileDigitsFromInput, normalizeMobileIdentifier } from "../nativeAuthLinks";
 import { Icon, icons } from "../Icon";
 import { radius, spacing, useTheme } from "../theme";
@@ -35,11 +37,31 @@ const APP_VERSION = Constants.expoConfig?.version ?? "0.0.0";
 /** Where an error shows: the QR code (scan, paste, confirm), the login form, the demo button, the code form, Code accepted. */
 type ErrorAt = "code" | "login" | "demo" | "redeem" | "accepted";
 
+function FirstLanguage({ value, hintStyle, onChoose }: { value: string; hintStyle: object; onChoose(code: string): void }) {
+  const languages = useUiLanguages();
+  return (
+    <Screen title={t("chooseLanguageTitle")}>
+      <Text style={hintStyle}>{t("chooseLanguageHint")}</Text>
+      <View accessibilityRole="radiogroup" accessibilityLabel={t("chooseLanguageTitle")} testID="first-language">
+        {languages.map((language) => (
+          <MenuChoiceRow
+            key={language.code}
+            label={language.label}
+            language={language.language}
+            selected={language.code === value}
+            onPress={() => onChoose(language.code)}
+          />
+        ))}
+      </View>
+    </Screen>
+  );
+}
+
 export default function Enrol() {
   const styles = useUiStyles();
   const { ui, typography } = useTheme();
   const router = useRouter();
-  const { reload, switchSlot, lockNow, slot, standaloneAvailable } = useAppState();
+  const { reload, switchSlot, lockNow, slot, standaloneAvailable, uiLocale, uiLocaleChosen, chooseUiLocale } = useAppState();
   const [permission, requestPermission] = useCameraPermissions();
   const [pasted, setPasted] = useState("");
   /** Each error shows next to the action that produced it. */
@@ -260,6 +282,11 @@ export default function Enrol() {
   const tryDemo = () => void switchSlot?.("demo").catch((caught) => setError("demo", errorText(caught)));
   const cancel = <TextLink label={t("cancel")} disabled={busy} onPress={() => { setView("menu"); setError("code", ""); }} />;
   const working = busy ? <Text style={styles.muted}>{t("enrolWorking")}</Text> : null;
+
+  // First install: ask the UI language before anything else; each name is shown in its own script.
+  if (uiLocaleChosen === false) {
+    return <FirstLanguage value={uiLocale} hintStyle={styles.muted} onChoose={(code) => void chooseUiLocale(code)} />;
+  }
 
   if (limit) {
     return (

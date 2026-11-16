@@ -1211,6 +1211,8 @@
   "slotDemo": "Demo",
   "slotNote": "The phone uses one at a time. Switching saves and locks open work; nothing is deleted.",
   "settingsLanguage": "Language",
+  "chooseLanguageTitle": "Choose your language",
+  "chooseLanguageHint": "Pick the language for the app. You can change it later in Settings.",
   "questionnaireLanguageNote": "Questionnaire language is chosen inside each form.",
   "settingsSecurity": "Security",
   "autoLockInfo": "The app locks after {minutes} minutes without use.",

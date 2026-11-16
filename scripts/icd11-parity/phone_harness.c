@@ -13,6 +13,8 @@
  * Bodies never hold a raw tab or newline (JSON escapes them), so fields split cleanly.
  * A library without digitva_icd11_call is refused at the start (as the app's shim refuses it).
  * Build: $NDK/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android29-clang -O2 -o phone_harness phone_harness.c -ldl
+ * iOS Simulator (run_ios_sim.sh): xcrun --sdk iphonesimulator clang -target arm64-apple-ios15.1-simulator -O2 -o phone_harness phone_harness.c,
+ * with lib.so the framework binary DigitvaIcd11Engine.framework/DigitvaIcd11Engine; rss_mb and peak_mb are then Mach's resident size and its maximum.
  * usage: phone_harness lib.so bundleDir dataDir input.tsv
  */
 #include <dlfcn.h>
@@ -20,6 +22,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#ifdef __APPLE__
+#include <mach/mach.h>
+#endif
 
 typedef char *(*init_t)(const char *, const char *);
 typedef char *(*callop_t)(const char *, const char *, int *);
@@ -27,12 +32,21 @@ typedef void (*free_t)(char *);
 
 static double now_ms(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec * 1e3 + t.tv_nsec / 1e6; }
 
+#ifdef __APPLE__
+/* No /proc on iOS: the same two numbers from Mach (resident size now, and its maximum for VmHWM). */
+static long status_kb(const char *key) {
+  mach_task_basic_info_data_t info; mach_msg_type_number_t n = MACH_TASK_BASIC_INFO_COUNT;
+  if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &n) != KERN_SUCCESS) return -1;
+  return (long)((strcmp(key, "VmHWM:") ? info.resident_size : info.resident_size_max) / 1024);
+}
+#else
 static long status_kb(const char *key) {
   FILE *f = fopen("/proc/self/status", "r"); char line[256]; long v = -1; size_t n = strlen(key);
   while (f && fgets(line, sizeof line, f)) if (!strncmp(line, key, n)) v = atol(line + n);
   if (f) fclose(f);
   return v;
 }
+#endif
 
 /* Prints a body with any raw newline or tab turned into a space, so one record stays on one line. */
 static void put_body(const char *s) {

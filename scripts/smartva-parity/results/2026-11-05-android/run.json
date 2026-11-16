@@ -1,0 +1,107 @@
+{
+ "date_utc": "2026-11-05T11:21:27+00:00",
+ "platform": "android",
+ "device": "SM-E146B",
+ "os": "Android 15 (API 35)",
+ "host": "load average before the run: 14.32 14.35 14.05 1/4288 29364",
+ "library": "private/generated/smartva-android/arm64-v8a/libsmartva_rust.so",
+ "library_sha256": "db33cf21da576badec5c1df980301e03da7d460e7b08edebbf3bd84a10114f12",
+ "corpus_requests_sha256": "1793a14128f2ec315c08724b7ed209782d562208575920f11d384a18e1610689",
+ "corpus_expected_sha256": "675f34eaa2c7a705d450a462ca0ef5fd3b6a337be3e1e5def2dec0af47052327",
+ "corpus_server_now_sha256": "41617c75b27d7c92a198cdab359184d57cc2d584b6bf9638a48443dc8bd62606",
+ "kit_commit": "cb33a1817ec6e6f2812eb047cbc450248b0c645f",
+ "kit_dirty": true,
+ "compare_exit": 1,
+ "cases": 8399,
+ "replies": 8399,
+ "engine_version": "SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)",
+ "by_server_engine": {
+  "SmartVA-Analyze 3.0.0-rust (smartva-rust 0.2.0)": {
+   "identical": 969,
+   "identical: no prediction on either side": 117
+  },
+  "SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)": {
+   "identical": 2,
+   "server never ran the engine (execution failure), not compared": 2
+  },
+  "unrecorded (before 2026-10-22)": {
+   "identical": 7103,
+   "different": 203
+  },
+  "unrecorded, options recorded": {
+   "identical": 2,
+   "different": 1
+  }
+ },
+ "differing_fields": {
+  "unrecorded (before 2026-10-22)": {
+   "keysymptom2": 88,
+   "keysymptom3": 36,
+   "keysymptom1": 88
+  },
+  "unrecorded, options recorded": {
+   "phone predicts, server had no output row": 1
+  },
+  "SmartVA-Analyze 3.0.0-rust (smartva-rust 0.2.0)": {},
+  "SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)": {}
+ },
+ "input_differences": {
+  "phone drops fields the server read": 8278,
+  "phone adds fields": 0,
+  "numbers spelt differently (phone-cleaned variant)": 193,
+  "other value differences": 0
+ },
+ "icd_table_disagreements": 0,
+ "latency_ms": {
+  "first": 295.33,
+  "median": 92.34,
+  "p95": 93.14,
+  "max": 100.61
+ },
+ "other_platform": {
+  "replies_byte_identical": 8399,
+  "one_side_only": 0,
+  "identical": true
+ },
+ "verdict": "MISMATCH",
+ "vs_server_current_engine": {
+  "cases": 8399,
+  "replies": 8399,
+  "engine_version": "SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)",
+  "by_server_engine": {
+   "SmartVA-Analyze 3.0.0-rust (smartva-rust 0.2.0)": {
+    "identical": 969,
+    "identical: no prediction on either side": 117
+   },
+   "SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)": {
+    "identical": 4
+   },
+   "unrecorded (before 2026-10-22)": {
+    "identical": 7306
+   },
+   "unrecorded, options recorded": {
+    "identical": 3
+   }
+  },
+  "differing_fields": {
+   "unrecorded (before 2026-10-22)": {},
+   "SmartVA-Analyze 3.0.0-rust (smartva-rust 0.2.0)": {},
+   "SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)": {},
+   "unrecorded, options recorded": {}
+  },
+  "input_differences": {
+   "phone drops fields the server read": 8278,
+   "phone adds fields": 0,
+   "numbers spelt differently (phone-cleaned variant)": 193,
+   "other value differences": 0
+  },
+  "icd_table_disagreements": 0,
+  "latency_ms": {
+   "first": 295.33,
+   "median": 92.34,
+   "p95": 93.14,
+   "max": 100.61
+  },
+  "verdict": "PASS"
+ }
+}

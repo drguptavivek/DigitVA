@@ -1,0 +1,52 @@
+SmartVA parity: android engine vs the server's stored result
+engine version: SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)
+cases: 8399, phone replies: 8399
+server ICD table (merged) vs the phone's table: same code for every phone cause
+
+server engine unrecorded (before 2026-10-22): 7306 cases
+  identical: 7103
+  different: 203
+    differs in keysymptom2: 88
+    differs in keysymptom1: 88
+    differs in keysymptom3: 36
+server engine SmartVA-Analyze 3.0.0-rust (smartva-rust 0.2.0): 1086 cases
+  identical: 969
+  identical: no prediction on either side: 117
+server engine SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2): 4 cases
+  identical: 2
+  server never ran the engine (execution failure), not compared: 2
+server engine unrecorded, options recorded: 3 cases
+  identical: 2
+  different: 1
+    differs in phone predicts, server had no output row: 1
+
+input, phone cleaner vs server cleaner (cases): phone drops fields the server read 8278, phone adds fields 0, numbers spelt differently (phone-cleaned variant) 193, other value differences 0
+latency ms: first call 295.3; rest median 92.3, p95 93.1, max 100.6
+peak RSS: 49 MiB
+
+vs 2026-11-05-ios (engine SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)): 8399 of 8399 replies byte-identical (rc and body), 0 seen on one side only
+
+verdict: MISMATCH
+
+----
+
+SmartVA parity: android engine vs the server's current engine (rescore_server.py)
+engine version: SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)
+cases: 8399, phone replies: 8399
+server ICD table (merged) vs the phone's table: same code for every phone cause
+
+server engine unrecorded (before 2026-10-22): 7306 cases
+  identical: 7306
+server engine SmartVA-Analyze 3.0.0-rust (smartva-rust 0.2.0): 1086 cases
+  identical: 969
+  identical: no prediction on either side: 117
+server engine SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2): 4 cases
+  identical: 4
+server engine unrecorded, options recorded: 3 cases
+  identical: 3
+
+input, phone cleaner vs server cleaner (cases): phone drops fields the server read 8278, phone adds fields 0, numbers spelt differently (phone-cleaned variant) 193, other value differences 0
+latency ms: first call 295.3; rest median 92.3, p95 93.1, max 100.6
+peak RSS: 49 MiB
+
+verdict: PASS (every compared case identical)

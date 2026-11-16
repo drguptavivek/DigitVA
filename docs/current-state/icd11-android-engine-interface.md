@@ -3,14 +3,16 @@ title: ICD-11 Android Engine Interface
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-13
 ---
 
 # ICD-11 Android Engine Interface
 
 The as-built interface of the Collect Plus offline ICD-11 / DORIS engine
 (`mobile/digitva-collect/modules/digitva-icd11`), layer by layer: every
-function each layer exposes, what goes in and what comes out. Android only.
+function each layer exposes, what goes in and what comes out. The layers below
+are Android's; the iOS build has the same layers 1, 4 and 5 and its own host,
+described in [iOS](#ios).
 
 This page does not restate shapes documented elsewhere:
 
@@ -208,13 +210,11 @@ Source: `DigitvaIcd11Module.kt`.
 | `init()` | — | init map (layer 3) | `ERR_ICD11_PROCESS` if the engine process stopped |
 | `updateWhoFiles()` | — | init map of the init that runs in a new engine process | `ERR_ICD11_PROCESS` |
 | `call(op, input)` | `op`: the op name (`"search"`, `"codeinfo"`, `"entity"`, `"foundation_entity"`, `"doris"`, `"codedit"`); `input`: the JSON text of its arguments | call map (layer 3) | `ERR_ICD11_OP` op name of the wrong shape; `ERR_ICD11_PROCESS` engine process stopped |
+| `release()` | — | `true` when the engine process was stopped (or none was bound); `false` while a request is pending, queued or binding | — |
 | event `icd11Progress` | — | `{phase, percent}` during init | — |
 
-| `release()` | — | `true` when the engine process was stopped (or none was bound); `false` while a request is pending, queued or binding | — |
 The module binds the service on first use, queues messages until it is
 bound, and fails every pending request when the process dies.
-
-## Layer 5: `OfflineEngine` (`src/offlineEngine.ts`)
 
 **Idle release (digitva-xhz7).** The service is bound only, never started, so
 `release()` unbinding the last client destroys it, and `Icd11Service.onDestroy`
@@ -230,6 +230,8 @@ process and runs a full init (5-18 s). The 3-failure `init_blocked` count lives
 in the setup record on disk, so it survives a release. On iOS both engines are
 in-process and `release()` is a no-op answering `true`; JS treats a module
 without `release` (older builds) the same way.
+
+## Layer 5: `OfflineEngine` (`src/offlineEngine.ts`)
 
 `offlineEngine()` returns the process-wide engine; every method returns
 `{ok:false, error:"icd11_doris_disabled"}` while the ICD-11 / DORIS preference
@@ -248,9 +250,9 @@ is off, and `{ok:false, error:"unavailable"}` on web and in the plain build.
 | `codedit(certificate: object)` | certificate object | `EngineResult` |
 | `onProgress(listener)` | `({phase, percent?}) => void` | unsubscribe function |
 | `updateWhoFiles()` | — | `EngineInit` |
+| `release()` | — | `boolean`: `false` while an init is in flight or native refuses; on `true` the next use inits again. Not gated by the preference |
 
 `EngineResult` = `{ok:true, data: <parsed JSON>, status, ms, nativeMs}` or
-| `release()` | — | `boolean`: `false` while an init is in flight or native refuses; on `true` the next use inits again. Not gated by the preference |
 `{ok:false, error, status?, ms}` with `error` one of `engine_status`,
 `not_initialized`, `bad_json` (reply not JSON), `native_error`,
 `unavailable`, `icd11_doris_disabled`, or the init error after a failed
@@ -467,6 +469,113 @@ Mac-built release (build ID, `.comment` and about 1.6 KB of `.rodata` differ; `d
 ## Release
 
 Engine release `icd11-engine-v2026.10.29.1` is the first without the four single-argument exports. Its inputs are all public: WHO's assemblies from `whoicd/icd-api:2.6.0` (digest `sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c`), WHO's data files (byte for byte the files of `icd11-engine-v2026.10.25.1`), and this repository's `engine-src`. It was built on the Mac and is still the pinned one: the CI build differs in bytes (see above). Release `2026.10.25.1` stays published but no app built from this tree can use it. The archive is packaged by `scripts/package-icd11-engine.sh` and published by the owner with `scripts/publish-icd11-engine.sh`; the commit that pins the new tag and sha256 must land together with the publish, since the Plus CI build fails until the release exists.
+
+## iOS
+
+Collect Plus on iOS (`APP_VARIANT=plus`, bundle id `com.causeofdeathindia.digitvacollect.plus`; the dev variant is
+`.dev`) links the same three native modules with Swift sources under each module's `ios/`. The JS-facing API is
+Android's (layer 4 here, `DigitvaSmartva` and `DigitvaDeviceInfo` likewise), so `src/` has no platform branch.
+
+```text
+OfflineEngine (JS)                      src/offlineEngine.ts
+  └─ DigitvaIcd11Module (Expo, Swift)   ios/DigitvaIcd11Module.swift      app process
+      └─ EngineWorker (one thread, 32 MB stack) → EngineHost, EngineData   ios/EngineHost.swift, ios/EngineData.swift
+          └─ DigitvaIcd11Engine.framework (NativeAOT: Bridge.cs + WHO ICD-API 2.6.0; linked, no dlopen)
+```
+
+Engine. `engine-src/build-ios.sh OUT_DIR` (macOS, Xcode, the SDK of `global.json`, `ICDAPI_DIR` as for `build.sh`)
+publishes `Bridge.csproj` unchanged for `ios-arm64` and `iossimulator-arm64` with `PublishAotUsingRuntimePack=true`
+(no iOS workload, no `DisableUnsupportedError`: both are supported NativeAOT targets), wraps each `digitva_icd11.dylib` as
+`DigitvaIcd11Engine.framework` (install name `@rpath/…`, header `engine-src/digitva_icd11.h`, module map) and joins
+them with `xcodebuild -create-xcframework`. It checks the committed `rd_gen.xml` against the assemblies instead of
+rewriting it, and keeps its intermediates in a temp folder (never `/tmp/icdapi_portable` or `engine-src/bin|obj`).
+`build.sh` and the Android library are unchanged. A dynamic framework, not a static library: the engine keeps its own
+.NET native runtime in one image (each slice about 145 MB), so nothing clashes with the app's static code. The output
+goes beside the Android library, in the git-ignored spike folder: `private/icd11-offline-spike/bridge-aot/pub-ios/`.
+
+Staging. `stage-engine.js --ios` (`stageEngineIos`, run by `plugins/with-ios-collect-plus.js` during
+`expo prebuild --platform ios`) copies the xcframework (`DIGITVA_ICD11_IOS_XCFRAMEWORK`, else the spike's `pub-ios/`;
+the release archive has no iOS library yet) to `ios/Engine/` and the same data files as Android to
+`ios/Engine/digitva-icd11/` under their own names (no `.bin`), with the same `who-files.json`; `engineFiles()` and the
+release archive are Android's only. `ios/DigitvaIcd11.podspec` refuses to install when nothing is staged, links the
+framework and ships the data folder as one resource folder (`Bundle.main/digitva-icd11`). The plain build excludes
+`digitva-icd11` and `digitva-smartva` from autolinking (`use_expo_modules!(exclude: …)` in the Podfile).
+
+Lifecycle. As on Android, with these differences:
+
+- No engine process. The engine runs in the app process on one worker thread; requests run first come first served,
+  so a call queued after an init runs after it. The engine cannot be unloaded (Bridge.cs has no shutdown): its memory
+  stays until the app ends, and iOS may end the whole app under memory pressure (Android measured 0.5 to 1.1 GB
+  resident; the simulator app was 1.29 GB after init and the engine check). `ERR_ICD11_PROCESS` fires only for a
+  request whose module went away (a JS reload) before the worker reached it.
+- Data is copied once from the bundle to `Library/Application Support/icd11-<DATA_VERSION>/` (same version string,
+  `.partial` then rename, `.copied` marker, setup record, size repair from `who-files.json`), excluded from iCloud
+  backup. APFS clones the files, so the copy takes milliseconds.
+- `TMPDIR` and the four proxy variables are set as on Android before `digitva_icd11_init`. On iOS .NET uses Apple's
+  TLS, so without the dead proxy an online device would really fetch WHO's files at init. They are process-wide in
+  the app; its own networking (NSURLSession) does not read them.
+- `isAvailable()` is true when the bundle has the data folder. `unavailable` and `load_failed` cannot come back: an
+  engine without `digitva_icd11_call` fails the app's link instead.
+- The 250,000-character `too_large` cap (a Binder limit on Android) is kept so both platforms reply alike.
+- `updateWhoFiles()` answers `{ok:false, error:"bundled_only"}`, as the Android service does.
+
+SmartVA. `scripts/build-smartva-ios.sh` builds the same crate and features as `build-smartva-android.sh`
+(`vendor/smartva-analyze/rust`, `--no-default-features --features mobile-core`, `--locked`) with
+`cargo rustc --crate-type staticlib` for `aarch64-apple-ios` and `aarch64-apple-ios-sim`, into
+`private/generated/smartva-ios/SmartvaRust.xcframework` (static library, `smartva_rust.h`, module map);
+`stage-engine.js --ios` copies it to `modules/digitva-smartva/ios/Engine/`. `DigitvaSmartvaModule.swift` repeats
+`SmartvaService`'s request checks, limits (1 MiB request, 2 MiB reply) and result maps on one scoring thread with an 8 MB stack (a Dispatch queue thread has 512 KB);
+`isAvailable()` is always true (linked statically) and `ERR_SMARTVA_PROCESS` never fires.
+
+Device info. `DigitvaDeviceInfoModule.swift` returns the same four keys: `device_type` from the hardware model
+(`iPad…` tablet, `iPhone…`/`iPod…` phone, simulator `emulator`, iOS app on a Mac `other`), `ram_bucket` from
+physical memory, `core_bucket` from the active processor count, `manufacturer` always `apple`. Every field has an iOS
+source. `src/performanceTelemetry.ts` sends on Android and iOS (payload `platform` is `"android"` or `"ios"`, from
+`Platform.OS`; web sends nothing), reading these buckets from this module; the server accepts both platform values and the
+opt-in setting applies to both.
+
+Checked on the iPhone 17 Pro simulator (iOS, Debug, 2026-11-05) through the app's own `runEngineCheck` and
+`runSmartVaEngineCheck`: init ok (first start copy 5 ms, engine 5,241 ms, phases `config=1218 doris=2551 index=5183`;
+second start copy 0 ms, engine 3,744 ms), search "myocardial infarction" 38 results, codeinfo BC42.Z, DORIS of the
+check certificate underlying BA41.Z (cold 36 ms, warm 0.9 ms), CoDEdit ok, `limit: 3` sets `resultChopped`,
+`include: descendant` and bad JSON come back 400, a call before init 503 `not_initialized`, a bad op name
+`ERR_ICD11_OP`; the WHO files kept their shipped sha256 after init. SmartVA's three golden cases matched (adult
+Diabetes E14, child AIDS B24, neonate Neonatal Pneumonia), version `SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)`.
+Parity with WHO's container, the same kit and comparison as the Android phone
+(`IOS_SIM=<udid> scripts/icd11-parity/eval.sh quick|full`, runner `scripts/icd11-parity/run_ios_sim.sh`): the
+harness `phone_harness.c` is built for `arm64-apple-ios-simulator`, linked to the simulator slice of
+`DigitvaIcd11Engine.framework` (sha256 `ac4f55ee…`) and run with `xcrun simctl spawn`, with the app's data files,
+`TMPDIR` and dead proxy as `EngineHost.swift` sets them. Full run on the iPhone 17 simulator (iOS 26.5, Apple
+Silicon Mac, 2026-11-05) against the 2.6.0 container: 30,784 request lines, 30,089 identical, 695 refused on both
+sides, none different or one-sided, the same split per section as the Android full run of 2026-10-30
+(`scripts/icd11-parity/results/2026-11-05-full-engine-local-ios-sim/`):
+
+| section | requests | identical | refused by both | different |
+| --- | --: | --: | --: | --: |
+| generated certificates (DORIS + CoDEdit) | 10,000 | 10,000 | 0 | 0 |
+| earlier DORIS suite | 10,000 | 10,000 | 0 | 0 |
+| erroneous certificates | 10 | 10 | 0 | 0 |
+| golden (server's recorded WHO reads) | 1,593 | 1,587 | 6 | 0 |
+| sweep (coding-screen reads) | 8,909 | 8,261 | 648 | 0 |
+| search texts | 92 | 91 | 1 | 0 |
+| code info | 57 | 49 | 8 | 0 |
+| generic calls and bounds | 118 | 90 | 28 | 0 |
+| malformed requests | 5 | 1 | 4 | 0 |
+
+The Android phone (SM-E146B, engine 2026.10.29.1) ran the same 30,784 lines the same day with the identical
+split (`results/2026-11-05-full-engine-2026.10.29.1-android-2026-11-05/`), so both platforms agree with WHO on one
+request list. One request more than the Android run of 2026-10-30 (golden 1,593, was 1,592) because `scripts/icd11-golden/fixtures` gained one since
+2026-10-30. Init took 4.9 s; resident memory 565 MB after init, 1,281 MB peak (Mach resident size, not
+`phys_footprint`, and no jetsam limit on the simulator). The simulator runs on the Mac's CPU, about 5 to 10 times
+faster than the SM-E146B (DORIS median 0.4 ms against 3.4 ms), so its timings say nothing about an iPhone.
+
+SmartVA, same day: all 8,399 cases the dev server has scored gave byte-identical replies on the iOS
+Simulator and the Android phone, and every one matches the server's current engine
+(`scripts/smartva-parity`, details in `docs/current-state/smartva-analysis.md`).
+
+Not yet: a real device (the `ios-arm64` slice, jetsam, signing, the sandbox), a release build, the app's own engine
+path under the kit (the harness calls the framework directly, not through `EngineWorker`), and an iOS release
+workflow (CI builds neither xcframework).
 
 ## Known gaps
 

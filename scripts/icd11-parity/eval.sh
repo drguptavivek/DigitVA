@@ -12,8 +12,10 @@
 #
 # Needs what run_phone.sh needs: a phone on adb, the Android NDK, gh, python3, the WHO container on 127.0.0.1:8382. ENGINE_SO and STAGED
 # (run_phone.sh) test a locally built library; the directory name then says "local".
+# IOS_SIM=<udid of a booted simulator> runs the iOS engine on the iOS Simulator instead (run_ios_sim.sh); the directory then says
+# "local-ios-sim" and run.json records the simulator and the framework in place of the phone and the APK.
 #
-# usage: [ENGINE_SO=... STAGED=...] scripts/icd11-parity/eval.sh quick|full [RUN_NAME]
+# usage: [ENGINE_SO=... STAGED=... | IOS_SIM=<udid>] scripts/icd11-parity/eval.sh quick|full [RUN_NAME]
 set -euo pipefail
 profile=${1:?usage: eval.sh quick|full [RUN_NAME]}
 run_name=${2:-}
@@ -27,9 +29,10 @@ case "$profile" in
   *) echo "profile must be quick or full" >&2; exit 2 ;;
 esac
 case "$run_name" in *[!A-Za-z0-9._-]*) echo "RUN_NAME may hold letters, digits, . _ - only" >&2; exit 2 ;; esac
-engine="${ENGINE_SO:+local}"; engine="${engine:-$ICD11_ENGINE_VERSION}"
+engine="${ENGINE_SO:+local}${IOS_SIM:+local}"; engine="${engine:-$ICD11_ENGINE_VERSION}"
+runner=run_phone.sh; [ -z "${IOS_SIM:-}" ] || runner=run_ios_sim.sh
 date_utc="$(date -u +%Y-%m-%d)"
-out="$here/results/${date_utc}-${profile}-engine-${engine}${run_name:+-$run_name}"
+out="$here/results/${date_utc}-${profile}-engine-${engine}${IOS_SIM:+-ios-sim}${run_name:+-$run_name}"
 [ ! -e "$out" ] || { echo "$out exists; pick another RUN_NAME" >&2; exit 2; }
 
 tmp="$(mktemp -d)"
@@ -40,7 +43,7 @@ python3 "$here/make_certificates.py" "$tmp/regenerated.jsonl" "$certificates"
 cmp -s "$tmp/ours.jsonl" "$tmp/regenerated.jsonl" || { echo "make_certificates.py $certificates no longer reproduces datasets/hash-synthetic-10k" >&2; exit 3; }
 
 status=0
-OURS="$tmp/ours.jsonl" CERTIFICATES="$certificates" "$here/run_phone.sh" "$tmp/run" "$suite" "$sections" || status=$?
+OURS="$tmp/ours.jsonl" CERTIFICATES="$certificates" "$here/$runner" "$tmp/run" "$suite" "$sections" || status=$?
 # compare.py exits 1 on a mismatch and still prints its table; any other failure leaves no table.
 grep -q '^requests:' "$tmp/run/summary.txt" 2>/dev/null || { echo "run failed before the comparison (exit $status); work kept in $tmp" >&2; exit $((status ? status : 1)); }
 
@@ -48,7 +51,7 @@ mkdir -p "$out"
 for name in requests phone container; do gzip -9n -c "$tmp/run/$name.tsv" > "$out/$name.tsv.gz"; done
 cp "$tmp/run/summary.txt" "$out/summary.txt"
 
-phone_prop() { adb shell getprop "$1" 2>/dev/null | tr -d '\r' || true; }
+phone_prop() { [ -n "${IOS_SIM:-}" ] || adb shell getprop "$1" 2>/dev/null | tr -d '\r' || true; }
 container_id="$(docker ps -q --filter publish=8382 2>/dev/null | head -n 1 || true)"
 container_image=unknown
 if [ -n "$container_id" ]; then
@@ -86,11 +89,18 @@ engine = {"version": env["ENGINE_LABEL"], "tag": provenance.get("ENGINE_TAG"), "
           "so_sha256": provenance.get("ENGINE_SO_SHA256") or provenance.get("ENGINE_LOCAL_SO_SHA256")}
 libs = ({"source": "Collect Plus APK", "tag": provenance["LIBS_PLUS_TAG"], "apk": provenance["LIBS_PLUS_APK"], "apk_sha256": provenance["LIBS_PLUS_APK_SHA256"]}
         if "LIBS_PLUS_TAG" in provenance else {"source": "STAGED", "path": provenance.get("STAGED")})
+ios = "IOS_SIM_UDID" in provenance
+if ios:
+    engine = {"version": env["ENGINE_LABEL"], "ios_xcframework": provenance["IOS_XCFRAMEWORK"],
+              "ios_simulator_framework_sha256": provenance["IOS_FRAMEWORK_SHA256"],
+              "data": provenance["ENGINE_DATA"], "data_sha256": provenance["ENGINE_DATA_SHA256"]}
 info = {
     "date_utc": env["RUN_DATE"], "profile": env["PROFILE"], "requests": sum(counts.values()), "requests_by_section": counts,
     "kit_commit": env["KIT_COMMIT"], "kit_tree_dirty": env["KIT_DIRTY"] == "true", "compare_commit": env["COMPARE_COMMIT"],
-    "engine": engine, "openssl_libcxx_libs": libs,
-    "phone": {"model": env["PHONE_MODEL"] or None, "android": env["PHONE_ANDROID"] or None},
+    "engine": engine,
+    **({"ios_simulator": {"model": provenance["IOS_SIM_MODEL"], "ios": provenance["IOS_SIM_RUNTIME"], "udid": provenance["IOS_SIM_UDID"],
+                          "host_arch": os.uname().machine}} if ios else
+       {"openssl_libcxx_libs": libs, "phone": {"model": env["PHONE_MODEL"] or None, "android": env["PHONE_ANDROID"] or None}}),
     "container_image": env["CONTAINER_IMAGE"], "datasets_sha256": datasets, "compare_exit_status": int(env["STATUS"]), "backfilled": False,
 }
 pathlib.Path(env["OUT"], "run.json").write_text(json.dumps(info, indent=2) + "\n")

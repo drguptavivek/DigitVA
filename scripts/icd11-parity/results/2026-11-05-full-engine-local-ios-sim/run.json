@@ -1,0 +1,54 @@
+{
+  "date_utc": "2026-11-05",
+  "profile": "full",
+  "requests": 30784,
+  "requests_by_section": {
+    "ours": 10000,
+    "suite": 10000,
+    "edge": 10,
+    "malformed": 5,
+    "search": 92,
+    "codeinfo": 57,
+    "call": 118,
+    "golden": 1593,
+    "sweep": 8909
+  },
+  "kit_commit": "f01f3e68fa2d39e8709a37f8efbea95e4fe9d961",
+  "kit_tree_dirty": true,
+  "compare_commit": "e3bc4a227e6459bee147c9e0496e6707c099293f",
+  "engine": {
+    "version": "local",
+    "ios_xcframework": "/Users/vivekgupta/workspace/DigitVA/private/icd11-offline-spike/bridge-aot/pub-ios/DigitvaIcd11Engine.xcframework",
+    "ios_simulator_framework_sha256": "ac4f55ee45965d2c3236bfe6676188e4c632254a9ad5b38bb09a71bd5f733656",
+    "data": "/Users/vivekgupta/workspace/DigitVA/private/icd11-offline-spike",
+    "data_sha256": "fa717507fbf1237811ecac0b442a93e8b0735c46b113799c17f80cd4de61b36c"
+  },
+  "ios_simulator": {
+    "model": "iPhone 17",
+    "ios": "iOS-26-5",
+    "udid": "12536057-9452-418C-AFEE-5DFDD85CE2CC",
+    "host_arch": "arm64"
+  },
+  "container_image": "whoicd/icd-api@sha256:1b77eb6dc43e0c65a12e9e9340ad178493c93488e728d0d936507cc57ada1b7c",
+  "datasets_sha256": {
+    "hash-synthetic-10k/certificates.jsonl": "aa1eea021f3f7ddf389978600a43b374805ec1fb7f2d641b4afdb2575b15b9b4",
+    "certificates sent": "aa1eea021f3f7ddf389978600a43b374805ec1fb7f2d641b4afdb2575b15b9b4",
+    "queries.json": "10a1933c2ae027508722bc9cb055b17d6b67c81834b70188300ef231afc208aa",
+    "calls.json": "2afb04a681c7912a22adc98c96b8a5c495df04658c9c2f6d69d2e2ee6315b4d8",
+    "golden (scripts/icd11-golden/fixtures)": {
+      "requests_sha256": "94dcbf28c3f30a467e424888c3c825e42da862100a2572f0d62adee0f6340d35",
+      "calls": 1432,
+      "certificates": 161,
+      "manifest_sha256": "fe1c57ff8b6ef2930d583f49cb86d4a57c27745b7ecd2b36138dcb6b8219b0a0"
+    },
+    "api-sweep/calls.jsonl": "ac1528317bd286d626934d0d4632ebdde9c75def40d959968906867ccf5d7a6c",
+    "clinical-variants-10k": {
+      "edge_inputs.jsonl": "3d17ac57b3fcfe349f32031583be6fd9710c7c0a22049b7cb8ea8142bcc89c2f",
+      "edge_oracle.jsonl": "240fb2c8e1eb61adde357052ee3d0f6374ede90466cc96703b8a1af899f333ab",
+      "inputs_all.jsonl": "7d374562b6149dcd0a06454bc859e3cd1a08d3286a8089ea9ef43106527ee0ae",
+      "oracle_results.jsonl": "489c7423819f62d5e3be9c9abf1e259509acbc5a51341a0dd421fa8b7681dd68"
+    }
+  },
+  "compare_exit_status": 0,
+  "backfilled": false
+}

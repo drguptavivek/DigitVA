@@ -87,6 +87,18 @@ directory outside the repo; its path is printed. A library built locally is test
 (see `run_phone.sh`); the directory then says `engine-local`. `run_phone.sh WORK_DIR SUITE_FIXTURES_DIR|- [golden][,sweep]` alone does the phone, container and compare steps into a work directory of
 your choice (without the third argument, the earlier list of 472).
 
+### iOS Simulator
+
+    IOS_SIM=<udid of a booted simulator> scripts/icd11-parity/eval.sh quick|full [RUN_NAME]
+
+Runs the iOS engine (`DigitvaIcd11Engine.xcframework` from `engine-src/build-ios.sh`, its `ios-arm64-simulator` slice) instead of the
+phone, through `run_ios_sim.sh`: the same `phone_harness.c` built with `xcrun --sdk iphonesimulator clang`, started with
+`xcrun simctl spawn` (no app installed, no app data touched), on the files `stage-engine.js --list` names from
+`private/icd11-offline-spike` (`IOS_XCFRAMEWORK`, `ENGINE_DATA` override), then the same `run_container.py` and `compare.py`. Needs Xcode,
+node, python3 and the container. The directory says `engine-local-ios-sim`; `run.json` records the simulator (model, iOS runtime, host
+arch) and the framework's and data files' sha256 in place of the phone and the APK. The simulator runs arm64 on the Mac's CPU and memory:
+it says nothing of a device's speed or memory limit, and the `ios-arm64` device slice is not run.
+
 ### Regenerate the sweep
 
     python3 scripts/icd11-parity/make_sweep.py            # asks the container (read-only), writes datasets/api-sweep/
@@ -117,6 +129,9 @@ One directory per run, `<date>-<profile>-engine-<engine version or local>[-<RUN_
 | 2026-10-30 | full (`surface`, first run with `golden` and `sweep`) | 2026.10.29.1 | 30,783 | no mismatch: 30,088 same, 695 refused on both sides (648 sweep, 28 calls, 8 code info, 6 golden, 4 malformed, 1 search) |
 | 2026-10-30 | full (`apk-0.3.18`: engine, OpenSSL and libc++ from the published Collect Plus 0.3.18 APK) | 2026.10.29.1 | 30,783 | no mismatch: 30,088 same, 695 refused on both sides |
 | 2026-10-30 | quick (`cleanroom`: engine library from a clean-room build in a fresh Ubuntu container from the GitHub clone and WHO's public inputs, sha256 `30fc17da…`) | local | 2,064 | no mismatch: 2,017 same, 47 refused on both sides |
+| 2026-11-05 | quick (`ios-sim`: iOS engine, `ios-arm64-simulator` slice of `DigitvaIcd11Engine.xcframework` sha256 `ac4f55ee…`, iPhone 17 simulator, iOS 26.5, Apple Silicon host) | local | 2,065 | no mismatch: 2,018 same, 47 refused on both sides. `golden` is 1,593 (the golden fixtures gained one request since 2026-10-30) |
+| 2026-11-05 | full (`ios-sim`, as above) | local | 30,784 | no mismatch: 30,089 same, 695 refused on both sides (648 sweep, 28 calls, 8 code info, 6 golden, 4 malformed, 1 search) |
+| 2026-11-05 | full (`android-2026-11-05`, SM-E146B, same request list as the iOS Simulator run) | 2026.10.29.1 | 30,784 | no mismatch: 30,089 same, 695 refused on both sides, the iOS split exactly |
 
 Each row is a folder in `results/`; `run.json` of each says what is unknown (null). The 2026-10-29 `summary.txt` must be read with the comparer of
 commit `0e2b603d1`.

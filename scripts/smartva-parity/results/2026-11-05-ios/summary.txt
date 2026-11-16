@@ -1,0 +1,102 @@
+SmartVA parity: ios engine vs the server's stored result
+engine version: SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)
+cases: 8399, phone replies: 8399
+server ICD table (merged) vs the phone's table: same code for every phone cause
+
+server engine unrecorded (before 2026-10-22): 7306 cases
+  identical: 7103
+  different: 203
+    differs in keysymptom2: 88
+    differs in keysymptom1: 88
+    differs in keysymptom3: 36
+server engine SmartVA-Analyze 3.0.0-rust (smartva-rust 0.2.0): 1086 cases
+  identical: 969
+  identical: no prediction on either side: 117
+server engine SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2): 4 cases
+  identical: 2
+  server never ran the engine (execution failure), not compared: 2
+server engine unrecorded, options recorded: 3 cases
+  identical: 2
+  different: 1
+    differs in phone predicts, server had no output row: 1
+
+input, phone cleaner vs server cleaner (cases): phone drops fields the server read 8278, phone adds fields 0, numbers spelt differently (phone-cleaned variant) 193, other value differences 0
+latency ms: first call 82.5; rest median 26.0, p95 27.8, max 36.2
+peak RSS: 80 MiB
+
+vs 2026-11-05-android (engine SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)): 8399 of 8399 replies byte-identical (rc and body), 0 seen on one side only
+
+verdict: MISMATCH
+
+----
+
+SmartVA parity: ios engine vs the server's current engine (rescore_server.py)
+engine version: SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)
+cases: 8399, phone replies: 8399
+server ICD table (merged) vs the phone's table: same code for every phone cause
+
+server engine unrecorded (before 2026-10-22): 7306 cases
+  identical: 7306
+server engine SmartVA-Analyze 3.0.0-rust (smartva-rust 0.2.0): 1086 cases
+  identical: 969
+  identical: no prediction on either side: 117
+server engine SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2): 4 cases
+  identical: 4
+server engine unrecorded, options recorded: 3 cases
+  identical: 3
+
+input, phone cleaner vs server cleaner (cases): phone drops fields the server read 8278, phone adds fields 0, numbers spelt differently (phone-cleaned variant) 193, other value differences 0
+latency ms: first call 82.5; rest median 26.0, p95 27.8, max 36.2
+peak RSS: 80 MiB
+
+verdict: PASS (every compared case identical)
+
+----
+
+app-cleaned input (requests-phone.tsv), informational, not in the exit status:
+SmartVA parity: ios, app-cleaned input engine vs the server's current engine (rescore_server.py)
+engine version: SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)
+cases: 8399, phone replies: 8399
+server ICD table (merged) vs the phone's table: same code for every phone cause
+
+server engine unrecorded (before 2026-10-22): 7306 cases
+  identical: 7278
+  different: 28
+    differs in allsymptoms: 28
+    differs in likelihood3: 7
+    differs in cause3: 5
+    differs in cause3icd: 5
+    differs in likelihood1: 5
+    differs in likelihood2: 5
+    differs in keysymptom3: 4
+    differs in cause2: 2
+    differs in keysymptom2: 2
+    differs in cause2icd: 2
+    differs in cause1: 1
+    differs in keysymptom1: 1
+    differs in cause1icd: 1
+server engine SmartVA-Analyze 3.0.0-rust (smartva-rust 0.2.0): 1086 cases
+  identical: 960
+  identical: no prediction on either side: 117
+  different: 9
+    differs in allsymptoms: 9
+    differs in cause3: 2
+    differs in likelihood3: 2
+    differs in keysymptom3: 2
+    differs in cause3icd: 2
+    differs in age: 1
+    differs in cause2: 1
+    differs in keysymptom2: 1
+    differs in cause2icd: 1
+server engine SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2): 4 cases
+  identical: 4
+server engine unrecorded, options recorded: 3 cases
+  identical: 3
+
+input, phone cleaner vs server cleaner (cases): phone drops fields the server read 8278, phone adds fields 0, numbers spelt differently (phone-cleaned variant) 193, other value differences 0
+latency ms: first call 71.3; rest median 26.7, p95 28.5, max 41.4
+peak RSS: 80 MiB
+
+vs 2026-11-05-ios (engine SmartVA-Analyze 3.0.1-rust (smartva-rust 3.0.2)): 8362 of 8399 replies byte-identical (rc and body), 0 seen on one side only
+
+verdict: MISMATCH

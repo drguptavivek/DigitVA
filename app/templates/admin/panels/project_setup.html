@@ -396,6 +396,22 @@
                       <option value="inactive">⏸ Inactive user accounts</option>
                     </select>
                   </div>
+                  <div class="col-md-4">
+                    <select id="setup-ug-role" class="form-select form-select-sm" aria-label="Filter users by role held">
+                      <option value="">Any role</option>
+                      <option value="interviewer">Interviewer</option>
+                      <option value="interview_supervisor">Interview Supervisor</option>
+                      <option value="death_reporter">Death Reporter</option>
+                      <option value="coder">Coder</option>
+                      <option value="coding_tester">Coding Tester</option>
+                      <option value="reviewer">Reviewer</option>
+                      <option value="data_manager">Data Manager</option>
+                      <option value="site_pi">In-charge (Site PI)</option>
+                      <option value="project_pi">Project PI</option>
+                      <option value="collaborator">Viewer</option>
+                      <option value="collaborator_pii">Viewer (with PII)</option>
+                    </select>
+                  </div>
                   <div class="col-md-8">
                     <div class="input-group input-group-sm">
                       <span class="input-group-text" title="Account created between these dates (inclusive)">Account created</span>
@@ -1072,9 +1088,13 @@
     if (!_ugData || !_ugData.users) return [];
     var q = (document.getElementById('setup-ug-search').value || '').trim().toLowerCase();
     var flt = document.getElementById('setup-ug-filter').value || '';
+    var role = document.getElementById('setup-ug-role').value || '';
     var createdFrom = document.getElementById('setup-ug-created-from').value || '';
     var createdTo = document.getElementById('setup-ug-created-to').value || '';
     return _ugData.users.filter(function (u) {
+      // An active grant of that role, at project, site or unit scope.
+      if (role && !(u.project_grants || []).some(function (pg) { return pg.role === role; })
+          && !Object.keys(u.unit_roles_by_unit || {}).some(function (k) { return (u.unit_roles_by_unit[k] || []).indexOf(role) >= 0; })) return false;
       if (createdFrom || createdTo) {
         // The viewer's local calendar day of creation, compared as YYYY-MM-DD; both ends inclusive.
         var made = u.user_created_at ? new Date(u.user_created_at) : null;
@@ -1473,7 +1493,7 @@
   if (ugSearch) ugSearch.addEventListener('input', renderUgAll);
   var ugFilter = document.getElementById('setup-ug-filter');
   if (ugFilter) ugFilter.addEventListener('change', renderUgAll);
-  ['setup-ug-created-from', 'setup-ug-created-to'].forEach(function (id) {
+  ['setup-ug-role', 'setup-ug-created-from', 'setup-ug-created-to'].forEach(function (id) {
     var input = document.getElementById(id);
     if (input) input.addEventListener('change', renderUgAll);
   });

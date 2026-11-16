@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-05
+last_updated: 2026-11-16
 ---
 
 # Access Control Model
@@ -840,6 +840,27 @@ is refused with a message to set them on the admin Users panel. One save is one 
 nothing written. Each grant change is audited (`log_grant_action`) and the
 grantee's authorization cache invalidated, as the importer's
 `finalize_apply` does. An admin may not deactivate their own account here.
+
+## Project membership (owner 2026-11-16, digitva-plgm)
+
+A project member is a row in `map_project_members` (project, user, who
+added it, when). It records that a person belongs on a project's roster so
+a trainer can place them later. **It grants nothing.** No authorization
+path reads it: `authz.resolve_grants`, `can_manage_project`, PII scope,
+device access and every project route ignore it, so a member with no grant
+has exactly the access of a stranger. Access still comes only from
+`va_user_access_grants`; placing a member (unit + cadre on the roster)
+writes the cadre's default grants through the usual `can_grant` checks.
+
+Members are added from the Project Setup roster's "Upload users CSV"
+(`name, email, phone`), by the roles that manage the project's roster
+(admin, the project's `project_pi`; organization-mode projects only, as
+every roster write). The upload is a preview then an all-or-nothing apply;
+the account rules are in
+[Account Onboarding](account-onboarding-and-passwords.md#roster-upload-of-project-members-owner-2026-11-16-digitva-plgm).
+Each membership added is audited (`project_member_added` security event,
+project id only, no name, email or phone). Removing a member is not offered
+yet.
 
 ## Closed Projects
 

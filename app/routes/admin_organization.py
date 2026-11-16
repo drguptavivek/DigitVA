@@ -1262,6 +1262,86 @@ def admin_project_users_grid(project_id):
     return jsonify(data)
 
 
+@admin.get("/api/projects/<project_id>/users-grid/members/template.csv")
+@role_required("admin", "project_pi")
+def admin_project_members_template(project_id):
+    if err := _guard(project_id):
+        return err
+    return current_app.response_class(
+        user_import.template_csv(user_import.MEMBER_HEADERS), mimetype="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="project_members_template.csv"'},
+    )
+
+
+@admin.post("/api/projects/<project_id>/users-grid/members/import")
+@role_required("admin", "project_pi")
+def admin_project_members_import(project_id):
+    """Upload ``name, email, phone`` rows as project members (digitva-plgm).
+
+    ``dry_run`` (default ``1``) previews each row's action and writes
+    nothing; ``dry_run=0`` writes every row or, when any row is refused,
+    nothing (400 with the rows). Membership grants no access
+    (docs/policy/access-control-model.md, "Project membership"); no sign-in
+    code is issued here.
+    """
+    if err := _guard(project_id):
+        return err
+    actor_user_id = current_user.user_id
+    request.max_content_length = user_import.MAX_BYTES + 64 * 1024
+    try:
+        uploaded = request.files.get("file")
+    except RequestEntityTooLarge:
+        return _json_error("The upload exceeds the 1 MB limit.", 413)
+    if uploaded is None or not uploaded.filename or not uploaded.filename.lower().endswith((".csv", ".xlsx")):
+        return _json_error("Upload a users CSV or XLSX as 'file'.", 400)
+    dry_run = request.form.get("dry_run", "1") != "0"
+    # Lines the admin ticked "Reactivate and add" for (off unless ticked).
+    reactivate_rows = {int(part) for part in request.form.get("reactivate", "").split(",")
+                       if part.strip().isascii() and part.strip().isdigit()}
+    try:
+        rows = user_import.parse_upload(uploaded.stream, uploaded.filename, user_import.MEMBER_HEADERS,
+                                        max_rows=user_import.MEMBER_MAX_ROWS)
+        items = user_import.prepare_members(project_id, rows, actor=current_user,
+                                            reactivate_rows=reactivate_rows)
+        # The row's own uploaded data (the caller's file), never the matched account's fields.
+        preview = [{"row": item["row"], "identity": item["display"], **item["row_data"],
+                    "action": item["action"], "reason": item.get("reason"),
+                    "can_reactivate": item.get("reason") == "existing user is deactivated"
+                    and current_user.is_admin()} for item in items]
+        counts = {action: sum(item["action"] == action for item in items)
+                  for action in ("create", "add_existing", "reactivate", "already_member", "refuse")}
+        if dry_run:
+            return jsonify({"dry_run": True, "rows": preview, "counts": counts})
+        if counts["refuse"]:
+            return jsonify({"error": "Fix the refused rows and upload again; nothing was written.",
+                            "rows": preview, "counts": counts}), 400
+        invitations, added = user_import.apply_members(project_id, items, actor_user_id=actor_user_id)
+        db.session.commit()
+    except user_import.ProjectUserImportError as exc:
+        db.session.rollback()
+        return _json_error(str(exc), 400)
+    except sa.exc.IntegrityError:
+        db.session.rollback()
+        log.warning("project members import conflict | project=%s by=%s", project_id, actor_user_id)
+        return _json_error("Another change touched these accounts; preview the file again.", 409)
+    except Exception:
+        db.session.rollback()
+        log.exception("project members import failed | project=%s", project_id)
+        return _json_error("The users upload failed.", 500)
+    invitations_queued, invite_warnings = user_import.finalize_apply(
+        project_id,
+        actor_user_id=actor_user_id,
+        actor_role="admin" if current_user.is_admin() else "project_pi",
+        changed_grants=[],
+        invitations=invitations,
+        request_ip=request.remote_addr,
+    )
+    log.info("project members import | project=%s by=%s rows=%s added=%s created=%s",
+             project_id, actor_user_id, len(items), added, counts["create"])
+    return jsonify({"dry_run": False, "rows": preview, "counts": counts, "added": added,
+                    "invitations_queued": invitations_queued, "invite_warnings": invite_warnings})
+
+
 @admin.post("/api/projects/<project_id>/users-grid/bulk-apply")
 @admin.post(f"{_API}/users-grid/bulk-apply")
 @role_required("admin", "project_pi")

@@ -160,6 +160,7 @@ PLAN: tuple[tuple[str, str], ...] = (
     ("map_mentor_institute_user", "user_id = :u"),
     ("mas_org_unit_worker", "user_id = :u"),
     ("map_training_participants", "user_id = :u"),
+    ("map_project_members", "user_id = :u"),
     ("va_user_access_grants", "user_id = :u"),
     ("va_users", "user_id = :u"),
 )

@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-15
+last_updated: 2026-11-16
 ---
 
 # Admin And Setup Model
@@ -45,7 +45,13 @@ The `/admin` interface provides the following management panels:
        `Intake PII`, `Own Register PII`, `Non-PII (Blinded)`), project/site grants,
        and unit-level grants with smart multi-unit grouping (`Own unit`, `All N
        units at level`, `Cross-tree: All N other units`, or expandable inline unit
-       drawer). Its sticky **2-Dropdown Bulk Apply Bar** pairs **Dropdown 1 (Role
+       drawer). On an organization project, **Upload users CSV** (`name, email,
+       phone`; template `GET .../users-grid/members/template.csv`, preview then
+       apply `POST .../users-grid/members/import`, digitva-plgm) adds project
+       members, which grant nothing and appear as "Not placed in a unit" until
+       Place gives unit, cadre and the cadre's default roles; an admin sees
+       **Issue code** on mobile-only or unverified-email rows (the admin
+       sign-in-code endpoint, shown once). Its sticky **2-Dropdown Bulk Apply Bar** pairs **Dropdown 1 (Role
        or Action)** — exposing `Coder (Non-PII)` (`coder_non_pii`), `Coder (with PII)`
        (`coder_pii`, pairing `coder` + `collaborator_pii`), `Reviewer (Non-PII)`
        (`reviewer_non_pii`), `Reviewer (with PII)` (`reviewer_pii`), `Coding Tester`,

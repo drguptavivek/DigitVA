@@ -578,11 +578,12 @@ runs before the remaining terms and maintenance gates.
 | `POST /data-management/api/users/<id>/sign-in-code` | data-manager gate | `may_issue_code`: the target holds at least one active grant, the caller may manage **every** active grant (`authz.grant_list_filter`), none of them is `admin`, `project_pi`, `site_pi` or `data_manager` or global-scoped, and the target has **no verified email**. Anyone failing this gets the same 404 "User not found." as an unknown id. 20 per hour per caller. |
 | `POST /admin/api/users/<id>/sign-in-code` | admin | any account |
 | account creation (admin, DM page, import, mentor staff) | as section 1 | automatically for a new mobile-only account |
+| roster member upload (`POST /admin/api/projects/<id>/users-grid/members/import`) | admin; project PI for existing accounts only | **no** code at upload; the roster row's "Issue code" calls the admin endpoint above later (codes last 90 minutes) |
 
 `issue_code` locks the user row, voids any live code (`mobile_code_voided`,
 reason `reissued`), stores only a keyed hash (bound to the user id), sets a
-72-hour expiry, records `mobile_code_issued`, and returns the code once.
-Responses: 200 `{"sign_in_code": "123456", "expires_in_hours": 72}`,
+90-minute expiry, records `mobile_code_issued`, and returns the code once.
+Responses: 200 `{"sign_in_code": "ABCD-EF23", "expires_in_minutes": 90, "expires_in_hours": 1.5}`,
 `Cache-Control: no-store`.
 
 ### 4.2 Redeeming: `GET|POST /vaauth/valogin/code`
@@ -1220,7 +1221,7 @@ account also holds an administrator or data-manager role.
 | PUT `/admin/api/users/<id>` | admin | any of `email`+`email_confirm`, `name`, `phone`, `year_of_birth`, `sex`, `status`, `languages` | 200 `{user}`; 400 (incl. `password` key refused) | default | email change bumps session version and sends a link; `phone` via `assign_phone` |
 | POST `/admin/api/users/<id>/resend-verification` | admin | none | `{message}`; 400 mobile-only, already verified, or nothing sent ("Email delivery is off for this address; no verification email was sent."); 500 | default | `verification_email_sent` (actor) |
 | POST `/admin/api/users/<id>/send-password-reset` | admin | none | `{"message": "Password reset link sent."}`; 400 no verified email or delivery off; 500 | default | queues a reset link; the link generates the password |
-| POST `/admin/api/users/<id>/sign-in-code` | admin | none | `{sign_in_code, expires_in_hours: 72}` (`no-store`) | default | any account; `mobile_code_issued` |
+| POST `/admin/api/users/<id>/sign-in-code` | admin | none | `{sign_in_code, expires_in_minutes: 90, expires_in_hours: 1.5}` (`no-store`) | default | any account; `mobile_code_issued` |
 | POST `/admin/api/users/<id>/toggle` | admin | none | `{user_id, status}`; 400 for self | default | deactivation ends sessions via `is_active` |
 | POST `/admin/api/users/<id>/reset-factors` | admin | `{"reason"}` | `{message, user_id, email_sent}`; 400 self or no reason | default | clears active passkeys and inert legacy factor records, bumps the session version, records `factor_reset` |
 | POST `/admin/api/projects/<project_id>/device-enrolments` | admin | `{expires_in_minutes?, max_uses?}` | 201 `{code, qr_payload, qr_svg, expires_at, max_uses}` | default | `device_enrolment_code_created` |
@@ -1234,7 +1235,7 @@ account also holds an administrator or data-manager role.
 | GET `/data-management/api/users/lookup` | data-manager gate | `?value=` full email or mobile | `{"users": [{user_id, name, email, status, posts}]}` | 10/min | active accounts only, no partial match |
 | PUT `/data-management/api/users/<id>` | data-manager gate | `email`+`email_confirm` and/or `languages` | 200 `{user}`; 403 email edit not allowed; 404 | default | email only for own never-signed-in accounts |
 | POST `/data-management/api/users/<id>/resend-verification` | data-manager gate | none | `{message}`; 400 mobile-only, verified, or nothing sent (same message); 404; 500 | default | `verification_email_sent` (actor) |
-| POST `/data-management/api/users/<id>/sign-in-code` | data-manager gate | none | `{sign_in_code, expires_in_hours: 72}` (`no-store`); 404 when not allowed | 20/hour per caller | `may_issue_code` (section 4.1) |
+| POST `/data-management/api/users/<id>/sign-in-code` | data-manager gate | none | `{sign_in_code, expires_in_minutes: 90, expires_in_hours: 1.5}` (`no-store`); 404 when not allowed | 20/hour per caller | `may_issue_code` (section 4.1) |
 
 Every account creation records `account_created` (actor, `via`,
 `mobile_only`; never an identifier); every queued verification email

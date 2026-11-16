@@ -47,6 +47,13 @@ from app.utils.password_policy import (
 )
 
 CODE_TTL = timedelta(minutes=90)
+
+
+def code_lifetime():
+    """The issue responses' lifetime fields: ``expires_in_minutes``, and
+    ``expires_in_hours`` kept for callers that read the older field."""
+    minutes = int(CODE_TTL.total_seconds() // 60)
+    return {"expires_in_minutes": minutes, "expires_in_hours": minutes / 60}
 # Capitals and digits without the look-alikes 0 O 1 I L: read aloud or copied by hand without mistakes.
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 MAX_CODE_FAILURES = 5

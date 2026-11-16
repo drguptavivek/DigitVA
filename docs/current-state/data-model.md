@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-15
+last_updated: 2026-11-16
 ---
 
 # Current Data Model
@@ -306,6 +306,19 @@ rows here keep the Project > Site > Form model.
   `org_unit_id`, `cadre_id`, `phone`, optional `user_id` (`va_users`), `remarks`,
   `is_active`
 - name and phone are personal data
+
+### `map_project_members` (`digitva-plgm`, migration `d8a2f4c6e1b3`)
+
+- a person on a project's roster with no implied access: `project_member_id`,
+  `project_id` (`va_project_master`), `user_id` (`va_users`, indexed),
+  `added_by_user_id` (`va_users`, nullable, `ON DELETE SET NULL` so a purged
+  adder keeps the membership), `added_at` (timezone-aware); unique on
+  (`project_id`, `user_id`)
+- written only by the Project Setup roster's "Upload users CSV"
+  (`project_user_import_service.prepare_members` / `apply_members`); read
+  only by `get_project_users_grid`, which lists members with no grant or
+  worker as "Not placed in a unit". No authorization path reads it
+  (docs/policy/access-control-model.md, "Project membership")
 
 ### Data-collection gate (`digitva-jeyy`, migration `c3f9a2d6e8b4`)
 

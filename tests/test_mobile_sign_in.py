@@ -676,6 +676,8 @@ class MobileCreatePathTests(AuthzFixtureMixin, MobileSignInTestBase):
         allowed = issue(inside)
         self.assertEqual(allowed.status_code, 200, allowed.get_json())
         self.assertRegex(allowed.get_json()["sign_in_code"], r"^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$")
+        self.assertEqual((allowed.get_json()["expires_in_minutes"], allowed.get_json()["expires_in_hours"]),
+                         (90, 1.5))
         self.assertEqual(issue(outside).status_code, 404)
         self._as("admin")
         self.assertEqual(issue(outside).status_code, 200)

@@ -311,7 +311,8 @@ class PurgeBase(PublicDemoBase):
     #: station configuration, which a demo account never has; nor does it
     #: file a staff deletion request (it deletes itself).
     UNSEEDED = {"va_bundle_ingests", "map_bundle_records", "va_bundle_pending_coding", "mas_org_unit_worker",
-                "map_mentor_institute_user", "map_training_participants", "auth_mobile_codes",
+                "map_mentor_institute_user", "map_training_participants", "map_project_members",
+                "auth_mobile_codes",
                 "auth_recovery_codes", "auth_totp", "auth_webauthn_credentials",
                 "auth_account_deletion_requests"}
 

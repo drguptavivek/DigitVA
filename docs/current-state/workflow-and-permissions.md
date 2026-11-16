@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-16
 ---
 
 # Workflow And Permissions
@@ -1248,7 +1248,7 @@ verified email (mobile-only, or an email never verified), and they may manage
 `POST /admin/api/users/<id>/sign-in-code`, and automatically in the create
 response for a mobile-only account -- admin, data manager, mentoring
 institute staff and project import); shown once; `auth_mobile_codes` keeps
-only an HMAC hash under the factor key, 72-hour expiry, a new code voids the
+only an HMAC hash under the factor key, 90-minute expiry, a new code voids the
 old, five wrong attempts void it. The person redeems it at
 `va_auth.va_login_redeem_code` (`/vaauth/valogin/code`, "I have a code";
 CAPTCHA, 10 per minute per IP and 10 per hour per identifier, one answer for

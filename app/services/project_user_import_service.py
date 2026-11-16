@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from app import db
 from app.models import (
     MapOrgLevelCadre,
+    MapProjectMember,
     MasCadre,
     MasOrgLevel,
     MasOrgUnit,
@@ -28,6 +29,7 @@ from app.services import authz
 from app.services.mentor_institute_service import check_mentor_grant, member_user_ids
 from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
 from app.services.organization_service import _spreadsheet_safe
+from app.services.security_event_service import record_security_event
 from app.services.tabular_import_service import TabularImportError, parse_table
 from app.services.user_account_service import (
     PHONE_CANONICAL,
@@ -38,8 +40,14 @@ from app.services.user_account_service import (
 )
 
 HEADERS = ("email", "name", "role", "org_unit_code", "cadre_code", "language_codes", "phone")
+#: The roster's member upload (digitva-plgm): identity only, no role or unit.
+MEMBER_HEADERS = ("name", "email", "phone")
+#: A new member account's coding language, as the training import gives one.
+MEMBER_LANGUAGES = ("english",)
 MAX_BYTES = 1024 * 1024
 MAX_ROWS = 1000
+#: The roster members upload is smaller: one training batch at a time.
+MEMBER_MAX_ROWS = 150
 EMAIL_RE = re.compile(r"^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$")
 NOT_PERMITTED = "you are not permitted to grant this role here"
 log = logging.getLogger(__name__)
@@ -49,10 +57,10 @@ class ProjectUserImportError(ValueError):
     """A table or one of its rows cannot be safely imported."""
 
 
-def template_csv():
-    """Return the blank, header-only CSV accepted by this importer."""
+def template_csv(headers=HEADERS):
+    """Return the blank, header-only CSV of *headers* (this importer's by default)."""
     output = io.StringIO()
-    csv.writer(output).writerow(HEADERS)
+    csv.writer(output).writerow(headers)
     return output.getvalue()
 
 
@@ -284,17 +292,17 @@ def template_xlsx(project_id, actor=None):
     return output.getvalue()
 
 
-def parse_upload(stream, filename):
-    """Read a bounded CSV or first-sheet XLSX into user rows."""
+def parse_upload(stream, filename, headers=HEADERS, max_rows=MAX_ROWS):
+    """Read a bounded CSV or first-sheet XLSX into user rows with *headers*."""
     try:
-        rows = parse_table(stream, filename, HEADERS, max_bytes=MAX_BYTES,
-                           max_rows=MAX_ROWS, require_all=True)
+        rows = parse_table(stream, filename, headers, max_bytes=MAX_BYTES,
+                           max_rows=max_rows, require_all=True)
     except TabularImportError as exc:
         raise ProjectUserImportError(str(exc)) from exc
     if not rows:
         raise ProjectUserImportError("The file has no user rows.")
     for row in rows:
-        for header in HEADERS:
+        for header in headers:
             row[header] = str(row[header]) if row[header] is not None else ""
     return rows
 
@@ -618,6 +626,149 @@ def create_account(item, *, actor_user_id, sign_in_code=True):
         code = {"row": item["row"], "mobile": mask_mobile(user.mobile_login), "name": user.name,
                 "sign_in_code": mobile_sign_in_service.issue_code(user, actor_user_id=actor_user_id)}
     return user, code
+
+
+def prepare_members(project_id, rows, *, actor, reactivate_rows=frozenset()):
+    """Resolve each ``MEMBER_HEADERS`` row to a roster action without writing.
+
+    Returns one item per row: ``row``, ``display`` (the row's email, or its
+    mobile masked -- never the matched account's fields), ``action``
+    (``create``, ``add_existing``, ``already_member`` or ``refuse``),
+    ``reason`` (refusals only) and, for ``apply_members``, ``user`` and the
+    ``create_account`` fields. Three queries: accounts by email, accounts
+    holding the file's mobiles (sign-in number or phone), and the project's
+    existing members among them.
+
+    Rules (docs/policy/account-onboarding-and-passwords.md, "Roster upload"):
+    an existing account is matched by email or sign-in mobile and never
+    changed; email and mobile naming different accounts, or a matched
+    account holding a different email or sign-in mobile, is refused; an
+    inactive account is refused unless an admin ticked its line in
+    *reactivate_rows* (action ``reactivate``; never another admin's
+    account); only an admin creates accounts, a non-admin
+    getting the project import's single "unavailable" refusal for a missing
+    or inactive account. Raises ProjectUserImportError for an inactive or
+    unknown project.
+    """
+    project = db.session.get(VaProjectMaster, project_id)
+    if not project or project.project_status != VaStatuses.active:
+        raise ProjectUserImportError("Active project not found.")
+    is_admin = authz.resolve_grants(actor).is_admin
+    active_languages = set(db.session.scalars(
+        sa.select(MasLanguages.language_code).where(MasLanguages.is_active.is_(True))
+    ))
+    emails = {row["email"].strip().lower() for row in rows} - {""}
+    users_by_email = {user.email.lower(): user for user in db.session.scalars(
+        sa.select(VaUsers).where(sa.func.lower(VaUsers.email).in_(emails))
+    )} if emails else {}
+    mobiles = {canonical_mobile(row["phone"]) for row in rows} - {None}
+    users_by_mobile, taken_mobiles = {}, set()
+    if mobiles:
+        for user, phone in db.session.execute(
+            sa.select(VaUsers, PHONE_CANONICAL).where(sa.or_(
+                VaUsers.mobile_login.in_(mobiles), PHONE_CANONICAL.in_(mobiles)
+            ))
+        ):
+            taken_mobiles.update({user.mobile_login, phone})
+            if user.mobile_login in mobiles:
+                users_by_mobile[user.mobile_login] = user
+    known_ids = {user.user_id for user in (*users_by_email.values(), *users_by_mobile.values())}
+    members = set(db.session.scalars(sa.select(MapProjectMember.user_id).where(
+        MapProjectMember.project_id == project_id, MapProjectMember.user_id.in_(known_ids),
+    ))) if known_ids else set()
+
+    def detail(reason):
+        # A non-admin learns only whether a row is addable: a mismatch between
+        # accounts would confirm another account's email or sign-in mobile.
+        return reason if is_admin else "account is unavailable for this project import"
+
+    seen, mobile_rows, new_profiles, items = set(), {}, {}, []
+    for row in rows:
+        email, mobile = row["email"].strip().lower(), canonical_mobile(row["phone"])
+        item = {"row": row["_line_number"], "display": email or mask_mobile(mobile), "user": None,
+                "row_data": {"name": row["name"], "email": row["email"], "phone": row["phone"]}}
+        try:
+            if not row["name"].strip() or len(row["name"]) > 128:
+                raise ProjectUserImportError("name is required (at most 128 characters)")
+            if not email and not row["phone"].strip():
+                raise ProjectUserImportError("an email or a mobile number is required")
+            if row["phone"].strip() and (mobile is None or mobile[0] not in "6789"):
+                raise ProjectUserImportError("phone must be a 10-digit mobile number starting 6, 7, 8 or 9")
+            email, mobile, identity = _row_identity(row)
+            by_email = users_by_email.get(email) if email else None
+            by_mobile = users_by_mobile.get(mobile) if mobile else None
+            # A non-admin gets one refusal for a missing or inactive account,
+            # before any detail about which account an identifier names.
+            found = [account for account in (by_email, by_mobile) if account]
+            if not is_admin and (not found or any(a.user_status != VaStatuses.active for a in found)):
+                raise ProjectUserImportError("account is unavailable for this project import")
+            if by_email and by_mobile and by_email.user_id != by_mobile.user_id:
+                raise ProjectUserImportError(detail("email and mobile number belong to different accounts"))
+            user = by_email or by_mobile
+            if user and email and user.email and user.email.lower() != email:
+                raise ProjectUserImportError(detail("email does not match the account holding this mobile number"))
+            if user and mobile and user.mobile_login and user.mobile_login != mobile:
+                raise ProjectUserImportError(detail("mobile number does not match the account with this email"))
+            reactivate = False
+            if user and user.user_status != VaStatuses.active:
+                if not (is_admin and row["_line_number"] in reactivate_rows):
+                    raise ProjectUserImportError("existing user is deactivated")
+                if user.is_admin():
+                    raise ProjectUserImportError("an admin account is reactivated on the admin Users panel")
+                reactivate = True
+            key = user.user_id if user else identity
+            if key in seen:
+                raise ProjectUserImportError("repeats the account of an earlier row")
+            seen.add(key)
+            if reactivate:
+                item.update(user=user, action="reactivate", member=user.user_id in members)
+            elif user:
+                item.update(user=user, action="already_member" if user.user_id in members else "add_existing")
+            else:
+                _check_new_account(row, identity, mobile, list(MEMBER_LANGUAGES), active_languages,
+                                   taken_mobiles, mobile_rows, new_profiles)
+                item.update(action="create", email=email or None, name=row["name"], phone=row["phone"],
+                            mobile=mobile, languages=list(MEMBER_LANGUAGES))
+        except (ValueError, KeyError) as exc:
+            item.update(action="refuse", reason=str(exc))
+        items.append(item)
+    return items
+
+
+def apply_members(project_id, items, *, actor_user_id):
+    """Write the members of a ``prepare_members`` result that has no refused
+    row, in the caller's transaction: create each ``create`` account (no
+    sign-in code: the roster issues one later), add a member row for every
+    ``create`` and ``add_existing`` item, and audit each membership
+    (``project_member_added``, the project id only). Returns
+    ``(invitations, added)``: the new email accounts to send verification to
+    (``finalize_apply``) and the number of members added."""
+    if any(item["action"] == "refuse" for item in items):
+        raise ProjectUserImportError("Fix the refused rows; nothing was written.")
+    invitations, added = [], 0
+    for item in items:
+        user = item["user"]
+        if item["action"] == "reactivate":
+            user.user_status = VaStatuses.active
+            record_security_event(user_id=user.user_id, actor_user_id=actor_user_id,
+                                  event_type="account_reactivated",
+                                  detail={"project_id": project_id, "via": "roster_upload"})
+            if item["member"]:
+                continue
+        if item["action"] == "already_member":
+            continue
+        if item["action"] == "create":
+            user, _ = create_account(item, actor_user_id=actor_user_id, sign_in_code=False)
+            if user.email:
+                invitations.append(SimpleNamespace(user_id=user.user_id, email=user.email, name=user.name))
+        db.session.add(MapProjectMember(project_id=project_id, user_id=user.user_id,
+                                        added_by_user_id=actor_user_id))
+        record_security_event(user_id=user.user_id, actor_user_id=actor_user_id,
+                              event_type="project_member_added",
+                              detail={"project_id": project_id, "new_account": item["action"] == "create"})
+        added += 1
+    db.session.flush()
+    return invitations, added
 
 
 def apply(project_id, plan, *, actor_user_id):

@@ -91,6 +91,46 @@ section 6), as Add worker does. It is sent once per account:
 every grant was revoked) sends nothing. A mail failure is a warning on the
 save, never a failed save; the admin can resend from the admin Users panel.
 
+### Roster upload of project members (owner 2026-11-16, digitva-plgm)
+
+The Project Setup roster takes a CSV or XLSX of `name, email, phone`, at
+most **150 rows** and 1 MB (the email rule of the project user import;
+Excel's UTF-8 byte-order mark is accepted). Every row needs a name (at most
+128 characters) and an email or a mobile; a phone must be a 10-digit Indian
+mobile starting 6, 7, 8 or 9; a leading `0` or `91` is dropped, a leading `+` is refused as formula-like by the shared table parser) and makes each row a **project member**,
+which grants nothing ([access-control-model.md](access-control-model.md#project-membership-owner-2026-11-16-digitva-plgm)).
+A preview lists each row's action; the apply re-reads the file and writes
+every row or none (any refused row blocks the apply). Per row:
+
+- **Existing account** matched by email (without case) or by sign-in
+  mobile: added as a member. Its profile (name, email, phone) is never
+  changed. Refused when the email and the mobile identify different
+  accounts, when the matched account holds a different email or sign-in
+  mobile than the row gives, or when the account is deactivated.
+- **Deactivated account**: refused unless an **admin** ticks "Reactivate
+  and add" on that row of the preview (off by default, one row at a time).
+  The apply then reactivates the account, records `account_reactivated`
+  (`via = "roster_upload"`, the project id) and adds it as a member. An
+  admin's account is never reactivated here (the admin Users panel), and a
+  project PI cannot reactivate.
+- **Already a member**: nothing written, reported as such.
+- **New account**: created as the project user import creates one (active,
+  random unknown password, `created_via = "import"`, `account_created`
+  audit), with English as its coding language. An email account gets the
+  verification email of section 5.1 after the apply. A mobile-only account
+  gets **no sign-in code at upload**: codes last 90 minutes, so the trainer
+  issues one later from the roster row. Only an admin creates accounts here,
+  as in the project user import; a project PI's new-account rows are
+  refused ("account is unavailable for this project import"), the same
+  refusal as for an inactive account.
+- A repeat of an earlier row's account, a bad email, or a phone that is not
+  a full mobile number is refused with its reason.
+
+The preview lists every row with its line number, the row's own name,
+email and full mobile as uploaded (the caller's own file, never the matched
+account's fields) and its action or refusal reason, so each refusal can be
+fixed in the file; logs carry counts and ids only.
+
 ## 4. The generated password
 
 - Three short plain English words and a 4-digit number joined by `-`

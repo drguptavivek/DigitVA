@@ -367,6 +367,9 @@
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-jump-section="structure" data-jump-org-tab="mentoring">
                       <i class="fa-solid fa-building-columns me-1"></i>Mentoring Scientists
                     </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="setup-ug-members-toggle" aria-expanded="false" aria-controls="setup-ug-members-panel">
+                      <i class="fa-solid fa-file-arrow-up me-1"></i>Upload users CSV
+                    </button>
                     {% endif %}
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="setup-ug-fullscreen-btn" aria-pressed="false" title="Full screen">
                       <i class="fa-solid fa-expand"></i><span class="ms-1 d-none d-md-inline">Full screen</span>
@@ -379,6 +382,22 @@
 
                 {# KPI Summary Strip #}
                 <div class="d-flex flex-wrap gap-2 mb-3" id="setup-ug-kpis"></div>
+
+                {% if is_org %}
+                {# Upload users as project members (digitva-plgm): preview, then apply. Membership grants nothing; Place gives unit, cadre and default roles. #}
+                <div class="border rounded p-2 mb-3 d-none" id="setup-ug-members-panel">
+                  <div class="fw-semibold mb-1">Upload users as project members</div>
+                  <div class="text-muted mb-2">Columns <code>name, email, phone</code>, at most 150 rows. Each row needs a name and an email or a 10-digit mobile starting 6–9. Existing accounts are added unchanged; new ones are created{% if not current_user.is_admin() %} by an admin only{% endif %}. Members get no access until placed in a unit. Mobile-only accounts get their sign-in code later from the row (Issue code).
+                    <a href="/admin/api/projects/{{ project.project_id|urlencode }}/users-grid/members/template.csv" id="setup-ug-members-template">Download template</a></div>
+                  <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <input type="file" id="setup-ug-members-file" class="form-control form-control-sm w-auto" accept=".csv,.xlsx" aria-label="Users CSV or XLSX file">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="setup-ug-members-preview">Preview</button>
+                    <button type="button" class="btn btn-sm btn-success d-none" id="setup-ug-members-apply">Apply</button>
+                  </div>
+                  <div id="setup-ug-members-msg" class="small mt-2 d-none" role="status"></div>
+                  <div id="setup-ug-members-result" class="table-responsive mt-2"></div>
+                </div>
+                {% endif %}
 
                 {# Filter & View Switcher Bar #}
                 <div class="row g-2 align-items-center mb-2">
@@ -1328,6 +1347,96 @@
     loads[UG_TS_JS].then(done, function () {});
   }
 
+  // Sign-in codes come from the admin-only endpoint; a project PI sees no button.
+  var UG_CAN_ISSUE_CODE = {{ current_user.is_admin()|tojson }};
+  // The code is shown once, here, and never stored in the page data.
+  function ugIssueCode(btn) {
+    btn.disabled = true;
+    fetch('/admin/api/users/' + encodeURIComponent(btn.getAttribute('data-uid')) + '/sign-in-code', { method: 'POST', headers: csrfHeaders() })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.data.sign_in_code) {
+          btn.disabled = false;
+          ugShowMsg('danger', (res.data && res.data.error) || 'Could not issue a sign-in code.');
+          return;
+        }
+        var cell = btn.closest('.ug-code-cell');
+        cell.innerHTML = '<span class="font-monospace fw-semibold fs-6" style="letter-spacing:0.15em;"></span> <span class="small text-muted">valid 90 minutes</span>';
+        cell.firstChild.textContent = res.data.sign_in_code;
+      })
+      .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not issue a sign-in code.'); });
+  }
+
+  // Upload users CSV (digitva-plgm): the preview writes nothing; Apply re-sends the
+  // same file with dry_run=0 and writes every row or none.
+  var UG_MEMBER_ACTIONS = {
+    create: ['New account', 'primary'],
+    add_existing: ['Add existing account', 'success'],
+    reactivate: ['Reactivate and add', 'warning'],
+    already_member: ['Already a member', 'secondary'],
+    refuse: ['Refused', 'danger']
+  };
+  function ugMembersMsg(kind, text) {
+    var box = document.getElementById('setup-ug-members-msg');
+    if (!text) { box.classList.add('d-none'); box.textContent = ''; return; }
+    box.className = 'alert alert-' + kind + ' small py-2 mt-2 mb-0';
+    box.textContent = text;
+  }
+  // Line numbers an admin ticked "Reactivate and add" for; cleared with a new file.
+  var ugReactivate = {};
+  function ugMembersRows(rows) {
+    document.getElementById('setup-ug-members-result').innerHTML = rows && rows.length
+      ? '<table class="table table-sm table-bordered align-middle mb-0"><thead class="table-light"><tr><th>Line</th><th>Name</th><th>Email</th><th>Mobile</th><th>Action</th></tr></thead><tbody>'
+        + rows.map(function (r) {
+            var a = UG_MEMBER_ACTIONS[r.action] || [r.action, 'secondary'];
+            var tick = (r.can_reactivate || r.action === 'reactivate')
+              ? ' <label class="small ms-1"><input type="checkbox" class="form-check-input me-1 ug-member-reactivate" data-row="' + esc(r.row) + '"' + (ugReactivate[r.row] ? ' checked' : '') + '>Reactivate and add</label>'
+              : '';
+            return '<tr' + (r.action === 'refuse' ? ' class="table-danger"' : '') + '><td>' + esc(r.row) + '</td><td>' + esc(r.name || '') + '</td><td>' + esc(r.email || '') + '</td><td class="font-monospace">' + esc(r.phone || '') + '</td><td><span class="badge text-bg-' + a[1] + '-subtle border text-' + a[1] + '-emphasis">' + esc(a[0]) + '</span>'
+              + (r.reason ? ' <span class="small">' + esc(r.reason) + '</span>' : '') + tick + '</td></tr>';
+          }).join('') + '</tbody></table>'
+      : '';
+  }
+  function ugMembersSend(dryRun) {
+    var input = document.getElementById('setup-ug-members-file');
+    var applyBtn = document.getElementById('setup-ug-members-apply');
+    var previewBtn = document.getElementById('setup-ug-members-preview');
+    if (!input.files || !input.files[0]) { ugMembersMsg('warning', 'Choose a CSV or XLSX file first.'); return; }
+    var body = new FormData();
+    body.append('file', input.files[0]);
+    body.append('dry_run', dryRun ? '1' : '0');
+    body.append('reactivate', Object.keys(ugReactivate).join(','));
+    previewBtn.disabled = true; applyBtn.disabled = true;
+    // FormData sets its own multipart Content-Type: send the CSRF header only.
+    fetch('/admin/api/projects/' + encodeURIComponent(projectId) + '/users-grid/members/import', { method: 'POST', headers: { 'X-CSRFToken': window._adminCsrf || '' }, body: body })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        previewBtn.disabled = false; applyBtn.disabled = false;
+        ugMembersRows(res.data && res.data.rows);
+        if (!res.ok) {
+          applyBtn.classList.add('d-none');
+          ugMembersMsg('danger', (res.data && res.data.error) || 'The upload failed.');
+          return;
+        }
+        var c = res.data.counts || {};
+        if (dryRun) {
+          var writes = (c.create || 0) + (c.add_existing || 0) + (c.reactivate || 0);
+          applyBtn.classList.toggle('d-none', !!c.refuse || !writes);
+          applyBtn.textContent = 'Apply: add ' + writes + ' member(s)';
+          ugMembersMsg(c.refuse ? 'warning' : 'info', c.refuse
+            ? c.refuse + ' row(s) refused: fix them and preview again; nothing is written while any row is refused.'
+            : (writes ? 'Preview only, nothing written yet.' : 'Every row is already a member.'));
+          return;
+        }
+        applyBtn.classList.add('d-none');
+        input.value = '';
+        ugMembersMsg('success', 'Added ' + (res.data.added || 0) + ' member(s)' + (c.create ? ', ' + c.create + ' new account(s)' : '') + '. Place each person in a unit to give their cadre\'s roles.'
+          + ((res.data.invite_warnings || []).length ? ' ' + res.data.invite_warnings.join(' ') : ''));
+        loadUsersGrid();
+      })
+      .catch(function () { previewBtn.disabled = false; applyBtn.disabled = false; ugMembersMsg('danger', 'The upload failed.'); });
+  }
+
   function renderUgListTable() {
     var wrap = document.getElementById('setup-ug-table-wrap');
     if (!wrap || !_ugData) return;
@@ -1348,7 +1457,11 @@
         + (u.email
             ? '<div>' + esc(u.email) + ' ' + (u.email_verified ? '<i class="fa-solid fa-circle-check text-success" title="Email verified"></i>' : '<span class="badge text-bg-warning-subtle border text-warning-emphasis" style="font-size:0.65rem;">Unverified</span>') + '</div>'
             : '<div><span class="badge text-bg-secondary-subtle border text-secondary-emphasis">Mobile-only</span></div>')
-        + (u.phone ? '<div class="text-muted font-monospace" style="font-size:0.76rem;"><i class="fa-solid fa-phone me-1"></i>' + esc(u.phone) + '</div>' : '');
+        + (u.phone ? '<div class="text-muted font-monospace" style="font-size:0.76rem;"><i class="fa-solid fa-phone me-1"></i>' + esc(u.phone) + '</div>' : '')
+        // Mobile-only or unverified-email accounts get a sign-in code here (admin endpoint; digitva-plgm).
+        + (UG_CAN_ISSUE_CODE && u.is_active && (u.mobile_only || (u.email && !u.email_verified))
+            ? '<div class="ug-code-cell"><button type="button" class="btn btn-sm btn-link p-0 ug-issue-code" data-uid="' + esc(uid) + '" aria-label="' + esc('Issue a sign-in code for ' + u.name) + '"><i class="fa-solid fa-key me-1"></i>Issue code</button></div>'
+            : '');
 
       var statusBadge = u.is_active
         ? '<span class="badge text-bg-success">Active</span>'
@@ -1491,6 +1604,9 @@
     });
     wrap.querySelectorAll('.ug-remove-grant').forEach(function (btn) {
       btn.addEventListener('click', function () { ugRemoveGrant(btn); });
+    });
+    wrap.querySelectorAll('.ug-issue-code').forEach(function (btn) {
+      btn.addEventListener('click', function () { ugIssueCode(btn); });
     });
     wrap.querySelectorAll('.ug-toggle-drawer').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -1736,6 +1852,28 @@
   }
   var ugRefresh = document.getElementById('setup-ug-refresh-btn');
   if (ugRefresh) ugRefresh.addEventListener('click', loadUsersGrid);
+  var ugMembersToggle = document.getElementById('setup-ug-members-toggle');
+  if (ugMembersToggle) {
+    ugMembersToggle.addEventListener('click', function () {
+      var panel = document.getElementById('setup-ug-members-panel');
+      var open = panel.classList.toggle('d-none') === false;
+      ugMembersToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    document.getElementById('setup-ug-members-preview').addEventListener('click', function () { ugMembersSend(true); });
+    // Ticking or unticking a reactivation previews again with the new choice.
+    document.getElementById('setup-ug-members-result').addEventListener('change', function (e) {
+      if (!e.target.classList.contains('ug-member-reactivate')) return;
+      if (e.target.checked) ugReactivate[e.target.dataset.row] = true; else delete ugReactivate[e.target.dataset.row];
+      ugMembersSend(true);
+    });
+    document.getElementById('setup-ug-members-apply').addEventListener('click', function () { ugMembersSend(false); });
+    // A new file needs a new preview before it can be applied.
+    document.getElementById('setup-ug-members-file').addEventListener('change', function () {
+      document.getElementById('setup-ug-members-apply').classList.add('d-none');
+      ugReactivate = {};
+      ugMembersRows([]); ugMembersMsg('', '');
+    });
+  }
 
   var ugViewList = document.getElementById('setup-ug-view-list');
   var ugViewMatrix = document.getElementById('setup-ug-view-matrix');

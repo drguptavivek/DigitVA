@@ -2778,7 +2778,7 @@ def admin_issue_sign_in_code(target_user_id):
     except ValueError as exc:
         return _json_error(str(exc), 400)
     db.session.commit()
-    response = jsonify({"sign_in_code": code, "expires_in_hours": 72})
+    response = jsonify({"sign_in_code": code, **mobile_sign_in_service.code_lifetime()})
     response.headers["Cache-Control"] = "no-store"
     return response
 

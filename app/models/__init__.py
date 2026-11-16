@@ -30,6 +30,7 @@ from app.models.map_instrument_translation_suggestions import (
     MapInstrumentTranslationSuggestions,
 )
 from app.models.map_payload_version_pii import MapPayloadVersionPii
+from app.models.map_project_members import MapProjectMember
 from app.models.map_project_odk import MapProjectOdk
 from app.models.map_project_site_odk import MapProjectSiteOdk
 from app.models.map_submission_cod_bucket import MapSubmissionCodBucket
@@ -236,6 +237,7 @@ __all__ = [
     "VaAiSavedQuery",
     "MasVaCauseDefinition",
     "MapIcd10LegacyReportingAlias",
+    "MapProjectMember",
     "MapProjectOdk",
     "MapUserNotification",
     "MapSubmissionCodBucket",

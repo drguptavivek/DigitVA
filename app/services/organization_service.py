@@ -30,6 +30,7 @@ from app.models import (
     MapOrgUnitCodingGate,
     MapOrgUnitCollectionGate,
     MapOrgUnitVaPresets,
+    MapProjectMember,
     MasCadre,
     MasMentorInstitute,
     MasOrgLevel,
@@ -3938,7 +3939,8 @@ _DISPLAY_ROLE_META: dict[str, dict[str, object]] = {
 def get_project_users_grid(project_id: str) -> dict:
     """Return a consolidated 1-row-per-user roster for *project_id* with zero N+1 queries.
 
-    Merges ``VaUsers``, ``MasOrgUnitWorker``, project/site ``VaUserAccessGrants``,
+    Merges ``VaUsers``, ``MasOrgUnitWorker``, ``MapProjectMember`` (roster members
+    with no grant yet), project/site ``VaUserAccessGrants``,
     and unit-scoped ``VaUserAccessGrants`` (combining ``coder`` + ``collaborator_pii``
     on the same unit into ``coder_pii`` vs ``coder_non_pii``, and similarly for
     ``reviewer_pii`` vs ``reviewer_non_pii``).
@@ -4058,7 +4060,12 @@ def get_project_users_grid(project_id: str) -> dict:
     for g in grant_rows:
         grants_by_user.setdefault(g.user_id, []).append(g)
 
-    all_user_ids = set(workers_by_user.keys()) | set(grants_by_user.keys())
+    # Roster members (digitva-plgm) with no grant or worker yet still get a
+    # row, "Not placed in a unit" with no active grants; membership grants nothing.
+    member_user_ids = set(db.session.scalars(
+        sa.select(MapProjectMember.user_id).where(MapProjectMember.project_id == project_id)
+    ).all())
+    all_user_ids = set(workers_by_user.keys()) | set(grants_by_user.keys()) | member_user_ids
     users_by_id: dict[uuid.UUID, VaUsers] = {}
     mentor_user_ids: set[uuid.UUID] = set()
     if all_user_ids:

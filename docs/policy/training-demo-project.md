@@ -3,7 +3,7 @@ title: Training and Demo Project (TRN01)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-15
+last_updated: 2026-11-16
 ---
 
 # Training and demo project (TRN01)
@@ -277,6 +277,9 @@ direction, and the server enforces it (not only the menu):
   (coding: `coder`; reviewing: `reviewer_data_manager`; intake: an interview
   role), else 403 `forbidden`. Without a participation, and with the feature
   off, nothing is returned.
+- Attachments follow the same scope: `/api/v1/attachments/...` is 404 for a
+  training case without `training=1` and for a real case with it, and the
+  Collect app adds `training=1` to a training case's media URLs.
 - Without `training`, or with `training=0`, those endpoints exclude the
   training project for every user: its cases are never listed, counted or
   allocated, and asking for `project_id=TRN01` in that scope answers an empty

@@ -264,7 +264,7 @@ class SiteCollectionGateTests(BaseTestCase):
 
         def register_at(created_at):
             with patch("app.services.project_clock._now", return_value=now):
-                response = self._register()
+                response = self._register(date_of_death="2026-11-01")
             self.assertEqual(response.status_code, 201, response.get_json())
             db.session.execute(sa.update(VaDeathRegister).where(
                 VaDeathRegister.death_id == uuid.UUID(response.get_json()["case"]["death_id"]),
@@ -276,7 +276,7 @@ class SiteCollectionGateTests(BaseTestCase):
         # 19:00 UTC is 00:30 on Nov 7: today's first, the limit of 1 is reached.
         register_at(datetime(2026, 11, 6, 19, 0, tzinfo=UTC))
         with patch("app.services.project_clock._now", return_value=now):
-            self._assert_refused(self._register(), collection_gate.DAILY_LIMIT)
+            self._assert_refused(self._register(date_of_death="2026-11-01"), collection_gate.DAILY_LIMIT)
 
     # ── admin ──────────────────────────────────────────────────────────────
 

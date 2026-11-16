@@ -983,6 +983,7 @@ const refreshingAccessTokens = new Map<string, string>();
 export async function getAuthenticatedAttachmentSource(
   userId: string,
   path: string,
+  training = false,
 ): Promise<{ uri: string; headers: { Authorization: string } }> {
   if (!attachmentMediaExtension(path)) throw new Error("invalid_attachment_path");
   // Device and account from one slot (deviceFor); any refusal there means no source.
@@ -1019,7 +1020,7 @@ export async function getAuthenticatedAttachmentSource(
   }
   const latestExpiry = Date.parse(latestTokens.access_expires_at);
   if (!Number.isFinite(latestExpiry) || latestExpiry <= Date.now()) throw new SignInRequiredError();
-  const uri = new URL(path, `${device.server.replace(/\/+$/, "")}/`).toString();
+  const uri = new URL(trainingScopedPath(path, training), `${device.server.replace(/\/+$/, "")}/`).toString();
   return { uri, headers: { Authorization: `Bearer ${latestTokens.access_token}` } };
 }
 

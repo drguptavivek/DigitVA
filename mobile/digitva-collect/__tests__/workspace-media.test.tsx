@@ -12,6 +12,7 @@ jest.mock("../src/auth", () => ({ getAuthenticatedAttachmentSource: (...args: un
 
 import { AttachmentMedia as NativeAttachmentMedia } from "../src/workspace/media/AttachmentMedia.native";
 import { AttachmentMedia as WebAttachmentMedia } from "../src/workspace/media/AttachmentMedia.web";
+import { AttachmentTrainingContext } from "../src/workspace/media/attachmentScope";
 import { attachmentMediaKind } from "../src/workspace/media/path";
 
 const identity = { vaSid: "case-1", mode: "view" as const };
@@ -54,7 +55,7 @@ it("passes authenticated headers to the native audio player and exposes accessib
     await flush();
   });
 
-  expect(mockGetSource).toHaveBeenCalledWith("user-1", audioPath);
+  expect(mockGetSource).toHaveBeenCalledWith("user-1", audioPath, undefined);
   expect(mockPlayer.replace).toHaveBeenCalledWith({ uri: `https://digitva.example${audioPath}`, headers: source.headers });
   const button = tree.root.findByProps({ accessibilityLabel: "Play attached audio" });
   await act(async () => button.props.onPress());
@@ -97,4 +98,28 @@ it("uses the browser cookie session for validated same-origin media URLs", async
   });
   expect(tree.root.findByType("img").props.src).toBe(imagePath);
   await act(async () => tree.unmount());
+});
+
+it("asks for training=1 on a training case's media, and not otherwise", async () => {
+  mockGetSource.mockResolvedValue({ uri: `https://digitva.example${audioPath}`, headers: source.headers });
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<NativeAttachmentMedia identity={identity} attachmentPath={audioPath} userId="user-1" training />);
+    await flush();
+  });
+  expect(mockGetSource).toHaveBeenCalledWith("user-1", audioPath, true);
+  await act(async () => tree.unmount());
+
+  for (const [training, expected] of [[true, `${imagePath}?training=1`], [false, imagePath]] as const) {
+    await act(async () => {
+      tree = create(
+        <AttachmentTrainingContext.Provider value={training}>
+          <WebAttachmentMedia identity={identity} attachmentPath={imagePath} />
+        </AttachmentTrainingContext.Provider>,
+      );
+      await flush();
+    });
+    expect(tree.root.findByType("img").props.src).toBe(expected);
+    await act(async () => tree.unmount());
+  }
 });

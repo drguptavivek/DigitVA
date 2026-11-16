@@ -5,6 +5,10 @@ only /api/v1/), so a bearer client cannot load media from them. These two
 routes apply the same authorization and delivery (``attachment_service``:
 Range for audio, a 302 to a presigned URL on the S3 store, ``private,
 no-store``, ``nosniff``) and answer failures as ``{error, code}``.
+
+Media follows the training scope (``?training=``, docs/policy/training-demo-project.md):
+a training case's attachment is 404 unless the request asks ``training=1``, and a
+real case's is 404 under it; ``training=1`` needs a coding or review participation.
 """
 
 from __future__ import annotations
@@ -15,7 +19,7 @@ from werkzeug.exceptions import HTTPException
 
 from app.decorators import role_required
 from app.routes.api.request_helpers import error as api_error
-from app.services import attachment_service
+from app.services import attachment_service, training_scope
 
 bp = Blueprint("attachments_api", __name__)
 
@@ -81,11 +85,15 @@ def attachment(storage_name):
     short-lived presigned URL on the S3 store. Errors ``{error, code}``: 404
     ``not_found`` (bad token, no row, no bytes), 403 ``forbidden``, 502
     ``upstream_error``, 503 ``unavailable`` (with ``Retry-After``), 416
-    ``range_not_satisfiable``.
+    ``range_not_satisfiable``. 400 ``invalid_request`` / 403 ``forbidden`` for a bad
+    / unauthorized ``training``; 404 for a case on the other side of that scope.
     """
+    training_scope.resolve("coding", "review")
     record = attachment_service.authorize_token_attachment(current_user, storage_name)
     if isinstance(record, int):
         return _refusal(record)
+    if not training_scope.sid_allowed(record.va_sid):
+        return _refusal(404)
     return _deliver(attachment_service.deliver, record)
 
 
@@ -100,9 +108,12 @@ def legacy_attachment(va_form_id, va_filename):
     As ``attachment``; additionally 400 ``invalid_request`` for a malformed
     form id or filename.
     """
+    training_scope.resolve("coding", "review")
     record = attachment_service.authorize_legacy_attachment(
         current_user, va_form_id, va_filename
     )
     if isinstance(record, int):
         return _refusal(record)
+    if not training_scope.sid_allowed(record.va_sid):
+        return _refusal(404)
     return _deliver(attachment_service.deliver_legacy_media, record)

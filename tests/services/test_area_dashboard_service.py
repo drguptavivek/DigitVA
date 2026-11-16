@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.services import area_dashboard_service as area
 from app.services import organization_service as org
+from app.services import project_clock
 from app.services.odk_retirement_service import MISSING_IN_ODK
 from app.services.submission_analytics_mv import (
     COD_MV_NAME,
@@ -817,7 +818,7 @@ class AreaOverdueTests(AreaDashboardFixture):
     def _case(self, *, unit=None, project=None, site=None, status="registered", dod_days=10, va_sid=None,
               created_days=None):
         AreaOverdueTests._number += 1
-        today = datetime.now(UTC).date()
+        today = project_clock.project_day(None).today  # the clock the overdue counts use
         case = VaDeathRegister(
             project_id=project or self.TREE, site_id=site or self.TREE_SITE, death_number=self._number,
             org_unit_id=unit.org_unit_id if unit else None, unique_id=f"AREA-OD-{self._number}",
@@ -826,7 +827,7 @@ class AreaOverdueTests(AreaDashboardFixture):
             registered_by=self.interviewer.user_id, status=status, va_sid=va_sid,
         )
         if created_days is not None:
-            case.created_at = datetime.now(UTC) - timedelta(days=created_days)
+            case.created_at = project_clock._now() - timedelta(days=created_days)
         db.session.add(case)
         db.session.commit()
         return case

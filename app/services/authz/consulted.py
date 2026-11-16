@@ -157,6 +157,11 @@ PUBLIC_ENDPOINTS = {
                                      "and the device cap; rate-limited (mobile-sign-in.md).",
     "api_v1.auth_api.refresh_session": "Device session refresh: authenticates (live "
                                      "refresh token, reuse revokes), does not authorize.",
+    "api_v1.auth_api.record_profile_deletion": "Phone reports deleting one profile "
+                                             "(mobile-sign-in.md section 10): authenticates "
+                                             "(device secret), only audits and ends that "
+                                             "user's sessions on that device; 403 unless the "
+                                             "user signed in there; rate-limited.",
 }
 
 # Signed in, but never another user's or any submission's data: the account's

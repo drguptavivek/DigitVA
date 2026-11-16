@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { WorkspaceIdentity } from "../contracts";
 import { AttachmentGallery } from "./AttachmentGallery.web";
+import { useAttachmentUrl } from "./attachmentScope";
 import { attachmentMediaExtension, attachmentMediaKind, browserAudioSupported } from "./path";
 
 const activeAudioElements = new Set<HTMLAudioElement>();
@@ -31,6 +32,7 @@ export function AttachmentMedia({
   attachmentPath: string;
   userId?: string;
 }) {
+  const url = useAttachmentUrl()(attachmentPath);
   const kind = attachmentMediaKind(attachmentPath);
   const extension = attachmentMediaExtension(attachmentPath);
   const [visible, setVisible] = useState(() => typeof document === "undefined" || document.visibilityState === "visible");
@@ -79,7 +81,7 @@ export function AttachmentMedia({
   if (!kind && extension !== "pdf") return <p role="alert">Attachment unavailable.</p>;
   if (failedKey === key) {
     return kind === "audio"
-      ? <a href={attachmentPath} download={downloadName(attachmentPath)}>Download audio attachment</a>
+      ? <a href={url} download={downloadName(attachmentPath)}>Download audio attachment</a>
       : <p role="alert">Attachment unavailable.</p>;
   }
   if (!visible) return <p role="status">Loading attachment…</p>;
@@ -91,17 +93,17 @@ export function AttachmentMedia({
     />;
   }
   if (extension === "pdf") {
-    return <a href={attachmentPath} download={downloadName(attachmentPath)}>Download document attachment</a>;
+    return <a href={url} download={downloadName(attachmentPath)}>Download document attachment</a>;
   }
   if (!browserAudioSupported(attachmentPath)) {
-    return <a href={attachmentPath} download={downloadName(attachmentPath)}>Download audio attachment</a>;
+    return <a href={url} download={downloadName(attachmentPath)}>Download audio attachment</a>;
   }
   return <audio
     ref={setAudioRef}
     data-digitva-attachment="true"
     controls
     preload="none"
-    src={attachmentPath}
+    src={url}
     aria-label="Attached audio"
     onPlay={(event) => pauseOtherAudio(event.currentTarget)}
     onPause={(event) => activeAudioElements.delete(event.currentTarget)}

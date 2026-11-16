@@ -38,6 +38,7 @@ from app.models.va_selectives import VaAllocation
 from app.services import case_list_service as case_list
 from app.services import case_transition_service as transitions
 from app.services import organization_service as org
+from app.services import project_clock
 from app.services import register_pii_accessor
 from app.services import web_intake_service as intake_svc
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
@@ -64,6 +65,12 @@ def _dod(days):
 
 def _utc_day(days_ago):
     return datetime.now(UTC).date() - timedelta(days=days_ago)
+
+
+def _project_day(days_ago):
+    # The overdue counts run on the project clock (Asia/Kolkata), which is a
+    # day ahead of the UTC date from 18:30 UTC; the date filters use UTC days.
+    return project_clock.project_day(None).today - timedelta(days=days_ago)
 
 
 class CaseListTests(BaseTestCase):
@@ -717,7 +724,7 @@ class CaseListTests(BaseTestCase):
 
     def _set_submission_day(self, case, days_ago):
         db.session.execute(sa.update(VaSubmissions).where(VaSubmissions.va_sid == case.va_sid)
-                           .values(va_submission_date=datetime.now(UTC).replace(tzinfo=None) - timedelta(days=days_ago)))
+                           .values(va_submission_date=project_clock._now().replace(tzinfo=None) - timedelta(days=days_ago)))
         db.session.commit()
 
     def _status(self, who, query):
@@ -775,11 +782,11 @@ class CaseListTests(BaseTestCase):
     # -- overdue ----------------------------------------------------------------
 
     def test_overdue_interview_boundary_and_date_reported_fallback(self):
-        late = self._register(self.ian, self.sca, deceased_name="Late Sixtyone", date_of_death=_utc_day(61).isoformat())
-        edge = self._register(self.ian, self.sca, deceased_name="Edge Sixty", date_of_death=_utc_day(60).isoformat())
+        late = self._register(self.ian, self.sca, deceased_name="Late Sixtyone", date_of_death=_project_day(61).isoformat())
+        edge = self._register(self.ian, self.sca, deceased_name="Edge Sixty", date_of_death=_project_day(60).isoformat())
         undated_late = self._register(self.ian, self.sca, deceased_name="Undated Late")
         undated_edge = self._register(self.ian, self.sca, deceased_name="Undated Edge")
-        now = datetime.now(UTC)
+        now = project_clock._now()
         # Only a draft_identity case may lack its date of death (ck_va_death_register_identity).
         for case, days in ((undated_late, 61), (undated_edge, 60)):
             db.session.execute(sa.update(VaDeathRegister).where(VaDeathRegister.death_id == case.death_id)

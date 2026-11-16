@@ -16,6 +16,7 @@ import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import type { WorkspaceIdentity, WorkspaceMode } from "../workspace/contracts";
 import { DorisPanel } from "../workspace/doris/DorisPanel";
 import { AttachmentMedia } from "../workspace/media/AttachmentMedia.web";
+import { AttachmentTrainingContext } from "../workspace/media/attachmentScope";
 import { browserErrorText, LoginLanding, WebShell } from "./common";
 import { Chevron, FoldButton } from "./Chevron";
 import { ContextualHelpBanner } from "./ContextualHelp";
@@ -304,7 +305,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
 
   if (vaSid && mode !== "home" && api && requester) {
     const identity: WorkspaceIdentity = { vaSid, mode };
-    return <CaseWorkspaceScreen
+    return <AttachmentTrainingContext.Provider value={training}>
+    <CaseWorkspaceScreen
       identity={identity}
       api={api}
       section={first(params.section)}
@@ -319,7 +321,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
         onDone={onDone}
       />}
       renderMedia={(attachmentPath) => <AttachmentMedia identity={identity} attachmentPath={attachmentPath} />}
-    />;
+    />
+    </AttachmentTrainingContext.Provider>;
   }
 
   if ((mode === "coding" || mode === "reviewing") && api) return <QueueScreen

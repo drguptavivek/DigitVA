@@ -14,12 +14,14 @@ type AttachmentMediaProps = {
   attachmentPath: string;
   userId?: string;
   bearerSource?: { server: string; token: string };
+  /** The case is a training case: its media is fetched with `training=1`. */
+  training?: boolean;
 };
 
 /** Load authenticated media from the API. A PDF is not shown inline: it opens from the share sheet. */
 export function AttachmentMedia(props: AttachmentMediaProps) {
   if (attachmentMediaExtension(props.attachmentPath) === "pdf") {
-    return <AttachmentDocument userId={props.userId} attachmentPath={props.attachmentPath} />;
+    return <AttachmentDocument userId={props.userId} attachmentPath={props.attachmentPath} training={props.training} />;
   }
   return <AttachmentPlayback {...props} />;
 }
@@ -28,7 +30,7 @@ export function AttachmentMedia(props: AttachmentMediaProps) {
  * Downloads the PDF to a private cache file and hands it to the share sheet, which opens it in a PDF viewer.
  * shareAndDelete removes the copy afterwards, as the case export does with its file.
  */
-function AttachmentDocument({ userId, attachmentPath }: { userId?: string; attachmentPath: string }) {
+function AttachmentDocument({ userId, attachmentPath, training }: { userId?: string; attachmentPath: string; training?: boolean }) {
   const [opening, setOpening] = useState(false);
   const [failed, setFailed] = useState(false);
   if (!userId) return <Text accessibilityRole="alert">Attachment unavailable.</Text>;
@@ -39,7 +41,7 @@ function AttachmentDocument({ userId, attachmentPath }: { userId?: string; attac
     const name = decodeURIComponent(attachmentPath.split("/").at(-1) ?? "attachment.pdf");
     const file = cacheFile(`attachment-${Date.now()}-${name}`);
     try {
-      const source = await getAuthenticatedAttachmentSource(id, attachmentPath);
+      const source = await getAuthenticatedAttachmentSource(id, attachmentPath, training);
       await File.downloadFileAsync(source.uri, file, { headers: source.headers });
       await shareAndDelete(file, "application/pdf");
     } catch {
@@ -60,7 +62,7 @@ function AttachmentDocument({ userId, attachmentPath }: { userId?: string; attac
   );
 }
 
-function AttachmentPlayback({ identity, attachmentPath, userId }: AttachmentMediaProps) {
+function AttachmentPlayback({ identity, attachmentPath, userId, training }: AttachmentMediaProps) {
   const kind = attachmentMediaKind(attachmentPath);
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
@@ -98,7 +100,7 @@ function AttachmentPlayback({ identity, attachmentPath, userId }: AttachmentMedi
       };
     }
 
-    void getAuthenticatedAttachmentSource(userId, attachmentPath).then((next) => {
+    void getAuthenticatedAttachmentSource(userId, attachmentPath, training).then((next) => {
       if (cancelled || currentKey.current !== key) return;
       setSource({ ...next, key });
       if (kind === "audio") player.replace(next);
@@ -111,7 +113,7 @@ function AttachmentPlayback({ identity, attachmentPath, userId }: AttachmentMedi
       player.replace(null);
       setSource(null);
     };
-  }, [active, attachmentPath, key, kind, player, userId]);
+  }, [active, attachmentPath, key, kind, player, training, userId]);
 
   if (error) return <Text accessibilityRole="alert">Attachment unavailable.</Text>;
   const currentSource = source?.key === key ? source : null;

@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { radius, ui, useTheme } from "../../theme";
 import type { CategoryPayload, JsonValue } from "../contracts";
 import { useWebStyles, type WebPalette } from "../webPalette";
+import { useAttachmentUrl } from "./attachmentScope";
 import { attachmentMediaExtension, attachmentMediaKind, browserAudioSupported } from "./path";
 
 // react-dom ships without types here (no @types/react-dom); same hand-typed call as WorkspaceLayout.web.tsx.
@@ -80,6 +81,7 @@ function pauseOtherAudio(current: HTMLAudioElement) {
 }
 
 function AudioAttachment({ path, label }: { path: string; label: string }) {
+  const url = useAttachmentUrl();
   const [failed, setFailed] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const setAudioRef = useCallback((audio: HTMLAudioElement | null) => {
@@ -91,14 +93,14 @@ function AudioAttachment({ path, label }: { path: string; label: string }) {
     audioRef.current = null;
   }, []);
   if (!browserAudioSupported(path) || failed) {
-    return <a href={path} download={downloadName(path)}>{`Download ${label || "audio attachment"}`}</a>;
+    return <a href={url(path)} download={downloadName(path)}>{`Download ${label || "audio attachment"}`}</a>;
   }
   return <audio
     ref={setAudioRef}
     data-digitva-attachment="true"
     controls
     preload="none"
-    src={path}
+    src={url(path)}
     aria-label={label || "Attached audio"}
     onPlay={(event) => pauseOtherAudio(event.currentTarget)}
     onError={() => setFailed(true)}
@@ -120,6 +122,7 @@ export function AttachmentGallery({
   renderMedia?: (attachmentPath: string) => React.ReactNode;
 }) {
   const [styles] = useWebStyles(makeStyles);
+  const url = useAttachmentUrl();
   const { ui: theme } = useTheme();
   const collection = useMemo(() => collectPaths(items), [items]);
   const { attachments, truncated } = collection;
@@ -312,9 +315,9 @@ export function AttachmentGallery({
     {image ? <>
       <div style={styles.viewer}>
         {selectedImageFailed
-          ? <a href={selected.path} download={downloadName(selected.path)}>Download image attachment</a>
+          ? <a href={url(selected.path)} download={downloadName(selected.path)}>Download image attachment</a>
           : <button type="button" onClick={openLightbox} aria-label={`Open ${selected.label || "attachment"} full screen`} style={styles.imageButton}>
-            <img src={selected.path} alt={selected.label || "Attached image"} onError={() => markImageFailed(selected.path)} style={{ ...imageStyle, cursor: "zoom-in" }} />
+            <img src={url(selected.path)} alt={selected.label || "Attached image"} onError={() => markImageFailed(selected.path)} style={{ ...imageStyle, cursor: "zoom-in" }} />
           </button>}
         {attachments.length > 1 ? <>
           <button type="button" onClick={() => move(-1)} aria-label="Previous attachment" style={{ ...styles.arrow, left: 8 }}><Icon name="prev" /></button>
@@ -327,7 +330,7 @@ export function AttachmentGallery({
       </div>
     </> : selected.kind === "audio"
       ? <div style={styles.audio}>{renderMedia ? renderMedia(selected.path) : <AudioAttachment path={selected.path} label={selected.label} />}</div>
-      : <div style={styles.audio}><a href={selected.path} download={downloadName(selected.path)}>Download {selected.label || "document attachment"}</a></div>}
+      : <div style={styles.audio}><a href={url(selected.path)} download={downloadName(selected.path)}>Download {selected.label || "document attachment"}</a></div>}
     {attachments.length > 1 ? <div role="list" aria-label="Attachment thumbnails" style={styles.thumbnails}>
       {attachments.map((attachment, thumbnailIndex) => <button
         key={attachment.path}
@@ -338,7 +341,7 @@ export function AttachmentGallery({
         style={{ ...styles.thumbnail, ...(thumbnailIndex === index ? styles.thumbnailActive : {}) }}
       >
         {attachment.kind === "image" && !failedImages.has(attachment.path)
-          ? <img src={attachment.path} alt="" aria-hidden="true" loading="lazy" onError={() => markImageFailed(attachment.path)} style={styles.thumbnailImage} />
+          ? <img src={url(attachment.path)} alt="" aria-hidden="true" loading="lazy" onError={() => markImageFailed(attachment.path)} style={styles.thumbnailImage} />
           : attachment.kind === "image" ? <span aria-hidden="true">▧</span> : attachment.kind === "audio" ? <span aria-hidden="true">♫</span> : <span aria-hidden="true">PDF</span>}
       </button>)}
     </div> : null}
@@ -353,7 +356,7 @@ export function AttachmentGallery({
         onPointerCancel={pointerUp}
       >
         {/* A native image drag would cancel the pointer stream that pans a zoomed image. */}
-        <img src={selected.path} alt={selected.label || "Expanded attachment"} draggable={false} onDragStart={(event) => event.preventDefault()} style={imageStyle} />
+        <img src={url(selected.path)} alt={selected.label || "Expanded attachment"} draggable={false} onDragStart={(event) => event.preventDefault()} style={imageStyle} />
       </div>
       <div style={styles.lightboxControls}>
         <button type="button" onClick={() => moveLightbox(-1)} aria-label="Previous attachment" style={styles.control}><Icon name="prev" size={20} /></button>

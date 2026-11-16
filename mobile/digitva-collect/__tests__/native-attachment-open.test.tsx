@@ -52,7 +52,7 @@ it("renders an Open action for a PDF and shares the authenticated download", asy
     await settle();
   });
 
-  expect(mockGetSource).toHaveBeenCalledWith("user-1", pdfPath);
+  expect(mockGetSource).toHaveBeenCalledWith("user-1", pdfPath, undefined);
   const [downloadUrl, target, options] = mockDownload.mock.calls[0];
   expect(downloadUrl).toBe(source.uri);
   expect(target.name).toMatch(/^attachment-\d+-0123456789abcdef0123456789abcdef\.pdf$/);

@@ -92,6 +92,10 @@ EXEMPT = {
         "finds when a case's current coding round began, for that case's own recode "
         "window; the lists that offer recodes apply the predicate themselves"
     ),
+    "services/coder_dashboard_service.py::set_needs_recode": (
+        "flags rows its callers already listed (the coder's history, which those readers "
+        "filter) by their workflow state; adds or drops no row and counts nothing"
+    ),
     "services/recode_window.py::first_coding_times": (
         "reads given cases' first coding time for their own recode window; never lists "
         "or counts coding work, and its callers already filtered the cases"

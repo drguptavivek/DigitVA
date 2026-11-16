@@ -507,13 +507,15 @@ class DeathReporterTests(BaseTestCase):
         savepoint = db.session.begin_nested()
         try:
             db.session.execute(sa.text("DROP INDEX ix_va_death_register_updated"))
+            # The collection gate's (registered_by, created_at) index competes too.
+            db.session.execute(sa.text("DROP INDEX ix_va_death_register_registered_by_created"))
             db.session.execute(sa.text("SET LOCAL enable_seqscan = off"))
             plan = "\n".join(db.session.execute(sa.text(
                 "EXPLAIN SELECT * FROM va_death_register WHERE registered_by = :u "
                 "ORDER BY updated_at DESC, death_id DESC LIMIT 51"), {"u": self.reporter.user_id}).scalars().all())
         finally:
             savepoint.rollback()
-        self.assertIn("ix_va_death_register_registered_by", plan)
+        self.assertIn("ix_va_death_register_registered_by on", plan)
         # Rows come out of the index in order: no Sort node.
         self.assertNotIn("Sort", plan)
 

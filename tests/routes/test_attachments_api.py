@@ -11,6 +11,7 @@ import io
 import os
 import uuid
 from datetime import UTC, datetime
+from unittest import mock
 from unittest.mock import patch
 
 import sqlalchemy as sa
@@ -148,6 +149,38 @@ class AttachmentsApiTests(BaseTestCase):
     def _assert_private(self, response):
         self.assertIn("private", response.headers["Cache-Control"])
         self.assertIn("no-store", response.headers["Cache-Control"])
+
+    # -- training scope -------------------------------------------------------------
+
+    def _training(self, participant=True):
+        """self.submission's project becomes the training project for the test."""
+        patches = [
+            mock.patch.dict(self.app.config, DIGITVA_TRAINING_PROJECT_ID=self.BASE_PROJECT_ID),
+            mock.patch("app.services.training_demo_service.may_use_area", return_value=participant),
+        ]
+        for patcher in patches:
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_training_media_follows_the_training_scope(self):
+        self._training()
+        name = self._token()
+        legacy = self._legacy()
+        real = self._token(submission=self.other_submission)
+        for path in (f"{BASE}/{name}", f"{BASE}/legacy/{self.FORM_ID}/{legacy}"):
+            hidden = self._get(path)
+            self.assertEqual((hidden.status_code, hidden.get_json()["code"]), (404, "not_found"), path)
+            self.assertEqual(self._get(f"{path}?training=1").status_code, 200, path)
+            self.assertEqual(self._get(f"{path}?training=2").status_code, 400, path)
+        crossing = self._get(f"{BASE}/{real}?training=1")
+        self.assertEqual((crossing.status_code, crossing.get_json()["code"]), (404, "not_found"))
+        self.assertEqual(self._get(f"{BASE}/{real}").status_code, 200)
+
+    def test_training_media_needs_a_participation(self):
+        self._training(participant=False)
+        name = self._token()
+        response = self._get(f"{BASE}/{name}?training=1")
+        self.assertEqual((response.status_code, response.get_json()["code"]), (403, "forbidden"))
 
     # -- token route ---------------------------------------------------------------
 

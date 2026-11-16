@@ -1430,8 +1430,7 @@
       return '<tr class="' + (u.is_active ? '' : 'opacity-75') + '" data-ug-uid="' + esc(uid) + '">'
         + '<td style="width:32px;"><input type="checkbox" class="form-check-input setup-ug-row-cb" value="' + esc(uid) + '" ' + checked + ' aria-label="Select ' + esc(u.name) + '"></td>'
         + '<td><div class="fw-semibold">' + esc(u.name) + '</div>'
-        // Worker code in grey: Bootstrap's <code> pink read as an error (owner, 2026-11-16).
-        + (pw ? '<div class="text-muted" style="font-size:0.72rem;">Worker ' + esc(pw.worker_code) + '</div>' : '')
+        // No worker code here: it read as a username (owner, 2026-11-16).
         + '<div class="mt-1">' + renderPiiStatusBadge(u.pii_status) + '</div></td>'
         + '<td>' + contactHtml + '</td>'
         + '<td>' + statusBadge + '</td>'

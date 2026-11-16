@@ -546,6 +546,8 @@ class ProjectSetupPanelTests(BaseTestCase):
         self.assertIsNotNone(datetime.fromisoformat(user_row["user_created_at"]).tzinfo)
         # The unit-grant drawer labels coder/reviewer Non-PII only for mentoring-institute staff.
         self.assertIs(user_row["is_mentor"], False)
+        # Each active unit grant is listed with its id, for the drawer's Remove.
+        self.assertEqual(user_row["unit_grants"], [])
 
         # 2. Bulk apply: In-System Coder on own home unit (Tier 3 In-System Doctor => coding_pii)
         apply_own = self.client.post(

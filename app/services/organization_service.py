@@ -4358,6 +4358,11 @@ def get_project_users_grid(project_id: str) -> dict:
             "project_grants": proj_grants_out,
             "grouped_unit_roles": grouped_unit_roles,
             "unit_roles_by_unit": {k: sorted(v) for k, v in roles_by_unit.items()},
+            # One entry per active unit grant, for the drawer's list and its remove buttons.
+            "unit_grants": [
+                {"grant_id": gid, "org_unit_id": u_str, "role": r_val}
+                for (u_str, r_val), gid in sorted(grant_ids_by_unit_role.items())
+            ],
             "active_grant_count": len(active_grants),
             "inactive_grant_count": inactive_grant_count,
             "distinct_unit_count": len(distinct_granted_units),

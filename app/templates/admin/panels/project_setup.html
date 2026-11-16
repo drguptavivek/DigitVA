@@ -1154,7 +1154,7 @@
       ['viewer_non_pii', 'Viewer (Non-PII)']
     ];
   }
-  var UG_OP_BY_ROLE_KEY = { coder_pii: 'coder_non_pii', coder_non_pii: 'coder_non_pii', reviewer_pii: 'reviewer_non_pii', reviewer_non_pii: 'reviewer_non_pii', site_pi: 'in_charge', collaborator: 'viewer_non_pii' };
+  var UG_OP_BY_ROLE_KEY = { coder: 'coder_non_pii', reviewer: 'reviewer_non_pii', coder_pii: 'coder_non_pii', coder_non_pii: 'coder_non_pii', reviewer_pii: 'reviewer_non_pii', reviewer_non_pii: 'reviewer_non_pii', site_pi: 'in_charge', collaborator: 'viewer_non_pii' };
   var UG_RAW_ROLE_BY_OP = { coder_non_pii: 'coder', reviewer_non_pii: 'reviewer', in_charge: 'site_pi', viewer_non_pii: 'collaborator' };
   // Roles a unit grant may carry only where a cadre at that level permits them
   // (org_grant_service.CADRE_FLAG_BY_ROLE); the server refuses the rest.
@@ -1273,17 +1273,33 @@
           return '<option value="' + esc(unitObj.org_unit_id) + '">' + esc(unitObj.unit_code + ' · ' + unitObj.unit_name + (unitObj.level_code ? ' (' + unitObj.level_code + ')' : '') + (isHome ? ' · Home' : '')) + '</option>';
         }).join('');
 
-        // One unit per role here (owner, 2026-11-16): saving moves the role to the chosen unit.
-        // Several units at once stay with the bulk bar's Cross-Tree / All Units presets.
+        var unitById = {};
+        allUnits.forEach(function (x) { unitById[x.org_unit_id] = x; });
+        var grantRows = (u.unit_grants || []).map(function (g) {
+          var unitObj = unitById[g.org_unit_id] || {};
+          var opKey = UG_OP_BY_ROLE_KEY[g.role] || g.role;
+          var label = (ugDrawerRoleOptions(u.is_mentor).find(function (o) { return o[0] === opKey; }) || [g.role, g.role])[1];
+          return '<li class="d-flex align-items-center gap-2 mb-1">'
+            + '<span class="badge text-bg-light border">' + esc(label) + '</span>'
+            + '<span class="small">on <code>' + esc(unitObj.unit_code || '?') + '</code> ' + esc(unitObj.unit_name || '') + '</span>'
+            + '<button type="button" class="btn btn-sm btn-link text-danger p-0 ug-drawer-remove" data-grant-id="' + esc(g.grant_id) + '"'
+            + ' aria-label="' + esc('Remove ' + label + ' on ' + (unitObj.unit_code || '')) + '"><i class="fa-solid fa-xmark me-1"></i>Remove</button>'
+            + '</li>';
+        }).join('');
+
+        // A user may hold several roles on a unit and a role on several units: Add never
+        // touches the other grants, and each grant is removed on its own.
         drawerHtml = '<tr class="table-light ug-drawer-row" data-drawer-uid="' + esc(uid) + '">'
           + '<td></td>'
           + '<td colspan="6" class="p-2">'
+          + '<div class="small fw-semibold mb-1">Unit grants for ' + esc(u.name) + '</div>'
+          + (grantRows ? '<ul class="list-unstyled mb-2">' + grantRows + '</ul>' : '<div class="small text-muted mb-2">No unit grants yet.</div>')
           + '<div class="d-flex flex-wrap align-items-center gap-2">'
-          + '<span class="small">' + esc(u.name) + ' has the</span>'
+          + '<span class="small">Add</span>'
           + '<select class="form-select form-select-sm w-auto ug-drawer-role-sel" data-uid="' + esc(uid) + '" aria-label="Role">' + roleOpts + '</select>'
-          + '<span class="small">grant on</span>'
+          + '<span class="small">on</span>'
           + '<div style="min-width:18rem;"><select class="form-select form-select-sm ug-drawer-unit-sel" data-uid="' + esc(uid) + '" aria-label="Unit">' + unitOpts + '</select></div>'
-          + '<button type="button" class="btn btn-sm btn-success ug-drawer-save" data-uid="' + esc(uid) + '"><i class="fa-solid fa-check me-1"></i>Save</button>'
+          + '<button type="button" class="btn btn-sm btn-success ug-drawer-save" data-uid="' + esc(uid) + '"><i class="fa-solid fa-plus me-1"></i>Add grant</button>'
           + '</div>'
           + '<div class="small text-muted mt-1 ug-drawer-note" data-uid="' + esc(uid) + '"></div>'
           + '</td></tr>';
@@ -1347,28 +1363,25 @@
       var allUnitsHere = _ugData.units || [];
       function sync() {
         var rawRole = UG_RAW_ROLE_BY_OP[roleSel.value] || roleSel.value;
-        var units = ugUnitsWithRole(user, rawRole);
-        var value = units.length ? units[0] : '';
-        // Offer only units whose level has a cadre allowed this role.
+        var held = {};
+        ugUnitsWithRole(user, rawRole).forEach(function (id) { held[id] = true; });
+        // Offer units whose level has a cadre allowed this role, and not ones already held.
         var allowed = allUnitsHere.filter(function (x) { return ugUnitAllows(x, rawRole); });
         var allowedIds = {};
-        allowed.forEach(function (x) { allowedIds[x.org_unit_id] = true; });
+        allowed.forEach(function (x) { if (!held[x.org_unit_id]) allowedIds[x.org_unit_id] = true; });
         Array.prototype.forEach.call(unitSel.options, function (o) { if (o.value) o.disabled = !allowedIds[o.value]; });
         if (picker) {
           allUnitsHere.forEach(function (x) { picker.updateOption(x.org_unit_id, Object.assign({}, picker.options[x.org_unit_id] || {}, { value: x.org_unit_id, disabled: !allowedIds[x.org_unit_id] })); });
           picker.refreshOptions(false);
-          picker.setValue(value, true);
-        } else unitSel.value = value;
+          picker.clear(true);
+        } else unitSel.value = '';
         var flagLabel = { coder: "'Code VA'", interview_supervisor: "'Supervise interviews'", death_reporter: "'Report deaths'" }[rawRole];
         if (!allowed.length) {
           note.textContent = 'No unit level allows this role yet: tick ' + flagLabel + ' for a cadre in Structure & Cadres → Cadres & Role Matrix.';
         } else if (flagLabel && allowed.length < allUnitsHere.length) {
-          note.textContent = 'Only units at levels where a cadre may ' + flagLabel.replace(/'/g, '').toLowerCase() + ' are offered; change that in the Cadres & Role Matrix.'
-            + (units.length > 1 ? ' Currently on ' + units.length + ' units; saving keeps only the one chosen.' : '');
+          note.textContent = 'Only units at levels where a cadre may ' + flagLabel.replace(/'/g, '').toLowerCase() + ' are offered; change that in the Cadres & Role Matrix.';
         } else {
-          note.textContent = units.length > 1
-            ? 'Currently on ' + units.length + ' units; saving keeps it on the one chosen here only.'
-            : (units.length ? '' : 'Not granted on any unit yet.');
+          note.textContent = '';
         }
       }
       ugWithTomSelect(function () {
@@ -1383,7 +1396,26 @@
           ugShowMsg('warning', 'Choose a unit, or use the Bulk Bar to revoke the role.');
           return;
         }
-        runBulkApply([uid], roleSel.value, 'custom', [unitId]);
+        runBulkApply([uid], roleSel.value, 'custom', [unitId], true);
+      });
+      row.querySelectorAll('.ug-drawer-remove').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (!window.confirm('Remove this grant? It is deactivated (kept in the audit log) and can be turned back on in Access Grants.')) return;
+          btn.disabled = true;
+          // The audited grant on/off endpoint: same admin / project PI checks as the Access Grants panel.
+          fetch('/admin/api/access-grants/' + encodeURIComponent(btn.getAttribute('data-grant-id')) + '/toggle', { method: 'POST', headers: csrfHeaders() })
+            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+            .then(function (res) {
+              if (!res.ok || res.data.status !== 'deactive') {
+                btn.disabled = false;
+                ugShowMsg('danger', (res.data && res.data.error) || 'Could not remove the grant.');
+                return;
+              }
+              ugShowMsg('success', 'Grant removed.');
+              loadUsersGrid();
+            })
+            .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not remove the grant.'); });
+        });
       });
     });
   }
@@ -1471,7 +1503,7 @@
       });
   }
 
-  function runBulkApply(userIds, operation, scopeMode, customUnitIds) {
+  function runBulkApply(userIds, operation, scopeMode, customUnitIds, keepOtherUnits) {
     ugShowMsg('info', 'Applying changes…');
     fetch('/admin/api/projects/' + encodeURIComponent(projectId) + '/users-grid/bulk-apply', {
       method: 'POST',
@@ -1481,7 +1513,8 @@
         operation: operation,
         scope_mode: scopeMode,
         custom_unit_ids: customUnitIds || [],
-        sync_scope: true
+        // The drawer's Add keeps the role's other units; presets and the bulk bar set the scope exactly.
+        sync_scope: !keepOtherUnits
       })
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })

@@ -392,6 +392,7 @@
                       <option value="in_charge">🏥 In-charge / Project PI</option>
                       <option value="field">📱 Field Collectors (Interviewer / Supervisor / Death Reporter)</option>
                       <option value="multi_unit">🔀 Multi-unit / Cross-tree users (&gt;1 unit)</option>
+                      {% if is_org %}<option value="no_unit">🚫 No unit assigned (project-level grants only)</option>{% endif %}
                       <option value="inactive">⏸ Inactive user accounts</option>
                     </select>
                   </div>
@@ -1090,6 +1091,8 @@
       if (flt === 'in_charge' && !(u.grouped_unit_roles || []).some(function (g) { return g.role_key === 'site_pi'; }) && !(u.project_grants || []).some(function (pg) { return pg.role === 'site_pi' || pg.role === 'project_pi'; })) return false;
       if (flt === 'field' && !(u.grouped_unit_roles || []).some(function (g) { return ['interviewer', 'interview_supervisor', 'death_reporter'].indexOf(g.role_key) >= 0; })) return false;
       if (flt === 'multi_unit' && (u.distinct_unit_count || 0) <= 1) return false;
+      // No active unit grant: Tier 1 on a tree project, and free to file under any unit.
+      if (flt === 'no_unit' && (u.distinct_unit_count || 0) > 0) return false;
       if (flt === 'inactive' && u.is_active) return false;
       if (!q) return true;
       var hay = [

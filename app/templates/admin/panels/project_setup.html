@@ -444,9 +444,9 @@
                       <label class="form-label small fw-semibold mb-0 text-muted" for="setup-ug-bulk-op" style="font-size:0.7rem;">1. Role or Action (Three-Tier PII Boundary)</label>
                       <select id="setup-ug-bulk-op" class="form-select form-select-sm">
                         <option value="">— Choose role or action to apply —</option>
-                        <optgroup label="Coding &amp; QA Roles (Tier 3 In-System = PII · Tier 1/2 = Non-PII)">
-                          <option value="coder_non_pii">+ Grant: Coder (Tier 3 In-System = PII · Tier 1/2 = Non-PII)</option>
-                          <option value="reviewer_non_pii">+ Grant: Reviewer (Tier 3 In-System = PII · Tier 1/2 = Non-PII)</option>
+                        <optgroup label="Coding &amp; QA Roles (PII on units; Non-PII project-wide or for mentoring institutes)">
+                          <option value="coder_non_pii">+ Grant: Coder</option>
+                          <option value="reviewer_non_pii">+ Grant: Reviewer</option>
                           <option value="coding_tester">+ Grant: Coding Tester (Sandbox — Non-PII)</option>
                         </optgroup>
                         <optgroup label="Read-Only Viewer Roles">
@@ -1139,6 +1139,47 @@
       + '</span>';
   }
 
+  // Drawer role choices. Unit grants on an organization project give PII, except
+  // coder/reviewer for mentoring-institute staff (Tier 2) and the non-PII roles.
+  function ugDrawerRoleOptions(isMentor) {
+    return [
+      ['interviewer', 'Interviewer (PII)'],
+      ['interview_supervisor', 'Interview Supervisor (PII)'],
+      ['death_reporter', 'Death Reporter (PII on own registrations)'],
+      ['coder_non_pii', isMentor ? 'Coder (Non-PII, mentoring institute)' : 'Coder (PII)'],
+      ['reviewer_non_pii', isMentor ? 'Reviewer (Non-PII, mentoring institute)' : 'Reviewer (PII)'],
+      ['in_charge', 'In-charge (PII)'],
+      ['data_manager', 'Data Manager (PII)'],
+      ['coding_tester', 'Coding Tester (Non-PII sandbox)'],
+      ['viewer_non_pii', 'Viewer (Non-PII)']
+    ];
+  }
+  var UG_OP_BY_ROLE_KEY = { coder_pii: 'coder_non_pii', coder_non_pii: 'coder_non_pii', reviewer_pii: 'reviewer_non_pii', reviewer_non_pii: 'reviewer_non_pii', site_pi: 'in_charge', collaborator: 'viewer_non_pii' };
+  var UG_RAW_ROLE_BY_OP = { coder_non_pii: 'coder', reviewer_non_pii: 'reviewer', in_charge: 'site_pi', viewer_non_pii: 'collaborator' };
+  function ugUnitsWithRole(user, rawRole) {
+    var byUnit = (user && user.unit_roles_by_unit) || {};
+    return Object.keys(byUnit).filter(function (k) { return (byUnit[k] || []).indexOf(rawRole) >= 0; });
+  }
+  // Tom Select (vendored, also used by the organization panel) makes the unit list searchable;
+  // without it the plain select still works.
+  var UG_TS_CSS = {{ (url_for('static', filename='vendor/tom-select/tom-select.bootstrap5.min.css') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }};
+  var UG_TS_JS = {{ (url_for('static', filename='vendor/tom-select/tom-select.complete.min.js') ~ '?v=' ~ config.STATIC_ASSET_VERSION)|tojson }};
+  function ugWithTomSelect(done) {
+    if (window.TomSelect) { done(); return; }
+    if (!document.querySelector('link[href="' + UG_TS_CSS + '"]')) {
+      var link = document.createElement('link'); link.rel = 'stylesheet'; link.href = UG_TS_CSS; document.head.appendChild(link);
+    }
+    var loads = window._orgPanelScriptLoads = window._orgPanelScriptLoads || {};
+    if (!loads[UG_TS_JS]) {
+      loads[UG_TS_JS] = new Promise(function (resolve, reject) {
+        var el = document.createElement('script'); el.src = UG_TS_JS; el.onload = resolve;
+        el.onerror = function () { delete loads[UG_TS_JS]; el.remove(); reject(new Error('load failed')); };
+        document.head.appendChild(el);
+      });
+    }
+    loads[UG_TS_JS].then(done, function () {});
+  }
+
   function renderUgListTable() {
     var wrap = document.getElementById('setup-ug-table-wrap');
     if (!wrap || !_ugData) return;
@@ -1212,49 +1253,29 @@
 
       var drawerHtml = '';
       if (isExpanded && _ugData.structure_mode === 'organization') {
-        var firstRoleKey = unitGroups.length ? unitGroups[0].role_key : 'coder_non_pii';
-        var activeUnitIdsForFirst = {};
-        if (unitGroups.length) {
-          unitGroups[0].units.forEach(function (x) { activeUnitIdsForFirst[x.org_unit_id] = true; });
-        } else if (pw) {
-          activeUnitIdsForFirst[pw.org_unit_id] = true;
-        }
-        var unitCbs = allUnits.map(function (unitObj) {
+        var firstRoleKey = unitGroups.length ? unitGroups[0].role_key : (pw ? 'interviewer' : 'coder_non_pii');
+        var firstOp = UG_OP_BY_ROLE_KEY[firstRoleKey] || firstRoleKey;
+        var roleOpts = ugDrawerRoleOptions(u.is_mentor).map(function (o) {
+          return '<option value="' + esc(o[0]) + '"' + (o[0] === firstOp ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
+        }).join('');
+        var unitOpts = '<option value="">Choose a unit…</option>' + allUnits.map(function (unitObj) {
           var isHome = pw && pw.org_unit_id === unitObj.org_unit_id;
-          var isTicked = !!activeUnitIdsForFirst[unitObj.org_unit_id];
-          return '<label class="form-check form-check-inline mb-1 small text-nowrap border rounded px-2 py-1 ' + (isTicked ? 'bg-primary-subtle border-primary' : 'bg-white') + '">'
-            + '<input type="checkbox" class="form-check-input ug-drawer-unit-cb" data-uid="' + esc(uid) + '" value="' + esc(unitObj.org_unit_id) + '" ' + (isTicked ? 'checked' : '') + '> '
-            + '<code>' + esc(unitObj.unit_code) + '</code> ' + esc(unitObj.unit_name)
-            + (isHome ? ' <span class="badge text-bg-dark" style="font-size:0.6rem;">Home</span>' : '')
-            + '</label>';
+          return '<option value="' + esc(unitObj.org_unit_id) + '">' + esc(unitObj.unit_code + ' · ' + unitObj.unit_name + (unitObj.level_code ? ' (' + unitObj.level_code + ')' : '') + (isHome ? ' · Home' : '')) + '</option>';
         }).join('');
 
+        // One unit per role here (owner, 2026-11-16): saving moves the role to the chosen unit.
+        // Several units at once stay with the bulk bar's Cross-Tree / All Units presets.
         drawerHtml = '<tr class="table-light ug-drawer-row" data-drawer-uid="' + esc(uid) + '">'
           + '<td></td>'
           + '<td colspan="6" class="p-2">'
-          + '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">'
-          + '<div class="d-flex align-items-center gap-2 flex-wrap">'
-          + '<span class="fw-semibold small"><i class="fa-solid fa-Sliders me-1 text-primary"></i>Edit Unit Grants for ' + esc(u.name) + ':</span>'
-          + '<select class="form-select form-select-sm w-auto ug-drawer-role-sel" data-uid="' + esc(uid) + '">'
-          + '<option value="coder_non_pii"' + (firstRoleKey === 'coder_non_pii' || firstRoleKey === 'coder_pii' ? ' selected' : '') + '>Coder (Tier 3 In-System = PII · Tier 2 Mentor = Non-PII)</option>'
-          + '<option value="reviewer_non_pii"' + (firstRoleKey === 'reviewer_non_pii' || firstRoleKey === 'reviewer_pii' ? ' selected' : '') + '>Reviewer (Tier 3 In-System = PII · Tier 2 Mentor = Non-PII)</option>'
-          + '<option value="coding_tester"' + (firstRoleKey === 'coding_tester' ? ' selected' : '') + '>Coding Tester (Non-PII Sandbox)</option>'
-          + '<option value="in_charge"' + (firstRoleKey === 'site_pi' ? ' selected' : '') + '>In-charge (Tier 3 Full PII)</option>'
-          + '<option value="data_manager"' + (firstRoleKey === 'data_manager' ? ' selected' : '') + '>Data Manager (Tier 3 Full PII)</option>'
-          + '<option value="interviewer"' + (firstRoleKey === 'interviewer' ? ' selected' : '') + '>Interviewer (Tier 3 Full PII)</option>'
-          + '<option value="interview_supervisor"' + (firstRoleKey === 'interview_supervisor' ? ' selected' : '') + '>Interview Supervisor (Tier 3 Full PII)</option>'
-          + '<option value="death_reporter"' + (firstRoleKey === 'death_reporter' ? ' selected' : '') + '>Death Reporter (Own Register PII)</option>'
-          + '<option value="viewer_non_pii"' + (firstRoleKey === 'collaborator' ? ' selected' : '') + '>Viewer (Non-PII)</option>'
-          + '</select>'
+          + '<div class="d-flex flex-wrap align-items-center gap-2">'
+          + '<span class="small">' + esc(u.name) + ' has the</span>'
+          + '<select class="form-select form-select-sm w-auto ug-drawer-role-sel" data-uid="' + esc(uid) + '" aria-label="Role">' + roleOpts + '</select>'
+          + '<span class="small">grant on</span>'
+          + '<div style="min-width:18rem;"><select class="form-select form-select-sm ug-drawer-unit-sel" data-uid="' + esc(uid) + '" aria-label="Unit">' + unitOpts + '</select></div>'
+          + '<button type="button" class="btn btn-sm btn-success ug-drawer-save" data-uid="' + esc(uid) + '"><i class="fa-solid fa-check me-1"></i>Save</button>'
           + '</div>'
-          + '<div class="d-flex gap-1 flex-wrap">'
-          + (pw ? '<button type="button" class="btn btn-xs btn-outline-secondary py-0 px-2 small ug-drawer-preset" data-uid="' + esc(uid) + '" data-mode="own">🏠 Own Unit Only</button>' : '')
-          + (pw ? '<button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 small ug-drawer-preset" data-uid="' + esc(uid) + '" data-mode="cross_level">🔀 Cross-Tree (Other Units at Level)</button>' : '')
-          + (pw ? '<button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 small ug-drawer-preset" data-uid="' + esc(uid) + '" data-mode="all_user_level">🏥 All Units at Level</button>' : '')
-          + '<button type="button" class="btn btn-xs btn-success py-0 px-2 small ug-drawer-save" data-uid="' + esc(uid) + '"><i class="fa-solid fa-check me-1"></i>Save Unit Scope</button>'
-          + '</div>'
-          + '</div>'
-          + '<div class="d-flex flex-wrap gap-1" style="max-height:130px; overflow-y:auto;">' + unitCbs + '</div>'
+          + '<div class="small text-muted mt-1 ug-drawer-note" data-uid="' + esc(uid) + '"></div>'
           + '</td></tr>';
       }
 
@@ -1306,29 +1327,34 @@
         renderUgListTable();
       });
     });
-    wrap.querySelectorAll('.ug-drawer-preset').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var uid = btn.getAttribute('data-uid');
-        var mode = btn.getAttribute('data-mode');
-        var roleSel = wrap.querySelector('.ug-drawer-role-sel[data-uid="' + CSS.escape(uid) + '"]');
-        var op = roleSel ? roleSel.value : 'coder_non_pii';
-        runBulkApply([uid], op, mode, []);
+    wrap.querySelectorAll('.ug-drawer-row').forEach(function (row) {
+      var uid = row.getAttribute('data-drawer-uid');
+      var user = (_ugData.users || []).find(function (x) { return x.user_id === uid; });
+      var roleSel = row.querySelector('.ug-drawer-role-sel');
+      var unitSel = row.querySelector('.ug-drawer-unit-sel');
+      var note = row.querySelector('.ug-drawer-note');
+      var picker = null;
+      function sync() {
+        var units = ugUnitsWithRole(user, UG_RAW_ROLE_BY_OP[roleSel.value] || roleSel.value);
+        var value = units.length ? units[0] : '';
+        if (picker) picker.setValue(value, true); else unitSel.value = value;
+        note.textContent = units.length > 1
+          ? 'Currently on ' + units.length + ' units; saving keeps it on the one chosen here only.'
+          : (units.length ? '' : 'Not granted on any unit yet.');
+      }
+      ugWithTomSelect(function () {
+        if (window.TomSelect && unitSel.isConnected) picker = new TomSelect(unitSel, { maxOptions: null, placeholder: 'Search units…', allowEmptyOption: true });
+        sync();
       });
-    });
-    wrap.querySelectorAll('.ug-drawer-save').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var uid = btn.getAttribute('data-uid');
-        var roleSel = wrap.querySelector('.ug-drawer-role-sel[data-uid="' + CSS.escape(uid) + '"]');
-        var op = roleSel ? roleSel.value : 'coder_non_pii';
-        var customIds = Array.prototype.map.call(
-          wrap.querySelectorAll('.ug-drawer-unit-cb[data-uid="' + CSS.escape(uid) + '"]:checked'),
-          function (cb) { return cb.value; }
-        );
-        if (!customIds.length) {
-          ugShowMsg('warning', 'Tick at least one unit, or use the Bulk Bar to revoke roles.');
+      sync();
+      roleSel.addEventListener('change', sync);
+      row.querySelector('.ug-drawer-save').addEventListener('click', function () {
+        var unitId = picker ? picker.getValue() : unitSel.value;
+        if (!unitId) {
+          ugShowMsg('warning', 'Choose a unit, or use the Bulk Bar to revoke the role.');
           return;
         }
-        runBulkApply([uid], op, 'custom', customIds);
+        runBulkApply([uid], roleSel.value, 'custom', [unitId]);
       });
     });
   }

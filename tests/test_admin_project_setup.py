@@ -544,6 +544,8 @@ class ProjectSetupPanelTests(BaseTestCase):
         self.assertEqual(user_row["primary_worker"]["cadre_code"], "MO")
         # The created-date filter reads this; an ISO timestamp with its offset.
         self.assertIsNotNone(datetime.fromisoformat(user_row["user_created_at"]).tzinfo)
+        # The unit-grant drawer labels coder/reviewer Non-PII only for mentoring-institute staff.
+        self.assertIs(user_row["is_mentor"], False)
 
         # 2. Bulk apply: In-System Coder on own home unit (Tier 3 In-System Doctor => coding_pii)
         apply_own = self.client.post(

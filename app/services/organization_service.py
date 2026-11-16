@@ -4345,6 +4345,7 @@ def get_project_users_grid(project_id: str) -> dict:
             "phone": u_obj.phone or u_obj.mobile_login or (primary_worker["phone"] if primary_worker else None),
             "user_status": u_obj.user_status.value if hasattr(u_obj.user_status, "value") else str(u_obj.user_status),
             "is_active": is_user_active,
+            "is_mentor": is_mentor,
             # Stored naive UTC (va_users.user_created_at); sent with its offset so
             # the grid filters on the viewer's local date.
             "user_created_at": (

@@ -10,6 +10,14 @@ last_updated: 2026-11-17
 
 Every check from search to final save, with known gaps: [DORIS Validation Checks](../current-state/doris-validation-checks.md).
 
+## Step 2 card order
+
+Owner decision 2026-11-17, web and phone. Masked Step 2 shows, top to bottom:
+Your Step 1 certificate, DORIS result from Step 1, Your Step 1 assigned causes,
+SmartVA Analysis. The final-cause card shows the quick-add buttons (Use SmartVA
+result), then "Or search ICD-11 for your own code", then "Your choice: ..." with
+its info and remove buttons. Order only; content and coding decisions unchanged.
+
 ## Cause reference presentation
 
 The suggested and independently selected underlying COD show their associated

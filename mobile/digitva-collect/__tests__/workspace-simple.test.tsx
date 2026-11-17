@@ -43,7 +43,7 @@ jest.mock("@drguptavivek/who-2022-va/native", () => {
 jest.mock("../src/workspace/WorkspaceLayout", () => {
   const React = require("react") as typeof import("react");
   const actual = jest.requireActual("../src/workspace/WorkspaceLayout");
-  return { ...actual, WorkspaceLayout: (props: any) => React.createElement(React.Fragment, null, React.createElement(actual.WorkspaceLayout, props), props.notes) };
+  return { ...actual, WorkspaceLayout: (props: any) => React.createElement(React.Fragment, null, React.createElement(actual.WorkspaceLayout, props)) };
 });
 
 import { ApiError } from "../src/api";

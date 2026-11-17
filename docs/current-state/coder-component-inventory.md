@@ -84,3 +84,12 @@ Shared by `CategoryPanel.tsx` and `CategoryPanel.web.tsx` through
   keys (`risk_factors`) are humanized.
 - Disease / Co-morbidity splits answers into Diagnosed by Health Professional
   (Yes), Absent (No) and the remaining answers as a question/answer grid.
+
+## Phone category pager and Notes
+
+`WorkspaceLayout.tsx` (native, also offline coding) ends every category page
+with Previous / Next, as the web layout does. Next is disabled while the
+category's `blocked_by` holds (e.g. "Complete the Narrative Quality Assessment
+before proceeding.") and the reason shows under it. A Notes button follows on
+every page and toggles `PrivateNotePanel`, kept mounted so a draft survives
+category changes. Phone only; `WorkspaceLayout.web.tsx` is unchanged.

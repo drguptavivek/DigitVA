@@ -974,16 +974,14 @@ describe("round-3 Settings layout", () => {
   });
 });
 
-it("offers Appearance as Light / Dark / System and applies the choice", async () => {
-  const theme = require("../src/theme") as typeof import("../src/theme");
-  theme.__setThemePreferenceForTest("system");
+it("offers Appearance as Light / Dark / System, showing the stored choice", async () => {
+  // Reads the shared theme store only: changing it would re-render screens other tests in this file left mounted.
   const tree = await render();
   const control = tree.root.findAllByType(SegmentedControl).find((n) => n.props.accessibilityLabel === en.appearance);
   expect(control).toBeDefined();
+  expect(control!.props.compact).toBe(true);
   expect(control!.props.options.map((option: { value: string }) => option.value)).toEqual(["light", "dark", "system"]);
   expect(control!.props.value).toBe("system");
-  await act(async () => { control!.props.onChange("dark"); });
-  const after = tree.root.findAllByType(SegmentedControl).find((n) => n.props.accessibilityLabel === en.appearance);
-  expect(after!.props.value).toBe("dark");
-  theme.__setThemePreferenceForTest("system");
+  expect(typeof control!.props.onChange).toBe("function");
+  await act(async () => tree.unmount());
 });

@@ -184,19 +184,16 @@ prefilled.
   where DORIS has that code and the question was asked; unasked or blank
   questions leave the field empty (a blank optional answer is not "no").
 - Interview facts, not SmartVA output, so masked Step 1 shows them too.
-- PII follows the person's access, as the web does (owner 2026-11-17,
-  `digitva-9cll.22.10`). A viewer `should_redact_pii` redacts for the case's
-  project gets every non-PII prefilled field (manner, maternal, fetal,
-  surgery, autopsy) but none of the PII ones: `AdministrativeData` (Sex,
-  DateBirth, DateDeath, EstimatedAge) and
-  `MannerOfDeath\DateOfExternalCauseOrPoisoning` (a date beside the death),
-  with their provenance entries withheld too; the sealed payload fields are
-  never opened for that viewer. Same rule and response shape on the web
-  partials and `GET /api/v1/va/<sid>/workspace`. On a device bearer token
-  the PII decision uses the device-projected grants (`NATIVE_DEVICE_ROLES`),
-  so a PII entitlement held only through an admin, data manager or
-  collaborator_pii grant is not used there; widening that is an open owner
-  question (see `app/services/authz/grants.py` `NATIVE_DEVICE_ROLES`).
+- The prefill ignores PII access (owner 2026-11-17, `digitva-9cll.22.10`):
+  "DORIS prefill on the server and app is regardless of PII access since the
+  age, sex etc are part of VA form anyways and so are visible", and "DOB and
+  DOD are fine to prefill too". Every coder who may code the case gets the
+  full prefill (administrative data, manner and the injury date, maternal,
+  fetal, surgery, autopsy) on the web partials and
+  `GET /api/v1/va/<sid>/workspace`, online and offline, read from the payload
+  joined with its sealed fields. Device-token grants are not widened for it.
+  A saved certificate is still returned without `AdministrativeData` to a
+  viewer `should_redact_pii` redacts.
 - One function serves web and ODK cases from the active payload version.
   Extra questions (extension `doris_support_whova_2022`) fill the gaps the
   WHO questions leave; names and rules are Annex A of

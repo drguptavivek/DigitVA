@@ -37,33 +37,6 @@ def _redacted(certificate, redact_pii: bool):
     return certificate
 
 
-# Prefill fields a redacting viewer never gets (bead digitva-9cll.22.10): the
-# deceased's Sex, dates and age, and the injury date, a calendar date beside
-# the death that narrows the date of death. Every other prefilled field is an
-# interview fact the viewer already reads on the case.
-_PII_PREFILL_SECTIONS = ("AdministrativeData",)
-_PII_PREFILL_PATHS = ("MannerOfDeath.DateOfExternalCauseOrPoisoning",)
-
-
-def _non_pii_prefill(certificate: dict, provenance: dict) -> tuple[dict, dict]:
-    """The prefill without its PII fields and their provenance entries."""
-    kept = {
-        section: dict(fields)
-        for section, fields in certificate.items()
-        if section not in _PII_PREFILL_SECTIONS
-    }
-    for path in _PII_PREFILL_PATHS:
-        section, field = path.split(".", 1)
-        kept.get(section, {}).pop(field, None)
-    kept = {section: fields for section, fields in kept.items() if fields}
-    provenance = {
-        path: entry
-        for path, entry in provenance.items()
-        if path.split(".", 1)[0] in kept and path not in _PII_PREFILL_PATHS
-    }
-    return kept, provenance
-
-
 def doris_initial(
     saved_certificate, submission, project_mode, redact_pii: bool, active_version=None
 ) -> tuple[dict, dict]:
@@ -73,9 +46,10 @@ def doris_initial(
     prefill markers. Otherwise a DORIS project's new certificate starts
     with the non-cause fields the interview answers
     (``doris_prefill_from_payload``, bead digitva-hln); these are interview
-    facts, not SmartVA output, so masked Step 1 shows them too. A redacting
-    viewer gets the non-PII fields only (``_non_pii_prefill``), read from
-    the stored payload without the sealed fields. ``active_version`` is the submission's active payload version
+    facts, not SmartVA output, so masked Step 1 shows them too. Every
+    coder gets the full prefill whatever their PII access (owner,
+    2026-11-17: sex, age, DOB and DOD are on the VA form the coder reads).
+    ``active_version`` is the submission's active payload version
     when the caller already loaded it; else it is read here.
     """
     if saved_certificate is not None:
@@ -83,10 +57,7 @@ def doris_initial(
     if submission is None or not is_doris(project_mode):
         return {}, {}
     version = active_version or get_active_payload_version(submission.va_sid)
-    if redact_pii:
-        return _non_pii_prefill(*doris_prefill_from_payload(version.payload_data if version else None))
-    # Joined with the sealed fields (a date of birth an admin flagged is_pii
-    # is sealed): only a viewer who sees PII reaches this.
+    # Joined with the sealed fields so a sealed date of birth still prefills.
     return doris_prefill_from_payload(joined_payload(version) if version else None)
 
 

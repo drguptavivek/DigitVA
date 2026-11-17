@@ -1,8 +1,8 @@
 """DORIS seeds and saved-processing context (app/services/doris_context_service.py).
 
 Pure unit tests: rows are namespaces, so no database is needed. The one rule
-under test everywhere: a redacting viewer never receives AdministrativeData
-(the deceased's Sex, DateBirth, DateDeath, age) in any returned certificate.
+under test: a saved certificate reaches a redacting viewer without AdministrativeData
+(the interview prefill is full for everyone, owner 2026-11-17).
 """
 
 import unittest
@@ -52,7 +52,7 @@ class DorisInitialTests(unittest.TestCase):
         self.assertEqual(redacted["Part1"], [_PART1])
         self.assertIn("AdministrativeData", saved)  # the stored row is untouched
 
-    def test_prefill_only_for_a_doris_project_and_a_non_redacting_viewer(self):
+    def test_prefill_only_for_a_doris_project_whatever_the_pii_access(self):
         submission = SimpleNamespace(va_sid="uuid:x")
         version = SimpleNamespace(payload_data={"Id10019": "female"})
         prefilled = ({"AdministrativeData": {"Sex": 2}}, {"AdministrativeData.Sex": {}})
@@ -61,56 +61,11 @@ class DorisInitialTests(unittest.TestCase):
                 svc.doris_initial(None, submission, "masked_doris", False, version), prefilled
             )
             self.assertEqual(prefill.call_args.args, (version.payload_data,))
-            self.assertEqual(svc.doris_initial(None, submission, "masked_doris", True, version), ({}, {}))
+            # Owner 2026-11-17: the prefill ignores PII access.
+            self.assertEqual(svc.doris_initial(None, submission, "masked_doris", True, version), prefilled)
             self.assertEqual(svc.doris_initial(None, submission, "masked_simple", False, version), ({}, {}))
             self.assertEqual(svc.doris_initial(None, None, "masked_doris", False, version), ({}, {}))
         self.assertEqual(prefill.call_count, 2)
-
-    def test_a_redacting_viewer_gets_the_non_pii_prefill_only(self):
-        """digitva-9cll.22.10: manner and the rest stay; sex, dates, age and the
-        injury date go, with their provenance entries."""
-        submission = SimpleNamespace(va_sid="uuid:x")
-        prefilled = (
-            {
-                "AdministrativeData": {"Sex": 2, "DateDeath": "2026-01-02", "EstimatedAge": "P30Y"},
-                "MannerOfDeath": {"MannerOfDeath": 1, "DateOfExternalCauseOrPoisoning": "2026-01-01"},
-                "Autopsy": {"WasRequested": 0},
-            },
-            {
-                "AdministrativeData.Sex": {"sources": ["Id10019"]},
-                "AdministrativeData.DateDeath": {"sources": ["Id10023"]},
-                "AdministrativeData.EstimatedAge": {"sources": ["ageInYears"]},
-                "MannerOfDeath.MannerOfDeath": {"sources": ["Id10077"]},
-                "MannerOfDeath.DateOfExternalCauseOrPoisoning": {"sources": ["doris_injury_date"]},
-                "Autopsy.WasRequested": {"sources": ["doris_autopsy_requested"]},
-            },
-        )
-        version = SimpleNamespace(payload_data={"Id10077": "yes"})
-        with patch.object(svc, "doris_prefill_from_payload", return_value=prefilled) as prefill, \
-                patch.object(svc, "joined_payload") as joined:
-            full, full_prov = svc.doris_initial(None, submission, "masked_doris", False, version)
-            self.assertEqual(full["AdministrativeData"]["Sex"], 2)
-            certificate, provenance = svc.doris_initial(None, submission, "masked_doris", True, version)
-        self.assertEqual(certificate["MannerOfDeath"], {"MannerOfDeath": 1})
-        self.assertEqual(certificate["Autopsy"], {"WasRequested": 0})
-        self.assertIn("MannerOfDeath.MannerOfDeath", provenance)
-        self.assertNotIn("AdministrativeData", certificate)
-        self.assertEqual(
-            set(provenance), {"MannerOfDeath.MannerOfDeath", "Autopsy.WasRequested"}
-        )
-        # The redacting read never opens the sealed fields.
-        self.assertEqual(joined.call_count, 1)
-        self.assertIs(prefill.call_args.args[0], version.payload_data)
-        self.assertIn("DateOfExternalCauseOrPoisoning", prefilled[0]["MannerOfDeath"])  # not mutated
-
-    def test_an_all_pii_prefill_leaves_nothing_for_a_redacting_viewer(self):
-        submission = SimpleNamespace(va_sid="uuid:x")
-        prefilled = ({"AdministrativeData": {"Sex": 2}}, {"AdministrativeData.Sex": {}})
-        with patch.object(svc, "doris_prefill_from_payload", return_value=prefilled):
-            self.assertEqual(
-                svc.doris_initial(None, submission, "masked_doris", True, SimpleNamespace(payload_data={})),
-                ({}, {}),
-            )
 
 
 class SavedProcessingTests(unittest.TestCase):

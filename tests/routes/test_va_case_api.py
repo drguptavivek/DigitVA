@@ -874,10 +874,10 @@ class VaCaseApiTests(BaseTestCase):
         self.assertIsNone(body["smartva"])
         self.assertNotIn("smartva", doris)
 
-    # digitva-9cll.22.10: the prefill follows the person's PII access.
+    # digitva-9cll.22.10, owner 2026-11-17: the full prefill whatever the PII access.
     _PREFILL_PAYLOAD = {"Id10019": "female", "Id10077": "no"}
 
-    def test_a_viewer_without_pii_gets_the_non_pii_prefill_only(self):
+    def test_a_viewer_without_pii_gets_the_full_prefill(self):
         self._doris(masked=True)
         sid = self._coding_case(payload=self._PREFILL_PAYLOAD)
         with patch("app.routes.api.va_case.should_redact_pii", return_value=True):
@@ -886,11 +886,11 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(doris["prefill_provenance"]["MannerOfDeath.MannerOfDeath"]["sources"], ["Id10077"])
         self.assertEqual(doris["reset_certificate"]["MannerOfDeath"]["MannerOfDeath"], 0)
         for certificate in (doris["initial_certificate"], doris["reset_certificate"]):
-            self.assertNotIn("AdministrativeData", certificate)
+            self.assertEqual(certificate["AdministrativeData"]["Sex"], 2)
         for provenance in (doris["prefill_provenance"], doris["reset_prefill_provenance"]):
-            self.assertFalse([path for path in provenance if path.startswith("AdministrativeData.")])
+            self.assertIn("AdministrativeData.Sex", provenance)
 
-    def test_a_coder_with_pii_gets_the_full_prefill_on_web_and_bearer(self):
+    def test_a_coder_gets_the_full_prefill_on_web_and_bearer(self):
         self._doris(masked=True)
         sid = self._coding_case(payload=self._PREFILL_PAYLOAD)
         _device, tokens = self._session(email=_CODER_EMAIL, password=_CODER_PASSWORD)

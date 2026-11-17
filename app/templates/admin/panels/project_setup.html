@@ -1488,6 +1488,41 @@
       .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not generate a sign-in code.'); });
   }
 
+  // Sign-in QR: the same one-time sign-in as the code, scanned in the app
+  // instead of typed. The server decides eligibility (collector accounts;
+  // for a non-admin, no verified email, live phone or outside member) and
+  // shows the QR once; it is never stored in the page data.
+  // Hide the obvious misses: the QR is for collector-only accounts. This
+  // page sees only this project's grants; the server checks all of them.
+  function ugQrCandidate(u) {
+    var roles = (u.project_grants || []).concat(u.unit_grants || []).map(function (g) { return g.role; });
+    return u.is_active && roles.length > 0 && roles.every(function (r) { return r === 'interviewer' || r === 'death_reporter'; });
+  }
+  function ugIssueQr(btn) {
+    btn.disabled = true;
+    fetch('/api/v1/users/' + encodeURIComponent(btn.getAttribute('data-uid')) + '/sign-in-qr', { method: 'POST', headers: csrfHeaders(), body: JSON.stringify({ delivery: 'show' }) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.data.qr_png) {
+          btn.disabled = false;
+          ugShowMsg('danger', (res.data && (res.data.message || res.data.error)) || 'Could not create a sign-in QR for this person.');
+          return;
+        }
+        var cell = btn.closest('.ug-code-cell');
+        cell.textContent = '';
+        var img = document.createElement('img');
+        img.src = 'data:image/png;base64,' + res.data.qr_png;
+        img.alt = 'Sign-in QR';
+        img.width = 180; img.height = 180;
+        img.className = 'd-block border rounded bg-white p-1';
+        var note = document.createElement('div');
+        note.className = 'small text-muted';
+        note.textContent = 'Scan in the DigitVA app' + (res.data.expires_at ? ' · valid until ' + new Date(res.data.expires_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '');
+        cell.appendChild(img); cell.appendChild(note);
+      })
+      .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not create a sign-in QR for this person.'); });
+  }
+
   // Upload users CSV (digitva-plgm): the preview writes nothing; Apply re-sends the
   // same file with dry_run=0 and writes every row or none.
   var UG_MEMBER_ACTIONS = {
@@ -1586,7 +1621,8 @@
           + (u.last_sign_in_at ? ' · last sign-in ' + esc(ugDateFmt.format(new Date(u.last_sign_in_at))) : '')
         + '</div>'
         + (u.can_issue_code
-            ? '<div class="ug-code-cell"><button type="button" class="btn btn-sm btn-link p-0 ug-issue-code" data-uid="' + esc(uid) + '" aria-label="' + esc('Generate a sign-in code for ' + u.name) + '"><i class="fa-solid fa-key me-1"></i>Generate code</button></div>'
+            ? '<div class="ug-code-cell"><button type="button" class="btn btn-sm btn-link p-0 ug-issue-code" data-uid="' + esc(uid) + '" aria-label="' + esc('Generate a sign-in code for ' + u.name) + '"><i class="fa-solid fa-key me-1"></i>Generate code</button>'
+              + (!ugQrCandidate(u) ? '</div>' : ' · <button type="button" class="btn btn-sm btn-link p-0 ug-issue-qr" data-uid="' + esc(uid) + '" aria-label="' + esc('Show a sign-in QR for ' + u.name) + '"><i class="fa-solid fa-qrcode me-1"></i>Sign-in QR</button></div>')
             // Someone signed in on a phone needs no code; only an admin issues one then.
             : (u.phone_count ? '<div class="small text-muted" style="font-size:0.72rem;">Signed in on a phone; no code needed</div>' : ''));
 
@@ -1734,6 +1770,9 @@
     });
     wrap.querySelectorAll('.ug-issue-code').forEach(function (btn) {
       btn.addEventListener('click', function () { ugIssueCode(btn); });
+    });
+    wrap.querySelectorAll('.ug-issue-qr').forEach(function (btn) {
+      btn.addEventListener('click', function () { ugIssueQr(btn); });
     });
     wrap.querySelectorAll('.ug-toggle-drawer').forEach(function (btn) {
       btn.addEventListener('click', function () {

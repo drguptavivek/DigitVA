@@ -8,6 +8,14 @@ jest.mock("expo-audio", () => ({
   useAudioPlayer: () => mockPlayer,
   useAudioPlayerStatus: () => mockStatus,
 }));
+const mockDownload = jest.fn();
+const mockRemove = jest.fn();
+jest.mock("expo-file-system", () => ({ File: { downloadFileAsync: (...args: unknown[]) => mockDownload(...args) } }));
+jest.mock("../src/standalone/shareFile", () => ({
+  cacheFile: (name: string) => ({ uri: `file:///cache/${name}`, name }),
+  shareAndDelete: jest.fn(),
+}));
+jest.mock("../src/mediaFiles", () => ({ removeFile: (...args: unknown[]) => mockRemove(...args) }));
 jest.mock("../src/auth", () => ({ getAuthenticatedAttachmentSource: (...args: unknown[]) => mockGetSource(...args) }));
 
 import { AttachmentMedia as NativeAttachmentMedia } from "../src/workspace/media/AttachmentMedia.native";
@@ -28,6 +36,8 @@ async function flush() {
 
 beforeEach(() => {
   mockGetSource.mockReset();
+  mockDownload.mockReset();
+  mockRemove.mockReset();
   mockPlayer.play.mockClear();
   mockPlayer.pause.mockClear();
   mockPlayer.replace.mockClear();
@@ -62,7 +72,8 @@ it("passes authenticated headers to the native audio player and exposes accessib
   expect(mockPlayer.play).toHaveBeenCalledTimes(1);
   await act(async () => tree.unmount());
   expect(mockPlayer.pause).toHaveBeenCalled();
-  expect(mockPlayer.replace).toHaveBeenLastCalledWith(null);
+  // expo-audio rejects replace(null) on a device; never send it.
+  expect(mockPlayer.replace).not.toHaveBeenCalledWith(null);
 });
 
 it("ignores a native source that resolves after its workspace identity changes", async () => {
@@ -122,4 +133,49 @@ it("asks for training=1 on a training case's media, and not otherwise", async ()
     expect(tree.root.findByType("img").props.src).toBe(expected);
     await act(async () => tree.unmount());
   }
+});
+
+it("downloads an image with the bearer headers and renders it from a header-less cache file", async () => {
+  mockGetSource.mockResolvedValue(source);
+  mockDownload.mockResolvedValue(undefined);
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<NativeAttachmentMedia identity={identity} attachmentPath={imagePath} userId="user-1" />);
+    await flush();
+  });
+  expect(mockDownload).toHaveBeenCalledWith(source.uri, expect.objectContaining({ uri: expect.stringMatching(/^file:\/\/\/cache\/attachment-img-.*\.jpg$/) }), { headers: source.headers });
+  const image = tree.root.findByProps({ accessibilityLabel: "Attached image" });
+  expect(image.props.source.uri).toMatch(/^file:\/\/\/cache\//);
+  expect(image.props.source.headers).toBeUndefined();
+  expect(mockRemove).not.toHaveBeenCalled();
+  const cached = image.props.source.uri;
+  await act(async () => tree.unmount());
+  expect(mockRemove).toHaveBeenCalledWith(cached);
+});
+
+it("deletes and does not show an image that finishes downloading after the identity changed", async () => {
+  let finishOld!: () => void;
+  mockGetSource.mockResolvedValue(source);
+  mockDownload
+    .mockReturnValueOnce(new Promise<void>((resolve) => { finishOld = resolve; }))
+    .mockResolvedValueOnce(undefined);
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<NativeAttachmentMedia identity={identity} attachmentPath={imagePath} userId="user-1" />);
+    await flush();
+  });
+  const oldUri = mockDownload.mock.calls[0][1].uri;
+  await act(async () => {
+    tree.update(<NativeAttachmentMedia identity={{ ...identity, vaSid: "case-2" }} attachmentPath={imagePath} userId="user-1" />);
+    await flush();
+  });
+  mockRemove.mockClear();
+  await act(async () => {
+    finishOld();
+    await flush();
+  });
+  expect(mockRemove).toHaveBeenCalledWith(oldUri);
+  const shown = tree.root.findByProps({ accessibilityLabel: "Attached image" }).props.source.uri;
+  expect(shown).not.toBe(oldUri);
+  await act(async () => tree.unmount());
 });

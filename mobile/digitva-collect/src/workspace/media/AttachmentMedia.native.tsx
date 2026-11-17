@@ -89,29 +89,43 @@ function AttachmentPlayback({ identity, attachmentPath, userId, training }: Atta
     let cancelled = false;
     setSource(null);
     setError(false);
+    // Pause only: expo-audio rejects replace(null) ("cannot be cast to
+    // AudioSource"); a new source replaces the old one below, and
+    // useAudioPlayer releases the player on unmount.
     player.pause();
-    player.replace(null);
     if (!kind || !userId || !active) {
       if (!kind || !userId) setError(true);
       return () => {
         cancelled = true;
         player.pause();
-        player.replace(null);
       };
     }
 
-    void getAuthenticatedAttachmentSource(userId, attachmentPath, training).then((next) => {
-      if (cancelled || currentKey.current !== key) return;
-      setSource({ ...next, key });
+    // RN's Android Image ignores source headers, so an image is downloaded with them to a private cache
+    // file and shown from there; the file is removed on cleanup or when the result arrives too late.
+    let cachedUri: string | undefined;
+    void (async () => {
+      const next = await getAuthenticatedAttachmentSource(userId, attachmentPath, training);
+      if (kind === "image") {
+        const file = cacheFile(`attachment-img-${Date.now()}-${Math.random().toString(36).slice(2)}.${attachmentMediaExtension(attachmentPath) ?? "jpg"}`);
+        cachedUri = file.uri;
+        await File.downloadFileAsync(next.uri, file, { headers: next.headers });
+      }
+      if (cancelled || currentKey.current !== key) {
+        removeFile(cachedUri);
+        return;
+      }
+      setSource({ uri: cachedUri ?? next.uri, headers: cachedUri ? {} : next.headers, key });
       if (kind === "audio") player.replace(next);
-    }).catch(() => {
+    })().catch(() => {
+      removeFile(cachedUri);
       if (!cancelled) setError(true);
     });
     return () => {
       cancelled = true;
       player.pause();
-      player.replace(null);
       setSource(null);
+      removeFile(cachedUri);
     };
   }, [active, attachmentPath, key, kind, player, training, userId]);
 
@@ -119,7 +133,7 @@ function AttachmentPlayback({ identity, attachmentPath, userId, training }: Atta
   const currentSource = source?.key === key ? source : null;
   if (!currentSource) return <Text accessibilityRole="text">Loading attachment…</Text>;
   if (kind === "image") {
-    return <Image accessibilityLabel="Attached image" source={currentSource} resizeMode="contain" onError={() => setError(true)} style={{ width: 280, height: 220 }} />;
+    return <Image accessibilityLabel="Attached image" source={{ uri: currentSource.uri }} resizeMode="contain" onError={() => setError(true)} style={{ width: 280, height: 220 }} />;
   }
   return (
     <View>

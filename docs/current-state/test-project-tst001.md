@@ -3,7 +3,7 @@ title: Test Project TST001 (Intake Test)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-13
+last_updated: 2026-11-17
 ---
 
 # Test Project TST001 (Intake Test)
@@ -38,6 +38,19 @@ both web-intake methods with a user in every role. Source:
   email local part, upper-cased, dots as underscores).
 - It passes `flask web-intake readiness TST001`; `geography_fields` warns
   because the bundled WHO questionnaire has no `org_<level>_code` fields.
+
+## Synthetic media cases
+
+`flask seed test-media [--project TST001] [--count 4]` (1 to 20) adds new
+synthetic coding cases for testing the phone and web attachment views. Dev or
+testing app only; refused on staging. Run `flask seed test-project` first. Each
+case is a web interview by `test.cho.sc01` submitted through the web-intake
+services (upload storage, `submit_draft`), so it lands like a real one:
+`ready_for_coding` once the SmartVA worker has run. It holds a narration image
+(`imagenarr`), a medical document image (`md_im1`) and narration audio
+(`Id10476_audio`), generated in code (striped PNG, 2 s WAV tone). The narrative
+starts `SYNTHETIC MEDIA TEST CASE`. A run only adds cases and prints their
+`va_sid`s; no existing submission is changed. Test: `tests/test_seed_test_media.py`.
 
 ## On staging
 

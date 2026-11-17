@@ -494,6 +494,117 @@ def seed_test_project(staging, actor_email):
             click.echo(f"  {key:10s} {value}")
 
 
+def _synthetic_png(width: int = 320, height: int = 240) -> bytes:
+    """A text-free striped PNG, standard library only."""
+    import struct
+    import zlib
+
+    rows = b"".join(
+        b"\x00" + b"".join(
+            bytes(((x // 20) % 2 * 200 + 30, (y // 20) % 2 * 200 + 30, 160)) for x in range(width)
+        )
+        for y in range(height)
+    )
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(rows))
+        + chunk(b"IEND", b"")
+    )
+
+
+def _synthetic_wav(seconds: float = 2.0, rate: int = 8000, hz: int = 440) -> bytes:
+    """A mono 16-bit sine tone, standard library only."""
+    import io
+    import math
+    import struct
+    import wave
+
+    frames = b"".join(
+        struct.pack("<h", int(12000 * math.sin(2 * math.pi * hz * i / rate))) for i in range(int(seconds * rate))
+    )
+    out = io.BytesIO()
+    with wave.open(out, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes(frames)
+    return out.getvalue()
+
+
+# answer field -> (media kind). imagenarr: narration image; md_im1: medical document
+# image (needs md_available/md_count); Id10476_audio: narration audio.
+_TEST_MEDIA_FIELDS = {"imagenarr": "image", "md_im1": "image", "Id10476_audio": "audio"}
+_TEST_MEDIA_INTERVIEWER = "test.cho.sc01@digitva.com"
+
+
+@seed_group.command("test-media")
+@click.option("--project", "project_id", default=TEST_PROJECT_ID, show_default=True)
+@click.option("--count", type=click.IntRange(1, 20), default=4, show_default=True)
+def seed_test_media(project_id, count):
+    """Add COUNT synthetic coding cases holding image and audio attachments.
+
+    Dev/testing app only (never staging). Each case is a new web interview
+    by the seeded test interviewer, submitted through the web-intake services,
+    so it lands in ready_for_coding like a real one. Existing submissions are
+    never touched. Run `flask seed test-project` first.
+    """
+    import io
+    import uuid
+    from datetime import date, timedelta
+
+    from flask import current_app
+
+    from app.models import VaSubmissionAttachments, VaUsers
+    from app.services import web_intake_attachment_service as uploads
+    from app.services import web_intake_service as intake
+
+    if not (current_app.debug or current_app.testing):
+        raise click.ClickException("test-media creates synthetic cases; it runs only on a debug or testing app.")
+    user = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == _TEST_MEDIA_INTERVIEWER))
+    reach = [c for c in intake.interviewer_context(user) if c["project_id"] == project_id] if user else []
+    if not reach or not reach[0]["org_units"]:
+        raise click.ClickException(
+            f"{_TEST_MEDIA_INTERVIEWER} has no unit-level interviewer access to {project_id}; "
+            "run `flask seed test-project` first."
+        )
+    entry = reach[0]
+    blobs = {"image": _synthetic_png(), "audio": _synthetic_wav()}
+    for n in range(1, count + 1):
+        try:
+            draft = intake.start_draft(
+                user, project_id=project_id, site_id=entry["site_id"], org_unit_id=entry["org_units"][0]["org_unit_id"]
+            )
+            answers = {
+                "Id10013": "yes", "Id10017": "Synthetic", "Id10018": f"Case{n}", "Id10019": "male",
+                "Id10022": "yes", "Id10023": (date.today() - timedelta(days=10)).isoformat(),
+                "finalAgeInYears": "40", "narr_language": "english", "md_available": "yes", "md_count": 1,
+                "Id10476": f"SYNTHETIC MEDIA TEST CASE {n}. Fake narrative for attachment view testing.",
+            }
+            for field, kind in _TEST_MEDIA_FIELDS.items():
+                client_id = uuid.uuid4()
+                body = blobs[kind]
+                uploads.store_upload(draft, client_id, io.BytesIO(body), len(body))
+                answers[field] = f"{uploads.REFERENCE_PREFIX}{client_id}"
+            submission = intake.submit_draft(draft, user, completion={"valid": True, "issues": [], "data": answers})
+            va_sid = submission.va_sid
+            db.session.commit()
+            uploads.delete_committed_blobs()
+        except Exception as exc:
+            db.session.rollback()
+            raise click.ClickException(f"case {n}: {exc}")
+        held = db.session.execute(
+            sa.select(VaSubmissionAttachments.filename, VaSubmissionAttachments.mime_type).where(
+                VaSubmissionAttachments.va_sid == va_sid
+            )
+        ).all()
+        click.echo(f"{va_sid}  " + ", ".join(f"{name} ({mime})" for name, mime in held))
+
+
 def _build_test_project(org, user_import, actor, spec: dict, *, staging: bool) -> dict:
     """Write everything in the caller's transaction; return counts for the summary.
 

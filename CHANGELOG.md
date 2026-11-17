@@ -5,6 +5,12 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-18
 
+- Releases from `7b7412950`, pinned in `docker-compose.yml` for the server
+  image: Collect `android-v0.3.24` (arm64 `cf6bc738…4c3a`), Collect Plus
+  `collect-plus-v0.3.24-plus.1` (prerelease, `ad3e6f6c…0def`), web export
+  `expo-web-v2026.11.18.1` (`b331824b…af1c`); release certificate
+  `6d94718a…6d361767`, checksums verified after download. Play AAB built
+  (run 44161580345); the Play upload is the owner's.
 - Collect Settings gains Appearance: Light / Dark / System (the stored
   preference existed with no phone control). Policy: `docs/policy/expo-client.md`.
 - ICD-10 code titles (`digitva-t0h1`): the workspace payload gains an

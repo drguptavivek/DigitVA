@@ -22,7 +22,7 @@
   "textSizeLarge": "Large",
   "textSizeNote": "Text size also follows the phone's font size setting.",
   "highContrast": "High contrast",
-  "highContrastNote": "Darker text and stronger edges, in light and dark mode.",
+  "highContrastNote": "Grey tones with stronger contrast, by day and by night.",
   "fieldRequiredMark": "Required",
   "lockWarningText": "This phone locks in {seconds} seconds.",
   "lockWarningStay": "Stay unlocked",

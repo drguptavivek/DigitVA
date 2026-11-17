@@ -23,7 +23,7 @@ export const PICKER_READY_TIMEOUT_MS = 15000;
 export function IcdPickerFrame({ init, revision, onMessage, onClose }: PickerFrameProps) {
   const frame = useRef<HTMLIFrameElement | null>(null);
   // Fixed at mount: changing the URL would reload the page and lose the user's place.
-  const src = useRef(pickerPageUrl(init.theme));
+  const src = useRef(pickerPageUrl(init.theme, init.highContrast));
   const latest = useRef({ init, revision, onMessage });
   latest.current = { init, revision, onMessage };
   // Bumped by Retry: a new key reloads the iframe and restarts the ready timer.

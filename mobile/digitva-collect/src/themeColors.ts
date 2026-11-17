@@ -63,54 +63,56 @@ export type PetrolName = keyof typeof petrol.light;
 
 /**
  * The high-contrast palette (Settings > Display > High contrast, docs/policy/expo-client.md "Text size, high
- * contrast and screen readers"): text, secondary text and primary at 7:1 or better on every background they sit
- * on, separators and field edges at 3:1, and a stronger canvas/card step. Same names as `petrol`; the contrast
- * test (__tests__/ui-token-contrast.test.ts) holds each pair to its ratio.
+ * contrast and screen readers"; owner decision 2026-11-17): neutral greys with no petrol hue (OKLCH chroma 0). By
+ * day dark grey text and buttons on an almost-white page; by night almost-white text and buttons on a dark grey
+ * page. Only meaning keeps colour: error red and success green. Same names as `petrol`; the contrast test
+ * (__tests__/ui-token-contrast.test.ts) holds text and primary to 7:1, separators and field edges to 3:1, and a
+ * stronger canvas/card step than the normal palette.
  */
 export const petrolHighContrast: Record<"light" | "dark", Record<PetrolName, OklchColour>> = {
   light: {
-    canvas: c("oklch(88% 0.012 234)", "#d0d9de"),
+    canvas: c("oklch(93% 0 0)", "#e8e8e8"),
     card: c("oklch(100% 0 0)", "#ffffff"),
-    text: c("oklch(16% 0.015 245)", "#080e13"),
-    secondaryText: c("oklch(32% 0.02 243)", "#2a343c"),
-    primary: c("oklch(30% 0.06 228)", "#003345"),
-    primaryPressed: c("oklch(24% 0.05 228)", "#002332"),
+    text: c("oklch(22% 0 0)", "#1b1b1b"),
+    secondaryText: c("oklch(35% 0 0)", "#3a3a3a"),
+    primary: c("oklch(25% 0 0)", "#222222"),
+    primaryPressed: c("oklch(18% 0 0)", "#121212"),
     onPrimary: c("oklch(100% 0 0)", "#ffffff"),
-    primaryTint: c("oklch(93% 0.025 222)", "#d7ecf4"),
-    accent: c("oklch(74.4% 0.121 78)", "#d6a24a"),
-    onAccent: c("oklch(16% 0.015 245)", "#080e13"),
-    accentTint: c("oklch(94% 0.05 80)", "#fde8c6"),
+    primaryTint: c("oklch(88% 0 0)", "#d7d7d7"),
+    accent: c("oklch(75% 0 0)", "#aeaeae"),
+    onAccent: c("oklch(22% 0 0)", "#1b1b1b"),
+    accentTint: c("oklch(94% 0 0)", "#ebebeb"),
     error: c("oklch(38% 0.14 29)", "#7c130d"),
     errorTint: c("oklch(95% 0.02 25)", "#fceae8"),
     success: c("oklch(38% 0.09 157)", "#01502e"),
     successTint: c("oklch(95% 0.027 156)", "#e1f4e7"),
-    neutralFill: c("oklch(94% 0.008 228)", "#e6ecef"),
-    separator: c("oklch(56% 0.02 228)", "#69777e"),
-    controlEdge: c("oklch(45% 0.02 228)", "#4a585e"),
-    disabled: c("oklch(55% 0.015 228)", "#697379"),
-    guidance: c("oklch(36% 0.08 70)", "#573400")
+    neutralFill: c("oklch(90% 0 0)", "#dedede"),
+    separator: c("oklch(56% 0 0)", "#747474"),
+    controlEdge: c("oklch(50% 0 0)", "#636363"),
+    disabled: c("oklch(58% 0 0)", "#7a7a7a"),
+    guidance: c("oklch(35% 0 0)", "#3a3a3a")
   },
   dark: {
-    canvas: c("oklch(8% 0.005 242)", "#010202"),
-    card: c("oklch(25% 0.015 244)", "#1c2328"),
-    text: c("oklch(100% 0 0)", "#ffffff"),
-    secondaryText: c("oklch(90% 0.012 240)", "#d7dfe5"),
-    primary: c("oklch(86% 0.07 229)", "#a1dbf6"),
-    primaryPressed: c("oklch(92% 0.05 228)", "#c3ecff"),
-    onPrimary: c("oklch(8% 0.005 242)", "#010202"),
-    primaryTint: c("oklch(30% 0.045 230)", "#123240"),
-    accent: c("oklch(80% 0.12 78)", "#e8b45e"),
-    onAccent: c("oklch(16% 0.015 245)", "#080e13"),
-    accentTint: c("oklch(30% 0.04 81)", "#382c15"),
+    canvas: c("oklch(20% 0 0)", "#161616"),
+    card: c("oklch(28% 0 0)", "#292929"),
+    text: c("oklch(97% 0 0)", "#f5f5f5"),
+    secondaryText: c("oklch(85% 0 0)", "#cecece"),
+    primary: c("oklch(93% 0 0)", "#e8e8e8"),
+    primaryPressed: c("oklch(100% 0 0)", "#ffffff"),
+    onPrimary: c("oklch(20% 0 0)", "#161616"),
+    primaryTint: c("oklch(33% 0 0)", "#353535"),
+    accent: c("oklch(75% 0 0)", "#aeaeae"),
+    onAccent: c("oklch(20% 0 0)", "#161616"),
+    accentTint: c("oklch(30% 0 0)", "#2e2e2e"),
     error: c("oklch(85% 0.08 26)", "#febab3"),
     errorTint: c("oklch(28% 0.05 25)", "#3e1e1c"),
     success: c("oklch(86% 0.09 159)", "#9de4bc"),
     successTint: c("oklch(28% 0.04 159)", "#162f22"),
-    neutralFill: c("oklch(28% 0.012 228)", "#232a2e"),
-    separator: c("oklch(58% 0.02 228)", "#6f7d84"),
-    controlEdge: c("oklch(68% 0.02 228)", "#8c9ba2"),
-    disabled: c("oklch(62% 0.015 228)", "#7d888d"),
-    guidance: c("oklch(88% 0.09 80)", "#f7d293")
+    neutralFill: c("oklch(31% 0 0)", "#303030"),
+    separator: c("oklch(58% 0 0)", "#7a7a7a"),
+    controlEdge: c("oklch(64% 0 0)", "#8c8c8c"),
+    disabled: c("oklch(55% 0 0)", "#717171"),
+    guidance: c("oklch(88% 0 0)", "#d7d7d7")
   }
 };
 

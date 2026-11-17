@@ -78,11 +78,11 @@ const ENTRY_ICONS: Record<string, string> = {
  * stays zoomed, which clips the header, the form footer and the bottom bar on the right of every later screen. */
 function css(tokens: typeof ui.light) {
   return `
-.dva-tab{position:relative;display:inline-flex;align-items:center;gap:8px;box-sizing:border-box;min-height:44px;height:${BAR_HEIGHT}px;padding:0 14px;color:${ON_BAR};font:500 14px ${ROBOTO};text-decoration:none;background:transparent;border:0;cursor:pointer;flex-shrink:0;white-space:nowrap}
+.dva-tab{position:relative;display:inline-flex;align-items:center;gap:8px;box-sizing:border-box;min-height:44px;height:${BAR_HEIGHT}px;padding:0 14px;color:var(--dva-on-bar);font:500 14px ${ROBOTO};text-decoration:none;background:transparent;border:0;cursor:pointer;flex-shrink:0;white-space:nowrap}
 #digitva-app-header:has(#digitva-help-trigger) .dva-help-link{display:none!important}
-.dva-tab:hover{background:color-mix(in srgb,${ON_BAR} 14%,transparent)}
+.dva-tab:hover{background:color-mix(in srgb,var(--dva-on-bar) 14%,transparent)}
 .dva-tab:hover .dva-tab-in,.dva-tab:focus-visible .dva-tab-in{opacity:1!important}
-.dva-tab:focus-visible,.dva-logo:focus-visible{outline:2px solid ${ON_BAR};outline-offset:-4px;border-radius:8px}
+.dva-tab:focus-visible,.dva-logo:focus-visible{outline:2px solid var(--dva-on-bar);outline-offset:-4px;border-radius:8px}
 .dva-bottom-tab{position:relative;display:flex;flex:1 1 44px;min-width:min-content;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-sizing:border-box;height:${BAR_HEIGHT}px;padding:0 2px;color:${tokens.mutedForeground};font:500 12px ${ROBOTO};text-decoration:none;background:transparent;border:0;cursor:pointer}
 .dva-bottom-label{max-width:100%;font-size:11px;line-height:13px;text-align:center;word-break:normal;overflow-wrap:normal;hyphens:none;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .dva-bottom-tab[aria-current=page],.dva-bottom-tab[aria-expanded=true]{color:${tokens.primary}}
@@ -115,7 +115,7 @@ export function HeaderLink({ href, children, to, onNavigate, newTab, current, la
       if (!newTab && holdLinkClick(event, href, onActivate)) return;
       onActivate?.();
     },
-    style: { display: "inline-flex", alignItems: "center", gap: 6, color: ON_BAR, fontFamily: ROBOTO, textDecoration: "none", flexShrink: 0, ...style },
+    style: { display: "inline-flex", alignItems: "center", gap: 6, color: "var(--dva-on-bar, " + ON_BAR + ")", fontFamily: ROBOTO, textDecoration: "none", flexShrink: 0, ...style },
   }, children);
 }
 
@@ -278,6 +278,15 @@ export function HeaderHelpSlot({ children }: { children: (inHeader: boolean) => 
   return focused && slot?.isConnected ? createPortal(children(true), slot) : h(React.Fragment, null, children(false));
 }
 
+/**
+ * The header bar stays the light-petrol bar in both modes (owner design). High contrast leaves petrol: the dark grey
+ * primary with white text by day, the card grey with near-white text by night (both >= 7:1).
+ */
+function barColours(theme: ReturnType<typeof useTheme>) {
+  if (!theme.highContrast) return { bar: BAR, onBar: ON_BAR };
+  return theme.mode === "light" ? { bar: theme.ui.primary, onBar: theme.ui.primaryForeground } : { bar: theme.ui.card, onBar: theme.ui.foreground };
+}
+
 function useThemeTokens() {
   const theme = useTheme();
   return { tokens: theme.ui };
@@ -291,12 +300,13 @@ export function AppHeaderBar({ sticky = true }: { sticky?: boolean }) {
   const nav = useNav();
   const width = useWindowDimensions().width;
   const { tokens } = useThemeTokens();
+  const bar = barColours(useTheme());
   if (nav.hidden) return null;
   const caseOpen = nav.pathname === "/workspace" && Boolean(nav.params.vaSid);
   const sidebarLogo = width >= SIDEBAR_BREAKPOINT && !caseOpen && !NO_SIDEBAR_ROUTES.includes(nav.pathname);
   return h("header", {
     id: "digitva-app-header",
-    style: { position: sticky ? "sticky" : "static", top: 0, zIndex: 40, flexShrink: 0, width: "100%", boxSizing: "border-box", background: BAR, color: ON_BAR, fontFamily: ROBOTO },
+    style: { position: sticky ? "sticky" : "static", top: 0, zIndex: 40, flexShrink: 0, width: "100%", boxSizing: "border-box", background: bar.bar, color: bar.onBar, fontFamily: ROBOTO, "--dva-on-bar": bar.onBar } as React.CSSProperties,
   }, h("style", null, css(tokens)), width < PHONE_BREAKPOINT ? h(PhoneHeader, { nav }) : h(DesktopHeader, { nav, logo: !sidebarLogo }));
 }
 

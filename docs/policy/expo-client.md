@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-17
 ---
 
 # Expo Web Client Boundary
@@ -469,7 +469,14 @@ debug build, and are p90 over ten runs:
   grow with the text; nothing is cut off or overlaps at Large with the phone
   set to its largest size.
 - **High contrast** in Settings: an on/off switch, saved the same way, that
-  works in light and dark mode. It swaps in a high-contrast palette: body and
+  works in light and dark mode. It swaps in a high-contrast palette of
+  neutral greys with no petrol hue (owner 2026-11-17, `digitva-24gv`): by
+  day, dark grey text and buttons on an almost-white page; by night the
+  same reversed, almost-white text and buttons on a dark grey page. Only
+  meaning keeps colour: error red, the red Yes / green No answer
+  badges, and the DORIS cause-line colours (each line also carries its
+  letter), so lines stay easy to tell apart. The phone and the browser screens (case workspace, DORIS card,
+  ICD-11 picker, header) all follow the switch. Body and
   secondary text at 7:1 or better against their background, primary
   buttons and links at 7:1, field edges and separators at 3:1, a thicker
   focus ring, and a stronger canvas/card tone step. Cards still have no

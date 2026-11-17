@@ -5,6 +5,8 @@ jest.mock("react-native", () => ({ Platform: { OS: "android" }, Text: "text", Vi
 jest.mock("../src/theme", () => ({
   spacing: { xs: 4 }, typography: { caption: {} },
   ui: { light: { warning: "w", warningBorder: "b", warningForeground: "f" } },
+  uiHighContrast: { light: { warning: "hw", warningBorder: "hb", warningForeground: "hf" } },
+  useTheme: () => ({ highContrast: false }),
 }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 

@@ -1,6 +1,6 @@
 /** Every text/background pair the unified tokens put on screen keeps >= 4.5:1 (UI edges and the focus ring >= 3:1), light and dark. */
 import { palette, roleTones, ui, uiHighContrast, type ColorMode } from "../src/theme";
-import { webPalette } from "../src/workspace/webPalette";
+import { webPalette, webPaletteHighContrast } from "../src/workspace/webPalette";
 import { whoWebThemeVars } from "../src/whoWebTheme";
 import { disabledButtonTone, getTheme } from "../src/theme";
 
@@ -63,8 +63,8 @@ describe.each(modes)("%s token pairs", (mode) => {
     ["web: muted on page", w.textMuted, w.page],
     ["web: brand on card", w.primary, w.card],
     ["web: header bar text", w.onBar, w.bar],
-    ["web: selected category text", w.onBar, w.selected],
-    ["web: demo badge", w.onBar, w.demo],
+    ["web: selected category text", w.onSelected, w.selected],
+    ["web: demo badge", w.onDemo, w.demo],
     ["web: blocked reason on card", w.blocked, w.card],
     ["web: yes answer and panel", w.onYes, w.yes],
     ["web: no answer and panel", w.onNo, w.no],
@@ -188,5 +188,16 @@ describe.each([
     expect(tone.bg).toBe(t.primaryTint);
     expect(contrast(tone.fg, tone.bg)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(tone.fg, tone.bg)).toBeLessThanOrEqual(contrast(t.primary, t.primaryTint));
+  });
+});
+
+describe.each(modes)("%s high-contrast browser workspace", (mode) => {
+  const w = webPaletteHighContrast[mode];
+  it.each([
+    ["text on card", w.text, w.card], ["muted on page", w.textMuted, w.page], ["header bar text", w.onBar, w.bar],
+    ["selected category text", w.onSelected, w.selected], ["demo badge", w.onDemo, w.demo], ["brand on card", w.primary, w.card],
+    ["yes answer", w.onYes, w.yes], ["no answer", w.onNo, w.no]
+  ])("%s keeps 7:1", (_name, fg, bg) => {
+    expect(contrast(fg, bg)).toBeGreaterThanOrEqual(7);
   });
 });

@@ -24,7 +24,7 @@ import {
   importStationConfig,
   type StationRosterSnapshot,
 } from "../roster";
-import { Button, useUiStyles } from "../ui";
+import { Button, ThemedSwitch, useUiStyles } from "../ui";
 import { fontSize, palette, radius, ui, useTheme, type UiTokens } from "../theme";
 import { WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
@@ -298,6 +298,19 @@ export default function SettingsScreen() {
         <Button kind={theme.preference === "system" ? "primary" : "secondary"} label={t("themeSystem")} onPress={() => void theme.setPreference("system")} />
         <Button kind={theme.preference === "light" ? "primary" : "secondary"} label={t("themeLight")} onPress={() => void theme.setPreference("light")} />
         <Button kind={theme.preference === "dark" ? "primary" : "secondary"} label={t("themeDark")} onPress={() => void theme.setPreference("dark")} />
+      </View>
+      {/* High contrast greys, by day or by night (docs/policy/expo-client.md); the same switch as the phone's Settings. */}
+      <View style={[styles.row, { alignItems: "center" }]}>
+        <ThemedSwitch
+          testID="high-contrast"
+          accessibilityRole="switch"
+          accessibilityLabel={t("highContrast")}
+          accessibilityHint={t("highContrastNote")}
+          value={theme.highContrast}
+          onValueChange={(on) => void theme.setHighContrast(on)}
+        />
+        <Text style={styles.text}>{t("highContrast")}</Text>
+        <Text style={styles.muted}>{t("highContrastNote")}</Text>
       </View>
       {bootstrap && isStation ? (
         <>

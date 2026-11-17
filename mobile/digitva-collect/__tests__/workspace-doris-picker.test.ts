@@ -1,6 +1,6 @@
 import { ApiError } from "../src/api";
 import type { JsonRequester, WorkspaceApi } from "../src/workspace/api";
-import { palette } from "../src/theme";
+import { palette, ui } from "../src/theme";
 import { lineShade } from "../src/workspace/doris/compact";
 import { createPickerBridge, type PickerReply } from "../src/workspace/doris/pickerBridge";
 
@@ -168,8 +168,8 @@ function contrast(a: string, b: string): number {
 describe("line colour shades", () => {
   it("gives each of five Part I lines and Part II a distinct bar colour in both modes", () => {
     for (const mode of ["light", "dark"] as const) {
-      const bars = [0, 1, 2, 3, 4].map((index) => lineShade(mode, index, false).bar);
-      bars.push(lineShade(mode, 0, true).bar);
+      const bars = [0, 1, 2, 3, 4].map((index) => lineShade(ui[mode], index, false).bar);
+      bars.push(lineShade(ui[mode], 0, true).bar);
       expect(new Set(bars).size).toBe(6);
     }
   });
@@ -177,13 +177,13 @@ describe("line colour shades", () => {
   it("keeps chip text readable and cycles beyond five lines", () => {
     for (const mode of ["light", "dark"] as const) {
       for (const index of [0, 1, 2, 3, 4]) {
-        const shade = lineShade(mode, index, false);
+        const shade = lineShade(ui[mode], index, false);
         expect(contrast(shade.chipText, shade.chipBg)).toBeGreaterThanOrEqual(4.5);
       }
-      const part2 = lineShade(mode, 0, true);
+      const part2 = lineShade(ui[mode], 0, true);
       expect(contrast(part2.chipText, part2.chipBg)).toBeGreaterThanOrEqual(4.5);
     }
-    expect(lineShade("light", 5, false)).toEqual(lineShade("light", 0, false));
+    expect(lineShade(ui.light, 5, false)).toEqual(lineShade(ui.light, 0, false));
   });
 });
 

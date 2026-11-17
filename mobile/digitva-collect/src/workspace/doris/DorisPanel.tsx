@@ -10,7 +10,7 @@ import { BulletItem, XMark } from "../../ui/controls";
 import type { JsonRequester, WorkspaceApi } from "../api";
 import type { DorisProcessReply, JsonObject, JsonValue, WorkspaceAssessment, WorkspaceIdentity, WorkspacePayload } from "../contracts";
 import { parseDorisProcess, parseUcodParts } from "../contracts";
-import { radius, ui, useTheme } from "../../theme";
+import { radius, useTheme } from "../../theme";
 import { Cell, ChipChoice, FieldLabel, IntervalErrorContext, IntervalField, SearchBox, Warn, lineShade } from "./compact";
 import { DateField } from "./DateField";
 import { todayIso } from "./dateFieldShared";
@@ -276,7 +276,7 @@ export function DorisPanel({
   const [pickerTarget, setPickerTarget] = useState<PickerTarget | null>(null);
   // Set when the server asks the coder to confirm an age-restricted final code; `masked` picks the save path to resend.
   const [ageConfirm, setAgeConfirm] = useState<{ code: string; group: string; note: string; masked: boolean } | null>(null);
-  const { mode: colorMode, colors } = useTheme();
+  const { mode: colorMode, colors, ui: themeUi, highContrast } = useTheme();
   const state = sameOwner(stored.owner, owner) ? stored : initialState(owner, workspace, draftStore);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -629,9 +629,9 @@ export function DorisPanel({
   const loseAllocation = () => { setPickerTarget(null); clearAllocation(); };
 
   const pickerInit = (target: PickerTarget, finalQuery: string): PickerInit => {
-    if (target.kind === "final") return { title: direct ? tr("dorisDirectConfirmCause") : isInitial ? "Confirm Step 1 underlying cause" : "Final underlying cause", accent: ui.light.primary, allowUncoded: false, query: target.query || finalQuery, finalMode: true, theme: colorMode };
+    if (target.kind === "final") return { title: direct ? tr("dorisDirectConfirmCause") : isInitial ? "Confirm Step 1 underlying cause" : "Final underlying cause", accent: themeUi.primary, allowUncoded: false, query: target.query || finalQuery, finalMode: true, theme: colorMode, highContrast };
     const index = target.kind === "part1" ? target.index : 0;
-    return { title: lineTitle(index, target.kind === "part2"), accent: lineShade(colorMode, index, target.kind === "part2").bar, allowUncoded: true, query: target.query, theme: colorMode };
+    return { title: lineTitle(index, target.kind === "part2"), accent: lineShade(themeUi, index, target.kind === "part2").bar, allowUncoded: true, query: target.query, theme: colorMode, highContrast };
   };
 
   const applyPicked = (target: PickerTarget, condition: JsonObject) => {

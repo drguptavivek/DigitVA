@@ -1,24 +1,25 @@
 /*
  * DORIS editor design tokens: shadcn/ui "zinc" semantic names, native HTML elements,
  * no UI library. Mirrors mobile/digitva-collect/src/theme.ts (`ui`, the single token source) and is documented in
- * docs/current-state/doris-ui-tokens.md. `primary` and `ring` are the DigitVA brand blue
- * (the Expo app accent); neutrals are zinc. The picker host page sets data-bs-theme on <html>.
+ * docs/current-state/doris-ui-tokens.md. `primary`, `ring` and `accent` are the Petrol
+ * theme (src/themeColors.ts); neutrals are zinc. The picker host page sets data-bs-theme on <html>, and data-contrast="more" for
+ * High contrast (neutral greys, the petrolHighContrast palette).
  */
 .doris-clinical-editor, #doris-demo-app, .doris-search-modal-open, .doris-search-backdrop, .doris-related-window {
   --radius: .5rem; --radius-lg: var(--radius); --radius-md: calc(var(--radius) - 2px); --radius-sm: calc(var(--radius) - 4px);
   --background: hsl(0 0% 100%); --foreground: hsl(240 10% 3.9%);
   --card: hsl(0 0% 100%); --card-foreground: hsl(240 10% 3.9%);
   --popover: hsl(0 0% 100%); --popover-foreground: hsl(240 10% 3.9%);
-  --primary: #1D4ED8; --primary-foreground: #FFFFFF;
+  --primary: #1F4D60; --primary-foreground: #FFFFFF;
   --secondary: #EEF3F8; --secondary-foreground: hsl(240 5.9% 10%);
   --muted: #EEF3F8; --muted-foreground: #53657A;
-  --accent: #E8F0FF; --accent-foreground: #10233F;
+  --accent: #D2E5EC; --accent-foreground: #1B232A;
   --destructive: hsl(0 72.2% 50.6%); --destructive-foreground: hsl(0 0% 98%); --destructive-text: #B42318;
   --warning: #FEF3C7; --warning-foreground: #3B2200; --warning-border: #B45309;
   --build-tint: #EEF0FF; --build-border: #A5B4FC; --build-bar: #4338CA; --build-foreground: #FFFFFF;
   --success-text: #146C43;
   /* `border` is the card/divider hairline; `input` the stronger edge of every control and choice row (>= 3:1). */
-  --border: #CBD5E1; --input: #6B7C93; --ring: #2563EB;
+  --border: #CBD5E1; --input: #6B7C93; --ring: #1F4D60;
   --chart-1: #C2185B; --chart-1-tint: #FCE4EC; --chart-1-soft: #F8BBD0; --chart-1-foreground: #4A0A24;
   --chart-2: #B45309; --chart-2-tint: #FEF3C7; --chart-2-soft: #FCD34D; --chart-2-foreground: #3B2200;
   --chart-3: #0F766E; --chart-3-tint: #CCFBF1; --chart-3-soft: #99F6E4; --chart-3-foreground: #032F2B;
@@ -44,21 +45,55 @@
   --background: #131E2E; --foreground: #F4F7FB;
   --card: #1B2A3D; --card-foreground: #F4F7FB;
   --popover: #1B2A3D; --popover-foreground: #F4F7FB;
-  --primary: #78A9FF; --primary-foreground: #081429;
+  --primary: #6FB6D6; --primary-foreground: #0F1418;
   --secondary: #243449; --secondary-foreground: #F4F7FB;
   --muted: #243449; --muted-foreground: #B5C2D1;
-  --accent: #1C3764; --accent-foreground: #F4F7FB;
+  --accent: #1F3A47; --accent-foreground: #F4F7FB;
   --destructive: hsl(0 62.8% 30.6%); --destructive-foreground: hsl(0 0% 98%); --destructive-text: #FF8A80;
   --warning: #38280B; --warning-foreground: #FFF3D1; --warning-border: #FBBF24;
   --build-tint: #22264F; --build-border: #3B418D; --build-bar: #A5B4FC; --build-foreground: #0F1033;
   --success-text: #75D5A4;
-  --border: #3E5068; --input: #7C90AB; --ring: #9CC0FF;
+  --border: #3E5068; --input: #7C90AB; --ring: #6FB6D6;
   --chart-1: #F48FB1; --chart-1-tint: #3B1A27; --chart-1-soft: #6A2540; --chart-1-foreground: #FFE4EE;
   --chart-2: #FBBF24; --chart-2-tint: #38280B; --chart-2-soft: #6B4A0C; --chart-2-foreground: #FFF3D1;
   --chart-3: #2DD4BF; --chart-3-tint: #0E3330; --chart-3-soft: #145C55; --chart-3-foreground: #D9FFF8;
   --chart-4: #A5B4FC; --chart-4-tint: #22264F; --chart-4-soft: #3B418D; --chart-4-foreground: #EEF0FF;
   --chart-5: #D8B4FE; --chart-5-tint: #2E1A47; --chart-5-soft: #5B2A8C; --chart-5-foreground: #F7ECFF;
   --chart-part2: #94A3B8; --chart-part2-tint: #1E2733; --chart-part2-soft: #334155; --chart-part2-foreground: #F1F5F9;
+}
+
+/* High contrast (Settings > Display): the picker host sets data-contrast="more"; neutral greys, no petrol hue. */
+[data-contrast="more"][data-bs-theme="light"] .doris-clinical-editor,
+[data-contrast="more"][data-bs-theme="light"] #doris-demo-app,
+[data-contrast="more"][data-bs-theme="light"] .doris-search-modal-open,
+[data-contrast="more"][data-bs-theme="light"] .doris-search-backdrop,
+[data-contrast="more"][data-bs-theme="light"] .doris-related-window {
+  --background: #FFFFFF; --foreground: #1B1B1B; --card: #FFFFFF; --card-foreground: #1B1B1B;
+  --popover: #FFFFFF; --popover-foreground: #1B1B1B;
+  --primary: #222222; --primary-foreground: #FFFFFF;
+  --secondary: #DEDEDE; --secondary-foreground: #1B1B1B; --muted: #DEDEDE; --muted-foreground: #3A3A3A;
+  --accent: #D7D7D7; --accent-foreground: #1B1B1B;
+  --destructive: #7C130D; --destructive-foreground: #FFFFFF; --destructive-text: #7C130D;
+  --warning: #EBEBEB; --warning-foreground: #1B1B1B; --warning-border: #3A3A3A;
+  --build-tint: #EBEBEB; --build-border: #747474; --build-bar: #222222; --build-foreground: #FFFFFF;
+  --success-text: #01502E;
+  --border: #747474; --input: #636363; --ring: #222222;
+}
+[data-contrast="more"][data-bs-theme="dark"] .doris-clinical-editor,
+[data-contrast="more"][data-bs-theme="dark"] #doris-demo-app,
+[data-contrast="more"][data-bs-theme="dark"] .doris-search-modal-open,
+[data-contrast="more"][data-bs-theme="dark"] .doris-search-backdrop,
+[data-contrast="more"][data-bs-theme="dark"] .doris-related-window {
+  --background: #161616; --foreground: #F5F5F5; --card: #292929; --card-foreground: #F5F5F5;
+  --popover: #292929; --popover-foreground: #F5F5F5;
+  --primary: #E8E8E8; --primary-foreground: #161616;
+  --secondary: #303030; --secondary-foreground: #F5F5F5; --muted: #303030; --muted-foreground: #CECECE;
+  --accent: #353535; --accent-foreground: #F5F5F5;
+  --destructive: #7C130D; --destructive-foreground: #F5F5F5; --destructive-text: #FEBAB3;
+  --warning: #2E2E2E; --warning-foreground: #F5F5F5; --warning-border: #AEAEAE;
+  --build-tint: #303030; --build-border: #7A7A7A; --build-bar: #E8E8E8; --build-foreground: #161616;
+  --success-text: #9DE4BC;
+  --border: #7A7A7A; --input: #8C8C8C; --ring: #E8E8E8;
 }
 
 #doris-demo-app .doris-line { border-left: .3rem solid var(--chart-1-soft); }

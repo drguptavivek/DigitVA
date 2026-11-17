@@ -22,7 +22,7 @@
   "textSizeLarge": "बड़ा",
   "textSizeNote": "अक्षरों का आकार फ़ोन की फ़ॉन्ट आकार सेटिंग के साथ भी बदलता है।",
   "highContrast": "उच्च कंट्रास्ट",
-  "highContrastNote": "हल्के और गहरे, दोनों मोड में गहरे अक्षर और साफ़ किनारे।",
+  "highContrastNote": "दिन और रात, दोनों मोड में ग्रे रंग और तेज़ कंट्रास्ट।",
   "fieldRequiredMark": "आवश्यक",
   "lockWarningText": "यह फ़ोन {seconds} सेकंड में लॉक हो जाएगा।",
   "lockWarningStay": "अनलॉक रखें",

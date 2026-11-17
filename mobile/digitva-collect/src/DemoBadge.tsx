@@ -10,19 +10,21 @@ import { Platform, Text, View, useWindowDimensions } from "react-native";
 
 import { isDemoServer } from "./enrolment";
 import { t } from "./i18n";
-import { spacing, typography, ui } from "./theme";
+import { spacing, typography, ui, uiHighContrast, useTheme } from "./theme";
 
 export default function DemoBadge({ server }: { server: string | undefined }) {
   // A runtime text-size change leaves stale text measurements, so remount the label on fontScale.
   const { fontScale } = useWindowDimensions();
+  // Always the light chip (it sits on the header bar in both modes); high contrast swaps in the grey one.
+  const tone = useTheme().highContrast ? uiHighContrast.light : ui.light;
   if (!isDemoServer(server, __DEV__, process.env.EXPO_PUBLIC_DEMO_SERVER)) return null;
   return (
     <View
       accessible
       accessibilityLabel={t("demoBadge")}
-      style={{ backgroundColor: ui.light.warning, borderColor: ui.light.warningBorder, borderWidth: 1, borderRadius: 6, paddingHorizontal: spacing.xs, paddingVertical: 2, flexShrink: 0 }}
+      style={{ backgroundColor: tone.warning, borderColor: tone.warningBorder, borderWidth: 1, borderRadius: 6, paddingHorizontal: spacing.xs, paddingVertical: 2, flexShrink: 0 }}
     >
-      <Text key={fontScale} numberOfLines={1} maxFontSizeMultiplier={1.2} style={{ ...typography.caption, fontWeight: "700", color: ui.light.warningForeground }}>{t("demoHeaderBadge")}</Text>
+      <Text key={fontScale} numberOfLines={1} maxFontSizeMultiplier={1.2} style={{ ...typography.caption, fontWeight: "700", color: tone.warningForeground }}>{t("demoHeaderBadge")}</Text>
     </View>
   );
 }

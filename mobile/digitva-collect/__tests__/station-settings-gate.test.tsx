@@ -22,13 +22,15 @@ jest.mock("../src/AppState", () => ({
 jest.mock("../src/web/common", () => ({
   WebShell: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
-jest.mock("../src/ui", () => ({ Button: "button", useUiStyles: () => ({}) }));
+jest.mock("../src/ui", () => ({ Button: "button", ThemedSwitch: "switch", useUiStyles: () => ({}) }));
+const mockSetHighContrast = jest.fn(async () => undefined);
 jest.mock("../src/theme", () => ({
   ...jest.requireActual("../src/theme"),
   useTheme: () => ({
     ...jest.requireActual("../src/theme").getTheme("dark"),
     preference: "system",
     setPreference: jest.fn(),
+    setHighContrast: mockSetHighContrast,
   }),
 }));
 jest.mock("../src/api", () => ({
@@ -315,4 +317,12 @@ it("asks the operator to confirm the server key on a first import, then re-posts
   });
   expect(importStationConfig).toHaveBeenLastCalledWith("line1\nline2", { token: "csrf" }, "0123456789abcdef");
   expect(byTestId(tree, "server-key-confirm")).toHaveLength(0);
+});
+
+it("offers the High contrast switch in web Settings, as on the phone", async () => {
+  const tree = await render();
+  const toggle = tree.root.findByProps({ testID: "high-contrast" });
+  expect(toggle.props.value).toBe(false);
+  await act(async () => toggle.props.onValueChange(true));
+  expect(mockSetHighContrast).toHaveBeenCalledWith(true);
 });

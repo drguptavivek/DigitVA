@@ -91,6 +91,7 @@ function ChoiceIndicator({ multiple, selected }: { multiple: boolean; selected: 
 
 function TextControl({ question, value, locale, issues = [], onAnswer }: WhoVaQuestionControlProps) {
   const styles = useUiStyles();
+  const theme = useTheme();
   const readOnly = Boolean(question.readOnly);
   const multiline = question.appearance?.split(" ").includes("multiline") ?? false;
   const numbersOnly = question.appearance?.split(" ").includes("numbers") ?? false;
@@ -109,7 +110,7 @@ function TextControl({ question, value, locale, issues = [], onAnswer }: WhoVaQu
       style={[
         styles.input,
         multiline && { minHeight: 72, textAlignVertical: "top" },
-        questionIssues(issues) && { borderColor: "#B42318" },
+        questionIssues(issues) && { borderColor: theme.ui.destructiveText },
         readOnly && { opacity: 0.6 }
       ]}
     />
@@ -118,6 +119,7 @@ function TextControl({ question, value, locale, issues = [], onAnswer }: WhoVaQu
 
 function IntegerControl({ question, value, locale, issues = [], onAnswer }: WhoVaQuestionControlProps) {
   const styles = useUiStyles();
+  const theme = useTheme();
   const readOnly = Boolean(question.readOnly);
   const text = value == null ? "" : String(value);
   return (
@@ -136,7 +138,7 @@ function IntegerControl({ question, value, locale, issues = [], onAnswer }: WhoV
         if (!raw) onAnswer(undefined);
         else if (/^-?\d+$/.test(raw)) onAnswer(Number(raw));
       }}
-      style={[styles.input, questionIssues(issues) && { borderColor: "#B42318" }, readOnly && { opacity: 0.6 }]}
+      style={[styles.input, questionIssues(issues) && { borderColor: theme.ui.destructiveText }, readOnly && { opacity: 0.6 }]}
     />
   );
 }

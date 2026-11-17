@@ -136,7 +136,7 @@ function CategoryNavigation({
       onPress={() => { onSelectCategory(item.code); setOpen(false); }}
       style={({ pressed }) => [compact ? webStyles.categoryRailItem : webStyles.categoryItem, selected && webStyles.categoryItemSelected, pressed && webStyles.pressed]}
     >
-      <FaIcon name={item.icon_name ?? "fa-folder-open"} color={selected ? w.onBar : w.primary} />
+      <FaIcon name={item.icon_name ?? "fa-folder-open"} color={selected ? w.onSelected : w.primary} />
       {compact ? <Text style={webStyles.srOnly}>{item.nav_label}</Text> : <Text style={[webStyles.categoryLabel, selected && webStyles.categoryLabelSelected]}>{item.nav_label}</Text>}
       {!compact && item.count && item.count > 0 ? <Text style={webStyles.categoryBadge}>{item.count}</Text> : null}
       {!compact && attachmentCount > 0 ? <View style={webStyles.attachmentBadge} accessibilityLabel={`${attachmentCount} attachments`}><FaIcon name="fa-paperclip" color={w.textMuted} /><Text style={webStyles.attachmentBadgeText}>{attachmentCount}</Text></View> : null}
@@ -473,7 +473,7 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   detailLabel: { flexDirection: "row", alignItems: "center", gap: 8 },
   detailLabelText: { color: w.textMuted, fontFamily: ROBOTO, fontSize: 12 },
   detailValue: { color: w.text, fontFamily: ROBOTO, fontSize: 14, fontWeight: "700" },
-  demo: { color: w.onBar, backgroundColor: w.demo, borderRadius: radius.sm, fontSize: 12, fontWeight: "700", paddingVertical: 2, paddingHorizontal: 5, marginLeft: "auto" } as any,
+  demo: { color: w.onDemo, backgroundColor: w.demo, border: `1px solid ${w.demoBorder}`, borderRadius: radius.sm, fontSize: 12, fontWeight: "700", paddingVertical: 2, paddingHorizontal: 5, marginLeft: "auto" } as any,
   mobileCategoryToggle: { display: "none", backgroundColor: w.bar, minHeight: 44, borderRadius: radius.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 } as any,
   mobileCategoryToggleShown: { display: "flex" } as any,
   mobileCategoryToggleWide: { display: "none" } as any,
@@ -536,7 +536,7 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   categoryItem: { minHeight: 52, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: w.borderSoft, flexDirection: "row", alignItems: "center", gap: 10 },
   categoryItemSelected: { backgroundColor: w.selected, borderLeftWidth: 3, borderLeftColor: w.primary },
   categoryLabel: { color: w.text, fontFamily: ROBOTO, fontSize: 16, lineHeight: 27.2, flex: 1 },
-  categoryLabelSelected: { color: w.onBar, fontWeight: "700" },
+  categoryLabelSelected: { color: w.onSelected, fontWeight: "700" },
   categoryBadge: { color: w.onBar, backgroundColor: w.bar, borderRadius: radius.full, minWidth: 20, textAlign: "center", paddingHorizontal: 5, paddingVertical: 2, fontSize: 12, fontWeight: "700" } as any,
   attachmentBadge: { backgroundColor: w.chipBg, borderRadius: radius.full, minWidth: 24, paddingHorizontal: 5, paddingVertical: 2, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 } as any,
   attachmentBadgeText: { color: w.textMuted, fontFamily: ROBOTO, fontSize: 12, fontWeight: "700" },

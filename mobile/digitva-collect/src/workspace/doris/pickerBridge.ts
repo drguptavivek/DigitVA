@@ -16,11 +16,11 @@ import { dorisGuidance } from "./guidance";
 export const PICKER_PAGE_PATH = "/static/doris_picker_host.html";
 
 /**
- * Page URL with the theme only. The search term travels in the init message, never
+ * Page URL with the theme and, in high contrast, `contrast=more` only. The search term travels in the init message, never
  * in the URL: it can describe the deceased and URLs land in server logs.
  */
-export function pickerPageUrl(theme: PickerInit["theme"]): string {
-  return `${PICKER_PAGE_PATH}?theme=${theme === "dark" ? "dark" : "light"}`;
+export function pickerPageUrl(theme: PickerInit["theme"], highContrast?: boolean): string {
+  return `${PICKER_PAGE_PATH}?theme=${theme === "dark" ? "dark" : "light"}${highContrast ? "&contrast=more" : ""}`;
 }
 
 /** What the page needs to show; ids, tokens and the case are never part of it. */
@@ -35,6 +35,8 @@ export interface PickerInit {
   finalMode?: boolean;
   /** App colour mode; the page is also told through `?theme=` so it renders right before init arrives. */
   theme?: "light" | "dark";
+  /** High contrast is on: the page switches to the neutral-grey palette (`?contrast=more`). */
+  highContrast?: boolean;
 }
 
 export interface PickerChoice {

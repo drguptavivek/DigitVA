@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { Platform, Pressable, TextInput, View, useWindowDimensions, type TextStyle, type ViewStyle } from "react-native";
 import Svg, { Circle, Line } from "react-native-svg";
 
-import { ui as uiTokens, type ColorMode } from "../../theme";
+import type { UiTokens } from "../../theme";
 import { INTERVAL_UNITS, UNKNOWN_UNIT, parseInterval, serializeInterval } from "./interval";
 import { unitTooLarge, type Age } from "./rules";
 import { FieldError, FieldHint, FieldWarning, HIT_SLOP, Input, Label, Badge, MenuSelect, RING_ROOM, RadioGroup, RadioRow, chartFor, font, gap, uiRadius, useLayout, useUi } from "./ui";
@@ -17,8 +17,8 @@ export interface LineShade {
 }
 
 /** Distinct colour family per certificate line (chart-1..5 tokens; Part II slate). */
-export function lineShade(mode: ColorMode, index: number, part2: boolean): LineShade {
-  const chart = chartFor(uiTokens[mode], index, part2);
+export function lineShade(tokens: UiTokens, index: number, part2: boolean): LineShade {
+  const chart = chartFor(tokens, index, part2);
   return { bar: chart.bar, tint: chart.tint, chipBg: chart.soft, chipText: chart.foreground };
 }
 

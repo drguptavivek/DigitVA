@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-17
 
+- High contrast is neutral greys (owner 2026-11-17, `digitva-24gv`): dark
+  grey on almost white by day, reversed by night; only error red, Yes/No
+  and DORIS line colours keep hue. Web Settings gains the switch, and the
+  browser workspace, DORIS card, ICD-11 picker and header follow it. Web
+  selected state and demo badge match the phone; the picker CSS and Flask
+  `base.css` move from the old blue to Petrol. Policy: expo-client.
+
 - Placement changes replace unit roles (owner 2026-11-17): moving a
   worker's unit or cadre revokes their unit roles at the old unit and
   grants the new cadre's defaults at the new unit; removing a placement

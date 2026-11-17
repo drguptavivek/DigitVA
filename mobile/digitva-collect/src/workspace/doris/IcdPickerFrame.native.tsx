@@ -40,7 +40,7 @@ export function IcdPickerFrame({ init, revision, onMessage }: PickerFrameProps) 
     <WebView
       ref={web}
       style={{ flex: 1, backgroundColor: "transparent" }}
-      source={{ uri: `${origin}${pickerPageUrl(init.theme)}` }}
+      source={{ uri: `${origin}${pickerPageUrl(init.theme, init.highContrast)}` }}
       originWhitelist={[origin]}
       onShouldStartLoadWithRequest={(request) => request.url.startsWith(`${origin}/`)}
       onMessage={onWebMessage}

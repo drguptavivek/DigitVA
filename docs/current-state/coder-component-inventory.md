@@ -70,3 +70,17 @@ COD selections and DORIS processing. Browser checks measure real badge
 padding, responsive overflow, rail scrolling and form grouping. Export and
 typecheck are separate checks from physical-device acceptance. Real audio
 playback and hardware touch gestures still require device acceptance.
+
+## Category layout rules (phone and web)
+
+Shared by `CategoryPanel.tsx` and `CategoryPanel.web.tsx` through
+`mobile/digitva-collect/src/workspace/categoryLayout.ts`:
+
+- "Symptoms on VA Interview" shows only in `workflow_panel` (first) and
+  `attachments`/Narration (after the narrative and the quality panel). The
+  server, and offline `localCategories.ts`, send `summary_items` on every
+  category; the panel gates by render mode.
+- Subcategories with the placeholder heading `default` show no heading; raw
+  keys (`risk_factors`) are humanized.
+- Disease / Co-morbidity splits answers into Diagnosed by Health Professional
+  (Yes), Absent (No) and the remaining answers as a question/answer grid.

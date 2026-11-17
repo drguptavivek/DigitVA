@@ -3,13 +3,13 @@ import React, { type ReactNode } from "react";
 import { Text, View } from "react-native";
 
 import type { CategoryPayload, JsonValue, WorkspaceCategoryNav } from "./contracts";
+import { categoryMode, groupDiseaseHistory, historySubcategoryIndex, sourceConfig, subcategoryHeading, summaryPlacement, workflowGroups, type CategorySubcategory } from "./categoryLayout";
 import { AttachmentGallery } from "./media/AttachmentGallery.web";
 import { useWebStyles, type WebPalette } from "./webPalette";
 
 const ROBOTO = "Roboto, Arial, sans-serif";
 const ATTACHMENT_PATH = /^\/api\/v1\/attachments\/(?:legacy\/[^/?#]+\/[^/?#]+|[^/?#]+)(?:\.[a-zA-Z0-9]+)?$/;
 
-type CategorySubcategory = CategoryPayload["subcategories"][number] & { source_category?: string };
 type CategoryItem = CategorySubcategory["items"][number];
 
 function FaIcon({ name, color }: { name: string; color?: string }) {
@@ -67,15 +67,7 @@ function QueryResponseTable({ items, renderMedia, queryWidth = "60%" }: { items:
 
 function DiseaseHistory({ items, renderMedia }: { items: CategoryItem[]; renderMedia?: (attachmentPath: string) => ReactNode }) {
   const [webStyles, w] = useWebStyles(makeStyles);
-  const positive: string[] = [];
-  const negative: string[] = [];
-  const remaining: CategoryItem[] = [];
-  items.forEach((item) => {
-    const answer = typeof item.value === "string" ? item.value.trim().toLowerCase() : "";
-    if (answer === "yes") positive.push(item.label);
-    else if (answer === "no") negative.push(item.label);
-    else remaining.push(item);
-  });
+  const { positive, negative, remaining } = groupDiseaseHistory(items);
   return <View style={webStyles.diseaseHistory} accessibilityLabel="Disease history summary">
     <View style={webStyles.diseaseColumns}>
       <View style={webStyles.diseaseColumn}>
@@ -96,49 +88,6 @@ function DiseaseHistory({ items, renderMedia }: { items: CategoryItem[]; renderM
       <QueryResponseTable items={remaining} renderMedia={renderMedia} />
     </View> : null}
   </View>;
-}
-
-function sourceCategory(category: CategoryPayload, subcategory: CategorySubcategory): string {
-  return subcategory.source_category ?? category.code;
-}
-
-function sourceConfig(category: CategoryPayload, subcategory: CategorySubcategory, categoryNav: WorkspaceCategoryNav[] | undefined) {
-  const source = sourceCategory(category, subcategory);
-  return categoryNav?.find((item) => item.code === source);
-}
-
-function isHistorySource(category: CategoryPayload, subcategory: CategorySubcategory, categoryNav: WorkspaceCategoryNav[] | undefined): boolean {
-  const source = sourceConfig(category, subcategory, categoryNav);
-  return subcategory.render_mode === "health_history_summary" || source?.render_mode === "health_history_summary";
-}
-
-function historySubcategories(category: CategoryPayload, categoryNav: WorkspaceCategoryNav[] | undefined): CategorySubcategory[] {
-  const candidates = category.subcategories.filter((subcategory) => (
-    category.render_mode === "health_history_summary" || isHistorySource(category, subcategory, categoryNav)
-  ));
-  const explicit = candidates.filter((subcategory) => subcategory.render_mode === "health_history_summary");
-  if (explicit.length) return explicit;
-  if (category.render_mode === "health_history_summary") {
-    // Category mode is the configuration for legacy payloads that do not carry
-    // a subcategory mode. Preserve configured order; unknown answers remain in
-    // the detail table instead of changing which section is summarised.
-    const selected = candidates[0];
-    return selected ? [selected] : [];
-  }
-  const grouped = new Map<string, CategorySubcategory[]>();
-  candidates.forEach((subcategory) => {
-    const source = sourceCategory(category, subcategory);
-    grouped.set(source, [...(grouped.get(source) ?? []), subcategory]);
-  });
-  return [...grouped.values()].flatMap((items) => {
-    const selected = items[0];
-    return selected ? [selected] : [];
-  });
-}
-
-function historySubcategoryIndex(category: CategoryPayload, categoryNav: WorkspaceCategoryNav[] | undefined): number {
-  const selected = historySubcategories(category, categoryNav)[0];
-  return selected ? category.subcategories.indexOf(selected) : -1;
 }
 
 function CategorySection({ category, subcategory, renderMedia, workspaceIdentity }: {
@@ -188,7 +137,7 @@ function CategorySections({ category, categoryNav, renderMedia, workspaceIdentit
       const history = index === historyIndex;
       return <View key={subcategory.code} style={webStyles.section}>
         {history ? <DiseaseHistory items={subcategory.items} renderMedia={renderMedia} /> : <>
-          <SectionHeading icon={subcategory.render_mode === "media_gallery" ? "fa-images" : category.render_mode === "attachments" ? "fa-paperclip" : "fa-list-ul"}>{subcategory.label}</SectionHeading>
+          {subcategoryHeading(subcategory.label) ? <SectionHeading icon={subcategory.render_mode === "media_gallery" ? "fa-images" : category.render_mode === "attachments" ? "fa-paperclip" : "fa-list-ul"}>{subcategoryHeading(subcategory.label)}</SectionHeading> : null}
           <CategorySection category={category} subcategory={subcategory} renderMedia={renderMedia} workspaceIdentity={workspaceIdentity} />
         </>}
       </View>;
@@ -206,16 +155,13 @@ function WorkflowSections({ category, categoryNav, renderMedia, workspaceIdentit
   afterContent?: ReactNode;
 }) {
   const [webStyles, w] = useWebStyles(makeStyles);
-  const attachmentSubs = category.subcategories.filter((subcategory) => sourceConfig(category, subcategory, categoryNav)?.render_mode === "attachments");
-  const historySubs = historySubcategories(category, categoryNav);
-  const otherSubs = category.subcategories.filter((subcategory) => !attachmentSubs.includes(subcategory) && !historySubs.includes(subcategory));
-  const historyItems = historySubs.flatMap((subcategory) => subcategory.items);
+  const { attachmentSubs, historyItems, otherSubs } = workflowGroups(category, categoryNav);
   return <>
     <SummaryBlock items={category.summary_items} />
     {attachmentSubs.length ? <View style={webStyles.workflowGroup}>
       <SectionHeading icon="fa-file-medical-alt">Narration and Documents</SectionHeading>
       {attachmentSubs.map((subcategory) => <View key={subcategory.code} style={webStyles.section}>
-        <SectionHeading icon={subcategory.render_mode === "media_gallery" ? "fa-images" : "fa-paperclip"}>{subcategory.label}</SectionHeading>
+        {subcategoryHeading(subcategory.label) ? <SectionHeading icon={subcategory.render_mode === "media_gallery" ? "fa-images" : "fa-paperclip"}>{subcategoryHeading(subcategory.label)}</SectionHeading> : null}
         <CategorySection category={{ ...category, render_mode: "attachments" }} subcategory={subcategory} renderMedia={renderMedia} workspaceIdentity={workspaceIdentity} />
       </View>)}
     </View> : null}
@@ -224,7 +170,7 @@ function WorkflowSections({ category, categoryNav, renderMedia, workspaceIdentit
       <DiseaseHistory items={historyItems} renderMedia={renderMedia} />
     </View> : null}
     {otherSubs.map((subcategory) => <View key={subcategory.code} style={webStyles.section}>
-      <SectionHeading icon="fa-list-ul">{subcategory.label}</SectionHeading>
+      {subcategoryHeading(subcategory.label) ? <SectionHeading icon="fa-list-ul">{subcategoryHeading(subcategory.label)}</SectionHeading> : null}
       <CategorySection category={category} subcategory={subcategory} renderMedia={renderMedia} workspaceIdentity={workspaceIdentity} />
     </View>)}
     {notesSummary ? <View style={webStyles.workflowGroup}><SectionHeading icon="fa-sticky-note">Notes</SectionHeading>{notesSummary}</View> : null}
@@ -243,7 +189,7 @@ export function CategoryPanel({ category, iconName, renderMedia, categoryNav, wo
   afterContent?: ReactNode;
 }) {
   const [webStyles, w] = useWebStyles(makeStyles);
-  const mode = category.render_mode || categoryNav?.find((item) => item.code === category.code)?.render_mode || "table_sections";
+  const mode = categoryMode(category, categoryNav);
   return <View accessibilityLabel={category.label} style={webStyles.root} nativeID="digitva-category-panel">
     {React.createElement("style", null, responsiveCategoryCss(w))}
     <View style={webStyles.categoryHeading}><FaIcon name={iconName ?? categoryNav?.find((item) => item.code === category.code)?.icon_name ?? "fa-folder-open"} color={w.onBar} /><Text style={webStyles.categoryHeadingText}>{category.label.toUpperCase()}</Text></View>
@@ -251,7 +197,7 @@ export function CategoryPanel({ category, iconName, renderMedia, categoryNav, wo
       ? <WorkflowSections category={category} categoryNav={categoryNav} renderMedia={renderMedia} workspaceIdentity={workspaceIdentity} notesSummary={notesSummary} afterContent={afterContent} />
       : <>
         <CategorySections category={{ ...category, render_mode: mode }} categoryNav={categoryNav} renderMedia={renderMedia} workspaceIdentity={workspaceIdentity} afterContent={afterContent} />
-        {mode === "attachments" ? <SummaryBlock items={category.summary_items} /> : null}
+        {summaryPlacement(mode, category.summary_items) === "after" ? <SummaryBlock items={category.summary_items} /> : null}
       </>}
   </View>;
 }

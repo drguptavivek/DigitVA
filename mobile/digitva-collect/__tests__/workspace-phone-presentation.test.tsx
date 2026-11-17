@@ -105,7 +105,7 @@ describe("case view", () => {
   });
 
   test("category panel humanises raw section keys and drops the heading above the symptoms card", () => {
-    const category = { code: "c", label: "Demographic / Risk Factors", summary_items: ["High blood pressure"], subcategories: [{ code: "g", label: "risk_factors", items: [] }] } as never;
+    const category = { code: "c", label: "Demographic / Risk Factors", render_mode: "workflow_panel", summary_items: ["High blood pressure"], subcategories: [{ code: "g", label: "risk_factors", items: [] }] } as never;
     const text = JSON.stringify(sync(<CategoryPanel category={category} />).toJSON());
     expect(text).toContain("Risk factors");
     expect(text).toContain("Symptoms on VA Interview");

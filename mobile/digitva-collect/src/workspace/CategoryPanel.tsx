@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { controls, radius, spacing, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
 import { answerText, answerTone } from "./answerTone";
-import { humanizeKey } from "./humanizeKey";
+import { categoryMode, groupDiseaseHistory, historySubcategoryIndex, subcategoryHeading, summaryPlacement, workflowGroups, type CategorySubcategory } from "./categoryLayout";
 import { AttachmentGallery } from "./media/AttachmentGallery.native";
 import type { CategoryPayload, JsonValue, WorkspaceCategoryNav } from "./contracts";
 
@@ -60,10 +60,52 @@ function QuestionRow({ item, first, renderMedia }: {
   );
 }
 
-/** Render ordered server category data as escaped native text and optional media slots. */
+/** A subcategory card: the question/answer grid, or the media gallery. The heading is hidden for "default". */
+function SubcategoryCard({ subcategory, renderMedia, workspaceIdentity }: {
+  subcategory: CategorySubcategory;
+  renderMedia?: (attachmentPath: string) => ReactNode;
+  workspaceIdentity?: string;
+}) {
+  const styles = useUiStyles();
+  const heading = subcategoryHeading(subcategory.label);
+  return (
+    <View style={styles.card}>
+      {heading ? <Text style={styles.headline}>{heading}</Text> : null}
+      {subcategory.render_mode === "media_gallery" ? (
+        <AttachmentGallery items={subcategory.items} label={subcategory.label} workspaceIdentity={workspaceIdentity} renderMedia={renderMedia} />
+      ) : subcategory.items.map((item, index) => (
+        <QuestionRow key={`${item.label}-${index}`} item={item} first={index === 0} renderMedia={renderMedia} />
+      ))}
+    </View>
+  );
+}
+
+/** Disease / Co-morbidity as the web's DiseaseHistory: Diagnosed, Absent, then the other answers as a grid. */
+function DiseaseHistoryCard({ items, renderMedia }: { items: CategorySubcategory["items"]; renderMedia?: (attachmentPath: string) => ReactNode }) {
+  const styles = useUiStyles();
+  const { positive, negative, remaining } = groupDiseaseHistory(items);
+  return (
+    <View style={styles.card} accessibilityLabel="Disease history summary">
+      <Text style={styles.headline}>Disease / Co-morbidity</Text>
+      <Text style={[styles.text, { fontWeight: "600" }]}>Diagnosed by Health Professional</Text>
+      <Text style={styles.text}>{positive.length ? positive.join("\n") : "No positive diagnoses found."}</Text>
+      <Text style={[styles.text, { fontWeight: "600", marginTop: spacing.sm }]}>Absent</Text>
+      <Text style={styles.text}>{negative.length ? negative.join(", ") : "No negative diagnoses found."}</Text>
+      {remaining.length ? (
+        <View style={{ marginTop: spacing.sm }}>
+          <Text style={[styles.text, { fontWeight: "600" }]}>Medical History (Responses)</Text>
+          {remaining.map((item, index) => <QuestionRow key={`${item.label}-${index}`} item={item} first={index === 0} renderMedia={renderMedia} />)}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** Render ordered server category data as escaped native text and optional media slots; layout rules in categoryLayout.ts. */
 export function CategoryPanel({
   category,
   renderMedia,
+  categoryNav,
   workspaceIdentity,
   afterContent,
 }: {
@@ -76,22 +118,28 @@ export function CategoryPanel({
   afterContent?: ReactNode;
 }) {
   const styles = useUiStyles();
+  const mode = categoryMode(category, categoryNav);
+  const placement = summaryPlacement(mode, category.summary_items);
+  const card = (subcategory: CategorySubcategory) => <SubcategoryCard key={subcategory.code} subcategory={subcategory} renderMedia={renderMedia} workspaceIdentity={workspaceIdentity} />;
+  const summary = <SymptomSummary items={category.summary_items} />;
+  let body: ReactNode;
+  if (mode === "workflow_panel") {
+    const { attachmentSubs, historyItems, otherSubs } = workflowGroups(category, categoryNav);
+    body = <>{attachmentSubs.map(card)}{historyItems.length ? <DiseaseHistoryCard items={historyItems} renderMedia={renderMedia} /> : null}{otherSubs.map(card)}</>;
+  } else {
+    const historyIndex = historySubcategoryIndex({ ...category, render_mode: mode }, categoryNav);
+    body = category.subcategories.map((subcategory, index) => index === historyIndex
+      ? <DiseaseHistoryCard key={subcategory.code} items={subcategory.items} renderMedia={renderMedia} />
+      : card(subcategory));
+  }
   return (
     <View accessibilityLabel={category.label}>
       {/* The symptoms card carries its own title; a second heading above it says the same (round-6 C6). */}
-      {category.summary_items.length ? null : <Text style={styles.headline}>{category.label}</Text>}
-      <SymptomSummary items={category.summary_items} />
-      {category.subcategories.map((subcategory) => (
-        <View key={subcategory.code} style={styles.card}>
-          <Text style={styles.headline}>{humanizeKey(subcategory.label)}</Text>
-          {subcategory.render_mode === "media_gallery" ? (
-            <AttachmentGallery items={subcategory.items} label={subcategory.label} workspaceIdentity={workspaceIdentity} renderMedia={renderMedia} />
-          ) : subcategory.items.map((item, index) => (
-            <QuestionRow key={`${item.label}-${index}`} item={item} first={index === 0} renderMedia={renderMedia} />
-          ))}
-        </View>
-      ))}
+      {placement === "before" ? null : <Text style={styles.headline}>{category.label}</Text>}
+      {placement === "before" ? summary : null}
+      {body}
       {afterContent}
+      {placement === "after" ? summary : null}
     </View>
   );
 }

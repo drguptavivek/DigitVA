@@ -3,7 +3,7 @@ title: Coder Workspace Component Inventory
 doc_type: reference
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-11-17
 ---
 
 # Coder workspace component inventory
@@ -27,6 +27,7 @@ The shared DORIS certificate editor remains authoritative for both clients.
 | Positive/negative disease history | Same category renderer; explicit Yes and No groups |
 | Consolidated symptom summary and COD evidence | Same category renderer; source category provenance retained |
 | Narration and attachments, image slider, thumbnails, rotation, lightbox, audio and PDF | `mobile/digitva-collect/src/workspace/media/AttachmentGallery.web.tsx` |
+| Narration and attachments on the phone (Android/iOS): the same `media_gallery` items as web (narration image `imagenarr`, document images, PDFs, narration audio, wrapped or bare values), one at a time with previous/next and rotate for images; online media loads through the bearer `AttachmentMedia.native.tsx`, offline draft attachments through `LocalAttachmentMedia.native.tsx`. No thumbnails or pinch lightbox | `mobile/digitva-collect/src/workspace/media/AttachmentGallery.native.tsx` |
 | Private Notes and panel shell | `mobile/digitva-collect/src/workspace/PrivateNotePanel.tsx` and browser layout |
 | Narrative quality and social autopsy | `mobile/digitva-collect/src/workspace/QualityPanels.tsx`; WHO interview single/multiple choices |
 | Simple COD conditions and not-codeable reasons | `mobile/digitva-collect/src/workspace/SimpleCodPanel.tsx`; WHO interview choices |

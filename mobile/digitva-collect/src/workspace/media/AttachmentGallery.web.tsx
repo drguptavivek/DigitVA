@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { radius, ui, useTheme } from "../../theme";
-import type { CategoryPayload, JsonValue } from "../contracts";
 import { useWebStyles, type WebPalette } from "../webPalette";
 import { useAttachmentUrl } from "./attachmentScope";
-import { attachmentMediaExtension, attachmentMediaKind, browserAudioSupported } from "./path";
+import { browserAudioSupported, collectPaths, type CategoryItem } from "./path";
 
 // react-dom ships without types here (no @types/react-dom); same hand-typed call as WorkspaceLayout.web.tsx.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -28,47 +27,6 @@ function Icon({ name, size = 24 }: { name: keyof typeof ICON_PATHS; size?: numbe
 
 // The photo viewer stays dark in both themes (photos read best on near-black), so its text uses the dark-mode tokens.
 const VIEWER_SCRIM = "rgba(8, 13, 20, 0.94)";
-
-type CategoryItem = CategoryPayload["subcategories"][number]["items"][number];
-type GalleryAttachment = { path: string; label: string; kind: "image" | "audio" | "document" };
-
-const MAX_NODES = 300;
-const MAX_DEPTH = 8;
-
-function collectPaths(items: CategoryItem[]): { attachments: GalleryAttachment[]; truncated: boolean } {
-  const attachments: GalleryAttachment[] = [];
-  const paths = new Set<string>();
-  const seen = new WeakSet<object>();
-  let nodes = 0;
-  let truncated = false;
-
-  const visit = (value: JsonValue, label: string, depth: number) => {
-    if (nodes++ >= MAX_NODES || depth > MAX_DEPTH) {
-      truncated = true;
-      return;
-    }
-    if (typeof value === "string") {
-      const extension = attachmentMediaExtension(value);
-      const kind = attachmentMediaKind(value) ?? (extension === "pdf" ? "document" : null);
-      if (kind && !paths.has(value)) {
-        paths.add(value);
-        attachments.push({ path: value, label, kind });
-      }
-      return;
-    }
-    if (!value || typeof value !== "object") return;
-    if (seen.has(value)) return;
-    seen.add(value);
-    if (Array.isArray(value)) {
-      value.forEach((item) => visit(item, label, depth + 1));
-      return;
-    }
-    Object.entries(value).forEach(([key, child]) => visit(child, label || key.replace(/_/g, " "), depth + 1));
-  };
-
-  items.forEach((item) => visit(item.value, item.label, 0));
-  return { attachments, truncated };
-}
 
 function downloadName(path: string): string {
   return path.split("/").at(-1) || "attachment";

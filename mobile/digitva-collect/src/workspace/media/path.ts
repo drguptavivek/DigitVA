@@ -1,3 +1,5 @@
+import type { CategoryPayload, JsonValue } from "../contracts";
+
 export type AttachmentMediaKind = "image" | "audio";
 
 const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
@@ -48,4 +50,52 @@ export function attachmentMediaKind(path: string): AttachmentMediaKind | null {
 export function browserAudioSupported(path: string): boolean {
   const extension = attachmentMediaExtension(path);
   return extension !== "amr" && extension !== null && AUDIO_EXTENSIONS.has(extension);
+}
+
+export type CategoryItem = CategoryPayload["subcategories"][number]["items"][number];
+/** "local" is an offline draft's attachment (localCategories.ts LOCAL_ATTACHMENT_PREFIX); its kind is known only once opened. */
+export type GalleryAttachment = { path: string; label: string; kind: "image" | "audio" | "document" | "local" };
+
+const MAX_NODES = 300;
+const MAX_DEPTH = 8;
+const LOCAL_ATTACHMENT = /^digitva-local-attachment:[A-Za-z0-9_]+$/;
+
+/**
+ * Every distinct attachment path in a gallery's items, however deeply the value wraps it, with the item's label.
+ * Bounded (MAX_NODES / MAX_DEPTH, cycles skipped): `truncated` says some were left out. Local references are kept
+ * only when `allowLocal` (the phone's offline workspace); the web never renders them.
+ */
+export function collectPaths(items: CategoryItem[], allowLocal = false): { attachments: GalleryAttachment[]; truncated: boolean } {
+  const attachments: GalleryAttachment[] = [];
+  const paths = new Set<string>();
+  const seen = new WeakSet<object>();
+  let nodes = 0;
+  let truncated = false;
+
+  const visit = (value: JsonValue, label: string, depth: number) => {
+    if (nodes++ >= MAX_NODES || depth > MAX_DEPTH) {
+      truncated = true;
+      return;
+    }
+    if (typeof value === "string") {
+      const extension = attachmentMediaExtension(value);
+      const kind = attachmentMediaKind(value) ?? (extension === "pdf" ? "document" : allowLocal && LOCAL_ATTACHMENT.test(value) ? "local" : null);
+      if (kind && !paths.has(value)) {
+        paths.add(value);
+        attachments.push({ path: value, label, kind });
+      }
+      return;
+    }
+    if (!value || typeof value !== "object") return;
+    if (seen.has(value)) return;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      value.forEach((item) => visit(item, label, depth + 1));
+      return;
+    }
+    Object.entries(value).forEach(([key, child]) => visit(child, label || key.replace(/_/g, " "), depth + 1));
+  };
+
+  items.forEach((item) => visit(item.value, item.label, 0));
+  return { attachments, truncated };
 }

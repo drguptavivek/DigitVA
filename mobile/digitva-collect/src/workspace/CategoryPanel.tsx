@@ -4,6 +4,7 @@ import { Text, View } from "react-native";
 import { controls, radius, spacing, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
 import { humanizeKey } from "./humanizeKey";
+import { AttachmentGallery } from "./media/AttachmentGallery.native";
 import type { CategoryPayload, JsonValue, WorkspaceCategoryNav } from "./contracts";
 
 const ATTACHMENT_PATH = /^\/api\/v1\/attachments\/(?:legacy\/[^/?#]+\/[^/?#]+|[^/?#]+)(?:\.[a-zA-Z0-9]+)?$/;
@@ -34,6 +35,7 @@ function SymptomSummary({ items }: { items: JsonValue[] }) {
 export function CategoryPanel({
   category,
   renderMedia,
+  workspaceIdentity,
   afterContent,
 }: {
   category: CategoryPayload;
@@ -53,7 +55,9 @@ export function CategoryPanel({
       {category.subcategories.map((subcategory) => (
         <View key={subcategory.code} style={styles.card}>
           <Text style={styles.headline}>{humanizeKey(subcategory.label)}</Text>
-          {subcategory.items.map((item, index) => (
+          {subcategory.render_mode === "media_gallery" ? (
+            <AttachmentGallery items={subcategory.items} label={subcategory.label} workspaceIdentity={workspaceIdentity} renderMedia={renderMedia} />
+          ) : subcategory.items.map((item, index) => (
             <View key={`${item.label}-${index}`}>
               <Text style={styles.muted}>{item.label}</Text>
               <CategoryValue value={item.value} renderMedia={renderMedia} />

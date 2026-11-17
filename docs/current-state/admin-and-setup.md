@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-17
 ---
 
 # Admin And Setup Model
@@ -47,7 +47,7 @@ The `/admin` interface provides the following management panels:
        units at level`, `Cross-tree: All N other units`, or expandable inline unit
        drawer). On an organization project, **Upload users CSV** (`name, email,
        phone`; template `GET .../users-grid/members/template.csv`, preview then
-       apply `POST .../users-grid/members/import`, digitva-plgm) adds project
+       apply `POST .../users-grid/members/import`, digitva-plgm; **Export CSV** `GET .../users-grid/members/export.csv` downloads the roster in the same columns) adds project
        members, which grant nothing and appear as "Not placed in a unit" until
        Place gives unit, cadre and the cadre's default roles. Each row's
        contact cell shows **Not activated** / **Activated** (activated =

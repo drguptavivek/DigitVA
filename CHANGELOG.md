@@ -5,6 +5,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-17
 
+- Roster "Export CSV" on People and grants: name, email, phone in the
+  members-import format, so a roster can be uploaded into another
+  project; admin/PI/DM only, audited as `project_members_exported`
+  (`docs/policy/dm-user-grant-management.md`).
 - Security audit run-7 (`digitva-l9dp`, all 9 leads reproduced then
   resolved): non-admin sign-in QR refuses verified-email show, live
   phones and outside members; mentoring-institute staff refused in

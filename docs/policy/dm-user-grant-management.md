@@ -365,6 +365,20 @@ shared with other projects.
 Data managers get no account-level power here: no deactivation, no email
 change beyond the existing creator rule, no admin flag.
 
+## Roster Members Export
+
+`GET /admin/api/projects/<project_id>/users-grid/members/export.csv` downloads
+the project's roster people as `name,email,phone`, the columns of the members
+import, so the file uploads unchanged to another project. Allowed to whoever
+passes the roster guard: admin, the project's PI, a project-scope data
+manager. Rows are the users grid's rows (`get_project_users_grid`) minus
+deactivated accounts and accounts with neither email nor a valid mobile; the
+phone is the canonical ten digits (`canonical_mobile`, starting 6-9) or blank.
+Cells that a spreadsheet would run as a formula get a leading apostrophe.
+The import takes at most 150 rows per upload, so a larger export is split.
+Audited as `project_members_exported` (actor, project id, row count; no
+person data). 30 requests an hour per caller.
+
 ## CSRF
 
 All mutating endpoints require a valid CSRF token in the `X-CSRFToken` header,

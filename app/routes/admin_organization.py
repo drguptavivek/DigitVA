@@ -4,6 +4,7 @@ Thin HTTP layer over ``app.services.organization_service``; every rule lives
 there. Routes hang off the ``admin`` blueprint (``/admin/api/organization/...``).
 Plan: docs/planning/health-system-organization-model-plan.md
 """
+import csv
 import io
 import logging
 import re
@@ -1744,6 +1745,49 @@ def admin_project_members_template(project_id):
     return current_app.response_class(
         user_import.template_csv(user_import.MEMBER_HEADERS), mimetype="text/csv",
         headers={"Content-Disposition": 'attachment; filename="project_members_template.csv"'},
+    )
+
+
+@admin.get("/api/projects/<project_id>/users-grid/members/export.csv")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("30 per hour")
+def admin_project_members_export(project_id):
+    """The project's roster people as ``name, email, phone`` rows that another
+    project's members import takes unchanged. Rows come from the users grid
+    (``get_project_users_grid``); a deactivated account (the import refuses
+    it) or one with neither email nor a valid mobile is left out, and the
+    phone is the canonical ten digits. Audited as ``project_members_exported``
+    with the row count only."""
+    from app.services.case_export_service import safe_cell
+    from app.services.security_event_service import record_security_event
+
+    if err := _guard(project_id, roster=True):
+        return err
+    try:
+        users = org.get_project_users_grid(project_id, viewer=current_user)["users"]
+    except org.OrganizationError as exc:
+        return _json_error(str(exc), 404)
+    out = io.StringIO(newline="")
+    writer = csv.writer(out, lineterminator="\r\n")
+    writer.writerow(user_import.MEMBER_HEADERS)
+    count = 0
+    for user in users:
+        mobile = canonical_mobile(user["phone"])
+        mobile = mobile if mobile and mobile[0] in "6789" else ""
+        email = user["email"] or ""
+        if not user["is_active"] or not (email or mobile):
+            continue
+        writer.writerow([safe_cell(user["name"]), safe_cell(email), mobile])
+        count += 1
+    record_security_event(
+        user_id=None, actor_user_id=current_user.user_id, event_type="project_members_exported",
+        detail={"project_id": project_id, "rows": count},
+    )
+    db.session.commit()
+    log.info("project members export | project=%s by=%s rows=%s", project_id, current_user.user_id, count)
+    return current_app.response_class(
+        out.getvalue(), mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="project_members_{project_id}.csv"'},
     )
 
 

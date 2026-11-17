@@ -3,7 +3,7 @@ title: Phone Attachments (audio, photographs, documents)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-17
 ---
 
 # Phone Attachments
@@ -145,8 +145,11 @@ is the phone's side. Server caps and accepted types are not restated here:
    `READ_EXTERNAL_STORAGE` to choose from the gallery; it is declared with
    `maxSdkVersion="32"` (`plugins/with-android-legacy-gallery.js`), images
    only, and asked for at the point of use after a plain explanation, with the
-   settings link when refused for good. `WRITE_EXTERNAL_STORAGE` stays
-   blocked; the camera remains another way to attach a photograph.
+   settings link when refused for good. Owner decision 2026-11-17:
+   `WRITE_EXTERNAL_STORAGE` is declared with `maxSdkVersion="28"` only, because
+   `expo-image-picker` refuses the camera and the gallery without it on
+   Android 9 and older (every photograph there failed with "could not be
+   processed"); Android 10 and later never hold it.
 8. **Wipe.** Deleting the draft, sign-out, revocation and the PIN wipe all
    remove the files with the store. The media cache folder is emptied with
    them. Files are never copied to another account's store.

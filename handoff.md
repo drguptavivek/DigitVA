@@ -2,10 +2,10 @@
 
 ## Start here
 
-Staging runs `019e8ac7e`. Main is at `b95f26e4a` (run-7 security fixes `digitva-l9dp`, all
+Staging runs `019e8ac7e`. Main is at `798d811d8` (run-7 security fixes `digitva-l9dp`, all
 closed, plus the roster members CSV export). Server image build for
-`b95f26e4a724cde79bd15b2ff634cd8427bd7a51` started on CI
-(`server-images.yml` run 44032773406); check it finished. An image for
+`798d811d86aa6c0df554c648a147ad1734c4bcaf` started on CI
+(`server-images.yml`, started 2026-11-17); check it finished. An image for
 `2e7a51a17` (fixes without the export) also exists. The earlier
 image for `e6a17915d` (Collect 0.3.23 pinned) also exists. The owner
 approved deploying `e6a17915d` on 2026-11-17; deploying the newer sha
@@ -27,7 +27,7 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Ranked next steps
 
-0. Deploy to staging (above: `e6a17915d` approved, `b95f26e4a` needs a go). Afterwards check on staging: the
+0. Deploy to staging (above: `e6a17915d` approved, `798d811d8` needs a go). Afterwards check on staging: the
    roster person page (`digitva-eyp3`, closed), `/download/android` serves
    0.3.23, and on a phone consent "No" then back (Id10013 fill) and the
    ICD-11 first-launch prompt.
@@ -61,7 +61,7 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Open owner decisions
 
-- Staging deploy: which sha (`e6a17915d` approved; `b95f26e4a` adds run-7
+- Staging deploy: which sha (`e6a17915d` approved; `798d811d8` adds run-7
   fixes and the roster export) and timing (waiting on AWS sign-in).
 - Run-7 decisions are recorded in `docs/policy/mobile-sign-in.md`,
   `dm-user-grant-management.md`, `web-intake.md`, `training-demo-project.md`.

@@ -386,8 +386,11 @@
                   </div>
                   <div class="d-flex flex-wrap gap-2">
                     {% if is_org and not roster_only %}
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-open-worker-form data-jump-section="structure" data-jump-org-tab="workers">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-open-in-place="org-worker-add-btn" data-jump-section="structure" data-jump-org-tab="workers">
                       <i class="fa-solid fa-user-plus me-1"></i>Enrol Worker / App QR
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-open-in-place="org-worker-app-qr-btn" data-jump-section="structure" data-jump-org-tab="workers" title="Generate a project device enrolment QR code for the DigitVA app">
+                      <i class="fa-solid fa-qrcode me-1"></i>Project App QR
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-jump-section="structure" data-jump-org-tab="mentoring">
                       <i class="fa-solid fa-building-columns me-1"></i>Mentoring Scientists
@@ -741,29 +744,35 @@
     if (target) target.scrollIntoView({ block: 'start' });
   }
 
-  // People & Grants opens Structure's Add worker form in place. The form's
-  // offcanvas lives inside the hidden Structure section, so it is moved up to
-  // the page root first. A disabled Add worker (no units or cadres yet) falls
-  // back to the Workers tab, which says why.
-  function openWorkerForm(link) {
-    var addBtn = document.getElementById('org-worker-add-btn');
+  // People & Grants opens Structure's worker controls (Add worker, Project
+  // App QR) in place. Their offcanvas and modals live inside the hidden
+  // Structure section, so they are moved up to the page root first. A
+  // disabled control (e.g. Add worker with no units or cadres yet) falls back
+  // to the Workers tab, which says why.
+  var IN_PLACE_LAYERS = ['org-worker-canvas', 'org-worker-onboarding-modal', 'org-confirm-modal'];
+  function openInPlace(link) {
+    var action = document.getElementById(link.getAttribute('data-open-in-place'));
+    if (!action || action.disabled) { jump(link); return; }
+    IN_PLACE_LAYERS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && el.parentElement !== root) root.appendChild(el);
+    });
     var canvas = document.getElementById('org-worker-canvas');
-    if (!addBtn || !canvas || addBtn.disabled) { jump(link); return; }
-    if (canvas.parentElement !== root) {
-      root.appendChild(canvas);
+    if (canvas && !canvas.dataset.rosterRefresh) {
+      canvas.dataset.rosterRefresh = '1';
       canvas.addEventListener('hidden.bs.offcanvas', function () {
         var refresh = document.getElementById('setup-ug-refresh-btn');
         if (refresh) refresh.click();
       });
     }
-    addBtn.click();
+    action.click();
   }
 
   root.addEventListener('click', function (e) {
-    var workerLink = e.target.closest('[data-open-worker-form]');
-    if (workerLink) {
+    var inPlaceLink = e.target.closest('[data-open-in-place]');
+    if (inPlaceLink) {
       e.preventDefault();
-      openWorkerForm(workerLink);
+      openInPlace(inPlaceLink);
       return;
     }
     var jumpLink = e.target.closest('[data-jump-section]');

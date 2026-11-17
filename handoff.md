@@ -27,7 +27,8 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Ranked next steps
 
-0. Deploy to staging (above: `e6a17915d` approved, `798d811d8` needs a go). Afterwards check on staging: the
+0. **HOLD: no staging deploy while a training is running on staging (owner
+   2026-11-17); wait for the owner to lift it.** Then deploy (above: `e6a17915d` approved, `798d811d8` needs a go). Afterwards check on staging: the
    roster person page (`digitva-eyp3`, closed), `/download/android` serves
    0.3.23, and on a phone consent "No" then back (Id10013 fill) and the
    ICD-11 first-launch prompt.

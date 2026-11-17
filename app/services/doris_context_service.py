@@ -7,10 +7,11 @@ prefill, a saved Step 1 result reopened display-only, and the Step 1
 reference a masked Step 2 confirms against. Workflow:
 ``docs/current-state/doris-cod-workflow.md``.
 
-PII: every certificate returned here goes through ``_redacted``. A redacting
-viewer (``viewer_pii_service.should_redact_pii``, passed in as ``redact_pii``)
-keeps the cause chain only; ``AdministrativeData`` holds the deceased's Sex,
-DateBirth, DateDeath and age.
+PII: DORIS shows ``AdministrativeData`` (the deceased's Sex, DateBirth,
+DateDeath, age) to every coder whatever ``redact_pii`` says: owner
+2026-11-17, these are VA form answers the coder already reads
+(``docs/policy/doris-cod-workflow.md``). ``redact_pii`` is still threaded
+through so a future DORIS-only redaction has one place to go.
 """
 
 from __future__ import annotations
@@ -28,12 +29,7 @@ from app.services.submission_payload_version_service import get_active_payload_v
 
 
 def _redacted(certificate, redact_pii: bool):
-    """The certificate without ``AdministrativeData`` for a redacting viewer.
-
-    A copy: the stored row's JSON is never mutated.
-    """
-    if redact_pii and isinstance(certificate, dict):
-        return {k: v for k, v in certificate.items() if k != "AdministrativeData"}
+    """The certificate as saved, for every viewer (owner 2026-11-17)."""
     return certificate
 
 
@@ -46,18 +42,18 @@ def doris_initial(
     prefill markers. Otherwise a DORIS project's new certificate starts
     with the non-cause fields the interview answers
     (``doris_prefill_from_payload``, bead digitva-hln); these are interview
-    facts, not SmartVA output, so masked Step 1 shows them too. A redacting
-    viewer gets no prefill (it is the deceased's Sex, DateBirth, DateDeath
-    and age). ``active_version`` is the submission's active payload version
+    facts, not SmartVA output, so masked Step 1 shows them too. Every
+    coder gets the full prefill whatever their PII access (owner,
+    2026-11-17: sex, age, DOB and DOD are on the VA form the coder reads).
+    ``active_version`` is the submission's active payload version
     when the caller already loaded it; else it is read here.
     """
     if saved_certificate is not None:
         return _redacted(copy.deepcopy(saved_certificate), redact_pii), {}
-    if submission is None or not is_doris(project_mode) or redact_pii:
+    if submission is None or not is_doris(project_mode):
         return {}, {}
     version = active_version or get_active_payload_version(submission.va_sid)
-    # Joined with the sealed fields (a date of birth an admin flagged is_pii
-    # is sealed); the redacting viewer returned above never reaches this.
+    # Joined with the sealed fields so a sealed date of birth still prefills.
     return doris_prefill_from_payload(joined_payload(version) if version else None)
 
 

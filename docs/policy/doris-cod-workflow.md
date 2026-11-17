@@ -3,12 +3,20 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-13
+last_updated: 2026-11-17
 ---
 
 # DORIS COD Workflow Policy
 
 Every check from search to final save, with known gaps: [DORIS Validation Checks](../current-state/doris-validation-checks.md).
+
+## Step 2 card order
+
+Owner decision 2026-11-17, web and phone. Masked Step 2 shows, top to bottom:
+Your Step 1 certificate, DORIS result from Step 1, Your Step 1 assigned causes,
+SmartVA Analysis. The final-cause card shows the quick-add buttons (Use SmartVA
+result), then "Or search ICD-11 for your own code", then "Your choice: ..." with
+its info and remove buttons. Order only; content and coding decisions unchanged.
 
 ## Cause reference presentation
 
@@ -184,6 +192,15 @@ prefilled.
   where DORIS has that code and the question was asked; unasked or blank
   questions leave the field empty (a blank optional answer is not "no").
 - Interview facts, not SmartVA output, so masked Step 1 shows them too.
+- The prefill ignores PII access (owner 2026-11-17, `digitva-9cll.22.10`):
+  "DORIS prefill on the server and app is regardless of PII access since the
+  age, sex etc are part of VA form anyways and so are visible", and "DOB and
+  DOD are fine to prefill too". Every coder who may code the case gets the
+  full prefill (administrative data, manner and the injury date, maternal,
+  fetal, surgery, autopsy) on the web partials and
+  `GET /api/v1/va/<sid>/workspace`, online and offline, read from the payload
+  joined with its sealed fields. Device-token grants are not widened for it.
+  Saved certificates keep `AdministrativeData` for every viewer too.
 - One function serves web and ODK cases from the active payload version.
   Extra questions (extension `doris_support_whova_2022`) fill the gaps the
   WHO questions leave; names and rules are Annex A of
@@ -288,6 +305,7 @@ attachments, then SmartVA, the DORIS certificate and the private note.
   server keeps on submission (irrelevant answers left out, multi-select answers
   labelled whether they arrive as an array or a space-joined string). The
   server renders array answers the same way.
+- **Prefill.** Offline, the certificate seed also prefills manner of death (with its injury date, place and description) like the server, with the same provenance; other sections stay unported.
 - **Nothing leaves the phone.** The workspace makes no server call offline.
   Attachments are read from the encrypted store; temporary plain copies follow
   the existing attachment rules. The coder sees what they collected, so no PII

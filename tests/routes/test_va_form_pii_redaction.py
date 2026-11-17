@@ -577,9 +577,9 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
                         self.assertEqual(response.status_code, 403)
         prefill.assert_not_called()
 
-    def test_doris_prefill_skips_a_redacting_viewer(self):
-        """Defense in depth: the prefill reads interview facts from the raw
-        payload, so a viewer the render redacts never gets it."""
+    def test_doris_prefill_reaches_a_redacting_viewer(self):
+        """Owner ruling 2026-11-17: the interview prefill is full for every
+        coder, whatever their PII access."""
         from app.services import doris_context_service
 
         submission = db.session.get(VaSubmissions, self.VA_SID)
@@ -587,16 +587,15 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
         with patch.object(doris_context_service, "is_doris", return_value=True), patch.object(
             doris_context_service, "doris_prefill_from_payload", return_value=prefilled
         ) as prefill:
-            # Present: a viewer entitled to PII gets the prefill.
-            self.assertEqual(
-                doris_context_service.doris_initial(None, submission, "doris", False), prefilled
-            )
-            self.assertEqual(
-                doris_context_service.doris_initial(None, submission, "doris", True), ({}, {})
-            )
-        self.assertEqual(prefill.call_count, 1)
+            for redact in (False, True):
+                with self.subTest(redact=redact):
+                    self.assertEqual(
+                        doris_context_service.doris_initial(None, submission, "doris", redact),
+                        prefilled,
+                    )
+        self.assertEqual(prefill.call_count, 2)
 
-    def test_a_saved_certificate_loses_its_administrative_data_for_a_redacting_viewer(self):
+    def test_a_saved_certificate_keeps_its_administrative_data_for_a_redacting_viewer(self):
         from app.services import doris_context_service
 
         saved = {
@@ -605,9 +604,10 @@ class RenderpartialPiiRedactionTests(BaseTestCase):
         }
         full, _ = doris_context_service.doris_initial(saved, None, "doris", False)
         self.assertIn("AdministrativeData", full)
-        redacted, _ = doris_context_service.doris_initial(saved, None, "doris", True)
-        self.assertNotIn("AdministrativeData", redacted)
-        self.assertEqual(redacted["MedicalData"], {"CauseA": "X"})
+        kept, _ = doris_context_service.doris_initial(saved, None, "doris", True)
+        self.assertIn("AdministrativeData", kept)
+        self.assertEqual(kept["MedicalData"], {"CauseA": "X"})
+        self.assertIsNot(kept, saved)
         self.assertIn("AdministrativeData", saved)  # the stored certificate is untouched
 
     def test_invalidating_section_cache_drops_the_redacted_entry_too(self):

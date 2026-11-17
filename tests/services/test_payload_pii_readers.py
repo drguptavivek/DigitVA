@@ -216,7 +216,7 @@ class VisitNoteReaderTests(SplitReaderBase):
 
 
 class ReaderSitesTests(SplitReaderBase):
-    def test_doris_prefill_reads_a_sealed_date_of_birth_for_a_viewer_who_may_see_pii(self):
+    def test_doris_prefill_reads_a_sealed_date_of_birth_for_every_viewer(self):
         # An admin may flag the date of birth is_pii; the sealed set then holds it.
         sealed = frozenset(PII_FIELDS) | {"Id10021"}
         with mock.patch(
@@ -227,7 +227,11 @@ class ReaderSitesTests(SplitReaderBase):
         self.assertNotIn("DateBirth", doris_prefill_from_payload(version.payload_data)[0].get("AdministrativeData", {}))
         prefill, _ = doris_context_service.doris_initial(None, sub, "masked_doris", False, version)
         self.assertEqual(prefill["AdministrativeData"]["DateBirth"], "1970-05-02")
-        self.assertEqual(doris_context_service.doris_initial(None, sub, "masked_doris", True, version), ({}, {}))
+        # Owner 2026-11-17: a redacting viewer gets the same full prefill.
+        self.assertEqual(
+            doris_context_service.doris_initial(None, sub, "masked_doris", True, version),
+            doris_context_service.doris_initial(None, sub, "masked_doris", False, version),
+        )
 
     def test_reviewer_checks_use_the_joined_payload(self):
         sub, _ = self._split_case("uuid:prd-reviewer")

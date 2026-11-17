@@ -874,6 +874,38 @@ class VaCaseApiTests(BaseTestCase):
         self.assertIsNone(body["smartva"])
         self.assertNotIn("smartva", doris)
 
+    # digitva-9cll.22.10, owner 2026-11-17: the full prefill whatever the PII access.
+    _PREFILL_PAYLOAD = {"Id10019": "female", "Id10077": "no"}
+
+    def test_a_viewer_without_pii_gets_the_full_prefill(self):
+        self._doris(masked=True)
+        sid = self._coding_case(payload=self._PREFILL_PAYLOAD)
+        with patch("app.routes.api.va_case.should_redact_pii", return_value=True):
+            doris = self._workspace(sid)["doris"]
+        self.assertEqual(doris["initial_certificate"]["MannerOfDeath"]["MannerOfDeath"], 0)
+        self.assertEqual(doris["prefill_provenance"]["MannerOfDeath.MannerOfDeath"]["sources"], ["Id10077"])
+        self.assertEqual(doris["reset_certificate"]["MannerOfDeath"]["MannerOfDeath"], 0)
+        for certificate in (doris["initial_certificate"], doris["reset_certificate"]):
+            self.assertEqual(certificate["AdministrativeData"]["Sex"], 2)
+        for provenance in (doris["prefill_provenance"], doris["reset_prefill_provenance"]):
+            self.assertIn("AdministrativeData.Sex", provenance)
+
+    def test_a_coder_gets_the_full_prefill_on_web_and_bearer(self):
+        self._doris(masked=True)
+        sid = self._coding_case(payload=self._PREFILL_PAYLOAD)
+        _device, tokens = self._session(email=_CODER_EMAIL, password=_CODER_PASSWORD)
+        bearer_only = device_tests._FreshGClient(self.app, self.app.response_class, use_cookies=True)
+        bearer = bearer_only.get(
+            f"{BASE}/{sid}/workspace", query_string={"mode": "coding"}, headers=self._bearer(tokens)
+        )
+        self.assertEqual(bearer.status_code, 200, bearer.get_json())
+        for label, body in (("web", self._workspace(sid)), ("bearer", bearer.get_json())):
+            with self.subTest(surface=label):
+                doris = body["doris"]
+                self.assertEqual(doris["initial_certificate"]["AdministrativeData"]["Sex"], 2)
+                self.assertEqual(doris["initial_certificate"]["MannerOfDeath"]["MannerOfDeath"], 0)
+                self.assertIn("AdministrativeData.Sex", doris["prefill_provenance"])
+
     def test_a_saved_masked_doris_step_one_reopens_with_its_result_and_feeds_step_two(self):
         self._doris(masked=True)
         sid = self._coding_case(payload={"Id10019": "female"})
@@ -894,6 +926,16 @@ class VaCaseApiTests(BaseTestCase):
         })
         # Display-only: no process token is minted by the read.
         self.assertNotIn("process_token", doris["saved_processing"])
+
+    def test_a_redacted_viewer_reopens_a_saved_step_one_with_its_administrative_data(self):
+        self._doris(masked=True)
+        sid = self._coding_case(payload={"Id10019": "female"})
+        self._initial(sid, doris_certificate=self._CERT, **self._RESULTS)
+        with patch("app.routes.api.va_case.should_redact_pii", return_value=True):
+            doris = self._workspace(sid)["doris"]
+        self.assertEqual(doris["initial_certificate"]["AdministrativeData"], {"Sex": 1})
+        self.assertEqual(doris["saved_processing"]["certificate"]["AdministrativeData"], {"Sex": 1})
+        self.assertEqual(doris["step1_certificate"]["AdministrativeData"], {"Sex": 1})
 
     def test_a_step_one_without_a_result_does_not_reopen_as_processed(self):
         self._doris(masked=True)

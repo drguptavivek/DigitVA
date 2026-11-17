@@ -1196,8 +1196,13 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     expect(text).toContain("Use Step 1 underlying cause: CA40");
     expect(text).toContain("Search SmartVA result: CA40 / CA41");
     expect(text).toContain("Or search ICD-11 for your own code");
+    const at = (needle: string) => text.indexOf(needle);
+    expect([at("Your Step 1 certificate"), at("DORIS result from Step 1"), at("Your Step 1 assigned causes"), at("SmartVA Analysis")].every((n, i, all) => n >= 0 && (i === 0 || n > all[i - 1]))).toBe(true);
     await act(async () => quickButton(tree, "Use Step 1 underlying cause").props.onPress());
     await act(async () => flush());
+    const after = allText(tree);
+    expect(after.indexOf("Search SmartVA result")).toBeLessThan(after.indexOf("Or search ICD-11 for your own code"));
+    expect(after.indexOf("Or search ICD-11 for your own code")).toBeLessThan(after.indexOf("Your choice:"));
     expect(api.checkDorisSelection).toHaveBeenCalledWith("sid-1", "CA40", "https://who.int/Y55");
     expect(byLabel(tree, "Save final cause").props.disabled).toBe(false);
     await act(async () => tree.unmount());

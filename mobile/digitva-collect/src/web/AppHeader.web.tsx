@@ -20,7 +20,7 @@ import { rememberVisit } from "./roleHome";
 const { createPortal } = require("react-dom") as { createPortal: (children: React.ReactNode, container: Element) => React.ReactElement };
 
 const ROBOTO = "Roboto, Arial, sans-serif";
-// The strip is brand blue with white text in both colour modes: the light-table pair is 6.7:1 and dark's soft pair is not.
+// The strip is Petrol primary with white text in both colour modes: the light-table pair is 6.7:1 and dark's soft pair is not.
 const BAR = ui.light.primary;
 const ON_BAR = ui.light.primaryForeground;
 // Same phone breakpoint as the workspace layout and the DORIS kit.
@@ -284,7 +284,7 @@ function useThemeTokens() {
 }
 
 /**
- * The blue header bar. The root layout renders it sticky above the routes; a SCROLLING_HEADER_ROUTES screen renders
+ * The Petrol header bar. The root layout renders it sticky above the routes; a SCROLLING_HEADER_ROUTES screen renders
  * it itself (`sticky` false) as the first row of its scroller, so it scrolls away with the page.
  */
 export function AppHeaderBar({ sticky = true }: { sticky?: boolean }) {

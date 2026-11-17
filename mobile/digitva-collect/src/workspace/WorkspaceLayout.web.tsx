@@ -48,9 +48,9 @@ function WebButton({ id, label, onPress, disabled = false, disabledReason }: { i
     title: disabledReason,
     style: {
       background: disabled ? w.disabledBg : w.card,
-      border: `1px solid ${disabled ? w.disabledBorder : w.blue}`,
+      border: `1px solid ${disabled ? w.disabledBorder : w.primary}`,
       borderRadius: 4,
-      color: disabled ? w.disabledText : w.blue,
+      color: disabled ? w.disabledText : w.primary,
       cursor: disabled ? "default" : "pointer",
       fontFamily: ROBOTO,
       fontSize: 12,
@@ -79,14 +79,14 @@ function IcdBrowserLink({ classification }: { classification?: "icd10" | "icd11"
       title={`Open ${browser.label}`}
       aria-label={browser.label}
       style={webStyles.icdBrowserLink}
-    ><FaIcon name="fa-book-medical" color={w.blue} /> {browser.label}</a>
+    ><FaIcon name="fa-book-medical" color={w.primary} /> {browser.label}</a>
   </View>;
 }
 
 function DetailsItem({ icon, label, value, demo, flex }: { icon: string; label: string; value: string; demo?: boolean; flex: number }) {
   const [webStyles, w] = useWebStyles(makeStyles);
   return <View style={[webStyles.detailItem, { flex }]}>
-    <View style={webStyles.detailLabel}><FaIcon name={icon} color={w.blue} /><Text style={webStyles.detailLabelText}>{label}</Text>{demo ? <Text style={webStyles.demo}>DEMO</Text> : null}</View>
+    <View style={webStyles.detailLabel}><FaIcon name={icon} color={w.primary} /><Text style={webStyles.detailLabelText}>{label}</Text>{demo ? <Text style={webStyles.demo}>DEMO</Text> : null}</View>
     <Text style={webStyles.detailValue}>{value || "-"}</Text>
   </View>;
 }
@@ -136,7 +136,7 @@ function CategoryNavigation({
       onPress={() => { onSelectCategory(item.code); setOpen(false); }}
       style={({ pressed }) => [compact ? webStyles.categoryRailItem : webStyles.categoryItem, selected && webStyles.categoryItemSelected, pressed && webStyles.pressed]}
     >
-      <FaIcon name={item.icon_name ?? "fa-folder-open"} color={selected ? w.onBar : w.blue} />
+      <FaIcon name={item.icon_name ?? "fa-folder-open"} color={selected ? w.onBar : w.primary} />
       {compact ? <Text style={webStyles.srOnly}>{item.nav_label}</Text> : <Text style={[webStyles.categoryLabel, selected && webStyles.categoryLabelSelected]}>{item.nav_label}</Text>}
       {!compact && item.count && item.count > 0 ? <Text style={webStyles.categoryBadge}>{item.count}</Text> : null}
       {!compact && attachmentCount > 0 ? <View style={webStyles.attachmentBadge} accessibilityLabel={`${attachmentCount} attachments`}><FaIcon name="fa-paperclip" color={w.textMuted} /><Text style={webStyles.attachmentBadgeText}>{attachmentCount}</Text></View> : null}
@@ -149,12 +149,12 @@ function CategoryNavigation({
   const drawer = <View nativeID="digitva-category-drawer" {...(drawerA11y as any)} style={[webStyles.categoryDrawer, { boxShadow: themeUi.shadow } as any, !narrow && webStyles.categoryDrawerDesktop, narrow && webStyles.categoryDrawerNarrow]}>
     <View style={webStyles.categoryDrawerHeader}>
       <Text style={webStyles.categoryDrawerTitle}>{formId || "Categories"}</Text>
-      <Pressable nativeID="digitva-category-drawer-close" accessibilityRole="button" accessibilityLabel="Close category names" onPress={() => setOpen(false)} style={webStyles.categoryDrawerClose}><FaIcon name="fa-times" color={w.blue} /></Pressable>
+      <Pressable nativeID="digitva-category-drawer-close" accessibilityRole="button" accessibilityLabel="Close category names" onPress={() => setOpen(false)} style={webStyles.categoryDrawerClose}><FaIcon name="fa-times" color={w.primary} /></Pressable>
     </View>
     {categories.length ? categories.map((item) => categoryItem(item, false)) : <Text style={webStyles.empty}>No visible categories for this submission.</Text>}
     {!categories.some((c) => c.code === "smartva_section") ? (
       smartvaPanel ?? <View style={webStyles.smartvaCard}>
-        <Text style={webStyles.smartvaTitle}><FaIcon name="fa-chart-pie" color={w.blue} /> SmartVA</Text>
+        <Text style={webStyles.smartvaTitle}><FaIcon name="fa-chart-pie" color={w.primary} /> SmartVA</Text>
         <Text style={webStyles.smartvaText}>{smartvaAvailable ? "Done (result shown in the assessment steps)" : "Results are shown in COD Assessment when available."}</Text>
       </View>
     ) : null}
@@ -180,7 +180,7 @@ function CategoryNavigation({
       {categories.map((item) => categoryItem(item, true))}
       {!categories.some((c) => c.code === "smartva_section") ? (
         <Pressable accessibilityRole="button" accessibilityLabel="Open SmartVA status" onPress={() => setOpen(true)} style={webStyles.smartvaRail}>
-          <FaIcon name="fa-chart-pie" color={w.blue} />
+          <FaIcon name="fa-chart-pie" color={w.primary} />
           <Text style={webStyles.srOnly}>SmartVA: {smartvaAvailable ? "Done" : "Results available in COD Assessment when available"}</Text>
         </Pressable>
       ) : null}
@@ -324,7 +324,7 @@ export function WorkspaceLayout({
   const hints = hintText(identity.mode);
   const hintsCard = <View style={[webStyles.hintsCard, { boxShadow: themeUi.shadow } as any]}>
     <View style={webStyles.cardHeadingRow}>
-      <Text style={webStyles.hintsHeading}><FaIcon name="fa-info-circle" color={w.blue} /> Hints</Text>
+      <Text style={webStyles.hintsHeading}><FaIcon name="fa-info-circle" color={w.primary} /> Hints</Text>
       <WebButton label="Back to Dashboard" onPress={onExit} />
     </View>
     <Text style={webStyles.hintLead}>{identity.mode === "reviewing" ? "Verbal Autopsy Quality Assurance" : identity.mode === "view" ? "Verbal Autopsy Submission (read-only)" : "Verbal Autopsy Cause of Death Ascertainment"}</Text>
@@ -339,8 +339,8 @@ export function WorkspaceLayout({
   </View>;
   const detailsCard = <View style={[webStyles.detailsCard, { boxShadow: themeUi.shadow } as any]}>
     <View style={webStyles.cardHeadingRow}>
-      <Text style={webStyles.blueHeading}><FaIcon name="fa-file-alt" color={w.blue} /> VA Form Details</Text>
-      <Text style={webStyles.sidPill}><FaIcon name="fa-clipboard-check" color={w.blue} /> SID: {workspace.case.va_sid}</Text>
+      <Text style={webStyles.blueHeading}><FaIcon name="fa-file-alt" color={w.primary} /> VA Form Details</Text>
+      <Text style={webStyles.sidPill}><FaIcon name="fa-clipboard-check" color={w.primary} /> SID: {workspace.case.va_sid}</Text>
     </View>
     {caseSummary}
     <View style={webStyles.rule} />
@@ -377,7 +377,7 @@ export function WorkspaceLayout({
             onPress={() => setInfoOpen(true)}
             style={webStyles.sectionBarInfoBtn}
           >
-            <FaIcon name="fa-info-circle" color={w.blue} />
+            <FaIcon name="fa-info-circle" color={w.primary} />
             <Text style={webStyles.sectionBarInfoBtnText}>Case Info</Text>
           </Pressable>
         </View> : (
@@ -461,12 +461,12 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   hintsCard: { backgroundColor: w.card, padding: 24, borderRadius: radius.lg, borderWidth: 1, borderColor: w.cardEdge, gap: 10, minHeight: 199 } as any,
   detailsCard: { backgroundColor: w.card, padding: 24, borderRadius: radius.lg, borderWidth: 1, borderColor: w.cardEdge, gap: 12, minHeight: 206 } as any,
   cardHeadingRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" } as any,
-  blueHeading: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 18, lineHeight: 25 } as any,
-  hintsHeading: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: 30 } as any,
+  blueHeading: { color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 18, lineHeight: 25 } as any,
+  hintsHeading: { color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: 30 } as any,
   hintLead: { color: w.text, fontFamily: ROBOTO, fontSize: 16, lineHeight: 27.2, fontWeight: "700", marginTop: 4 } as any,
   hintList: { gap: 4, paddingLeft: 6 },
   hint: { color: w.text, fontFamily: ROBOTO, fontSize: 16, lineHeight: 27.2 },
-  sidPill: { color: w.blue, fontFamily: ROBOTO, fontSize: 12, borderWidth: 1, borderColor: w.pillBorder, borderRadius: radius.full, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: w.pillBg, maxWidth: "100%", flexShrink: 1 } as any,
+  sidPill: { color: w.primary, fontFamily: ROBOTO, fontSize: 12, borderWidth: 1, borderColor: w.pillBorder, borderRadius: radius.full, paddingVertical: 5, paddingHorizontal: 10, backgroundColor: w.pillBg, maxWidth: "100%", flexShrink: 1 } as any,
   rule: { height: 1, backgroundColor: w.border },
   detailsGrid: { flexDirection: "row", gap: 12, flexWrap: "wrap" },
   detailItem: { backgroundColor: w.muted, borderRadius: radius.md, padding: 14, minHeight: 76, gap: 8 } as any,
@@ -482,13 +482,13 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   workspaceGridNarrow: { flexDirection: "row", alignItems: "flex-start", gap: 10 } as any,
   mobileDisclosure: { gap: 8 },
   mobileCaseHeader: { backgroundColor: w.card, borderWidth: 1, borderColor: w.border, borderRadius: radius.lg, padding: 14, gap: 8 },
-  mobileCaseId: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 18, lineHeight: 24 },
+  mobileCaseId: { color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 18, lineHeight: 24 },
   mobileCaseMeta: { flexDirection: "row", gap: 18, flexWrap: "wrap" },
   mobileCaseMetaText: { color: w.text, fontFamily: ROBOTO, fontSize: 14, lineHeight: 20 },
   caseSummary: { flexDirection: "row", alignItems: "center", gap: 14, flexWrap: "wrap" },
   caseSummaryText: { color: w.text, fontFamily: ROBOTO, fontSize: 14, lineHeight: 20, fontWeight: "700" },
   mobileDisclosureButton: { minHeight: 44, paddingHorizontal: 14, backgroundColor: w.card, borderWidth: 1, borderColor: w.border, borderRadius: radius.lg, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  mobileDisclosureText: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 14 },
+  mobileDisclosureText: { color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 14 },
   categoryColumn: { width: 299, minWidth: 260, gap: 16 },
   categoryRailColumn: { width: 52, minWidth: 52, position: "sticky", top: 12, alignSelf: "flex-start", zIndex: 20 } as any,
   categoryRail: { width: 52, backgroundColor: w.card, borderWidth: 1, borderColor: w.border, borderRadius: radius.lg, maxHeight: "calc(100dvh - 72px)", overflowY: "auto", overflowX: "hidden", scrollbarWidth: "none", msOverflowStyle: "none", alignItems: "center" } as any,
@@ -510,13 +510,13 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   sectionBarButton: { width: 44, height: 44, borderRadius: 4, backgroundColor: w.bar, alignItems: "center", justifyContent: "center" } as any,
   sectionBarText: { flex: 1, minWidth: 0 } as any,
   sectionBarInfo: { color: w.textMuted, fontFamily: ROBOTO, fontSize: 12, lineHeight: 17 } as any,
-  sectionBarTitle: { minWidth: 0, color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16 } as any,
-  sectionBarInfoBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: w.blue, backgroundColor: w.card } as any,
-  sectionBarInfoBtnText: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 12 } as any,
+  sectionBarTitle: { minWidth: 0, color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16 } as any,
+  sectionBarInfoBtn: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 4, borderWidth: 1, borderColor: w.primary, backgroundColor: w.card } as any,
+  sectionBarInfoBtnText: { color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 12 } as any,
   desktopTopActions: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center", gap: 8, paddingRight: 88 } as any,
   // Always-visible case identity on desktop; the flyout keeps the full details and hints.
   caseStrip: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 14, minHeight: 44, paddingHorizontal: 12, backgroundColor: w.card, borderWidth: 1, borderColor: w.border, borderRadius: radius.lg } as any,
-  caseStripId: { flexShrink: 0, color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 14 } as any,
+  caseStripId: { flexShrink: 0, color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 14 } as any,
   caseStripText: { flexShrink: 1, minWidth: 0, color: w.text, fontFamily: ROBOTO, fontSize: 14 } as any,
   infoPanelScroll: { flex: 1 } as any,
   infoPanelContent: { padding: 12, gap: 12 } as any,
@@ -525,7 +525,7 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   mainCardPhone: { borderWidth: 0, borderRadius: 0, padding: 14, "--digitva-card-pad": "14px" } as any,
   categoryDrawerDesktop: { height: "auto", maxHeight: "78vh", maxWidth: 320, overflowY: "auto" } as any,
   categoryDrawerHeader: { minHeight: 48, paddingHorizontal: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: w.border },
-  categoryDrawerTitle: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 18 },
+  categoryDrawerTitle: { color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 18 },
   categoryDrawerClose: { minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" } as any,
   srOnly: { position: "absolute", width: 1, height: 1, opacity: 0 } as any,
   categoryColumnClosed: { display: "none" },
@@ -534,7 +534,7 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   categoryHeaderText: { color: w.onBar, fontFamily: ROBOTO, fontWeight: "700", fontSize: 14, lineHeight: 20 },
   categoryList: { gap: 0 },
   categoryItem: { minHeight: 52, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: w.borderSoft, flexDirection: "row", alignItems: "center", gap: 10 },
-  categoryItemSelected: { backgroundColor: w.selected, borderLeftWidth: 3, borderLeftColor: w.blue },
+  categoryItemSelected: { backgroundColor: w.selected, borderLeftWidth: 3, borderLeftColor: w.primary },
   categoryLabel: { color: w.text, fontFamily: ROBOTO, fontSize: 16, lineHeight: 27.2, flex: 1 },
   categoryLabelSelected: { color: w.onBar, fontWeight: "700" },
   categoryBadge: { color: w.onBar, backgroundColor: w.bar, borderRadius: radius.full, minWidth: 20, textAlign: "center", paddingHorizontal: 5, paddingVertical: 2, fontSize: 12, fontWeight: "700" } as any,
@@ -565,5 +565,5 @@ const makeStyles = (w: WebPalette) => StyleSheet.create({
   noteFormId: { color: w.textMuted, fontFamily: ROBOTO, fontSize: 12, padding: 12, borderBottomWidth: 1, borderBottomColor: w.border },
   notesBody: { padding: 12, flex: 1 },
   icdBrowserCard: { borderTopWidth: 1, borderTopColor: w.border, padding: 12 },
-  icdBrowserLink: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: w.blue, borderRadius: 4, color: w.blue, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: ROBOTO, fontSize: 14, fontWeight: "700", textDecorationLine: "none", boxSizing: "border-box" } as any,
+  icdBrowserLink: { minHeight: 44, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: w.primary, borderRadius: 4, color: w.primary, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, fontFamily: ROBOTO, fontSize: 14, fontWeight: "700", textDecorationLine: "none", boxSizing: "border-box" } as any,
 });

@@ -485,7 +485,7 @@ export function CaseWorkspaceScreen({
         callbacks.current.onSectionChange?.(code);
       }}
       onExit={() => { leave(); onExit(); }}
-      notes={Platform.OS === "web" ? privateNotes : undefined}
+      notes={privateNotes}
       nextBlockedReason={nextBlockedReason}
       smartvaPanel={browser && identity.mode !== "view" ? <SmartvaStatusPanel api={api} identity={identity} status={workspace.smartva_status} canRun={workspace.smartva_can_run} resultVisible={workspace.smartva !== null} lifecycle={identity.mode === "coding" ? smartvaLifecycle : undefined} onChanged={smartvaChanged} /> : undefined}
     >
@@ -548,7 +548,6 @@ export function CaseWorkspaceScreen({
           {selectedCode === "vacodassessment" && identity.mode !== "view" ? (
             <View key={identityKey}>
               {reviewing ? null : codEditor}
-              {Platform.OS === "web" ? null : privateNotes}
             </View>
           ) : null}
           {identity.mode === "view" ? (

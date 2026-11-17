@@ -876,6 +876,38 @@ describe("the offline coding workspace's local API", () => {
     }
   });
 
+  it("shows Previous/Next across the local categories and a working Notes button, with no Narrative QA gate", async () => {
+    const appState = Object.getOwnPropertyDescriptor(AppState, "currentState");
+    Object.defineProperty(AppState, "currentState", { configurable: true, value: "active" });
+    try {
+      mockRealScreen = true;
+      const root = await render(<OfflineCoding />);
+      await act(async () => { await Promise.resolve(); });
+      const node = (label: string) => root.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function")[0];
+      const press = async (label: string) => {
+        await act(async () => { node(label).props.onPress(); });
+        await act(async () => { await Promise.resolve(); });
+      };
+      expect(labels(root)).toEqual(expect.arrayContaining(["Previous", "Next", "Notes"]));
+      expect(alerts(root)).toEqual([]);
+      const text = () => JSON.stringify(root.toJSON());
+      // The mocked Button drops `disabled`, so moving is the observable: Next leaves the first category, Previous returns.
+      const stripSelected = () => root.root.findAll((n) => n.props.accessibilityRole === "button" && n.props.accessibilityState?.selected).map((n) => n.findAll((c) => String(c.type) === "Text").map((c) => c.children.join("")).join(""));
+      const first = [...new Set(stripSelected())];
+      expect(first).toHaveLength(1);
+      await press("Next");
+      expect([...new Set(stripSelected())]).toHaveLength(1);
+      expect([...new Set(stripSelected())]).not.toEqual(first);
+      await press("Notes");
+      expect(labels(root)).toContain("Hide Notes");
+      await press("Previous");
+      expect([...new Set(stripSelected())]).toEqual(first);
+      expect(text()).toContain("Demographic");
+    } finally {
+      if (appState) Object.defineProperty(AppState, "currentState", appState);
+    }
+  });
+
   it.each<[string, string, () => void]>([
     ["project access is revoked", "offline_case_access_revoked", () => { mockAccounts[0] = { ...mockAccounts[0], offline_coding_access: ["OTHER"] }; }],
     ["the server refused the consent", "consent_refused", () => { metaStore.set("consent:server-refused:draft-7", true); }],

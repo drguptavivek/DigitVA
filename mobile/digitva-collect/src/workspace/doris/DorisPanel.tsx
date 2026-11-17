@@ -669,9 +669,9 @@ export function DorisPanel({
     return (
       <Card style={[layout.panel, pageCard]}>
         <EditorHeading title="Final underlying cause" />
-        <Step1AssignedCard initial={ownInitial} />
-        <Step1DorisCard saved={step1 ?? null} certificate={workspace.doris.step1_certificate ?? null} api={api} vaSid={identity.vaSid} chosenCode={selected?.code} onDetails={setDetailCode} />
         <CertificateReference certificate={workspace.doris.step1_certificate ?? null} />
+        <Step1DorisCard saved={step1 ?? null} certificate={workspace.doris.step1_certificate ?? null} api={api} vaSid={identity.vaSid} chosenCode={selected?.code} onDetails={setDetailCode} />
+        <Step1AssignedCard initial={ownInitial} />
         {workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null}
         {ownFinal?.conclusive_cod ? <Muted>Previously saved final: {ownFinal.conclusive_cod}</Muted> : null}
         <FinalCausePicker api={api} label="Choose and confirm the final underlying cause" value={selected} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
@@ -979,17 +979,6 @@ function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick
   return (
     <Card>
       <CardTitle>{label}</CardTitle>
-      {value ? (
-        // Boxed and headed so the chosen cause cannot be mistaken for the quick-choice buttons below it.
-        <View testID="selected-cause-layout" style={{ gap: gap.sm, borderWidth: 2, borderColor: t.primary, backgroundColor: t.accent, borderRadius: uiRadius.md, padding: gap.md }}>
-          <View style={[layout.row, { flexWrap: "nowrap" }]}>
-            <Body style={{ flexShrink: 1, fontWeight: "600" }}>{`Your choice: ${value.code} — ${value.title}`}</Body>
-            <InfoButton code={value.code} onPress={onDetails} />
-            <Button size="icon" variant="outline" accessibilityLabel={`Clear chosen cause ${value.code}`} onPress={onClear} ><XMark color={t.destructiveText} size={18} /></Button>
-          </View>
-          <AssociatedVaCodes api={api} code={value.code} showDefinition attribution />
-        </View>
-      ) : null}
       {quick.map((choice) => (
         <View key={choice.key} style={{ gap: gap.xs }}>
           {"search" in choice ? (
@@ -1003,6 +992,17 @@ function FinalCausePicker({ api, label, value, onOpen, searching, quick, onQuick
       ))}
       <Muted>Or search ICD-11 for your own code</Muted>
       <SearchBox label={`${label} search`} iconLabel={`${label} open search`} onOpen={onOpen} suspended={searching} />
+      {value ? (
+        // Boxed and headed so the chosen cause cannot be mistaken for the quick-choice buttons below it.
+        <View testID="selected-cause-layout" style={{ gap: gap.sm, borderWidth: 2, borderColor: t.primary, backgroundColor: t.accent, borderRadius: uiRadius.md, padding: gap.md }}>
+          <View style={[layout.row, { flexWrap: "nowrap" }]}>
+            <Body style={{ flexShrink: 1, fontWeight: "600" }}>{`Your choice: ${value.code} — ${value.title}`}</Body>
+            <InfoButton code={value.code} onPress={onDetails} />
+            <Button size="icon" variant="outline" accessibilityLabel={`Clear chosen cause ${value.code}`} onPress={onClear} ><XMark color={t.destructiveText} size={18} /></Button>
+          </View>
+          <AssociatedVaCodes api={api} code={value.code} showDefinition attribution />
+        </View>
+      ) : null}
     </Card>
   );
 }

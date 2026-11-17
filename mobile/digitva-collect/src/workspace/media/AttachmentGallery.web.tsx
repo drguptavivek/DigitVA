@@ -1,10 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { radius, ui, useTheme } from "../../theme";
-import type { CategoryPayload, JsonValue } from "../contracts";
 import { useWebStyles, type WebPalette } from "../webPalette";
 import { useAttachmentUrl } from "./attachmentScope";
-import { attachmentMediaExtension, attachmentMediaKind, browserAudioSupported } from "./path";
+import { browserAudioSupported, collectPaths, type CategoryItem } from "./path";
 
 // react-dom ships without types here (no @types/react-dom); same hand-typed call as WorkspaceLayout.web.tsx.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -28,47 +27,6 @@ function Icon({ name, size = 24 }: { name: keyof typeof ICON_PATHS; size?: numbe
 
 // The photo viewer stays dark in both themes (photos read best on near-black), so its text uses the dark-mode tokens.
 const VIEWER_SCRIM = "rgba(8, 13, 20, 0.94)";
-
-type CategoryItem = CategoryPayload["subcategories"][number]["items"][number];
-type GalleryAttachment = { path: string; label: string; kind: "image" | "audio" | "document" };
-
-const MAX_NODES = 300;
-const MAX_DEPTH = 8;
-
-function collectPaths(items: CategoryItem[]): { attachments: GalleryAttachment[]; truncated: boolean } {
-  const attachments: GalleryAttachment[] = [];
-  const paths = new Set<string>();
-  const seen = new WeakSet<object>();
-  let nodes = 0;
-  let truncated = false;
-
-  const visit = (value: JsonValue, label: string, depth: number) => {
-    if (nodes++ >= MAX_NODES || depth > MAX_DEPTH) {
-      truncated = true;
-      return;
-    }
-    if (typeof value === "string") {
-      const extension = attachmentMediaExtension(value);
-      const kind = attachmentMediaKind(value) ?? (extension === "pdf" ? "document" : null);
-      if (kind && !paths.has(value)) {
-        paths.add(value);
-        attachments.push({ path: value, label, kind });
-      }
-      return;
-    }
-    if (!value || typeof value !== "object") return;
-    if (seen.has(value)) return;
-    seen.add(value);
-    if (Array.isArray(value)) {
-      value.forEach((item) => visit(item, label, depth + 1));
-      return;
-    }
-    Object.entries(value).forEach(([key, child]) => visit(child, label || key.replace(/_/g, " "), depth + 1));
-  };
-
-  items.forEach((item) => visit(item.value, item.label, 0));
-  return { attachments, truncated };
-}
 
 function downloadName(path: string): string {
   return path.split("/").at(-1) || "attachment";
@@ -381,11 +339,11 @@ const makeStyles = (w: WebPalette): Record<string, React.CSSProperties> => ({
   imageButton: { alignItems: "center", background: "transparent", border: 0, cursor: "zoom-in", display: "flex", justifyContent: "center", maxWidth: "100%", minHeight: 196, padding: 0 },
   arrow: { alignItems: "center", background: w.bar, border: 0, borderRadius: radius.full, color: w.onBar, cursor: "pointer", display: "flex", height: 44, justifyContent: "center", lineHeight: 1, position: "absolute", top: "50%", transform: "translateY(-50%)", width: 44 },
   controls: { display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" },
-  control: { alignItems: "center", background: w.card, border: `1px solid ${w.border}`, borderRadius: radius.md, color: w.blue, cursor: "pointer", display: "inline-flex", fontSize: 14, fontWeight: 700, minHeight: 44, minWidth: 44, padding: "8px 12px" },
+  control: { alignItems: "center", background: w.card, border: `1px solid ${w.border}`, borderRadius: radius.md, color: w.primary, cursor: "pointer", display: "inline-flex", fontSize: 14, fontWeight: 700, minHeight: 44, minWidth: 44, padding: "8px 12px" },
   audio: { minWidth: 0, width: "100%" },
   thumbnails: { display: "flex", gap: 8, maxWidth: "100%", overflowX: "auto", padding: "2px 0 4px" },
-  thumbnail: { alignItems: "center", background: w.card, border: `2px solid transparent`, borderRadius: radius.md, color: w.blue, cursor: "pointer", display: "flex", flex: "0 0 64px", height: 52, justifyContent: "center", minHeight: 44, minWidth: 44, overflow: "hidden", padding: 2 },
-  thumbnailActive: { borderColor: w.blue },
+  thumbnail: { alignItems: "center", background: w.card, border: `2px solid transparent`, borderRadius: radius.md, color: w.primary, cursor: "pointer", display: "flex", flex: "0 0 64px", height: 52, justifyContent: "center", minHeight: 44, minWidth: 44, overflow: "hidden", padding: 2 },
+  thumbnailActive: { borderColor: w.primary },
   thumbnailImage: { height: "100%", objectFit: "cover", width: "100%" },
   lightbox: { alignItems: "center", background: VIEWER_SCRIM, display: "flex", flexDirection: "column", inset: 0, justifyContent: "center", padding: 16, position: "fixed", zIndex: 2000 },
   close: { alignItems: "center", background: w.closeBg, border: 0, borderRadius: radius.full, color: w.closeText, cursor: "pointer", display: "flex", height: 44, justifyContent: "center", position: "absolute", right: 16, top: 16, width: 44, zIndex: 1 },

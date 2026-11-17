@@ -10,6 +10,17 @@ What landed, newest first. Details live in the commits and the linked docs;
   grants the new cadre's defaults at the new unit; removing a placement
   revokes that unit's roles; all-or-nothing for non-admins, audited
   (`docs/policy/dm-user-grant-management.md`).
+- Coding parity, web vs phone (`digitva-9cll.22.10`-`.17`, branch
+  `claude/interesting-gagarin-35f2af`): DORIS prefill and saved
+  administrative data for every coder whatever their PII access (owner
+  ruling), offline manner-of-death prefill; phone narration/documents/audio
+  gallery; phone question/answer grid with Petrol Yes/No colours; summary
+  card gating, Diagnosed/Absent grouping and tidy headings shared with web
+  (`categoryLayout.ts`); phone Previous/Next with blocked reason and Notes
+  on every page; owner Step 2 and final-cause card order; web Yes/No on
+  Petrol tokens and AMR playback via the stored MP3. Item 11 closed with no
+  change. Policies: doris-cod-workflow; current-state: api-v1,
+  coder-component-inventory.
 - Roster onboarding: per-person sign-in QR on People and grants (death
   reporters, interviewers and now coders, owner 2026-11-17), Show/Hide
   QR, expiry in the project time zone, live "Onboarded" status; resend

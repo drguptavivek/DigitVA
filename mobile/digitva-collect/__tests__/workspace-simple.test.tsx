@@ -43,7 +43,7 @@ jest.mock("@drguptavivek/who-2022-va/native", () => {
 jest.mock("../src/workspace/WorkspaceLayout", () => {
   const React = require("react") as typeof import("react");
   const actual = jest.requireActual("../src/workspace/WorkspaceLayout");
-  return { ...actual, WorkspaceLayout: (props: any) => React.createElement(React.Fragment, null, React.createElement(actual.WorkspaceLayout, props), props.notes) };
+  return { ...actual, WorkspaceLayout: (props: any) => React.createElement(React.Fragment, null, React.createElement(actual.WorkspaceLayout, props)) };
 });
 
 import { ApiError } from "../src/api";
@@ -714,14 +714,15 @@ it("exits and clears the case when current ICD search access is denied", async (
   }
 });
 
-it("routes only API attachment paths to media and renders object values with readable labels", async () => {
+it("routes only API attachment paths to the media gallery", async () => {
+  const IMAGE_PATH = "/api/v1/attachments/0123456789abcdef0123456789abcdef.jpg";
   const media = jest.fn((path: string) => `media:${path}`);
   const fixture: CategoryPayload = {
     ...category,
     subcategories: [{
       code: "evidence", label: "Evidence", render_mode: "media_gallery",
       items: [
-        { label: "Medical image", value: "/api/v1/attachments/abc123.jpg", flip: false, info: false },
+        { label: "Medical image", value: IMAGE_PATH, flip: false, info: false },
         { label: "Narration", value: "https://example.invalid/file", flip: false, info: false },
         { label: "SmartVA", value: { causes: [{ rank: 1, cause: "Cause", icd10: "A00" }] }, flip: false, info: false },
       ],
@@ -729,9 +730,10 @@ it("routes only API attachment paths to media and renders object values with rea
   };
   let tree!: ReactTestRenderer;
   await act(async () => { tree = create(<CategoryPanel category={fixture} renderMedia={media} />); });
-  expect(media).toHaveBeenCalledTimes(1);
-  expect(media).toHaveBeenCalledWith("/api/v1/attachments/abc123.jpg");
-  expect(JSON.stringify(tree.toJSON())).toContain("ICD-10");
+  // A media_gallery section shows only its attachments, as the web gallery does (parity item 10).
+  expect(media).toHaveBeenCalledWith(IMAGE_PATH);
+  expect(new Set(media.mock.calls.map(([path]) => path))).toEqual(new Set([IMAGE_PATH]));
+  expect(JSON.stringify(tree.toJSON())).not.toContain("ICD-10");
   expect(renderedTypes(tree.toJSON())).not.toContain("img");
   await act(async () => tree.unmount());
 });

@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import { Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import { controls, radius, spacing, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
+import { answerText, answerTone } from "./answerTone";
 import { humanizeKey } from "./humanizeKey";
 import { AttachmentGallery } from "./media/AttachmentGallery.native";
 import type { CategoryPayload, JsonValue, WorkspaceCategoryNav } from "./contracts";
@@ -26,6 +27,34 @@ function SymptomSummary({ items }: { items: JsonValue[] }) {
             <Text style={{ ...typography.subhead, color: ui.foreground, fontFamily: controls.fontFamily }}>{typeof item === "string" ? item : String(item)}</Text>
           </View>
         ))}
+      </View>
+    </View>
+  );
+}
+
+/** One question and its answer as two wrapping columns, the phone form of the web's Query/Response table. */
+function QuestionRow({ item, first, renderMedia }: {
+  item: CategoryPayload["subcategories"][number]["items"][number];
+  first: boolean;
+  renderMedia?: (attachmentPath: string) => ReactNode;
+}) {
+  const styles = useUiStyles();
+  const { ui, typography } = useTheme();
+  const tone = answerTone(item.value, !!item.flip, !!item.info);
+  // Filled like the web badges: red is Petrol error, green Petrol success (each with its own on-colour); info is the primary badge, as the web's brand-bar badge.
+  const badge = tone === "red" ? { bg: ui.destructive, fg: ui.destructiveForeground }
+    : tone === "green" ? { bg: ui.success, fg: ui.primaryForeground }
+    : tone === "info" ? { bg: ui.primary, fg: ui.primaryForeground } : null;
+  const text = answerText(item.value);
+  return (
+    <View style={{ flexDirection: "row", gap: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: first ? 0 : StyleSheet.hairlineWidth, borderColor: ui.separator }}>
+      <Text style={[styles.text, { flex: 1, flexShrink: 1, fontWeight: "600" }]}>{item.label}</Text>
+      <View style={{ flex: 1, flexShrink: 1, alignItems: "flex-start" }}>
+        {badge && text ? (
+          <View accessibilityLabel={tone === "info" ? `Informational response: ${text}` : undefined} style={{ backgroundColor: badge.bg, borderRadius: radius.sm, paddingVertical: spacing.xxs, paddingHorizontal: spacing.sm }}>
+            <Text style={{ ...typography.subhead, fontWeight: "700", color: badge.fg, fontFamily: controls.fontFamily }}>{text}</Text>
+          </View>
+        ) : <CategoryValue value={item.value} renderMedia={renderMedia} />}
       </View>
     </View>
   );
@@ -58,12 +87,7 @@ export function CategoryPanel({
           {subcategory.render_mode === "media_gallery" ? (
             <AttachmentGallery items={subcategory.items} label={subcategory.label} workspaceIdentity={workspaceIdentity} renderMedia={renderMedia} />
           ) : subcategory.items.map((item, index) => (
-            <View key={`${item.label}-${index}`}>
-              <Text style={styles.muted}>{item.label}</Text>
-              <CategoryValue value={item.value} renderMedia={renderMedia} />
-              {item.flip ? <Text style={styles.muted}>Flipped</Text> : null}
-              {item.info ? <Text style={styles.muted}>More information</Text> : null}
-            </View>
+            <QuestionRow key={`${item.label}-${index}`} item={item} first={index === 0} renderMedia={renderMedia} />
           ))}
         </View>
       ))}

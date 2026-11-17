@@ -51,6 +51,18 @@ support questions, not a separate coding certificate editor. Its Part I/II,
 administrative and certificate context fields, processing proof, masked steps
 and conflict handling stay in this component.
 
+## Phone category answers
+
+On the phone (`CategoryPanel.tsx`) each non-gallery subcategory item is a
+two-column row, question left and answer right, both wrapping, as the web
+Query/Response table. Question text is the Petrol ink token, not the muted
+grey. Yes/No badges follow the web `ResponseValue` decision, shared as
+`answerTone` (`src/workspace/answerTone.ts`): `info` wins (primary badge); a
+Yes is red and a No green, swapped when `flip` is set. Red and green are the
+Petrol `destructive` and `success` fills. The text lines "Flipped" and "More
+information" are not shown. Offline categories (`localCategories.ts`) use the
+same shape and so the same rows.
+
 ## Validation boundaries
 
 Component tests cover metadata, badge styles, quality scoring and choices,

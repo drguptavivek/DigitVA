@@ -12,6 +12,7 @@ import { useTheme } from "../src/theme";
 import { SplashHold } from "../src/startupGate";
 import { useWhoWebTheme } from "../src/whoWebTheme";
 import { ToastProvider } from "../src/toast";
+import { useKeyboardInset } from "../src/keyboardInset";
 import { t } from "../src/i18n";
 import NativeTermsGate from "../src/NativeTermsGate";
 import NativeCollectionGate from "../src/NativeCollectionGate";
@@ -35,6 +36,7 @@ let notificationRegistrationWarningShown = false;
 function ActivityRoot() {
   const { activity, ready, accounts } = useAppState();
   const { colors } = useTheme();
+  const keyboardInset = useKeyboardInset();
   useEffect(() => {
     if (!ready || Platform.OS !== "android") return;
     const eligible = accounts.some(
@@ -58,7 +60,7 @@ function ActivityRoot() {
   }
   return (
     <View
-      style={{ flex: 1, backgroundColor: colors.background }}
+      style={{ flex: 1, backgroundColor: colors.background, paddingBottom: keyboardInset }}
       onStartShouldSetResponderCapture={() => {
         activity();
         return false;

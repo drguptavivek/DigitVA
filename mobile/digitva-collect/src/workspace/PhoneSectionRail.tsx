@@ -7,10 +7,11 @@
  * Native only: its one importer, WorkspaceLayout.tsx, is shadowed on the web by WorkspaceLayout.web.tsx, so
  * gesture-handler and reanimated stay out of the web bundle.
  */
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { BackHandler, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 
 import { Icon, icons, sectionIcon } from "../Icon";
 import { useTheme } from "../theme";
@@ -38,6 +39,7 @@ export function PhoneSectionRail({ categories, selectedCode, onSelect }: {
   const { ui } = useTheme();
   const styles = useUiStyles();
   const { width: screenWidth } = useWindowDimensions();
+  const bottomInset = useContext(SafeAreaInsetsContext)?.bottom ?? 0;
   const expandedWidth = Math.min(MAX_EXPANDED, screenWidth * 0.75);
   const width = useSharedValue(0);
   useEffect(() => { width.value = withTiming(open ? expandedWidth : 0, { duration: ANIMATION_MS }); }, [open, expandedWidth, width]);
@@ -95,7 +97,8 @@ export function PhoneSectionRail({ categories, selectedCode, onSelect }: {
             <Icon name={icons.dismiss} color={ui.primary} size={24} />
             <Text accessibilityRole="header" style={styles.headline}>Sections</Text>
           </Pressable>
-          <ScrollView showsVerticalScrollIndicator={false}>
+          {/* Edge to edge: the last section (COD Assessment) clears the system navigation bar. */}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomInset + 16 }}>
             {categories.map((item) => {
               const selected = item.code === selectedCode;
               const fg = selected ? ui.primaryForeground : ui.primary;

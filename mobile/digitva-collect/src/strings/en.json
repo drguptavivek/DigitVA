@@ -24,6 +24,7 @@
   "appearance": "Appearance",
   "themeSystem": "Use device setting",
   "themeLight": "Light",
+  "themeSystemShort": "System",
   "themeDark": "Dark",
   "sessions": "Sessions",
   "activeSession": "Active session",

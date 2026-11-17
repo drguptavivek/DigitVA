@@ -58,8 +58,12 @@ any change to one is re-checked against `frozen/` and refrozen.
    (code endpoint vs grid for deactivated accounts). Optional, offered and
    not approved: hide other projects' actor names in the person page's
    account events.
-5. Collect 0.3.24 (`68f418d71`, Android 9 photo and keyboard fixes): CI APK
-   and Play AAB built; Play upload is the owner's. Real-phone document scan
+5. Collect 0.3.24 (Android 9 photo and keyboard fixes, phone coding
+   layout, ICD code titles): release APK, Play AAB, web export and server
+   image built on CI 2026-11-18 (see CHANGELOG); Play upload and any deploy
+   are the owner's. `digitva-iycg`: after a final save the Code queue showed
+   the finished case as active until its reload landed (~6 s on the Android 9
+   debug emulator); check on a release build. Real-phone document scan
    check `digitva-e2ju`. Not built: recovering the camera result after
    Android kills the app on low-RAM phones (`ImagePicker.getPendingResultAsync`).
    Collect: TalkBack/VoiceOver (`digitva-eizq`), Play screenshots

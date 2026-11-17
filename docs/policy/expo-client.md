@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-17
+last_updated: 2026-11-18
 ---
 
 # Expo Web Client Boundary
@@ -460,6 +460,10 @@ debug build, and are p90 over ten runs:
 
 ## Text size, high contrast and screen readers (owner 2026-11-06, `digitva-khxv`)
 
+- **Appearance** in Settings (owner 2026-11-18): Light, Dark or System, a
+  segmented control above Text size, saved on the device like Text size.
+  System follows the phone's light/dark setting and is the default; the
+  owner's "Auto" is the same choice.
 - **Text size** in Settings: Small, Medium (default) and Large, a segmented
   control saved with the other UI preferences on the device (not per account,
   never sent to the server). It scales every text token, the WHO form

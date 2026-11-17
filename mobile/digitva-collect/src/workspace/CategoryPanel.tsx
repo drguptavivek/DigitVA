@@ -111,7 +111,8 @@ function SubcategoryCard({ subcategory, renderMedia, workspaceIdentity }: {
 /** Disease / Co-morbidity as the web's DiseaseHistory: Diagnosed, Absent, then the other answers as a grid. */
 function DiseaseHistoryCard({ items, renderMedia, titled }: { items: CategorySubcategory["items"]; renderMedia?: (attachmentPath: string) => ReactNode; titled?: boolean }) {
   const styles = useUiStyles();
-  const { ui } = useTheme();
+  // Dark mode: red text on the dark red tint was unreadable (owner 2026-11-18), so it takes the page ink.
+  const { ui, mode } = useTheme();
   const { positive, negative, remaining } = groupDiseaseHistory(items);
   return (
     <View style={styles.card} accessibilityLabel="Disease history summary">
@@ -121,7 +122,7 @@ function DiseaseHistoryCard({ items, renderMedia, titled }: { items: CategorySub
       (owner 2026-11-18: the solid badge red was too deep for a block of text). */}
       <Text style={[styles.text, { fontWeight: "600" }]}>Diagnosed by Health Professional</Text>
       <View style={{ backgroundColor: ui.destructiveSoft, borderRadius: radius.sm, padding: spacing.sm }}>
-        <Text style={[styles.text, { color: ui.destructiveText }]}>{positive.length ? positive.map((name) => splitFieldId(name).text).join("\n") : "No positive diagnoses found."}</Text>
+        <Text style={[styles.text, { color: mode === "dark" ? ui.foreground : ui.destructiveText }]}>{positive.length ? positive.map((name) => splitFieldId(name).text).join("\n") : "No positive diagnoses found."}</Text>
       </View>
       <Text style={[styles.text, { fontWeight: "600", marginTop: spacing.sm }]}>Absent</Text>
       <View style={{ backgroundColor: ui.successTint, borderRadius: radius.sm, padding: spacing.sm }}>

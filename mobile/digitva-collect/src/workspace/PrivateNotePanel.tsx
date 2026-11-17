@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { CardInput } from "./CardInput";
 import { AppState as NativeAppState, Text, TextInput, View } from "react-native";
 
 import { ApiError } from "../api";
@@ -145,7 +146,7 @@ export function PrivateNotePanel({
         </>
       ) : (
         <>
-          <TextInput accessibilityLabel="Private note" placeholder="Private note" value={content} onChangeText={updateContent} style={[styles.input, styles.inputOnCard]} multiline maxLength={20_000} />
+          <CardInput accessibilityLabel="Private note" placeholder="Private note" value={content} onChangeText={updateContent}  multiline maxLength={20_000} />
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <View style={{ flexDirection: "row", gap: 8 }}>
             <View style={{ flex: 1 }}><Button label="Save private note" onPress={() => void save()} loading={saving} disabled={saving} /></View>

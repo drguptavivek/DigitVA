@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { CardInput } from "./CardInput";
+import { useScrollIntoView } from "./scrollTarget";
 import { Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { getRandomValues } from "expo-crypto";
 import { WhoVaQuestionControls } from "../whoControls";
@@ -38,8 +40,11 @@ export function SimpleCodPanel({
   onSaved,
   onAllocationLost,
   onDone,
+  smartva,
 }: {
   workspace: WorkspacePayload;
+  /** The SmartVA result card: under the Step 1 causes on the masked Step 2, above the panel otherwise. */
+  smartva?: ReactNode;
   identity: { vaSid: string; mode: "coding" | "reviewing" };
   api: WorkspaceApi;
   /** The server for the Selected ICD Codes PDF on a phone; the browser resolves the path against its own origin. */
@@ -49,6 +54,16 @@ export function SimpleCodPanel({
   onDone: () => void;
 }) {
   const styles = useUiStyles();
+  const showSmartva = useRef(false);
+  const smartvaBox = useRef<View>(null);
+  const scrollIntoView = useScrollIntoView();
+  // Saving Step 1 opens Step 2 with SmartVA under the Step 1 causes: bring it into view (owner 2026-11-18).
+  useEffect(() => {
+    if (!showSmartva.current || workspace.step !== "final" || workspace.case.project_mode.startsWith("unmasked_")) return undefined;
+    showSmartva.current = false;
+    const timer = setTimeout(() => scrollIntoView(smartvaBox.current), 150);
+    return () => clearTimeout(timer);
+  });
   const source = workspace.step === "initial"
     ? identity.mode === "reviewing"
       ? workspace.assessments.reviewer_initial
@@ -109,6 +124,7 @@ export function SimpleCodPanel({
           other_conditions: otherConditions,
         }, identity.mode);
         if (!current()) return;
+        showSmartva.current = true;
         await onSaved();
       } else {
         // Only a pick from a search links back to it; a prefilled code stays unlinked, as in Flask.
@@ -127,6 +143,8 @@ export function SimpleCodPanel({
       if (!current()) return;
       if (saveError instanceof ApiError && saveError.status === 422 && saveError.code === "final_blocked") {
         await onSaved(blockedMessages(saveError));
+        // The reason also shows here, by the button pressed: the blocking panel can be on another section.
+        if (current()) setError(blockedMessages(saveError) || "Complete the required assessments before the final cause of death.");
       } else if (saveError instanceof ApiError && saveError.status === 403) onDone();
       else setError(blockedMessages(saveError) || errorText(saveError));
     } finally {
@@ -156,6 +174,7 @@ export function SimpleCodPanel({
       label={label}
       hint={hint}
       value={codes[name]}
+      title={titles[codes[name]]}
       api={api}
       identity={identity}
       classification={classification}
@@ -167,10 +186,16 @@ export function SimpleCodPanel({
     />
   );
   const setConclusive = (choice: SearchChoice | null) => setConclusiveChoice(choice);
+  const titles = workspace.code_titles ?? {};
+  // A saved ICD-10 code shows with its title, as a pick does ("A16 Respiratory tuberculosis ...").
+  const withTitle = (code: string | null | undefined) => (code && titles[code] ? `${code} ${titles[code]}` : code ?? "");
   const step1 = identity.mode === "reviewing" ? workspace.assessments.reviewer_initial : workspace.assessments.initial;
   const previousFinal = identity.mode === "coding" ? workspace.assessments.final?.conclusive_cod : null;
 
+  const smartvaInside = !isInitial && !unmasked;
   return (
+    <>
+    {smartvaInside ? null : smartva}
     <View style={styles.card}>
       {isInitial ? (
         <>
@@ -190,20 +215,22 @@ export function SimpleCodPanel({
           {field("immediate_cod", "Immediate cause")}
           {field("conclusive_cod", "Underlying cause", undefined, setConclusive)}
           <Text style={styles.fieldLabel}>Associated conditions (optional)</Text>
-          <TextInput accessibilityLabel="Associated conditions (optional)" value={otherConditions.join(" | ")} onChangeText={(value) => setOtherConditions(value ? value.split("|").map((part) => part.trim()).filter(Boolean) : [])} style={[styles.input, styles.inputOnCard]} multiline />
+          <CardInput accessibilityLabel="Associated conditions (optional)" value={otherConditions.join(" | ")} onChangeText={(value) => setOtherConditions(value ? value.split("|").map((part) => part.trim()).filter(Boolean) : [])}  multiline />
         </>
       ) : (
         <>
           <Text accessibilityRole="header" style={styles.headline}>Cause of Death Ascertainment - Step 2</Text>
           <Notice title="Instructions:" items={[
-            "Kindly review the SMART VA analysis presented above.",
+            "Kindly review the SMART VA analysis presented below.",
             "Based on your interpretation and after reviewing SMART VA recommendations, assign your final underlying cause of death.",
           ]} />
           <SummaryCard title="Your Step 1 Assigned Causes:" rows={[
-            ["Immediate COD:", step1?.immediate_cod ?? ""],
-            ["Antecedent COD:", step1?.antecedent_cod ?? ""],
+            ["Immediate COD:", withTitle(step1?.immediate_cod)],
+            ["Antecedent COD:", withTitle(step1?.antecedent_cod)],
             ["Other Underlying Conditions (if any):", conditionList(step1).join(", ")],
           ]} />
+          {/* Owner order (2026-11-17): Step 1 causes, then SmartVA, then the final cause. */}
+          {smartvaInside ? <View ref={smartvaBox} collapsable={false}>{smartva}</View> : null}
           {previousFinal ? <SummaryCard title="Previous Final COD (Before This Recode):" rows={[["Final Underlying / Antecedent COD:", previousFinal]]} /> : null}
           {field("conclusive_cod", "Final Underlying / Antecedent Cause of Death", undefined, setConclusive)}
         </>
@@ -211,7 +238,7 @@ export function SimpleCodPanel({
       {!isInitial ? (
         <>
           <Text style={styles.fieldLabel}>{unmasked ? "Remarks" : "Remarks (if any)"}</Text>
-          <TextInput accessibilityLabel={unmasked ? "Remarks" : "Remarks (if any)"} placeholder={unmasked ? undefined : "Please enter the additional details here, if any."} value={remark} onChangeText={setRemark} style={[styles.input, styles.inputOnCard]} multiline />
+          <CardInput accessibilityLabel={unmasked ? "Remarks" : "Remarks (if any)"} placeholder={unmasked ? undefined : "Please enter the additional details here, if any."} value={remark} onChangeText={setRemark}  multiline />
         </>
       ) : null}
       {errorLine}
@@ -222,6 +249,7 @@ export function SimpleCodPanel({
       {classification === "icd11" ? <Text testID="icd11-citation" style={styles.muted}>{t("icd11Citation")}</Text> : null}
       {definitionsOpen ? <VaDefinitionsModal api={api} onClose={() => setDefinitionsOpen(false)} /> : null}
     </View>
+    </>
   );
 }
 
@@ -300,7 +328,7 @@ function NotCodeablePanel({ api, vaSid, reason, other, onReason, onOther, onDone
       {reason === "others" ? (
         <>
           <RequiredLabel label="Please brief the other issue" />
-          <TextInput accessibilityLabel="Please brief the other issue" placeholder="Brief about the issue here." value={other} onChangeText={onOther} style={[styles.input, styles.inputOnCard]} multiline />
+          <CardInput accessibilityLabel="Please brief the other issue" placeholder="Brief about the issue here." value={other} onChangeText={onOther}  multiline />
         </>
       ) : null}
       <Button label="Report Issue" kind="danger" disabled={busy || !reason || (reason === "others" && !other.trim())} loading={busy} onPress={() => {
@@ -350,6 +378,7 @@ function IcdCodeField({
   label,
   hint,
   value,
+  title,
   api,
   identity,
   classification,
@@ -362,6 +391,8 @@ function IcdCodeField({
   label: string;
   hint?: string;
   value: string;
+  /** The saved code's title from the server (ICD-10), shown with the code. */
+  title?: string;
   api: WorkspaceApi;
   identity: { vaSid: string; mode: "coding" | "reviewing" };
   classification: Classification;
@@ -373,17 +404,20 @@ function IcdCodeField({
   onChoice?(choice: SearchChoice | null): void;
 }) {
   const styles = useUiStyles();
-  const [query, setQuery] = useState(value);
+  const shown = (code: string) => (code && title ? `${code} ${title}` : code);
+  const [query, setQuery] = useState(shown(value));
   const [reply, setReply] = useState<{ searchId: string; results: IcdSearchItem[]; excludedMessage?: string } | null>(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [focused, setFocused] = useState(false);
+  const searchBox = useRef<View>(null);
+  const scrollIntoView = useScrollIntoView();
   const requestId = useRef(0);
   // A pick keeps its display text in the box, as Select2 does; any other value change shows the code.
   const pickedDisplay = useRef<string | null>(null);
 
   useEffect(() => {
-    setQuery(pickedDisplay.current ?? value);
+    setQuery(pickedDisplay.current ?? shown(value));
     pickedDisplay.current = null;
   }, [value]);
 
@@ -416,13 +450,21 @@ function IcdCodeField({
     };
   }, [api, classification, identity.vaSid, onAllocationLost, query, value]);
 
+  // Android scrolls the page itself as results arrive; keep the focused field at the top so they show.
+  useEffect(() => {
+    if (!focused) return undefined;
+    const timer = setTimeout(() => scrollIntoView(searchBox.current), 300);
+    return () => clearTimeout(timer);
+  }, [focused, reply, searching]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const remaining = MIN_QUERY - query.trim().length;
   return (
     <View style={{ gap: 4 }}>
       <RequiredLabel label={label} />
       <ReferenceLinks classification={classification} serverOrigin={serverOrigin} onShowDefinitions={onShowDefinitions} />
       {hint ? <Text style={styles.muted}>{hint}</Text> : null}
-      <TextInput
+      <View ref={searchBox} collapsable={false} />
+      <CardInput
         accessibilityLabel={label}
         placeholder="Search ICD codes..."
         value={query}
@@ -430,7 +472,9 @@ function IcdCodeField({
         multiline
         scrollEnabled={false}
         submitBehavior="blurAndSubmit"
-        onFocus={() => setFocused(true)}
+        onFocus={() => {
+          setFocused(true);
+        }}
         onBlur={() => setFocused(false)}
         onChangeText={(text) => {
           setQuery(text.slice(0, 100));
@@ -439,7 +483,7 @@ function IcdCodeField({
             onChoice?.(null);
           }
         }}
-        style={[styles.input, styles.inputOnCard]}
+        
       />
       {/* Select2's inputTooShort wording (minimumInputLength 2). */}
       {!value && remaining > 0 && (focused || query.trim()) ? <Text style={styles.muted}>{`Please enter ${remaining} or more characters`}</Text> : null}
@@ -531,7 +575,7 @@ function VaDefinitionsModal({ api, onClose }: { api: WorkspaceApi; onClose: () =
       <View style={styles.safe}>
         <View testID="va-definitions-header" style={[styles.body, { gap: 8 }]}>
           <Text accessibilityRole="header" style={styles.headline}>VA Codes, Titles and Definitions</Text>
-          <TextInput accessibilityLabel="Filter VA definitions" placeholder="Filter by VA cause name, code or definition" value={filter} onChangeText={setFilter} style={[styles.input, styles.inputOnCard]} />
+          <CardInput accessibilityLabel="Filter VA definitions" placeholder="Filter by VA cause name, code or definition" value={filter} onChangeText={setFilter}  />
           {loadError ? <Text accessibilityRole="alert" style={styles.error}>{loadError}</Text> : null}
           {items === null && !loadError ? <Text style={styles.muted}>Loading…</Text> : null}
           {items !== null ? <Text style={styles.muted}>{`${shown.length} of ${items.length}`}</Text> : null}
@@ -570,7 +614,7 @@ function ConditionPicker({ label, hint, options, selected, onChange }: { label: 
           ))}
         </View>
       ) : null}
-      <TextInput accessibilityLabel={label} placeholder="Search conditions" value={filter} onFocus={() => setOpen(true)} onChangeText={(text) => { setFilter(text); setOpen(true); }} style={[styles.input, styles.inputOnCard]} />
+      <CardInput accessibilityLabel={label} placeholder="Search conditions" value={filter} onFocus={() => setOpen(true)} onChangeText={(text) => { setFilter(text); setOpen(true); }}  />
       {open ? (
         <>
           {available.map((option) => (

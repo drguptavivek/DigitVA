@@ -27,6 +27,7 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
+from app.models.mas_icd10_2019_2 import MasIcd1020192
 from app.models import (
     VaAllocation,
     VaAllocations,
@@ -396,6 +397,30 @@ def _coding_timeline(
         return []
 
 
+_COD_FIELDS = ("immediate_cod", "antecedent_cod", "conclusive_cod")
+
+
+def _icd10_code_titles(assessments: dict) -> dict[str, str]:
+    """Title of every ICD-10 code in the assessments, so a phone can show code and title.
+
+    ICD-10 assessments store the bare code; one query reads all titles. ICD-11
+    values are stored with their title already and are left out.
+    """
+    codes = {
+        value.strip()
+        for row in assessments.values()
+        if isinstance(row, dict)
+        for field in _COD_FIELDS
+        if isinstance(value := row.get(field), str) and value.strip()
+    }
+    if not codes:
+        return {}
+    rows = db.session.execute(
+        sa.select(MasIcd1020192.code, MasIcd1020192.title).where(MasIcd1020192.code.in_(codes))
+    )
+    return {code: title for code, title in rows}
+
+
 def _initial_json(row) -> dict | None:
     if row is None:
         return None
@@ -746,6 +771,10 @@ def workspace(va_sid):
             visible_category_codes=case.visible_category_codes,
         ),
         "assessments": assessments,
+        # Additive (older apps ignore it): ICD-10 code -> title for the codes above.
+        "code_titles": _icd10_code_titles(assessments)
+        if ((case.project and case.project.icd_classification) or DEFAULT_ICD_CLASSIFICATION) != "icd11"
+        else {},
         "codingTimelineV1": coding_timeline,
         "smartva": smartva,
         "smartva_status": smartva_panel["status"],

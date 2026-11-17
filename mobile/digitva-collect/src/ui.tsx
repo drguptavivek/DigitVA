@@ -217,8 +217,8 @@ export function Button({
         style
       ]}
     >
-      <Text style={[styles.buttonText, { color: labelColor ?? tone.fg }]}>{label}</Text>
-      {/* Absolute, so the button keeps its width while busy. */}
+      {/* Busy: the label stays for the width but is hidden, and the spinner takes its place (it overlapped long labels). */}
+      <Text style={[styles.buttonText, { color: labelColor ?? tone.fg }, loading && { opacity: 0 }]}>{label}</Text>
       {loading ? <ActivityIndicator size="small" color={labelColor ?? tone.fg} style={styles.buttonSpinner} /> : null}
     </Pressable>
   );
@@ -779,7 +779,7 @@ function createStyles(theme: Theme, controlHeight: number = controls.minHeight, 
     primary: { backgroundColor: t.primary },
     secondary: { backgroundColor: t.primaryTint },
     danger: { backgroundColor: t.destructive },
-    buttonSpinner: { position: "absolute", right: spacing.xs },
+    buttonSpinner: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
     disabled: { opacity: 0.5 },
     buttonText: { ...controlText, fontSize: fontSize.body, lineHeight: 22 * textScale, fontWeight: "500", color: t.primaryForeground, fontFamily: controls.fontFamily },
     secondaryText: { ...controlText, fontSize: fontSize.body, lineHeight: 22 * textScale, fontWeight: "500", color: t.foreground, fontFamily: controls.fontFamily },

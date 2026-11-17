@@ -255,11 +255,11 @@ class VaCaseApiTests(BaseTestCase):
         return response.get_json()
 
     def _initial(self, sid, user=None, **fields):
-        row = VaInitialAssessments(
-            va_sid=sid, va_iniassess_by=user or self.base_coder_user.user_id,
-            va_immediate_cod=_COD, va_antecedent_cod="B20 HIV disease",
-            va_other_conditions="I10 - Essential Hypertension | E11 - Diabetes", **fields,
-        )
+        values = {
+            "va_immediate_cod": _COD, "va_antecedent_cod": "B20 HIV disease",
+            "va_other_conditions": "I10 - Essential Hypertension | E11 - Diabetes", **fields,
+        }
+        row = VaInitialAssessments(va_sid=sid, va_iniassess_by=user or self.base_coder_user.user_id, **values)
         db.session.add(row)
         db.session.commit()
         return row
@@ -405,6 +405,22 @@ class VaCaseApiTests(BaseTestCase):
         self.assertEqual(saved["antecedent_cod"], "B20 HIV disease")
         self.assertEqual(saved["other_conditions"], ["I10 - Essential Hypertension", "E11 - Diabetes"])
         self.assertEqual(after["assessments"]["initial_prefill"]["id"], saved["id"])
+
+    def test_code_titles_name_the_saved_icd10_codes(self):
+        from app.models.mas_icd10_2019_2 import MasIcd1020192
+        code = f"Z{uuid.uuid4().hex[:3].upper()}"
+        db.session.add(MasIcd1020192(
+            code=code, title="Test title for a saved code", node_type="category",
+            semantic_level="detailed_code", source_version="2019-2",
+        ))
+        db.session.commit()
+        self._mode(masked=True)
+        sid = self._coding_case()
+        self.assertEqual(self._workspace(sid)["code_titles"], {})
+        self._initial(sid, va_immediate_cod=code, va_antecedent_cod="not a code")
+        after = self._workspace(sid)
+        self.assertEqual(after["assessments"]["initial"]["immediate_cod"], code)
+        self.assertEqual(after["code_titles"], {code: "Test title for a saved code"})
 
     def test_another_coders_step_one_is_not_shown_and_does_not_advance_the_step(self):
         self._mode(masked=True)

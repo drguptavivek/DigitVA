@@ -56,14 +56,26 @@ function RowSwitch({ label, hint, value, disabled, onChange, testID }: { label: 
 }
 
 /**
- * Settings > Display: Text size (Small 0.9 / Medium 1.0 / Large 1.2, times the phone's font size, capped at 2.0)
+ * Settings > Display: Appearance (Light / Dark / System), Text size (Small 0.9 / Medium 1.0 / Large 1.2, times the phone's font size, capped at 2.0)
  * and High contrast. Both are device-local UI preferences (src/preferences.ts), never sent to the server; High
  * contrast starts on when the phone asks for more contrast, and the user's choice wins from then on.
  */
 function DisplaySection() {
-  const { textSize, setTextSize, highContrast, setHighContrast } = useTheme();
+  const { preference, setPreference, textSize, setTextSize, highContrast, setHighContrast } = useTheme();
   return (
     <Card grouped label={t("settingsDisplay")} footer={t("textSizeNote")}>
+      {/* Owner 2026-11-18: Light / Dark / System (follows the phone; "Auto" is the same choice). */}
+      <LabelledRow label={t("appearance")}>
+        <SegmentedControl
+          compact
+          testID="appearance"
+          accessibilityLabel={t("appearance")}
+          options={[{ value: "light", label: t("themeLight") }, { value: "dark", label: t("themeDark") }, { value: "system", label: t("themeSystemShort") }]}
+          value={preference}
+          onChange={(next) => void setPreference(next)}
+        />
+      </LabelledRow>
+      <Separator />
       <LabelledRow label={t("textSize")}>
         <SegmentedControl
           compact

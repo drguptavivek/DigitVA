@@ -25,6 +25,12 @@ describe("workspace contracts and API", () => {
     expect(() => parseWorkspace({ ...view, step: "initial" }, "view")).toThrow(WorkspaceContractError);
   });
 
+  test("code_titles is optional, kept when present, and must be strings", () => {
+    expect(parseWorkspace(view, "view")).not.toHaveProperty("code_titles");
+    expect(parseWorkspace({ ...view, code_titles: { A16: "Respiratory tuberculosis" } }, "view").code_titles).toEqual({ A16: "Respiratory tuberculosis" });
+    expect(() => parseWorkspace({ ...view, code_titles: { A16: 5 } }, "view")).toThrow(WorkspaceContractError);
+  });
+
   test("masked coding Step 1 fails closed if SmartVA or final COD is present", () => {
     const step1 = {
       ...view,

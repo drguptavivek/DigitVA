@@ -251,6 +251,8 @@ export interface WorkspacePayload {
     reviewer_final?: WorkspaceAssessment | null;
   };
   smartva: JsonValue;
+  /** Additive: ICD-10 code -> title for the saved codes; old servers omit it. */
+  code_titles?: Record<string, string>;
   /** Additive metadata; old servers omit these fields and remain readable. */
   smartva_status?: SmartvaStatus;
   smartva_can_run?: boolean;
@@ -452,6 +454,11 @@ export interface WorkflowEvents {
   }>;
   limit: number;
   next_cursor: string | null;
+}
+
+function codeTitles(value: unknown): Record<string, string> {
+  const source = record(value, "workspace.code_titles");
+  return Object.fromEntries(Object.entries(source).map(([code, title]) => [code, string(title, `workspace.code_titles.${code}`)]));
 }
 
 function record(value: unknown, field: string): Record<string, unknown> {
@@ -688,6 +695,7 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
       };
     }),
     default_category: string(source.default_category, "workspace.default_category"),
+    ...(source.code_titles !== undefined ? { code_titles: codeTitles(source.code_titles) } : {}),
     step: step as CodingStep,
     ...(mode === "view" ? {} : { blocked_by: blockedBy }),
     assessments: {

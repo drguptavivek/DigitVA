@@ -5,7 +5,7 @@
  * stays 0 so the space is never added twice.
  */
 import { useEffect, useState } from "react";
-import { Dimensions, Keyboard, Platform } from "react-native";
+import { AppState, Dimensions, Keyboard, Platform } from "react-native";
 
 /** The keyboard height the window did not already give up; 0 when the system resized the window. */
 export function missingKeyboardSpace(windowHeight: number, screenHeight: number, keyboardTop: number): number {
@@ -16,8 +16,8 @@ export function missingKeyboardSpace(windowHeight: number, screenHeight: number,
 }
 
 /**
- * The inset and a recheck to run on every touch: a keyboard closed inside a Modal (the ICD browser) can skip the
- * root's keyboardDidHide on Android 9, leaving half the page blank under a stale inset.
+ * The inset and a recheck to run on every touch, for a keyboardDidHide that never arrives; leaving the app
+ * (see the AppState listener) is the case seen on Android 9.
  */
 export function useKeyboardInset(): [number, () => void] {
   const [inset, setInset] = useState(0);
@@ -29,9 +29,13 @@ export function useKeyboardInset(): [number, () => void] {
       setInset(missingKeyboardSpace(windowHeight, screenHeight, event.endCoordinates.screenY));
     });
     const hide = Keyboard.addListener("keyboardDidHide", () => setInset(0));
+    // A keyboard that closes while another app is in front (the ICD-10 Browser opens the phone's browser)
+    // never sends keyboardDidHide here; the stale inset blanked the lower half of the page on return.
+    const appState = AppState.addEventListener("change", () => setInset(0));
     return () => {
       show.remove();
       hide.remove();
+      appState.remove();
     };
   }, []);
   const recheck = () => { if (Platform.OS === "android" && !Keyboard.isVisible()) setInset((value) => (value ? 0 : value)); };

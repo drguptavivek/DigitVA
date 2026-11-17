@@ -454,11 +454,11 @@ export function CaseWorkspaceScreen({
     <View key={`${identityKey}:cod`}>
       {/* The API serves smartva only when this caller may see it (unmasked, or masked after Step 1); the
           masked DORIS final step renders it inside its own card. */}
-      {workspace.smartva !== null && !(workspace.case.project_mode === "masked_doris" && workspace.step === "final") ? <SmartVaReference value={workspace.smartva} /> : null}
+      {workspace.case.project_mode.endsWith("_doris") && workspace.smartva !== null && !(workspace.case.project_mode === "masked_doris" && workspace.step === "final") ? <SmartVaReference value={workspace.smartva} /> : null}
       {workspace.case.project_mode.endsWith("_doris") ? (
         renderDoris ? renderDoris(workspace, reloadAfterCodSave, scopedCallbacks.finish, guardedApi) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
       ) : (
-        <SimpleCodPanel workspace={workspace} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={guardedApi} serverOrigin={serverOrigin} onSaved={reloadAfterCodSave} onAllocationLost={scopedCallbacks.loseAllocation} onDone={scopedCallbacks.finish} />
+        <SimpleCodPanel workspace={workspace} smartva={workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={guardedApi} serverOrigin={serverOrigin} onSaved={reloadAfterCodSave} onAllocationLost={scopedCallbacks.loseAllocation} onDone={scopedCallbacks.finish} />
       )}
     </View>
   ) : null;

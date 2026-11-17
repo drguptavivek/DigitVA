@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 
 import { useTheme } from "../theme";
 import { Button, Screen, useUiStyles } from "../ui";
 import { NotesCloseContext } from "./notesClose";
 import { PhoneSectionRail } from "./PhoneSectionRail";
+import { WorkspaceScrollContext } from "./scrollTarget";
 import type { WorkspaceCategoryNav, WorkspaceIdentity, WorkspacePayload } from "./contracts";
 
 /** Same phone breakpoint as WorkspaceLayout.web and Screen. */
@@ -37,6 +38,7 @@ export function WorkspaceLayout({
   nextBlockedReason,
 }: WorkspaceLayoutProps) {
   const [notesOpen, setNotesOpen] = useState(false);
+  const scroller = useRef<ScrollView>(null);
   const index = categories.findIndex((item) => item.code === selectedCode);
   const previous = index > 0 ? categories[index - 1] : undefined;
   const next = index >= 0 ? categories[index + 1] : undefined;
@@ -58,7 +60,7 @@ export function WorkspaceLayout({
   );
   // On a phone the categories are an icon rail floating over the page (PhoneSectionRail): a row sidebar would take most of the width.
   const screen = (
-    <Screen title={workspace.case.deceased_name ? `${workspace.case.deceased_name} · ${workspace.case.instance_name}` : workspace.case.instance_name} headerAction={phone ? undefined : <Button label="Exit" kind="secondary" onPress={onExit} />} sidebar={phone ? undefined : nav}>
+    <Screen title={workspace.case.deceased_name ? `${workspace.case.deceased_name} · ${workspace.case.instance_name}` : workspace.case.instance_name} headerAction={phone ? undefined : <Button label="Exit" kind="secondary" onPress={onExit} />} sidebar={phone ? undefined : nav} scrollRef={scroller}>
       {categoryLoading ? <Text style={styles.muted}>Loading category…</Text> : null}
       {children}
       {categories.length > 1 ? (
@@ -81,10 +83,10 @@ export function WorkspaceLayout({
       ) : null}
     </Screen>
   );
-  if (!phone) return screen;
+  if (!phone) return <WorkspaceScrollContext.Provider value={scroller}>{screen}</WorkspaceScrollContext.Provider>;
   return (
     <View style={{ flex: 1 }}>
-      {screen}
+      <WorkspaceScrollContext.Provider value={scroller}>{screen}</WorkspaceScrollContext.Provider>
       <PhoneSectionRail categories={categories} selectedCode={selectedCode} onSelect={onSelectCategory} />
     </View>
   );

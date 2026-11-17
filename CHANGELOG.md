@@ -5,6 +5,20 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-18
 
+- Collect Settings gains Appearance: Light / Dark / System (the stored
+  preference existed with no phone control). Policy: `docs/policy/expo-client.md`.
+- ICD-10 code titles (`digitva-t0h1`): the workspace payload gains an
+  additive `code_titles` map (one query on `mas_icd10_2019_2`; ICD-11
+  values already carry their title), so the phone shows code and title in
+  the Step 1 summary and a reopened ICD field. Old apps ignore the key.
+- Phone Step 2 (owner order): SmartVA sits under "Your Step 1 Assigned
+  Causes" and saving Step 1 scrolls to it; the ICD field lifts to the top
+  while results load; a `final_blocked` reason shows under the save button
+  (it showed only on the blocking section's panel); the busy spinner
+  replaces the button label instead of overlapping it; the section panel
+  clears the navigation bar; the Android 9 keyboard inset also clears when
+  the app leaves the foreground (a keyboard closed while the ICD-10 Browser
+  was open blanked half the page).
 - Phone coding pages (owner 2026-11-18): the section rail becomes a left
   pull tab so no page text sits under it (an inset column was rejected as
   too narrow); the title is centred with the section icon; the bottom tab

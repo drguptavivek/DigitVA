@@ -973,3 +973,17 @@ describe("round-3 Settings layout", () => {
     expect(tree.root.findAll((n) => n.props.label === "Asha" && "value" in n.props)[0].props.value).toBeUndefined();
   });
 });
+
+it("offers Appearance as Light / Dark / System and applies the choice", async () => {
+  const theme = require("../src/theme") as typeof import("../src/theme");
+  theme.__setThemePreferenceForTest("system");
+  const tree = await render();
+  const control = tree.root.findAllByType(SegmentedControl).find((n) => n.props.accessibilityLabel === en.appearance);
+  expect(control).toBeDefined();
+  expect(control!.props.options.map((option: { value: string }) => option.value)).toEqual(["light", "dark", "system"]);
+  expect(control!.props.value).toBe("system");
+  await act(async () => { control!.props.onChange("dark"); });
+  const after = tree.root.findAllByType(SegmentedControl).find((n) => n.props.accessibilityLabel === en.appearance);
+  expect(after!.props.value).toBe("dark");
+  theme.__setThemePreferenceForTest("system");
+});

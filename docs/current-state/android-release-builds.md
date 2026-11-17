@@ -28,7 +28,10 @@ keyboard room, phone coding layout, ICD-10 code titles, Appearance setting
 (`CHANGELOG.md`, 2026-11-18). The Play bundle is a run artifact of
 `android-play-bundle.yml` (run 44161580345); the Play upload is the owner's.
 Staging's `/download/android` serves `private/android-hosted`, not the image
-pin: copying 0.3.24 there is a separate owner step (runbook below).
+pin. On the owner's go (2026-11-18) both 0.3.24 APKs were copied there from
+the image's `/opt/digitva/android` under temporary names, checksum-verified
+and renamed in (older files kept); both public downloads and
+`/api/v1/app/android/latest` (both variants) return the checksums below.
 
 | Variant | Public release | Bytes | SHA-256 |
 | --- | --- | ---: | --- |

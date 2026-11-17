@@ -10,8 +10,9 @@ hold; backup verified, migrations at head, smoke check 200 on `/`, `/app/`,
 The image carries Collect `android-v0.3.24`, Collect Plus
 `collect-plus-v0.3.24-plus.1` and web `expo-web-v2026.11.18.1`
 (`docs/current-state/android-release-builds.md`). Staging's
-`/download/android` still serves 0.3.20 from `private/android-hosted`;
-copying 0.3.24 in awaits the owner's go. The Play AAB (run 44161580345)
+`/download/android` and `/download/android/plus` serve 0.3.24 from
+`private/android-hosted` (copied 2026-11-18 on the owner's go; downloads and
+`/api/v1/app/android/latest` checksums verified). The Play AAB (run 44161580345)
 awaits the owner's Play upload.
 
 Old-APK audit: `b95f26e4a..0fd111363` (2026-11-18) SAFE WITH NOTES: no

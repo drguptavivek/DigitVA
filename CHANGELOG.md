@@ -45,8 +45,11 @@ What landed, newest first. Details live in the commits and the linked docs;
   dm-user-grant-management, web-intake, training-demo-project.
 - `81196f17d`, `fafa0fbdc`: backend performance survey filed as epic
   `digitva-f41g` (21 beads, not fixed, unmeasured).
-- Server image for `e6a17915d` built; staging deploy approved but not run
-  (AWS session expired). Staging still `019e8ac7e`.
+- `e6a17915d` deployed to staging (owner's go; backup verified, migrations
+  at head; previous `019e8ac7e`). Staging's hosted APK folder still tops
+  at 0.3.20.
+- `4a2080879`: coding parity PR #775 merged into main (changelog conflict
+  only; full backend suite 7771 passed, Jest 5306, check-web green).
 
 ## 2026-11-16
 

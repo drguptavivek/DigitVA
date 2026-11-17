@@ -2,15 +2,18 @@
 
 ## Start here
 
-Staging runs `019e8ac7e`. Main is at `798d811d8` (run-7 security fixes `digitva-l9dp`, all
-closed, plus the roster members CSV export). Server image build for
-`798d811d86aa6c0df554c648a147ad1734c4bcaf` started on CI
-(`server-images.yml`, started 2026-11-17); check it finished. An image for
-`2e7a51a17` (fixes without the export) also exists. The earlier
-image for `e6a17915d` (Collect 0.3.23 pinned) also exists. The owner
-approved deploying `e6a17915d` on 2026-11-17; deploying the newer sha
-instead needs the owner's go. Either way: `aws login --profile digitva`
-first, then `scripts/deploy-staging.sh <full sha>`.
+Staging runs `e6a17915d` (deployed 2026-11-17 with `scripts/deploy-staging.sh`
+on the owner's direct go in session "Handoff and open issues"; backup
+verified, migrations at head; rollback:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 019e8ac7ec24380e21a9840c4157b6435313fb27`).
+That deploy ran after the training hold below was recorded: check with the
+owner that the staging training was not disrupted. Staging's
+`/download/android` still serves 0.3.20: its hosted folder
+`private/android-hosted` has nothing newer; copying 0.3.23 in (runbook in
+`docs/current-state/android-release-builds.md`) awaits the owner's go.
+Main is at `4a2080879` (coding parity PR #775 merged; full backend suite
+7771 passed, Jest 5306 passed, `make check-web` green). Images exist for
+`798d811d8` and `2e7a51a17`; any newer deploy needs the owner's go.
 
 Old-APK audit: `019e8ac7e..e6a17915d` is done (additive migration
 `d8a2f4c6e1b3`, `access_changed` notification accepted by old apps).
@@ -28,10 +31,16 @@ any change to one is re-checked against `frozen/` and refrozen.
 ## Ranked next steps
 
 0. **HOLD: no staging deploy while a training is running on staging (owner
-   2026-11-17); wait for the owner to lift it.** Then deploy (above: `e6a17915d` approved, `798d811d8` needs a go). Afterwards check on staging: the
-   roster person page (`digitva-eyp3`, closed), `/download/android` serves
-   0.3.23, and on a phone consent "No" then back (Id10013 fill) and the
-   ICD-11 first-launch prompt.
+   2026-11-17); wait for the owner to lift it.** On staging check: the
+   roster person page (`digitva-eyp3`, closed), and on a phone consent
+   "No" then back (Id10013 fill). Verified on the emulator against dev
+   (Plus debug of main, 2026-11-17): ICD-11 first-launch prompt, phone
+   grid, pager with NQA blocked reason, Notes on every page, symptoms card
+   after the narrative, NQA "0 / 10 · Cannot Grade", DORIS sex prefill,
+   Step 2 card order. Not verified: the phone media gallery (no dev case
+   with attachments that `test.all` can code). Six seeded TST001 cases from
+   2026-11-08 carry Id10023 without Id10022, so neither web nor phone
+   prefills their date of death (test data, not a parity gap).
 1. Training (`digitva-9qer`, `digitva-q3iu`): owner supplies
    `app/services/training_corpus/english_v1.txt`; Maestro flows 96–98 need a
    trainee setup role; training media scope; refuse outdated apps (N11);

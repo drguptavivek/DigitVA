@@ -1,0 +1,241 @@
+{
+  "units": [
+    {
+      "coverage_id": "mobile%2Fdigitva-collect%2Fmodules%2Fdigitva-icd11%2Fandroid%2Fsrc%2Fmain%2Fcpp%2Fshim.c%23native_engine_bridges::mobile%2Fdigitva-collect%2Fmodules%2Fdigitva-icd11%2Fandroid%2Fsrc%2Fmain%2Fjava%2Fexpo%2Fmodules%2Fdigitvaicd11%2FIcd11Service.kt%23boundReply::mobile%2Fdigitva-collect%2Fmodules::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "mobile/digitva-collect/modules/digitva-icd11/android/src/main/AndroidManifest.xml",
+        "mobile/digitva-collect/modules/digitva-icd11/android/src/main/cpp/shim.c",
+        "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/DigitvaIcd11Module.kt",
+        "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineData.kt",
+        "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineHost.kt",
+        "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineJni.kt",
+        "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/Icd11Service.kt",
+        "mobile/digitva-collect/modules/digitva-icd11/engine-src/Bridge.cs",
+        "mobile/digitva-collect/modules/digitva-icd11/engine-src/digitva_icd11.h",
+        "mobile/digitva-collect/modules/digitva-icd11/ios/DigitvaIcd11Module.swift",
+        "mobile/digitva-collect/modules/digitva-icd11/ios/EngineData.swift",
+        "mobile/digitva-collect/modules/digitva-icd11/ios/EngineHost.swift",
+        "mobile/digitva-collect/modules/digitva-smartva/android/src/main/AndroidManifest.xml",
+        "mobile/digitva-collect/modules/digitva-smartva/android/src/main/cpp/SmartVaJni.cpp",
+        "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/DigitvaSmartvaModule.kt",
+        "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/SmartVaJni.kt",
+        "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/SmartvaService.kt",
+        "mobile/digitva-collect/modules/digitva-smartva/ios/DigitvaSmartvaModule.swift",
+        "mobile/digitva-collect/src/offlineEngine.ts",
+        "mobile/digitva-collect/src/smartva/input.ts",
+        "mobile/digitva-collect/src/smartva/nativeEngine.ts"
+      ],
+      "checks": [
+        {
+          "agent_id": "hunter-w1-native-infra",
+          "method": "source",
+          "artifact": null,
+          "reviewed_paths": [
+            "mobile/digitva-collect/modules/digitva-icd11/android/src/main/cpp/shim.c",
+            "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineJni.kt",
+            "mobile/digitva-collect/modules/digitva-icd11/engine-src/Bridge.cs",
+            "mobile/digitva-collect/modules/digitva-icd11/engine-src/digitva_icd11.h",
+            "mobile/digitva-collect/modules/digitva-smartva/android/src/main/cpp/SmartVaJni.cpp",
+            "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/SmartVaJni.kt"
+          ],
+          "invariant": "JNI and C/C# FFI boundaries must null-terminate byte arrays before passing them as C strings, verify symbol completeness on dlopen, and release both JNI references and native heap allocations on every exit path.",
+          "result": "holds: In shim.c:71-90, callOp reads jsize n = GetArrayLength(env, json), allocates malloc((size_t)n + 1), copies n bytes via GetByteArrayRegion, sets j[n] = 0 before invoking p_callop(o, j, &st), frees j on both error and normal paths, releases op via ReleaseStringUTFChars, and frees the engine buffer via p_free(out) in take_result (lines 20-26). initEngine (lines 44-54) checks both GetStringUTFChars pointers, releases whichever succeeded, and frees err via p_free(err) without leaking payload content. load (lines 28-41) rejects libraries missing any of the three required symbols. In SmartVaJni.cpp:17-59, GetStringUTFChars buffers are copied into std::string before ReleaseStringUTFChars and the Rust-allocated output is freed via smartva_free_string(raw) before returning."
+        },
+        {
+          "agent_id": "hunter-w1-native-infra",
+          "method": "source",
+          "artifact": null,
+          "reviewed_paths": [
+            "mobile/digitva-collect/modules/digitva-icd11/android/src/main/AndroidManifest.xml",
+            "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/DigitvaIcd11Module.kt",
+            "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineHost.kt",
+            "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/Icd11Service.kt",
+            "mobile/digitva-collect/modules/digitva-smartva/android/src/main/AndroidManifest.xml",
+            "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/DigitvaSmartvaModule.kt",
+            "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/SmartvaService.kt",
+            "mobile/digitva-collect/src/offlineEngine.ts",
+            "mobile/digitva-collect/src/smartva/input.ts",
+            "mobile/digitva-collect/src/smartva/nativeEngine.ts"
+          ],
+          "invariant": "Android Messenger IPC services must not be exported to other apps, must bound request and reply sizes to stay within Binder transaction limits, must reject embedded NULs and invalid op names, and must not reflect raw engine exceptions or input data across IPC.",
+          "result": "holds: Both Icd11Service and SmartvaService declare android:exported=\"false\" in their AndroidManifest.xml files. Icd11Service.kt:116-160 enforces OP_NAME = Regex(\"^[a-z_]{1,32}$\") and caps replies in boundReply at MAX_TEXT_CHARS = 250,000 UTF-16 chars while catching TransactionTooLargeException in answerWith; EngineHost.kt:145-153 strips engine response bodies on non-2xx status codes. SmartvaService.kt:42-93 and DigitvaSmartvaModule.kt:44-89 enforce MAX_REQUEST_BYTES (1 MiB), MAX_REPLY_BYTES (2 MiB), and reject embedded NULs in country and input strings."
+        },
+        {
+          "agent_id": "hunter-w1-native-infra",
+          "method": "source",
+          "artifact": null,
+          "reviewed_paths": [
+            "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineData.kt",
+            "mobile/digitva-collect/modules/digitva-icd11/ios/DigitvaIcd11Module.swift",
+            "mobile/digitva-collect/modules/digitva-icd11/ios/EngineData.swift",
+            "mobile/digitva-collect/modules/digitva-icd11/ios/EngineHost.swift",
+            "mobile/digitva-collect/modules/digitva-smartva/ios/DigitvaSmartvaModule.swift"
+          ],
+          "invariant": "Asset staging and iOS Swift FFI bridges must prevent path traversal during asset extraction, verify SHA-256 digests before engine load, enforce request/reply bounds and NUL checks, and free C pointers on all paths.",
+          "result": "holds: EngineData.kt:192-206 verifies out.canonicalPath.startsWith(engineDir.canonicalPath + File.separator) before deleting or writing target files and verifies SHA-256 against AssetSpec before atomic rename; EngineData.swift:102-121 checks file.path.hasPrefix(root.standardizedFileURL.path + \"/\") and verifies SHA-256 digests. EngineHost.swift:120-169 and DigitvaSmartvaModule.swift:70-108 enforce request/reply byte caps, reject embedded NUL bytes, and free returned C buffers via defer { digitva_icd11_free(...) } and defer { smartva_free_string(...) }."
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "scripts%2Fmanual-db-restore.sh%23restore_and_deployment::scripts%2Fmanual-db-restore.sh%23SCRATCH_DB::scripts::ATTACK-CLASSES.md%23Injection",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "app/commands/backups.py",
+        "app/public_doris/__init__.py",
+        "app/public_doris/routes.py",
+        "boot-public-doris.sh",
+        "deploy/doris-public-nginx.conf",
+        "deploy/ingress-common.conf",
+        "deploy/ingress-demo.conf",
+        "deploy/ingress-routes.conf",
+        "docker-compose.demo.yml",
+        "docker-compose.yml",
+        "docs/current-state/public-demo-deployment.md",
+        "public_doris_app.py",
+        "scripts/icd11-parity/eval.sh",
+        "scripts/icd11-parity/jni_smoke.c",
+        "scripts/icd11-parity/phone_harness.c",
+        "scripts/icd11-parity/run_ios_sim.sh",
+        "scripts/icd11-parity/run_phone.sh",
+        "scripts/manual-db-restore.sh",
+        "scripts/smartva-parity/build_requests.js",
+        "scripts/smartva-parity/compare.py",
+        "scripts/smartva-parity/export.py",
+        "scripts/smartva-parity/harness.c",
+        "scripts/smartva-parity/rescore_server.py",
+        "scripts/smartva-parity/run.sh"
+      ],
+      "checks": [
+        {
+          "agent_id": "hunter-w1-native-infra",
+          "method": "source",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/commands/backups.py",
+            "scripts/manual-db-restore.sh"
+          ],
+          "invariant": "Database restore scripts must validate S3 backup integrity before restore, isolate scratch restore from the live DB until verification passes, prevent shell/SQL injection on restore inputs, and recover connections cleanly on swap failure.",
+          "result": "holds: scripts/manual-db-restore.sh:225-246 delegates --from-s3 downloads to flask backups db-download, which verifies the SHA-256 digest against the recorded backup metadata before returning (app/commands/backups.py:130-189). SCRATCH_DB and OLD_DB are constructed from operator-controlled POSTGRES_DB and date +%Y%m%d_%H%M%S (lines 201-202), pg_restore runs with --no-owner --no-privileges --exit-on-error into SCRATCH_DB and verifies alembic_version and core table counts before stopping writers, and the swap block (lines 266-297) re-enables ALLOW_CONNECTIONS on POSTGRES_DB if the transactional rename fails."
+        },
+        {
+          "agent_id": "hunter-w1-native-infra",
+          "method": "source",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/public_doris/__init__.py",
+            "app/public_doris/routes.py",
+            "boot-public-doris.sh",
+            "deploy/doris-public-nginx.conf",
+            "deploy/ingress-common.conf",
+            "deploy/ingress-demo.conf",
+            "deploy/ingress-routes.conf",
+            "docker-compose.demo.yml",
+            "docker-compose.yml",
+            "docs/current-state/public-demo-deployment.md",
+            "public_doris_app.py"
+          ],
+          "invariant": "The public DORIS service and demo ingress must isolate the unauthenticated DORIS runtime from main application databases, secrets, and host bind mounts, and must enforce proxy header trust and per-IP rate limits.",
+          "result": "holds: In docker-compose.demo.yml:226-263, demo_doris_public_service uses a distinct DEMO_DORIS_PUBLIC_SECRET_KEY, DATABASE_URL: sqlite://, DORIS_PUBLIC_COOKIE_SECURE: \"true\", no-new-privileges:true, memory/CPU caps, no host bind mounts, and attaches only to internal networks doris_public and digitva_icd (unreachable from demo_db_service and demo_redis_service). deploy/ingress-demo.conf:13-22 and deploy/doris-public-nginx.conf:10-49 configure set_real_ip_from, real_ip_recursive off, clear X-DigitVA-Public-Ingress from external requests, set X-DigitVA-Public-Ingress: 1 only on the public DORIS proxy location, and enforce 30r/m rate limits and 32k body size caps."
+        },
+        {
+          "agent_id": "hunter-w1-native-infra",
+          "method": "source",
+          "artifact": null,
+          "reviewed_paths": [
+            "scripts/icd11-parity/eval.sh",
+            "scripts/icd11-parity/jni_smoke.c",
+            "scripts/icd11-parity/phone_harness.c",
+            "scripts/icd11-parity/run_ios_sim.sh",
+            "scripts/icd11-parity/run_phone.sh",
+            "scripts/smartva-parity/build_requests.js",
+            "scripts/smartva-parity/compare.py",
+            "scripts/smartva-parity/export.py",
+            "scripts/smartva-parity/harness.c",
+            "scripts/smartva-parity/rescore_server.py",
+            "scripts/smartva-parity/run.sh"
+          ],
+          "invariant": "Developer parity scripts must not mutate the database, must validate shell-interpolated run identifiers, and must keep exported case data inside gitignored private directories.",
+          "result": "holds: scripts/icd11-parity/eval.sh:34-37 rejects RUN_NAME matching *[!A-Za-z0-9._-]* before constructing container or host paths. scripts/smartva-parity/export.py:29-36 and rescore_server.py:92-122 execute DB queries inside SET TRANSACTION READ ONLY followed by db.session.rollback(). scripts/smartva-parity/run.sh places all outputs under private/smartva-parity/, and rescore_server.py:85-87 and compare.py:91-92 refuse output paths that do not include private."
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "app%2F__init__.py%23wildcard_and_obvious_checks::app%2Fservices%2Fauthz%2Fconsulted.py%23install_consultation_guard::app::ATTACK-CLASSES.md%23Obvious%20things",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "app/__init__.py",
+        "app/commands/seed.py",
+        "app/routes/api/profile.py",
+        "app/services/authz/consulted.py",
+        "app/services/authz/grant_cache.py",
+        "app/services/notification_service.py",
+        "migrations/versions/b4e8c2a6d0f3_training_session_types.py",
+        "migrations/versions/c7f1d3a5e9b2_training_participants_user_index.py",
+        "migrations/versions/d8a2f4c6e1b3_add_map_project_members.py"
+      ],
+      "checks": [
+        {
+          "agent_id": "hunter-w1-native-infra",
+          "method": "source",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/__init__.py",
+            "app/routes/api/profile.py",
+            "app/services/authz/consulted.py",
+            "app/services/authz/grant_cache.py",
+            "app/services/notification_service.py"
+          ],
+          "invariant": "Every authenticated non-self-service endpoint must consult the authorization layer before returning 2xx/3xx, newly allowlisted PUBLIC_ENDPOINTS and SELF_SERVICE_ENDPOINTS must enforce their own authentication/session/CSRF and self-scoping invariants, and grant-cache access notification hooks must not leak cross-tenant data or break transaction rollback.",
+          "result": "holds: In app/services/authz/consulted.py:27-79, the newly added PUBLIC_ENDPOINTS (api_v1.auth_api.redeem_sign_in_code, api_v1.auth_api.record_profile_deletion) authenticate one-time sign-in codes or per-user device secrets with rate limiting, and the newly added SELF_SERVICE_ENDPOINTS entry (api_v1.profile_api.update_coding_languages, implemented at app/routes/api/profile.py:225-261) enforces @login_required, cookie-only session via _account_security_is_cookie_only (with global CSRF enforcement in app/__init__.py:381-409), checks \"coder\" in role_flags(current_user, virtual=False), validates active language codes, and updates only current_user.vacode_language. In app/services/authz/grant_cache.py:42-160, _collect_access_notices and _send_access_notices emit generic access_changed notifications scoped to each affected user_id and clear pending notices on rollback via _drop_access_notices."
+        },
+        {
+          "agent_id": "hunter-w1-native-infra",
+          "method": "source",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/commands/seed.py",
+            "migrations/versions/b4e8c2a6d0f3_training_session_types.py",
+            "migrations/versions/c7f1d3a5e9b2_training_participants_user_index.py",
+            "migrations/versions/d8a2f4c6e1b3_add_map_project_members.py"
+          ],
+          "invariant": "Seed CLI commands must never install known default passwords or test accounts in non-dev environments without explicit staging safeguards and randomized credentials, and schema migrations must preserve data integrity and reversibility.",
+          "result": "holds: In app/commands/seed.py:30-42, _seed_password generates secrets.token_urlsafe(16) whenever neither app.debug nor app.testing is true. seed_test_project (lines 414-482) refuses non-dev execution unless both --staging and DIGITVA_ALLOW_TEST_SEED=1 are set, requires an active global admin --actor-email, strips project_pi and classical grants, and sets secrets.token_urlsafe(32) passwords. e2e-users commands (lines 515-672) enforce _require_dev_app (debug/testing only) and write output files with mode 0o600. Migrations b4e8c2a6d0f3, c7f1d3a5e9b2, and d8a2f4c6e1b3 are additive, enforce check/unique constraints and foreign keys, and guard downgrade against data loss."
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [],
+  "hardening": [
+    {
+      "paths": [
+        "mobile/digitva-collect/modules/digitva-smartva/ios/DigitvaSmartvaModule.swift"
+      ],
+      "description": "In DigitvaSmartvaModule.swift:14 and 115, queue = SmartvaWorker() is an instance property on DigitvaSmartvaModule while SmartvaWorker.submit spawns a background Thread capturing [unowned self] to run an infinite loop (run()). Unlike DigitvaIcd11Module.swift:17 (which declares private static let worker = EngineWorker()), if Expo ever deallocates a DigitvaSmartvaModule instance on JS reload after submit() has started the thread, [unowned self] in the permanent thread could trap on a deallocated SmartvaWorker instance.",
+      "recommendation": "Declare SmartvaWorker as private static let queue = SmartvaWorker() on DigitvaSmartvaModule (matching DigitvaIcd11Module.swift:17) or capture self strongly on the permanent worker thread."
+    },
+    {
+      "paths": [
+        "docker-compose.yml",
+        "docker-compose.demo.yml"
+      ],
+      "description": "While demo_doris_public_service in docker-compose.demo.yml:226-263 is isolated on internal networks (doris_public, digitva_icd) with a dedicated DEMO_DORIS_PUBLIC_SECRET_KEY, DATABASE_URL=sqlite://, and DORIS_PUBLIC_COOKIE_SECURE=true, doris_public_service in docker-compose.yml:154-172 remains on the default compose network, receives the main app's SECRET_KEY, CAPTCHA_HMAC_KEY, AUTH_FACTOR_ENCRYPTION_KEY, and PostgreSQL DATABASE_URL via <<: *common-Variables, and defaults DORIS_PUBLIC_COOKIE_SECURE to false.",
+      "recommendation": "Align doris_public_service in docker-compose.yml with demo_doris_public_service in docker-compose.demo.yml by giving it a dedicated secret key, setting DATABASE_URL=sqlite://, and restricting its networks to doris_public and digitva_icd."
+    },
+    {
+      "paths": [
+        "scripts/smartva-parity/rescore_server.py",
+        "scripts/smartva-parity/compare.py"
+      ],
+      "description": "rescore_server.py:85-87 and compare.py:91-92 check if \"private\" not in out.parts to verify that output files stay inside the gitignored private/ directory, which would allow an arbitrary path outside the repository if any path component is named \"private\" (e.g., /tmp/private/out.jsonl).",
+      "recommendation": "Validate out.resolve().is_relative_to((REPO / \"private\").resolve()) instead of checking \"private\" in out.parts."
+    }
+  ],
+  "uncovered": []
+}

@@ -1,0 +1,146 @@
+{
+  "units": [
+    {
+      "coverage_id": "mobile%2Fdigitva-collect%2Fsrc%2Fauth.ts%23mobile_auth_and_profile_delete::mobile%2Fdigitva-collect%2Fsrc%2FpinResetGrant.ts%23hasProfileDeleteGrant::mobile%2Fdigitva-collect%2Fsrc::ATTACK-CLASSES.md%23Business%20logic",
+      "disposition": "completed",
+      "reviewed_paths": [
+        "mobile/digitva-collect/src/auth.ts",
+        "mobile/digitva-collect/src/pinResetGrant.ts",
+        "mobile/digitva-collect/src/interviewerDb.ts",
+        "mobile/digitva-collect/src/DeviceLimitChoice.tsx",
+        "mobile/digitva-collect/src/nativeAuthLinks.ts",
+        "mobile/digitva-collect/src/offlineProfile.ts",
+        "mobile/digitva-collect/src/nativeRoutes/unlock.tsx",
+        "mobile/digitva-collect/src/nativeRoutes/sign-in.tsx",
+        "mobile/digitva-collect/src/nativeRoutes/demo.tsx",
+        "mobile/digitva-collect/src/nativeRoutes/enrol.tsx",
+        "mobile/digitva-collect/src/nativeRoutes/index.tsx",
+        "mobile/digitva-collect/src/nativeRoutes/settings.tsx",
+        "mobile/digitva-collect/src/nativeRoutes/pin-setup.tsx",
+        "mobile/digitva-collect/src/vault.ts",
+        "mobile/digitva-collect/src/accountStoreIdentity.ts",
+        "mobile/digitva-collect/src/accountServer.ts",
+        "mobile/digitva-collect/src/enrolment.ts",
+        "mobile/digitva-collect/src/reEnrolConfirm.ts",
+        "mobile/digitva-collect/src/AppState.tsx",
+        "app/routes/api/auth.py",
+        "app/services/device_auth_service.py"
+      ],
+      "checks": [
+        {
+          "agent_id": "hunter-w1-mobile-client",
+          "statement": "Deleting a local profile via deleteProfile requires either an unlocked SQLCipher store (proving PIN possession) with zero unsent work, or an in-memory profile-delete grant issued by verifyPasswordForDelete after verifying that the authenticated user_id matches the target profile's user_id and the user explicitly confirms data loss.",
+          "reviewed_paths": [
+            "mobile/digitva-collect/src/auth.ts",
+            "mobile/digitva-collect/src/pinResetGrant.ts",
+            "mobile/digitva-collect/src/interviewerDb.ts",
+            "mobile/digitva-collect/src/nativeRoutes/unlock.tsx",
+            "mobile/digitva-collect/src/nativeRoutes/sign-in.tsx",
+            "mobile/digitva-collect/src/vault.ts",
+            "app/routes/api/auth.py",
+            "app/services/device_auth_service.py"
+          ],
+          "method": "source",
+          "outcome": "sustained",
+          "artifact": null,
+          "summary": "Verified in auth.ts:1322-1455, pinResetGrant.ts:1-56, interviewerDb.ts:160-163, and unlock.tsx:96-205 that deleteProfile checks unsentWorkCount(userId); when the SQLCipher database is locked (storeCount === undefined), deleteProfile refuses with ProfileDeleteRefusedError('not_verified') unless hasProfileDeleteGrant(userId) is true, which is only set by allowProfileDelete(userId) after verifyPassword confirms String(body.user?.user_id) === userId against the slot's enrolled server, and refuses with 'confirmation_required' unless lossConfirmed is true. Also verified resetMissingStore(userId) in interviewerDb.ts:383-386 checks dbFileMissing(userId) before removing Keychain/SecureStore material, and standalone PIN-failure erasure in unlock.tsx:107-126 is gated on account.standalone === true."
+        },
+        {
+          "agent_id": "hunter-w1-mobile-client",
+          "statement": "Server origin pinning, sign-in code/QR redemption, device-limit replacement, and session revocation handling preserve unsent local work and prevent cross-server or cross-account store confusion.",
+          "reviewed_paths": [
+            "mobile/digitva-collect/src/auth.ts",
+            "mobile/digitva-collect/src/DeviceLimitChoice.tsx",
+            "mobile/digitva-collect/src/nativeAuthLinks.ts",
+            "mobile/digitva-collect/src/offlineProfile.ts",
+            "mobile/digitva-collect/src/nativeRoutes/enrol.tsx",
+            "mobile/digitva-collect/src/nativeRoutes/sign-in.tsx",
+            "mobile/digitva-collect/src/nativeRoutes/demo.tsx",
+            "mobile/digitva-collect/src/nativeRoutes/index.tsx",
+            "mobile/digitva-collect/src/nativeRoutes/settings.tsx",
+            "mobile/digitva-collect/src/nativeRoutes/pin-setup.tsx",
+            "mobile/digitva-collect/src/accountStoreIdentity.ts",
+            "mobile/digitva-collect/src/accountServer.ts",
+            "mobile/digitva-collect/src/enrolment.ts",
+            "mobile/digitva-collect/src/reEnrolConfirm.ts",
+            "mobile/digitva-collect/src/AppState.tsx"
+          ],
+          "method": "source",
+          "outcome": "sustained",
+          "artifact": null,
+          "summary": "Verified in enrolment.ts:144-169, auth.ts:749-968, and nativeAuthLinks.ts:18-30 that all enrollment, QR scan, sign-in code redemption, and native auth links enforce acceptedServerOrigin (HTTPS, causeofdeathindia.com or subdomain, no userinfo/port/path/query/fragment) and bind accounts to server_origin via assertSameServerStore in accountStoreIdentity.ts:48-87. Verified in auth.ts:1049-1114 that handleRevokedSession preserves the local profile and sets access_removed: true whenever unsentWorkCount(userId) is non-zero or undefined (locked SQLCipher DB). Verified in demo.tsx:41-95 and offlineProfile.ts:81-174 that demo sign-in uses isolated slot 'demo' and standalone profiles require all enrolled server slots to have no signed-in accounts."
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "mobile%2Fdigitva-collect%2Fsrc%2Fsync.ts%23sync_and_offline_coding::mobile%2Fdigitva-collect%2Fsrc%2Fworkspace%2FpiiBoundary.ts%23assertNoPii::mobile%2Fdigitva-collect%2Fsrc%2Fworkspace::ATTACK-CLASSES.md%23Chained%20vulnerabilities%20and%20trust%20boundaries",
+      "disposition": "completed",
+      "reviewed_paths": [
+        "mobile/digitva-collect/src/sync.ts",
+        "mobile/digitva-collect/src/draftSync.ts",
+        "mobile/digitva-collect/src/attachmentUpload.ts",
+        "mobile/digitva-collect/src/workspace/offlineDoris.ts",
+        "mobile/digitva-collect/src/workspace/dorisGuidance.ts",
+        "mobile/digitva-collect/src/workspace/piiBoundary.ts",
+        "mobile/digitva-collect/src/workspace/doris/browserDraft.ts",
+        "mobile/digitva-collect/src/workspace/viewState.ts",
+        "mobile/digitva-collect/src/workspace/media/AttachmentMedia.native.tsx",
+        "mobile/digitva-collect/src/workspace/media/AttachmentMedia.web.tsx",
+        "mobile/digitva-collect/src/workspace/media/AttachmentGallery.web.tsx",
+        "mobile/digitva-collect/src/workspace/media/attachmentScope.ts",
+        "mobile/digitva-collect/src/workspace/media/path.ts",
+        "mobile/digitva-collect/src/standalone/shareFile.ts"
+      ],
+      "checks": [
+        {
+          "agent_id": "hunter-w1-mobile-client",
+          "statement": "Mobile submission upload, draft sync, and project access reconciliation verify SHA-256 receipts and server identity before mutating or deleting local drafts and never discard unsent work.",
+          "reviewed_paths": [
+            "mobile/digitva-collect/src/sync.ts",
+            "mobile/digitva-collect/src/draftSync.ts",
+            "mobile/digitva-collect/src/attachmentUpload.ts"
+          ],
+          "method": "source",
+          "outcome": "sustained",
+          "artifact": null,
+          "summary": "Verified in sync.ts:698-721 and 1806-1812 that uploadQueuedWork and codingOutcome verify received_sha256 === answersHash and coding_sha256 === sentDigest before marking work synced or calling deleteDraftSnapshot. Verified in draftSync.ts:557-598 that syncDraftSnapshot checks serverIdentityMatches (project_id, site_id, death_id, org_unit_id), server_draft_id, and answers_sha256, and uses a compare-and-set UPDATE guarded by envelope, updated_at, completed = 0, and draft_sync_blocked = 0. Verified in sync.ts:1276-1278 and 1439-1441 that reconcileReferenceAccess and loadReferenceData preserve unsent local work via purgeProjectData and recordPausedProjects."
+        },
+        {
+          "agent_id": "hunter-w1-mobile-client",
+          "statement": "Offline DORIS coding and ICD-11 guidance enforce the client-side PII boundary before invoking the WHO engine, browser DORIS draft storage binds sessionStorage drafts to the user/case context fingerprint, and attachment media components validate attachment paths and clean up temporary files.",
+          "reviewed_paths": [
+            "mobile/digitva-collect/src/workspace/offlineDoris.ts",
+            "mobile/digitva-collect/src/workspace/dorisGuidance.ts",
+            "mobile/digitva-collect/src/workspace/piiBoundary.ts",
+            "mobile/digitva-collect/src/workspace/doris/browserDraft.ts",
+            "mobile/digitva-collect/src/workspace/viewState.ts",
+            "mobile/digitva-collect/src/workspace/media/AttachmentMedia.native.tsx",
+            "mobile/digitva-collect/src/workspace/media/AttachmentMedia.web.tsx",
+            "mobile/digitva-collect/src/workspace/media/AttachmentGallery.web.tsx",
+            "mobile/digitva-collect/src/workspace/media/attachmentScope.ts",
+            "mobile/digitva-collect/src/workspace/media/path.ts",
+            "mobile/digitva-collect/src/standalone/shareFile.ts"
+          ],
+          "method": "source",
+          "outcome": "sustained",
+          "artifact": null,
+          "summary": "Verified in offlineDoris.ts:249-292, dorisGuidance.ts:417-425, and piiBoundary.ts:38-76 that onProcess, onTerms, onCodeInfo, onSelectionCheck, and guidance.answer run assertNoPii / assertNoPiiInText on all outgoing fields before calling the WHO engine. Verified in browserDraft.ts:50-139 that sessionStorage drafts under digitva:doris:draft:v1 require an exact match on all DraftContext fields (fingerprint/doris_draft_context, vaSid, mode, payloadVersion, projectMode) and call clearBrowserDraft() on any mismatch. Verified in path.ts:8-37, AttachmentMedia.native.tsx:23-53, AttachmentMedia.web.tsx:16-24, AttachmentGallery.web.tsx:130-156, and shareFile.ts:22-63 that attachment paths are strictly validated by attachmentMediaExtension before URL construction or cache file creation, and shareAndDelete removes the temporary cache file in a finally block."
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ],
+  "candidates": [],
+  "hardening": [
+    {
+      "title": "Password verification for profile deletion or sign-out recovery cannot replace a device when the account is at the 3-device limit",
+      "location": "mobile/digitva-collect/src/auth.ts:1322-1337, mobile/digitva-collect/src/nativeRoutes/sign-in.tsx:89-90",
+      "observation": "verifyPassword(userId, identifier, password) authenticates against the server by calling POST /api/v1/auth/sessions without replace_device_id and immediately revoking the opened session. In sign-in.tsx:89-90, deviceLimitPhones(caught) is suppressed when recover === '1' or deleteProfile === '1'. If an interviewer's profile on this phone is signed_out (so this phone has no live session) and the interviewer now has 3 active sessions on other phones, POST /api/v1/auth/sessions returns 409 device_limit and the user cannot complete password-based profile deletion or sign-out recovery on this phone until signing out on one of the other phones. Additionally, if the profile still had an active server session on this phone and the user cancels after verifyPasswordForDelete, POST /api/v1/auth/sessions revokes the prior session on this device with reason signed_in_again.",
+      "suggestion": "Consider a dedicated stateless credential verification endpoint (or a dry-run/verify flag on session creation) for recoverSignOut and verifyPasswordForDelete that checks the user's password and device enrollment without allocating a device session slot or revoking existing pair sessions."
+    }
+  ],
+  "uncovered": []
+}

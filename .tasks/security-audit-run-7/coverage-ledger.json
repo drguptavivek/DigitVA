@@ -1,0 +1,2172 @@
+[
+  {
+    "coverage_id": "app%2F__init__.py%23wildcard_and_obvious_checks::app%2Fservices%2Fauthz%2Fconsulted.py%23install_consultation_guard::app::ATTACK-CLASSES.md%23Obvious%20things",
+    "canonical_refs": {
+      "surface": "app/__init__.py#wildcard_and_obvious_checks",
+      "boundary": "app/services/authz/consulted.py#install_consultation_guard",
+      "subsystem": "app",
+      "attack_class": "ATTACK-CLASSES.md#Obvious things"
+    },
+    "surface": "Application initialization, consultation guard, migrations, and cross-feature interactions in 3603ca6..HEAD",
+    "boundary": "Authz consultation guard, terms gate, public demo namespace isolation, and schema migrations",
+    "subsystem": "Core Flask application and migrations",
+    "attack_class": "Obvious things",
+    "starting_paths": [
+      "app/__init__.py",
+      "app/services/authz/consulted.py",
+      "app/services/authz/grant_cache.py",
+      "app/commands/seed.py",
+      "migrations/versions/b4e8c2a6d0f3_training_session_types.py",
+      "migrations/versions/c7f1d3a5e9b2_training_participants_user_index.py",
+      "migrations/versions/d8a2f4c6e1b3_add_map_project_members.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Obvious things",
+    "selected_companion_blocks": [
+      "ATTACK-CLASSES.md#Wildcard"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Python app init and Alembic migrations."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-w1-native-infra",
+    "reviewed_paths": [
+      "app/__init__.py",
+      "app/routes/api/profile.py",
+      "app/services/authz/consulted.py",
+      "app/services/authz/grant_cache.py",
+      "app/services/notification_service.py",
+      "app/commands/seed.py",
+      "migrations/versions/b4e8c2a6d0f3_training_session_types.py",
+      "migrations/versions/c7f1d3a5e9b2_training_participants_user_index.py",
+      "migrations/versions/d8a2f4c6e1b3_add_map_project_members.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-native-infra",
+        "reviewed_paths": [
+          "app/__init__.py",
+          "app/routes/api/profile.py",
+          "app/services/authz/consulted.py",
+          "app/services/authz/grant_cache.py",
+          "app/services/notification_service.py"
+        ],
+        "invariant": "Every authenticated non-self-service endpoint must consult the authorization layer before returning 2xx/3xx, newly allowlisted PUBLIC_ENDPOINTS and SELF_SERVICE_ENDPOINTS must enforce their own authentication/session/CSRF and self-scoping invariants, and grant-cache access notification hooks must not leak cross-tenant data or break transaction rollback.",
+        "method": "source",
+        "result": "holds: In app/services/authz/consulted.py:27-79, the newly added PUBLIC_ENDPOINTS (api_v1.auth_api.redeem_sign_in_code, api_v1.auth_api.record_profile_deletion) authenticate one-time sign-in codes or per-user device secrets with rate limiting, and the newly added SELF_SERVICE_ENDPOINTS entry (api_v1.profile_api.update_coding_languages, implemented at app/routes/api/profile.py:225-261) enforces @login_required, cookie-only session via _account_security_is_cookie_only (with global CSRF enforcement in app/__init__.py:381-409), checks \"coder\" in role_flags(current_user, virtual=False), validates active language codes, and updates only current_user.vacode_language. In app/services/authz/grant_cache.py:42-160, _collect_access_notices and _send_access_notices emit generic access_changed notifications scoped to each affected user_id and clear pending notices on rollback via _drop_access_notices.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-native-infra",
+        "reviewed_paths": [
+          "app/commands/seed.py",
+          "migrations/versions/b4e8c2a6d0f3_training_session_types.py",
+          "migrations/versions/c7f1d3a5e9b2_training_participants_user_index.py",
+          "migrations/versions/d8a2f4c6e1b3_add_map_project_members.py"
+        ],
+        "invariant": "Seed CLI commands must never install known default passwords or test accounts in non-dev environments without explicit staging safeguards and randomized credentials, and schema migrations must preserve data integrity and reversibility.",
+        "method": "source",
+        "result": "holds: In app/commands/seed.py:30-42, _seed_password generates secrets.token_urlsafe(16) whenever neither app.debug nor app.testing is true. seed_test_project (lines 414-482) refuses non-dev execution unless both --staging and DIGITVA_ALLOW_TEST_SEED=1 are set, requires an active global admin --actor-email, strips project_pi and classical grants, and sets secrets.token_urlsafe(32) passwords. e2e-users commands (lines 515-672) enforce _require_dev_app (debug/testing only) and write output files with mode 0o600. Migrations b4e8c2a6d0f3, c7f1d3a5e9b2, and d8a2f4c6e1b3 are additive, enforce check/unique constraints and foreign keys, and guard downgrade against data loss.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fadmin_organization.py%23members_and_users_import::app%2Fservices%2Fproject_user_import_service.py%23prepare_members::app%2Fservices%2Fproject_user_import_service.py::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "app/routes/admin_organization.py#members_and_users_import",
+      "boundary": "app/services/project_user_import_service.py#prepare_members",
+      "subsystem": "app/services/project_user_import_service.py",
+      "attack_class": "ATTACK-CLASSES.md#Feature abuse and data leakage"
+    },
+    "surface": "Project members CSV/XLSX import and project-users bulk import",
+    "boundary": "Member creation, reactivation guard, and import size/row validation",
+    "subsystem": "Project user import service",
+    "attack_class": "Feature abuse and data leakage",
+    "starting_paths": [
+      "app/services/project_user_import_service.py",
+      "app/routes/admin_organization.py",
+      "app/models/map_project_members.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Import and restore authority expansion",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Enumeration and aggregate oracles",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Decompression and representation amplification",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Core discipline",
+        "reason": "Server-side CSV/XLSX import pipeline."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-w1-roster-org",
+    "reviewed_paths": [
+      "app/models/map_project_members.py",
+      "app/routes/admin_organization.py",
+      "app/services/organization_service.py",
+      "app/services/project_user_import_service.py",
+      "app/services/mobile_sign_in_service.py",
+      "app/services/tabular_import_service.py",
+      "app/services/user_directory_service.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/models/map_project_members.py",
+          "app/routes/admin_organization.py",
+          "app/services/organization_service.py",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "ATTACK-CLASSES.md#Feature abuse and data leakage: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: Traced prepare_members and apply_members in app/services/project_user_import_service.py:645-791 called from POST /admin/api/projects/<project_id>/users-grid/members/import. Any project_pi or project-scope data_manager can match any active platform user by email (with blank phone) or by 10-digit mobile (with blank email) and insert a MapProjectMember row in their project, both leaking full account/device/event details via the roster/person panel and causing _outside_member to lock out the victim project's managers.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/models/map_project_members.py",
+          "app/services/mobile_sign_in_service.py",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: MapProjectMember rows created in Project B by prepare_members/apply_members mutate global isolation predicates (_outside_member in mobile_sign_in_service.py:262-269) evaluated when Project A's managers manage their own project's users.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/organization_service.py",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Import and restore authority expansion: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: Bulk import endpoints (POST /users-grid/members/import, POST /project-users/import, and POST /organization/<project_id>/import) bind existing VaUsers accounts to a project without checking whether the target user belongs to another tenant/project or holds a privileged role (e.g., platform admin, project_pi), expanding the caller's authority to view the user's panel and pass require_on_project_roster.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/organization_service.py",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Enumeration and aggregate oracles: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: While lookup_existing_user (organization_service.py:3116-3118) and prepare_members dry_run preview (project_user_import_service.py:784) withhold the unqueried contact channel (phone vs email) and restrict lookup to admin/project_pi, a project_pi or project-scope data_manager can batch-query up to 500 emails or phone numbers per request via members/import (dry_run=1 reveals existing user_id and name; dry_run=0 attaches them to the roster and exposes their unqueried contact channel, profile, devices, and security events).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Verified inactive-user reactivation guard: prepare_members (lines 727-739) rejects inactive existing accounts unless allow_reactivate is True (admin only), and prepare (lines 310-317, 456-468) requires admin to reactivate inactive accounts.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Applied data-isolation validation rules to trace import preview and apply paths end to end.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/organization_service.py",
+          "app/services/project_user_import_service.py",
+          "app/services/tabular_import_service.py"
+        ],
+        "invariant": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Verified upload size and row caps across parse_upload, read_upload_bytes, and _check_xlsx_archive.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/services/organization_service.py",
+          "app/services/project_user_import_service.py",
+          "app/services/tabular_import_service.py"
+        ],
+        "invariant": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Decompression and representation amplification: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Checked XLSX zip bomb defenses in tabular_import_service._check_xlsx_archive: enforces MAX_UPLOAD_BYTES (5 MB), MAX_XLSX_ENTRIES (100), MAX_XLSX_UNCOMPRESSED_BYTES (25 MB) prior to openpyxl load_workbook(read_only=True), and caps rows at MAX_IMPORT_ROWS (500) with cell length limit MAX_CELL_CHARS (1000).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/services/project_user_import_service.py",
+          "app/services/tabular_import_service.py"
+        ],
+        "invariant": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Verified that apply_members only hashes passwords for newly created mobile-only accounts (capped by MAX_IMPORT_ROWS=500) and existing accounts skip password hashing.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/services/tabular_import_service.py"
+        ],
+        "invariant": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Confirmed explicit bounds exist on archive entries, uncompressed bytes, row count, and column count.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-01",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/project_user_import_service.py",
+          "app/services/mobile_sign_in_service.py"
+        ],
+        "invariant": "Phase 3 independent validation of app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management",
+        "method": "source",
+        "result": "needs_validation: prepare_members() and apply_members() in app/services/project_user_import_service.py:645-791 allow any project_pi or project-scope data_manager to attach any active existing VaUsers account to their project's MapProjectMember table by email or canonical 10-digit mobile number without verifying whether the account already belongs to or holds active grants/worker rows in another project, while _outside_member() in app/services/mobile_sign_in_service.py:262-269 treats any MapProjectMember row in an unmanaged project as disqualifying in _roster_rule() and may_issue_code_from_data_management() even when the target holds active grants only in the victim manager's project.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-02",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/project_user_import_service.py",
+          "app/services/organization_service.py",
+          "app/services/user_directory_service.py"
+        ],
+        "invariant": "Phase 3 independent validation of app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard",
+        "method": "source",
+        "result": "needs_validation: _import_workers (app/services/organization_service.py:2598-2663) omits require_on_project_roster and allows resolving arbitrary active users by UUID or email via resolve_user (lines 1816-1838), while prepare_members/apply_members (app/services/project_user_import_service.py:645-791) allows a project_pi or project-scope data_manager to attach any active platform account to MapProjectMember using a single identifier; subsequently, admin_project_user_panel (app/routes/admin_organization.py:1558-1603) gates full contact disclosure, cross-project device inventory (list_account_devices), and unfiltered global security event history (_panel_activity at lines 1521-1541) solely on on_project_roster (app/services/organization_service.py:3956-3970) rather than requiring exclusive account management (may_edit_account / _device_management_user) or scoping security events to the project.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management",
+      "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fadmin_organization.py%23roster_and_users_grid::app%2Fservices%2Forganization_service.py%23require_on_project_roster::app%2Fservices%2Forganization_service.py::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "app/routes/admin_organization.py#roster_and_users_grid",
+      "boundary": "app/services/organization_service.py#require_on_project_roster",
+      "subsystem": "app/services/organization_service.py",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Project roster, users grid, and bulk grant/worker apply endpoints",
+    "boundary": "Project roster membership and grant-write scope enforcement",
+    "subsystem": "Organization and project roster service",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "app/routes/admin_organization.py",
+      "app/services/organization_service.py",
+      "app/services/authz/grant_writes.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Stale authorization and derived copy use",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Pure Python/SQLAlchemy route and service code."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-w1-roster-org",
+    "reviewed_paths": [
+      "app/models/map_project_members.py",
+      "app/routes/admin_organization.py",
+      "app/services/authz/grant_writes.py",
+      "app/services/organization_service.py",
+      "app/services/project_user_import_service.py",
+      "app/services/mobile_sign_in_service.py",
+      "app/services/user_directory_service.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/models/map_project_members.py",
+          "app/routes/admin_organization.py",
+          "app/services/authz/grant_writes.py",
+          "app/services/organization_service.py",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "ATTACK-CLASSES.md#Access control: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: Verified _roster_guard, _require_dm_unit_scope, check_grant_write_allowed, and require_on_project_roster across get_project_users_grid, bulk_apply_project_users_grid, admin_org_create_worker, and admin_org_update_worker. Found that require_on_project_roster trusts MapProjectMember rows without verifying target account isolation, and _import_workers/prepare_members allow attaching arbitrary existing platform accounts to the roster, unlocking full user-grid and person-panel inspection as well as subsequent bulk-apply/worker placement.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/organization_service.py",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: Traced project-roster boundary in on_project_roster and get_project_users_grid; once an existing user is added to MapProjectMember (or linked via _import_workers), all project-roster read surfaces treat the account as an in-project member and expose global VaUsers profile attributes, enrolled devices, and security event history.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/authz/grant_writes.py",
+          "app/services/organization_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: In admin_project_user_panel (app/routes/admin_organization.py:1521-1603), _panel_activity queries VaSecurityEvent by target_user_id without filtering by project_id, and list_account_devices queries all enrolled devices for user_id across projects; combined with unconsented roster attachment, a PI/DM in Project B can read cross-project security events (including actor names from Project A) and device metadata.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/mobile_sign_in_service.py",
+          "app/services/organization_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: Single-worker endpoints (admin_org_create_worker at line 755 and admin_org_update_worker at line 860) and bulk_apply_project_users_grid (line 4660) enforce require_on_project_roster, whereas _import_workers (organization_service.py:2598-2663), prepare_members/apply_members (project_user_import_service.py:645-791), and project-users/import (project_user_import_service.py:337-504) attach arbitrary existing users without require_on_project_roster.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/authz/grant_writes.py",
+          "app/services/organization_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Stale authorization and derived copy use: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Verified bump_bulk_grant_versions and bump_grant_version calls after bulk_apply_project_users_grid and remove_from_project; grant version invalidation is consistently triggered on grant changes.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/organization_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Checked cross-project org_unit_id, cadre_id, site_id, and form_type_id references in bulk_apply_project_users_grid; unit, cadre, site, and form lookups are scoped to project_id.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/organization_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Applied data-isolation validation rules to trace caller roles, project boundaries, and downstream query predicates.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-02",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/project_user_import_service.py",
+          "app/services/organization_service.py",
+          "app/services/user_directory_service.py"
+        ],
+        "invariant": "Phase 3 independent validation of app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard",
+        "method": "source",
+        "result": "needs_validation: _import_workers (app/services/organization_service.py:2598-2663) omits require_on_project_roster and allows resolving arbitrary active users by UUID or email via resolve_user (lines 1816-1838), while prepare_members/apply_members (app/services/project_user_import_service.py:645-791) allows a project_pi or project-scope data_manager to attach any active platform account to MapProjectMember using a single identifier; subsequently, admin_project_user_panel (app/routes/admin_organization.py:1558-1603) gates full contact disclosure, cross-project device inventory (list_account_devices), and unfiltered global security event history (_panel_activity at lines 1521-1541) solely on on_project_roster (app/services/organization_service.py:3956-3970) rather than requiring exclusive account management (may_edit_account / _device_management_user) or scoping security events to the project.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fadmin_organization.py%23workers_and_person_panel::app%2Fservices%2Fmobile_sign_in_service.py%23may_edit_account::app%2Froutes%2Fadmin_organization.py::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "app/routes/admin_organization.py#workers_and_person_panel",
+      "boundary": "app/services/mobile_sign_in_service.py#may_edit_account",
+      "subsystem": "app/routes/admin_organization.py",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Single-worker placement/update, person panel profile edit, password reset, and project removal",
+    "boundary": "Cross-project member isolation and all-or-nothing grant revocation on project removal",
+    "subsystem": "Admin organization and person panel routes",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "app/routes/admin_organization.py",
+      "app/services/organization_service.py",
+      "app/services/mobile_sign_in_service.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Stale authorization and derived copy use",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Python backend logic."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-w1-roster-org",
+    "reviewed_paths": [
+      "app/routes/admin_organization.py",
+      "app/services/mobile_sign_in_service.py",
+      "app/services/organization_service.py",
+      "app/services/project_user_import_service.py",
+      "app/services/user_directory_service.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/mobile_sign_in_service.py",
+          "app/services/organization_service.py",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "ATTACK-CLASSES.md#Business logic: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: Traced interaction between prepare_members/apply_members (project_user_import_service.py:645-791) and _outside_member / _roster_rule / may_issue_code_from_data_management (mobile_sign_in_service.py:155-320). Because _outside_member checks whether the target user has any MapProjectMember row in a project outside the caller's managed projects, a PI or project-scope DM in Project B who imports User X's email or mobile into Project B's MapProjectMember immediately blocks Project A's PI, project-scope DM, and unit-scope DMs/In-charges from issuing sign-in codes, editing User X's profile, or sending password-reset links.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/mobile_sign_in_service.py",
+          "app/services/organization_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: Verified remove_from_project (organization_service.py:3989-4057) all-or-nothing grant revocation check for unit-scope DMs and cross-project member isolation in mobile_sign_in_service.py.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/mobile_sign_in_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "candidate: Confirmed that _panel_grants (admin_organization.py:1490-1518) does not even surface MapProjectMember rows from other projects, so when Project B adds a MapProjectMember row for Project A's user, Project A's managers lose edit/code/reset capabilities without any visible other-project grant in the panel and have no way to remove Project B's MapProjectMember row.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/organization_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Stale authorization and derived copy use: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Verified that remove_from_project revokes all active project grants, unlinks active project workers, deletes the MapProjectMember row, and bumps grant_version (admin_organization.py:1728).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/organization_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Checked worker create/update/deactivate and person panel profile/password-reset/remove routes for unit-scope DM boundaries and self-removal guards.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-roster-org",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/mobile_sign_in_service.py"
+        ],
+        "invariant": "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules: project roster, user import, and person panel operations must enforce tenant and role boundaries",
+        "method": "source",
+        "result": "clean: Traced all callers of may_edit_account, editable_user_ids, may_issue_code_in_project, issuable_user_ids, and may_issue_code_from_data_management.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-01",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/project_user_import_service.py",
+          "app/services/mobile_sign_in_service.py"
+        ],
+        "invariant": "Phase 3 independent validation of app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management",
+        "method": "source",
+        "result": "needs_validation: prepare_members() and apply_members() in app/services/project_user_import_service.py:645-791 allow any project_pi or project-scope data_manager to attach any active existing VaUsers account to their project's MapProjectMember table by email or canonical 10-digit mobile number without verifying whether the account already belongs to or holds active grants/worker rows in another project, while _outside_member() in app/services/mobile_sign_in_service.py:262-269 treats any MapProjectMember row in an unmanaged project as disqualifying in _roster_rule() and may_issue_code_from_data_management() even when the target holds active grants only in the victim manager's project.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-02",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/project_user_import_service.py",
+          "app/services/organization_service.py",
+          "app/services/user_directory_service.py"
+        ],
+        "invariant": "Phase 3 independent validation of app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard",
+        "method": "source",
+        "result": "needs_validation: _import_workers (app/services/organization_service.py:2598-2663) omits require_on_project_roster and allows resolving arbitrary active users by UUID or email via resolve_user (lines 1816-1838), while prepare_members/apply_members (app/services/project_user_import_service.py:645-791) allows a project_pi or project-scope data_manager to attach any active platform account to MapProjectMember using a single identifier; subsequently, admin_project_user_panel (app/routes/admin_organization.py:1558-1603) gates full contact disclosure, cross-project device inventory (list_account_devices), and unfiltered global security event history (_panel_activity at lines 1521-1541) solely on on_project_roster (app/services/organization_service.py:3956-3970) rather than requiring exclusive account management (may_edit_account / _device_management_user) or scoping security events to the project.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management",
+      "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fadmin_training.py%23sessions_and_graduation::app%2Fservices%2Ftraining_demo_service.py%23graduate_participants::app%2Fservices%2Ftraining_demo_service.py::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "app/routes/admin_training.py#sessions_and_graduation",
+      "boundary": "app/services/training_demo_service.py#graduate_participants",
+      "subsystem": "app/services/training_demo_service.py",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Training session creation, trainee CSV/XLSX import, bulk enrolment, and graduation",
+    "boundary": "Session-type role restrictions, graduation target project guards, and confirmation requirement",
+    "subsystem": "Training demo service",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "app/routes/admin_training.py",
+      "app/services/training_demo_service.py",
+      "app/models/mas_training.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Import and restore authority expansion",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Python training management service."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-w1-training",
+    "reviewed_paths": [
+      "app/routes/admin_training.py",
+      "app/services/training_demo_service.py",
+      "app/services/project_user_import_service.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-training",
+        "reviewed_paths": [
+          "app/routes/admin_training.py",
+          "app/services/training_demo_service.py"
+        ],
+        "invariant": "All admin training routes and underlying service entrypoints enforce admin role authorization and validate session_type against SESSION_TYPES",
+        "method": "source",
+        "result": "holds",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-training",
+        "reviewed_paths": [
+          "app/routes/admin_training.py",
+          "app/services/training_demo_service.py",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "bulk_add_participants and import_trainees enforce session_type role boundaries (_TYPE_ROLES and IMPORT_KINDS), active session status, row caps (50), coder language requirements, and all-or-nothing rollback on dry_run or row refusal",
+        "method": "source",
+        "result": "holds",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-training",
+        "reviewed_paths": [
+          "app/routes/admin_training.py",
+          "app/services/training_demo_service.py",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "graduate rejects TRN01 and demo projects via _require_graduation_target, maps session roles strictly via _GRADUATION_ROLES (interviewer and coder only), and requires explicit user_id presence in confirm before reactivating accounts or changing cadre",
+        "method": "source",
+        "result": "holds",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fapi%2Fauth.py%23device_limit_eviction::app%2Fservices%2Fdevice_auth_service.py%23check_device_slot::app%2Fservices%2Fdevice_auth_service.py::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "app/routes/api/auth.py#device_limit_eviction",
+      "boundary": "app/services/device_auth_service.py#check_device_slot",
+      "subsystem": "app/services/device_auth_service.py",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Device limit 409 chooser, replace_device_id eviction, and profile-deletions endpoint",
+    "boundary": "Per-user FOR UPDATE device slot lock, owner binding on replace_device_id, and device_secret verification",
+    "subsystem": "Device authentication service",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "app/services/device_auth_service.py",
+      "app/routes/api/auth.py",
+      "app/services/notification_service.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Session fixation and invalidation",
+      "WEB-PROTOCOL-AND-AUTH.md#Account linking and identity collision",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Stale authorization and derived copy use",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#Core discipline",
+        "reason": "Backend JSON API endpoints."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-w1-auth-device",
+    "reviewed_paths": [
+      "app/routes/api/auth.py",
+      "app/services/device_auth_service.py",
+      "app/services/mobile_sign_in_service.py",
+      "app/services/sign_in_qr_service.py",
+      "app/services/authz/grant_cache.py",
+      "app/services/notification_service.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-auth-device",
+        "reviewed_paths": [
+          "app/routes/api/auth.py",
+          "app/services/device_auth_service.py",
+          "app/services/mobile_sign_in_service.py",
+          "app/services/sign_in_qr_service.py"
+        ],
+        "invariant": "Redeeming a one-time 8-char sign-in code or Sign-In QR token on a 4th device hits the 3-device limit (409 device_limit) after consuming the one-time token or rotating the password, stranding the user on retry with replace_device_id.",
+        "method": "source",
+        "result": "refuted: For 8-char sign-in codes, POST /api/v1/auth/sign-in-code/redeem (mobile_sign_in_service.redeem_code_and_accept_terms) consumes the code, rotates the password, bumps auth_session_version (which immediately invalidates all prior device sessions because _live_session requires AuthDeviceSession.user_session_version == user.auth_session_version), commits, and returns the generated password to the client; the client then calls POST /api/v1/auth/password-enroll with that password in memory and can retry with replace_device_id without re-redeeming the code. For Sign-In QR tokens, sign_in_qr_service.redeem calls devices.check_device_slot(user, replace_device_id=replace_device_id) at line 350 before executing the UPDATE on AuthSignInToken.redeemed_at at line 351; when check_device_slot raises DeviceAuthError('device_limit', 409), @bp.errorhandler(devices.DeviceAuthError) in app/routes/api/auth.py:102-106 rolls back the database session, leaving the QR token unconsumed for the retry with replace_device_id.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-auth-device",
+        "reviewed_paths": [
+          "app/routes/api/auth.py",
+          "app/services/device_auth_service.py"
+        ],
+        "invariant": "check_device_slot or enrol_demo_device allows cross-user device eviction via replace_device_id, concurrent bypass of MAX_ACTIVE_DEVICES_PER_USER (3), or stranding demo-enroll when _check_demo_device_cap fails after replace_device_id.",
+        "method": "source",
+        "result": "refuted: check_device_slot locks the target VaUsers row FOR UPDATE (serializing concurrent sign-ins for the same user), loads live sessions filtered by AuthDeviceSession.user_id == user.user_id, verifies replaced in live and replaced != device_id before calling decommission_account_device(user.user_id, replaced, user, reason='replaced_at_sign_in'), and runs inside the caller's transaction so any subsequent failure (such as _check_demo_device_cap raising 429 demo_limit in enrol_demo_device) rolls back the decommission via the blueprint error handler.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-auth-device",
+        "reviewed_paths": [
+          "app/routes/api/auth.py",
+          "app/services/device_auth_service.py"
+        ],
+        "invariant": "POST /api/v1/auth/profile-deletions allows a device to revoke another user's sessions on a different device or bypasses device_secret verification or unsent-work loss confirmation.",
+        "method": "source",
+        "result": "refuted: record_profile_deletion (app/services/device_auth_service.py:983-1050) authenticates the calling device via _authenticate_device_secret using hmac.compare_digest, requires either unsent_count == 0 or (unsent_count is None and loss_confirmed is True), verifies the target user_id had a session on that specific device.device_id (latest_session_at is not None), and revokes only AuthDeviceSession rows matching both device_id and user_id.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-auth-device",
+        "reviewed_paths": [
+          "app/services/authz/grant_cache.py",
+          "app/services/notification_service.py"
+        ],
+        "invariant": "notification_service.notify or grant_cache._send_access_notices leaks cross-user notifications or fails transactionally when access grants change.",
+        "method": "source",
+        "result": "refuted: grant_cache._send_access_notices queues affected user UUIDs on outer transaction commit (excluding newly created or deleted VaUsers rows) and inserts per-recipient UserNotification rows with project_id=NO_PROJECT inside before_commit; after_commit bumps only the per-user Redis watermark keys.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fapi%2Fauth.py%23sign_in_code_and_qr::app%2Fservices%2Fmobile_sign_in_service.py%23issue_and_redeem_code::app%2Fservices%2Fmobile_sign_in_service.py::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "app/routes/api/auth.py#sign_in_code_and_qr",
+      "boundary": "app/services/mobile_sign_in_service.py#issue_and_redeem_code",
+      "subsystem": "app/services/mobile_sign_in_service.py",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "One-time 8-char mobile sign-in code and QR token issuance and redemption",
+    "boundary": "Issuer scope, outside-member/live-phone takeover blocks, and redemption lockout",
+    "subsystem": "Mobile sign-in code and QR services",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "app/services/mobile_sign_in_service.py",
+      "app/services/sign_in_qr_service.py",
+      "app/routes/api/auth.py",
+      "app/routes/data_management.py",
+      "app/routes/admin.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Password reset and broader recovery",
+      "WEB-PROTOCOL-AND-AUTH.md#Session fixation and invalidation",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Python authentication service."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-w1-auth-device",
+    "reviewed_paths": [
+      "app/models/va_users.py",
+      "app/routes/admin_mentor_institute.py",
+      "app/routes/admin_organization.py",
+      "app/routes/api/auth.py",
+      "app/routes/api/users.py",
+      "app/routes/data_management.py",
+      "app/services/authz/grant_writes.py",
+      "app/services/device_auth_service.py",
+      "app/services/mobile_sign_in_service.py",
+      "app/services/project_user_import_service.py",
+      "app/services/sign_in_qr_service.py",
+      "app/services/user_directory_service.py",
+      "docs/policy/mobile-sign-in.md",
+      "app/routes/admin.py",
+      "docs/policy/dm-user-grant-management.md",
+      "app/models/mas_mentor_institute.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-auth-device",
+        "reviewed_paths": [
+          "app/models/va_users.py",
+          "app/routes/admin_mentor_institute.py",
+          "app/routes/admin_organization.py",
+          "app/routes/api/auth.py",
+          "app/routes/api/users.py",
+          "app/routes/data_management.py",
+          "app/services/authz/grant_writes.py",
+          "app/services/device_auth_service.py",
+          "app/services/mobile_sign_in_service.py",
+          "app/services/project_user_import_service.py",
+          "app/services/sign_in_qr_service.py",
+          "app/services/user_directory_service.py",
+          "docs/policy/mobile-sign-in.md"
+        ],
+        "invariant": "Non-admin issuers (project_pi, site_pi, data_manager) can issue a Sign-In QR or 8-char mobile sign-in code for an account with a verified email, a collector with a live phone session, or an account belonging to another project or mentoring institute.",
+        "method": "source",
+        "result": "survived: Found two access-control invariant failures: (1) sign_in_qr_service.may_issue and issue allow non-admins (project_pi, site_pi, data_manager) to issue a delivery='show' Sign-In QR token for accounts with a verified email, accounts already signed in on a live phone, and accounts on another project's MapProjectMember roster, returning the raw one-time token in the HTTP response and allowing the issuer to open a device session as the target user and decommission their existing phone via replace_device_id; (2) mobile_sign_in_service and project_user_import_service ignore MapMentorInstituteUser memberships, allowing a project_pi or data_manager to import an existing mentor_institute_admin into a project roster, issue a one-time sign-in code for an unverified/mobile-only mentor_institute_admin to take over their web session, or overwrite a verified mentor_institute_admin's global profile.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-auth-device",
+        "reviewed_paths": [
+          "app/routes/admin.py",
+          "app/routes/data_management.py",
+          "app/services/mobile_sign_in_service.py",
+          "docs/policy/dm-user-grant-management.md"
+        ],
+        "invariant": "Data Management user profile update and verification-email endpoints allow a project or site Data Manager to mutate global profile fields (such as vacode_language and job_title) of a user shared with another project or belonging to another project's roster.",
+        "method": "source",
+        "result": "survived: In app/routes/data_management.py, _dm_can_manage_user_profile checks _managed_user_condition() (which only tests whether the target user holds at least one active grant managed by the caller rather than requiring every active grant of the target user to be within the caller's scope) and, for users with zero active grants, does not check MapProjectMember outside the caller's projects. A Data Manager in Project A can therefore overwrite vacode_language and job_title via PUT /data-management/api/users/<target_user_id> for a coder/reviewer shared with Project B or an unplaced roster member of Project B.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-auth-device",
+        "reviewed_paths": [
+          "app/routes/api/auth.py",
+          "app/services/mobile_sign_in_service.py"
+        ],
+        "invariant": "One-time 8-char mobile sign-in code redemption can be brute-forced across concurrent requests or replayed after redemption or lockout.",
+        "method": "source",
+        "result": "refuted: mobile_sign_in_service._consume_code hashes the normalized 8-char Crockford Base32 code with SHA-256, locks the candidate AuthSignInToken row with SELECT ... FOR UPDATE (or increments failed_attempts atomically on all active code rows when no hash matches, locking the user row FOR UPDATE), enforces _MAX_FAILED_ATTEMPTS = 5 and _CODE_TTL = 15 minutes, sets redeemed_at = now, rotates the user's password to a 24-char random secret, and calls user.bump_session_version() before returning.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-03",
+        "reviewed_paths": [
+          "app/routes/api/users.py",
+          "app/services/sign_in_qr_service.py",
+          "app/routes/api/auth.py",
+          "app/services/mobile_sign_in_service.py",
+          "docs/policy/mobile-sign-in.md"
+        ],
+        "invariant": "Phase 3 independent validation of app/services/sign_in_qr_service.py:may_issue:non-admin-sign-in-qr-bypasses-verified-email-live-phone-and-outside-member-guards",
+        "method": "source",
+        "result": "needs_validation: app/services/sign_in_qr_service.py:may_issue (lines 118-130) and issue (lines 176-237) check only whether the target user is eligible for a collector project and holds at least one active grant with no active grant outside authz.grant_list_filter(actor, _grants=grants), omitting the non-admin delivery='show' restriction for verified-email accounts, the sa.not_(_live_phone(user_id)) guard, and the sa.not_(_outside_member(user_id, projects)) guard enforced in app/services/mobile_sign_in_service.py.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-04",
+        "reviewed_paths": [
+          "app/routes/admin_organization.py",
+          "app/services/project_user_import_service.py",
+          "app/services/mobile_sign_in_service.py",
+          "app/models/mas_mentor_institute.py",
+          "app/routes/admin_mentor_institute.py",
+          "app/routes/data_management.py"
+        ],
+        "invariant": "Phase 3 independent validation of app/services/mobile_sign_in_service.py:_roster_rule:mentor-institute-admin-account-takeover-and-profile-edit-via-project-import",
+        "method": "source",
+        "result": "needs_validation: `app/services/mobile_sign_in_service.py` (`may_issue_code`, `_roster_rule`, `issuable_user_ids`, `editable_user_ids`, `_outside_member`, `may_issue_code_from_data_management`) and `app/services/project_user_import_service.py` (`prepare_members`) check only `VaUserAccessGrants` and `MapProjectMember` for outside membership or privileged roles, ignoring active `MapMentorInstituteUser` memberships and `MapMentorInstituteUser.is_admin`.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-05",
+        "reviewed_paths": [
+          "app/routes/data_management.py",
+          "app/services/mobile_sign_in_service.py",
+          "app/routes/admin_organization.py"
+        ],
+        "invariant": "Phase 3 independent validation of app/routes/data_management.py:_dm_can_manage_user_profile:shared-user-profile-and-coding-languages-overwrite-across-projects",
+        "method": "source",
+        "result": "needs_validation: `app/routes/data_management.py:_dm_can_manage_user_profile` (`lines 1045-1081`) uses creator attribution (`lines 1054-1056`), an existential single-grant check `_managed_user_condition()` (`lines 187-194`, `1057-1065`), and an unplaced-user check omitting `_outside_member` (`lines 1066-1080`), instead of requiring that all active grants (with none privileged) and all `MapProjectMember` memberships of `target_user` fall within the caller's manageable scope.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "app/services/sign_in_qr_service.py:may_issue:non-admin-sign-in-qr-bypasses-verified-email-live-phone-and-outside-member-guards",
+      "app/services/mobile_sign_in_service.py:_roster_rule:mentor-institute-admin-account-takeover-and-profile-edit-via-project-import",
+      "app/routes/data_management.py:_dm_can_manage_user_profile:shared-user-profile-and-coding-languages-overwrite-across-projects"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fapi%2Fcoding.py%23coding_so_and_attachments::app%2Fservices%2Fcoder_workflow_service.py%23allocate_own_case::app%2Froutes%2Fapi%2Fcoding.py::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "app/routes/api/coding.py#coding_so_and_attachments",
+      "boundary": "app/services/coder_workflow_service.py#allocate_own_case",
+      "subsystem": "app/routes/api/coding.py",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Coding allocation, code-now, finalize, social autopsy save, and attachment streaming endpoints",
+    "boundary": "Training scope sid_allowed, reviewer social autopsy gate, and own-case coding authorization",
+    "subsystem": "Coding, social autopsy, and attachment APIs",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "app/routes/api/coding.py",
+      "app/routes/api/so.py",
+      "app/routes/api/attachments.py",
+      "app/services/coder_workflow_service.py",
+      "app/services/reviewer_coding_service.py",
+      "app/services/case_content_service.py",
+      "app/services/public_demo_purge_service.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Blob and signed-reference overreach",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Unbounded buffering and cardinality",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Python API handlers and services."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-w1-clinical-web",
+    "reviewed_paths": [
+      "app/routes/api/coding.py",
+      "app/services/coder_workflow_service.py",
+      "app/services/coder_cod_service.py",
+      "app/services/reviewer_coding_service.py",
+      "app/routes/api/reviewing.py",
+      "app/routes/coding.py",
+      "app/routes/reviewing.py",
+      "app/routes/api/so.py",
+      "app/routes/api/va_case.py",
+      "app/routes/va_form.py",
+      "app/routes/api/nqa.py",
+      "app/services/training_scope.py",
+      "app/utils/va_permission/va_permission_11_require_coding_access.py",
+      "app/routes/api/attachments.py",
+      "app/services/attachment_service.py",
+      "app/services/case_content_service.py",
+      "app/services/public_demo_purge_service.py",
+      "app/models/va_social_autopsy_analysis.py",
+      "config.py",
+      "app/services/submission_analytics_mv.py",
+      "tests/routes/test_narrative_qa.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/routes/api/coding.py",
+          "app/services/coder_workflow_service.py",
+          "app/services/coder_cod_service.py",
+          "app/services/reviewer_coding_service.py",
+          "app/routes/api/reviewing.py",
+          "app/routes/coding.py",
+          "app/routes/reviewing.py"
+        ],
+        "invariant": "A coder can call POST /api/v1/coding/code-now/<va_sid> (allocate_own_case) to self-allocate a submission from another interviewer, a project without self-coding enabled, or across the training_scope boundary.",
+        "method": "source",
+        "result": "refuted: api_code_now resolves training_scope.resolve('coding'), and allocate_own_case enforces training_scope.sid_allowed(va_sid), verifies self_coding_enabled (or training self-coding unit membership via training_self_coding_ids), locks VaWebIntakeDraft FOR UPDATE verifying VaWebIntakeDraft.user_id == user.user_id and status == 'submitted', and verifies authz.can(user, Action.CODE, va_sid).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/routes/api/so.py",
+          "app/routes/api/va_case.py",
+          "app/routes/va_form.py"
+        ],
+        "invariant": "POST /api/v1/so/<va_sid> (save_social_autopsy) accepts a JSON body without a request Content-Length cap or remark length limit, allowing an authenticated coder/reviewer (including a self-registered public-demo user on PUB01) to persist up to 64 MB per submission in VaSocialAutopsyAnalysis.va_saa_remark and amplify workspace/form responses.",
+        "method": "source",
+        "result": "needs_validation: Confirmed in source at app/routes/api/so.py:54-206: unlike PUT /api/v1/va/<va_sid>/note (64 KB body cap, 20,000 char cap) and /api/v1/doris/clinical/* (32 KB body cap), save_social_autopsy performs no request.content_length check and no length validation on remark = (data.get('remark') or '').strip() before storing it in VaSocialAutopsyAnalysis.va_saa_remark (db.Text). Recorded as CAND-W1-SO-01.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/routes/api/so.py",
+          "app/routes/api/nqa.py",
+          "app/services/training_scope.py",
+          "app/utils/va_permission/va_permission_11_require_coding_access.py"
+        ],
+        "invariant": "POST /api/v1/so/<va_sid> and POST /api/v1/nqa/<va_sid> omit training_scope.resolve, training_scope.sid_allowed(va_sid), and VaAllocations.va_allocation_training filtering, and allow coder/reviewer mode selection via client-supplied va_actiontype.",
+        "method": "source",
+        "result": "needs_validation: Confirmed in source at app/routes/api/so.py:54-160 and app/routes/api/nqa.py:45-133: neither endpoint invokes training_scope.resolve or training_scope.sid_allowed(va_sid), nor filters VaAllocations by va_allocation_training == training_scope.on_training_side(). Additionally, in so.py:61-197, VaSocialAutopsyAnalysis is stored per (va_sid, va_saa_by, payload_version_id) without separating coder vs reviewer mode while selecting the authorization gate (social_autopsy_enabled vs reviewer_social_autopsy_enabled) from client-supplied va_actiontype. Recorded as CAND-W1-SO-02.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/routes/api/attachments.py",
+          "app/routes/va_form.py",
+          "app/services/attachment_service.py"
+        ],
+        "invariant": "Attachment delivery routes (/api/v1/attachments/* vs /vaform/attachment/* and /vaform/media/*) have inconsistent training_scope enforcement.",
+        "method": "source",
+        "result": "hardening: app/routes/api/attachments.py:42-93 enforces training_scope.resolve('coding', 'review', 'interview') and training_scope.sid_allowed(record.va_sid), whereas app/routes/va_form.py:1188-1229 (/vaform/attachment/<storage_name_raw> and /vaform/media/<va_form_id>/<va_filename>) calls attachment_service.authorize_token_attachment / authorize_legacy_attachment without training_scope checks.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/services/case_content_service.py"
+        ],
+        "invariant": "case_content_service.load_case_fields or resolve_unblinded_pii_values can unblind sealed PII for a redacted viewer (collaborator, interview_supervisor, or Tier 1/2 user) or leak PII across projects.",
+        "method": "source",
+        "result": "refuted: resolve_unblinded_pii_values explicitly checks should_redact_pii(user, project_id=project_id) and returns {} when redaction applies, and load_case_fields masks every is_pii field with REDACTED_PII_DISPLAY ('[Redacted \u2014 non-PII access]') and omits audio/image/file media URLs when redact is True.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/services/public_demo_purge_service.py"
+        ],
+        "invariant": "public_demo_purge_service.purge_expired_demo_users can delete submissions, drafts, or users belonging to non-demo projects if a user_id or va_sid is referenced outside PUB01.",
+        "method": "source",
+        "result": "refuted: _purge_one locks the VaUsers row FOR UPDATE, verifies user.is_public_demo and demo_expires_at <= cutoff, refuses with RuntimeError if the user has any VaUserAccessGrants outside PUBLIC_DEMO_PROJECT_ID (PUB01), and restricts all deleted VaWebIntakeDraft, VaDeathRegister, and VaSubmissions rows to project_id == PUBLIC_DEMO_PROJECT_ID.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-09",
+        "reviewed_paths": [
+          "app/routes/api/so.py",
+          "app/models/va_social_autopsy_analysis.py",
+          "config.py",
+          "app/routes/api/va_case.py",
+          "app/routes/api/coding.py",
+          "app/services/submission_analytics_mv.py"
+        ],
+        "invariant": "Phase 3 independent validation of app/routes/api/so.py:save_social_autopsy:unbounded-remark-and-request-body-size",
+        "method": "source",
+        "result": "needs_validation: save_social_autopsy in app/routes/api/so.py:54-239 parses the JSON request body up to the global Config.MAX_CONTENT_LENGTH (default 2 MiB in config.py:137) without a route-level request.content_length cap and writes (data.get('remark') or '').strip() directly to VaSocialAutopsyAnalysis.va_saa_remark (sa.Text) at lines 98, 179, and 196 without verifying isinstance(..., str) or enforcing a character-length bound.",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-10",
+        "reviewed_paths": [
+          "app/routes/api/so.py",
+          "app/utils/va_permission/va_permission_11_require_coding_access.py",
+          "app/services/training_scope.py",
+          "app/services/coder_workflow_service.py",
+          "app/services/reviewer_coding_service.py",
+          "app/routes/api/nqa.py",
+          "app/services/coder_cod_service.py",
+          "app/services/case_content_service.py",
+          "tests/routes/test_narrative_qa.py"
+        ],
+        "invariant": "Phase 3 independent validation of app/routes/api/so.py:save_social_autopsy:missing-training-scope-and-mode-confusion-in-so-and-nqa",
+        "method": "source",
+        "result": "rejected: Source code refutes all three parts of the candidate: (1) training_scope separates the TRN01 training project from real projects on list, count, and allocation-acquisition routes (app/services/training_scope.py:5-18; app/routes/api/coding.py:179,193; app/routes/api/reviewing.py:116-118). Once a submission is allocated, va_sid belongs to a single project and VaAllocations.va_allocation_training is deterministically derived from training_scope.is_training_sid(va_sid) (app/services/coder_workflow_service.py:885; app/services/reviewer_coding_service.py:442). Because save_social_autopsy and save_narrative_qa require both a live grant check via can(current_user, Action.CODE or Action.REVIEW, va_sid) and an active VaAllocations row matching that exact va_sid (app/routes/api/so.py:71-86,152-161; app/routes/api/nqa.py:73-88,123-132), omitting ?training= or VaAllocations.va_allocation_training does not allow cross-scope access or saves on unallocated submissions (and the Expo client intentionally calls these per-submission endpoints without ?training= in mobile/digitva-collect/src/workspace/api.ts:247-248). (2) Although va_actiontype selects between the reviewer and coder branches, each branch independently enforces both its action grant (Action.REVIEW vs Action.CODE) and an active allocation of the matching type (VaAllocation.reviewing vs VaAllocation.coding) on va_sid before and after locking the submission. A submission cannot simultaneously have active coding and reviewing allocations because coder finalization deactivates the coding allocation (app/services/coder_cod_service.py:999) before reviewer allocation is permitted in WORKFLOW_REVIEWER_ELIGIBLE (app/services/reviewer_coding_service.py:412), so a caller cannot flip va_actiontype to bypass reviewer_social_autopsy_enabled or coder_social_autopsy_enabled during an active session. (3) Allowing an admin with va_actiontype='vademo_start_coding' on a demo_training_enabled submission to save without an allocation in require_coding_access (app/utils/va_permission/va_permission_11_require_coding_access.py:34-37) is documented and tested design for ephemeral admin demo testing (tests/routes/test_narrative_qa.py:374-385), and any resulting row is restricted to demo projects, scoped to the admin's own user_id, and stamped with demo_expires_at (app/routes/api/so.py:180,198; app/routes/api/nqa.py:157,181).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "app/routes/api/so.py:save_social_autopsy:unbounded-remark-and-request-body-size"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fapi%2Fdoris_clinical.py%23clinical_and_public_doris::app%2Froutes%2Fapi%2Fdoris_clinical.py%23_clinical_context::app%2Froutes%2Fapi%2Fdoris_clinical.py::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "app/routes/api/doris_clinical.py#clinical_and_public_doris",
+      "boundary": "app/routes/api/doris_clinical.py#_clinical_context",
+      "subsystem": "app/routes/api/doris_clinical.py",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Clinical DORIS API endpoints and public demo DORIS service",
+    "boundary": "Allocation/training scope check, WHO URI validation, rate limits, and body caps",
+    "subsystem": "DORIS clinical and public services",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "app/routes/api/doris_clinical.py",
+      "app/services/icd11_mms_service.py",
+      "docker-compose.demo.yml",
+      "docker-compose.yml"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Pre-authentication work imbalance",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Quota-accounting scope and reset gaps",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules",
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Host and forwarded-header trust",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Python HTTP proxy and clinical API."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-w1-clinical-web",
+    "reviewed_paths": [
+      "app/routes/api/doris_clinical.py",
+      "app/services/doris_processing.py",
+      "app/services/doris_certificate.py",
+      "app/services/doris_process_proof.py",
+      "app/services/public_demo_service.py",
+      "app/routes/api/icd11.py",
+      "app/services/icd11_postcoordination.py",
+      "app/services/who_icd_api.py",
+      "app/services/icd11_mms_service.py",
+      "app/public_doris/__init__.py",
+      "app/public_doris/routes.py",
+      "docker-compose.demo.yml",
+      "docker-compose.yml",
+      "deploy/ingress-demo.conf",
+      "deploy/ingress-common.conf",
+      "deploy/doris-public-nginx.conf"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/routes/api/doris_clinical.py",
+          "app/services/doris_processing.py",
+          "app/services/doris_certificate.py",
+          "app/services/doris_process_proof.py",
+          "app/services/public_demo_service.py",
+          "app/routes/api/icd11.py"
+        ],
+        "invariant": "An authenticated user or public-demo account can invoke clinical DORIS endpoints (/api/v1/doris/clinical/*) for an unallocated submission, cross the real/training boundary, send an oversized request body, or bypass demo rate limits.",
+        "method": "source",
+        "result": "refuted: _json_object enforces request.content_length <= 32768 (rejecting missing Content-Length with 413), _clinical_context enforces training_scope.resolve, training_scope.sid_allowed(va_sid), authz.can(current_user, Action.CODE/REVIEW, va_sid), and an active VaAllocations row with VaAllocations.va_allocation_training == training_scope.on_training_side(), and _demo_limited applies both per-account (300/hr) and global (2000/hr) shared rate limits to public-demo accounts.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/services/icd11_postcoordination.py",
+          "app/services/who_icd_api.py"
+        ],
+        "invariant": "Caller-supplied stem_uri or axis entity URIs in DORIS clinical or public endpoints can trigger SSRF, path traversal, or unbounded upstream response buffering against the internal WHO ICD-11 container.",
+        "method": "source",
+        "result": "refuted: icd11_postcoordination._resource and who_icd_api._validate_resource strictly match ^https?://id\\.who\\.int(/icd/(?:entity/\\d+(?:/\\d+)?|release/11/[0-9]{4}-[0-9]{2}/mms(?:/\\d+(?:/(?:other|unspecified))?)?))$, reject query/fragment/dot-segments, disable redirects (allow_redirects=False), and stream upstream responses with a hard 2 MB cap (_MAX_UPSTREAM_BYTES) and 512 KB cap for mortality computation.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/services/icd11_mms_service.py"
+        ],
+        "invariant": "Search or entity lookup parameters in icd11_mms_service.py can cause SQL injection or algorithmic/regex complexity DoS via unescaped tsquery or unbounded token expansion.",
+        "method": "source",
+        "result": "refuted: Search input is truncated to MAX_QUERY_LENGTH (200 chars) and MAX_QUERY_TOKENS (8 alphanumeric tokens via _TOKEN_RE), LIKE wildcards are escaped via _escape_like, tsquery tokens are strictly [a-z0-9]+, and all SQL queries use bound SQLAlchemy parameters with MAX_RESULTS_LIMIT (50).",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/public_doris/__init__.py",
+          "app/public_doris/routes.py",
+          "docker-compose.demo.yml",
+          "docker-compose.yml",
+          "deploy/ingress-demo.conf",
+          "deploy/ingress-common.conf",
+          "deploy/doris-public-nginx.conf"
+        ],
+        "invariant": "The unauthenticated public DORIS service (/api/v1/doris-demo/*) can be used to spoof X-Forwarded-For rate limits or exhaust memory/CPU via oversized payloads.",
+        "method": "source",
+        "result": "hardening: In docker-compose.demo.yml and deploy/ingress-demo.conf, nginx configures set_real_ip_from ${DEMO_PROXY_FROM}, real_ip_header X-Forwarded-For, real_ip_recursive off, and client_max_body_size 32k, and forwards $remote_addr to doris-public. However, in deploy/ingress-common.conf (used by docker-compose.yml), X-Forwarded-For is forwarded to minerva_app_service without ngx_http_realip_module normalization if deployed without an external header-rewriting DMZ proxy (recorded as HARD-W1-DORIS-01).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fapi%2Fintake_bundles.py%23offline_bundle_ingest::app%2Fservices%2Fbundle_ingest_service.py%23ingest_bundle::app%2Fservices%2Fbundle_ingest_service.py::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "app/routes/api/intake_bundles.py#offline_bundle_ingest",
+      "boundary": "app/services/bundle_ingest_service.py#ingest_bundle",
+      "subsystem": "app/services/bundle_ingest_service.py",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Offline .dvb/.dvr bundle ingest endpoints",
+    "boundary": "Ed25519 signature and line-size verification",
+    "subsystem": "Offline bundle ingest service",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "app/services/bundle_ingest_service.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+        "reason": "Unchanged since 3603ca6; outside user-selected post-Run-6 diff scope."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "out_of_scope",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": [
+      "Outside user-selected scope (unchanged in 3603ca6..e6a17915dddb741acd57abbf084e65a5b9f5ad3b)."
+    ]
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fdm_training.py%23trainer_reports_and_pseudonymiser::app%2Fservices%2Ftraining_report_service.py%23authorized_session::app%2Fservices%2Ftraining_report_service.py::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+    "canonical_refs": {
+      "surface": "app/routes/dm_training.py#trainer_reports_and_pseudonymiser",
+      "boundary": "app/services/training_report_service.py#authorized_session",
+      "subsystem": "app/services/training_report_service.py",
+      "attack_class": "ATTACK-CLASSES.md#Feature abuse and data leakage"
+    },
+    "surface": "Trainer report views, CSV exports, and training case pseudonymiser",
+    "boundary": "Answer-key redaction for former coders, session authorization, and PII stripping in cloned cases",
+    "subsystem": "Training report and pseudonymiser services",
+    "attack_class": "Feature abuse and data leakage",
+    "starting_paths": [
+      "app/routes/dm_training.py",
+      "app/services/training_report_service.py",
+      "app/services/training_pseudonymiser.py",
+      "app/commands/training_demo.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Export and backup scope expansion",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Analytics, logs, traces, and diagnostics as alternate readers",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Python reporting and pseudonymisation code."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-w1-training",
+    "reviewed_paths": [
+      "app/services/training_report_service.py",
+      "app/routes/dm_training.py",
+      "app/services/training_pseudonymiser.py",
+      "app/commands/training_demo.py",
+      "app/services/training_demo_service.py",
+      "docs/policy/training-demo-project.md"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-training",
+        "reviewed_paths": [
+          "app/services/training_report_service.py",
+          "app/routes/dm_training.py"
+        ],
+        "invariant": "_viewer_was_coder_in_session checks MapTrainingParticipant without filtering on active status so removed or former coders cannot view or export reference answer keys even if later promoted to reviewer_data_manager",
+        "method": "source",
+        "result": "holds",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-training",
+        "reviewed_paths": [
+          "app/services/training_pseudonymiser.py",
+          "app/commands/training_demo.py"
+        ],
+        "invariant": "training_pseudonymiser replaces direct identifiers, shifts linked dates consistently, drops narratives and attachments, and requires manual review approval before import",
+        "method": "source",
+        "result": "holds",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-training",
+        "reviewed_paths": [
+          "app/services/training_report_service.py",
+          "app/services/training_demo_service.py",
+          "app/routes/dm_training.py"
+        ],
+        "invariant": "Non-admin reviewer_data_manager access to trainer reports and CSV exports is restricted to active legacy training sessions where the viewer holds an active participation and grant",
+        "method": "source",
+        "result": "falsified",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-08",
+        "reviewed_paths": [
+          "app/routes/dm_training.py",
+          "app/services/training_report_service.py",
+          "app/services/training_demo_service.py",
+          "docs/policy/training-demo-project.md"
+        ],
+        "invariant": "Phase 3 independent validation of app/services/training_report_service.py:_reviewer_session_ids:missing-active-session-status-filter",
+        "method": "source",
+        "result": "needs_validation: app/services/training_report_service.py:_reviewer_session_ids (lines 84-100) selects legacy session IDs with MasTrainingSession.session_type.is_(None) (line 93) and checks MapTrainingParticipant.status == 'active' (line 97) without requiring MasTrainingSession.status == 'active', even though closing a session sets MasTrainingSession.status = 'closed' while leaving MapTrainingParticipant.status = 'active'.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "app/services/training_report_service.py:_reviewer_session_ids:missing-active-session-status-filter"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Froutes%2Fva_auth.py%23web_login_and_demo_signup::app%2Froutes%2Fapi%2Fprofile.py%23_account_security_is_cookie_only::app%2Froutes%2Fva_auth.py::ATTACK-CLASSES.md%23Chained%20vulnerabilities%20and%20trust%20boundaries",
+    "canonical_refs": {
+      "surface": "app/routes/va_auth.py#web_login_and_demo_signup",
+      "boundary": "app/routes/api/profile.py#_account_security_is_cookie_only",
+      "subsystem": "app/routes/va_auth.py",
+      "attack_class": "ATTACK-CLASSES.md#Chained vulnerabilities and trust boundaries"
+    },
+    "surface": "Web login, code login, public demo signup, and profile API endpoints",
+    "boundary": "Browser-session vs bearer separation, CSRF enforcement, and terms gate",
+    "subsystem": "Web authentication and profile routes",
+    "attack_class": "Chained vulnerabilities and trust boundaries",
+    "starting_paths": [
+      "app/routes/va_auth.py",
+      "app/routes/api/profile.py",
+      "app/services/access_summary_service.py",
+      "app/services/user_admin_tools_service.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Chained vulnerabilities and trust boundaries",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Ordinary CSRF",
+      "WEB-PROTOCOL-AND-AUTH.md#Step-up binding and bypass",
+      "WEB-PROTOCOL-AND-AUTH.md#Universal moves",
+      "WEB-PROTOCOL-AND-AUTH.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Python web routes."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-w1-auth-device",
+    "reviewed_paths": [
+      "app/__init__.py",
+      "app/routes/api/profile.py",
+      "app/routes/va_auth.py",
+      "app/services/access_summary_service.py",
+      "app/services/training_demo_service.py",
+      "app/services/user_admin_tools_service.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-auth-device",
+        "reviewed_paths": [
+          "app/__init__.py",
+          "app/routes/api/profile.py"
+        ],
+        "invariant": "A stolen or active mobile device bearer token can reach account-security or coding-language mutation endpoints on /api/v1/profile/* or bypass the terms-of-use gate.",
+        "method": "source",
+        "result": "refuted: _account_security_is_cookie_only in app/routes/api/profile.py:33-41 rejects any request where g.get('bearer_auth') is truthy unless the endpoint is in {'get_profile', 'update_timezone', 'update_interviewer_profile', 'accept_terms'}. Password change, email change, coding languages (PATCH /api/v1/profile/languages), TOTP, and recovery-code endpoints are strictly cookie-only and CSRF-protected. In app/__init__.py:231-250 and 663-733, authenticate_bearer pins the bearer user without falling back to a session cookie, and force_password_update blocks bearer requests with 403 terms_required when fresh_user.pw_reset_t_and_c is False except on accept_terms and end_session.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-auth-device",
+        "reviewed_paths": [
+          "app/routes/va_auth.py",
+          "app/services/access_summary_service.py",
+          "app/services/training_demo_service.py",
+          "app/services/user_admin_tools_service.py"
+        ],
+        "invariant": "Web code login (/login/code), public demo signup (/demo/try), or profile/admin user tools allow CSRF bypass, open redirect, training grant leakage into native device summaries, or unauthorized admin user mutations.",
+        "method": "source",
+        "result": "refuted: va_auth.va_login_code validates CSRF by default (Flask-WTF CSRFProtect), redeems the code via mobile_sign_in_service.redeem_code_for_web (setting pw_reset_t_and_c=False so force_password_update redirects the browser session to /profile/force-password-change before any other page), and regenerates the session. va_demo_try checks Config.PUBLIC_DEMO_ENABLED, rate limits, and validates the HMAC captcha token unless invited. access_summary_service.build_access_summary strips TRN01 training grants and roles when native=True. user_admin_tools_service enforces _require_admin(viewer) on every entry point and prevents one admin from modifying or deactivating another admin in _apply_profile.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Fservices%2Ftraining_scope.py%23resolve_and_queue::app%2Fservices%2Ftraining_demo_service.py%23AREA_RULES::app%2Fservices%2Ftraining_scope.py::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "app/services/training_scope.py#resolve_and_queue",
+      "boundary": "app/services/training_demo_service.py#AREA_RULES",
+      "subsystem": "app/services/training_scope.py",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Training mode request resolution, session_type AREA_RULES, and own vs standard queue selection",
+    "boundary": "TRN01 isolation from production projects and interviewer/coder/self_coding area separation",
+    "subsystem": "Training scope and predicates",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "app/services/training_scope.py",
+      "app/services/training_demo_service.py",
+      "app/services/authz/grants.py",
+      "app/services/authz/grant_writes.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Stale authorization and derived copy use",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#Core discipline",
+        "reason": "Server-side query predicate and scope enforcement."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "candidate",
+    "agent_id": "hunter-w1-training",
+    "reviewed_paths": [
+      "app/services/training_scope.py",
+      "app/services/training_demo_service.py",
+      "app/services/coder_workflow_service.py",
+      "app/services/coder_dashboard_service.py",
+      "app/routes/api/intake.py",
+      "app/services/web_intake_service.py",
+      "app/routes/api/va_case.py",
+      "app/routes/api/coding.py",
+      "app/routes/api/reviewing.py",
+      "docs/policy/web-intake.md",
+      "docs/policy/training-demo-project.md",
+      "app/services/reviewer_coding_service.py",
+      "app/routes/api/doris_clinical.py"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-training",
+        "reviewed_paths": [
+          "app/services/training_scope.py",
+          "app/services/training_demo_service.py",
+          "app/services/coder_workflow_service.py",
+          "app/services/coder_dashboard_service.py"
+        ],
+        "invariant": "AREA_RULES, may_use_area, resolve_queue, and _training_queue_clause isolate coder (standard set SIDs) from self_coding (own active session units and own submitted drafts) across single and multi-session enrolments",
+        "method": "source",
+        "result": "holds",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-training",
+        "reviewed_paths": [
+          "app/routes/api/intake.py",
+          "app/services/web_intake_service.py",
+          "app/routes/api/va_case.py"
+        ],
+        "invariant": "All web intake draft reads, draft saves, draft submissions, submission revisions, and interviewer read-only case views require an active interviewer grant on the draft/submission org_unit_id and respect training_scope isolation",
+        "method": "source",
+        "result": "falsified",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-training",
+        "reviewed_paths": [
+          "app/routes/api/coding.py",
+          "app/routes/api/reviewing.py"
+        ],
+        "invariant": "All coding and reviewing assessment write endpoints resolve training_scope for their area and enforce training_scope.sid_allowed(va_sid)",
+        "method": "source",
+        "result": "falsified",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-06",
+        "reviewed_paths": [
+          "app/routes/api/intake.py",
+          "app/services/web_intake_service.py",
+          "app/services/training_demo_service.py",
+          "app/routes/api/va_case.py",
+          "docs/policy/web-intake.md",
+          "docs/policy/training-demo-project.md"
+        ],
+        "invariant": "Phase 3 independent validation of app/services/web_intake_service.py:get_draft_and_find_own_submission:missing-active-grant-and-training-scope",
+        "method": "source",
+        "result": "needs_validation: app/services/web_intake_service.py#list_drafts (lines 1853-1859), get_draft (lines 1862-1875), save_draft_sections (lines 2367-2474), and submit_draft (lines 2829-3063) rely on draft.user_id == user.user_id and _require_live_org_unit (lines 2644-2680) without verifying that a TRN01 draft's org_unit_id belongs to an open training session with an active grant for the user, and find_own_submission (lines 3090-3096) checks only VaWebIntakeDraft ownership and status == 'submitted' without calling _require_scope(user, draft.project_id, draft.site_id, draft.org_unit_id) or training_scope.keeps_project(draft.project_id), propagating owner-only authorization into revise_submission (line 3224) and may_read_submitted_answers (line 3105).",
+        "artifact": null
+      },
+      {
+        "agent_id": "verifier-p3-07",
+        "reviewed_paths": [
+          "app/routes/api/reviewing.py",
+          "app/services/reviewer_coding_service.py",
+          "app/routes/api/coding.py",
+          "app/routes/api/doris_clinical.py",
+          "app/services/training_scope.py"
+        ],
+        "invariant": "Phase 3 independent validation of app/routes/api/reviewing.py:initial_and_finalize:missing-training-scope-resolve-and-sid-allowed",
+        "method": "source",
+        "result": "needs_validation: app/routes/api/reviewing.py#finalize (lines 219-282) and app/routes/api/reviewing.py#initial (lines 285-343) do not call training_scope.resolve('review') or check training_scope.sid_allowed(va_sid) before invoking submit_reviewer_final_cod and submit_reviewer_initial_cod in app/services/reviewer_coding_service.py, and those service functions do not filter the active VaAllocations lookup by VaAllocations.va_allocation_training.is_(training_scope.on_training_side()).",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [
+      "app/services/web_intake_service.py:get_draft_and_find_own_submission:missing-active-grant-and-training-scope",
+      "app/routes/api/reviewing.py:initial_and_finalize:missing-training-scope-resolve-and-sid-allowed"
+    ],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23admin_dom_and_templates::app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23esc::app%2Fstatic%2Fjs%2Fadmin::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "app/static/js/admin/users_panel.js#admin_dom_and_templates",
+      "boundary": "app/static/js/admin/users_panel.js#esc",
+      "subsystem": "app/static/js/admin",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "Admin users panel JS, project person JS, and modified Jinja/HTML templates",
+    "boundary": "HTML escaping before innerHTML and Jinja autoescaping",
+    "subsystem": "Admin static JS and templates",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "app/static/js/admin/users_panel.js",
+      "app/static/js/admin/project_person.js",
+      "app/templates/admin/project_roster.html",
+      "app/templates/admin/project_person.html",
+      "app/templates/admin/panels/project_setup.html",
+      "app/templates/admin/panels/training_sessions.html",
+      "app/templates/admin/panels/organization.html"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#DOM-based XSS",
+      "CLIENT-SIDE.md#Client-side navigation confusion",
+      "CLIENT-SIDE.md#Universal moves",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+        "reason": "Browser JavaScript and Jinja templates."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-w1-clinical-web",
+    "reviewed_paths": [
+      "app/static/js/admin/users_panel.js",
+      "app/templates/va_frontpages/data_manager_partials/_user_management.html",
+      "app/static/js/admin/project_person.js",
+      "app/templates/admin/project_roster.html",
+      "app/templates/admin/project_person.html",
+      "app/templates/admin/panels/project_setup.html",
+      "app/services/project_user_import_service.py",
+      "app/templates/admin/panels/training_sessions.html",
+      "app/templates/admin/panels/organization.html",
+      "app/templates/admin/panels/mentor_institutes.html",
+      "app/templates/admin/panels/projects.html",
+      "app/templates/va_formcategory_partials/_va_cod_assessment_panel.html"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/static/js/admin/users_panel.js",
+          "app/templates/va_frontpages/data_manager_partials/_user_management.html"
+        ],
+        "invariant": "User-controlled profile fields (name, email, phone, job_title, languages) or CSV import error messages in users_panel.js reach innerHTML or insertAdjacentHTML without HTML escaping.",
+        "method": "source",
+        "result": "refuted: esc() escapes &, <, >, \", and ' (lines 16-24), and every dynamic value interpolated into innerHTML or insertAdjacentHTML in renderTable, showImportResult, loadAccessRequests, and toast is passed through esc().",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/static/js/admin/project_person.js",
+          "app/templates/admin/project_roster.html",
+          "app/templates/admin/project_person.html"
+        ],
+        "invariant": "project_person.js or project_roster.html / project_person.html interpolates unescaped person details, unit names, or sign-in codes into DOM HTML sinks.",
+        "method": "source",
+        "result": "refuted: project_person.js constructs all DOM nodes via upEl (document.createElement + textContent) and replaceChildren with zero innerHTML sinks; project_roster.html and project_person.html use Jinja autoescaping and |tojson.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/templates/admin/panels/project_setup.html",
+          "app/services/project_user_import_service.py"
+        ],
+        "invariant": "CSV/XLSX import results or bulk user grid cells in project_setup.html interpolate unescaped row values or error reasons into innerHTML.",
+        "method": "source",
+        "result": "refuted: esc() escapes &, <, >, and \", and all dynamic values in ugMembersRows.innerHTML (r.row, r.name, r.email, r.phone, r.reason at lines 1471-1483), ugGridBody, ugDrawerAssignments, and psRenderMatrix are wrapped in esc() or assigned via textContent.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-clinical-web",
+        "reviewed_paths": [
+          "app/templates/admin/panels/training_sessions.html",
+          "app/templates/admin/panels/organization.html",
+          "app/templates/admin/panels/mentor_institutes.html",
+          "app/templates/admin/panels/projects.html",
+          "app/templates/va_formcategory_partials/_va_cod_assessment_panel.html"
+        ],
+        "invariant": "Modified admin panels (training_sessions.html, organization.html, mentor_institutes.html, projects.html) or _va_cod_assessment_panel.html introduce DOM XSS via innerHTML.",
+        "method": "source",
+        "result": "refuted: training_sessions.html uses textContent and insertRow/insertCell exclusively; organization.html wraps all dynamic fields in esc() and writes CSV import summaries (#org-units-result, #org-import-result, #org-users-result) via textContent.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "app%2Futils%2Fpii_crypto.py%23hybrid_kem_envelope::app%2Futils%2Fpii_crypto.py%23decrypt_pii_envelope::app%2Futils%2Fpii_crypto.py::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "app/utils/pii_crypto.py#hybrid_kem_envelope",
+      "boundary": "app/utils/pii_crypto.py#decrypt_pii_envelope",
+      "subsystem": "app/utils/pii_crypto.py",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "Hybrid post-quantum KEM (ML-KEM-768 + X25519) PII encryption and blind index primitives",
+    "boundary": "AAD binding and key-ID envelope verification",
+    "subsystem": "PII cryptography utility",
+    "attack_class": "Cryptography and secrets",
+    "starting_paths": [
+      "app/utils/pii_crypto.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+        "reason": "Unchanged since 3603ca6; outside user-selected post-Run-6 diff scope."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "out_of_scope",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": [
+      "Outside user-selected scope (unchanged in 3603ca6..e6a17915dddb741acd57abbf084e65a5b9f5ad3b)."
+    ]
+  },
+  {
+    "coverage_id": "desktop%2FCargo.toml%23offline_phc_station::desktop%2Fcrates%2Fdigitva-server%2Fsrc%2Flib.rs%23station_auth::desktop::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "desktop/Cargo.toml#offline_phc_station",
+      "boundary": "desktop/crates/digitva-server/src/lib.rs#station_auth",
+      "subsystem": "desktop",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Offline PHC Rust desktop station",
+    "boundary": "Station authentication and local SQLCipher store",
+    "subsystem": "Desktop station workspace",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "desktop/Cargo.toml"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [],
+    "excluded_blocks": [
+      {
+        "block": "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Core discipline",
+        "reason": "Unchanged since 3603ca6; outside user-selected post-Run-6 diff scope."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "out_of_scope",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": [
+      "Outside user-selected scope (unchanged in 3603ca6..e6a17915dddb741acd57abbf084e65a5b9f5ad3b)."
+    ]
+  },
+  {
+    "coverage_id": "mobile%2Fdigitva-collect%2Fmodules%2Fdigitva-icd11%2Fandroid%2Fsrc%2Fmain%2Fcpp%2Fshim.c%23native_engine_bridges::mobile%2Fdigitva-collect%2Fmodules%2Fdigitva-icd11%2Fandroid%2Fsrc%2Fmain%2Fjava%2Fexpo%2Fmodules%2Fdigitvaicd11%2FIcd11Service.kt%23boundReply::mobile%2Fdigitva-collect%2Fmodules::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "mobile/digitva-collect/modules/digitva-icd11/android/src/main/cpp/shim.c#native_engine_bridges",
+      "boundary": "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/Icd11Service.kt#boundReply",
+      "subsystem": "mobile/digitva-collect/modules",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Native ICD-11 and SmartVA C JNI, Kotlin Messenger IPC, and Swift module bridges",
+    "boundary": "Pointer/buffer ownership across FFI, Binder IPC reply bounds, and canonicalPath asset extraction check",
+    "subsystem": "Native ICD-11 and SmartVA modules",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/cpp/shim.c",
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/DigitvaIcd11Module.kt",
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/Icd11Service.kt",
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineHost.kt",
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineData.kt",
+      "mobile/digitva-collect/modules/digitva-icd11/ios/DigitvaIcd11Module.swift",
+      "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/DigitvaSmartvaModule.kt",
+      "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/SmartvaService.kt",
+      "mobile/digitva-collect/modules/digitva-smartva/ios/DigitvaSmartvaModule.swift"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "MEMORY-SAFETY-AND-BINARY.md#Core discipline",
+      "MEMORY-SAFETY-AND-BINARY.md#Pointer-length and ownership contract mismatch",
+      "MEMORY-SAFETY-AND-BINARY.md#Unload, reload, and teardown safety",
+      "MEMORY-SAFETY-AND-BINARY.md#Universal moves",
+      "MEMORY-SAFETY-AND-BINARY.md#Validation rules",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Core discipline",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Over-broad native bridge capabilities",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Local file ownership and TOCTOU",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Universal moves",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+        "reason": "Local on-device JNI/IPC native modules."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-w1-native-infra",
+    "reviewed_paths": [
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/cpp/shim.c",
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineJni.kt",
+      "mobile/digitva-collect/modules/digitva-icd11/engine-src/Bridge.cs",
+      "mobile/digitva-collect/modules/digitva-icd11/engine-src/digitva_icd11.h",
+      "mobile/digitva-collect/modules/digitva-smartva/android/src/main/cpp/SmartVaJni.cpp",
+      "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/SmartVaJni.kt",
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/AndroidManifest.xml",
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/DigitvaIcd11Module.kt",
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineHost.kt",
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/Icd11Service.kt",
+      "mobile/digitva-collect/modules/digitva-smartva/android/src/main/AndroidManifest.xml",
+      "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/DigitvaSmartvaModule.kt",
+      "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/SmartvaService.kt",
+      "mobile/digitva-collect/src/offlineEngine.ts",
+      "mobile/digitva-collect/src/smartva/input.ts",
+      "mobile/digitva-collect/src/smartva/nativeEngine.ts",
+      "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineData.kt",
+      "mobile/digitva-collect/modules/digitva-icd11/ios/DigitvaIcd11Module.swift",
+      "mobile/digitva-collect/modules/digitva-icd11/ios/EngineData.swift",
+      "mobile/digitva-collect/modules/digitva-icd11/ios/EngineHost.swift",
+      "mobile/digitva-collect/modules/digitva-smartva/ios/DigitvaSmartvaModule.swift"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-native-infra",
+        "reviewed_paths": [
+          "mobile/digitva-collect/modules/digitva-icd11/android/src/main/cpp/shim.c",
+          "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineJni.kt",
+          "mobile/digitva-collect/modules/digitva-icd11/engine-src/Bridge.cs",
+          "mobile/digitva-collect/modules/digitva-icd11/engine-src/digitva_icd11.h",
+          "mobile/digitva-collect/modules/digitva-smartva/android/src/main/cpp/SmartVaJni.cpp",
+          "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/SmartVaJni.kt"
+        ],
+        "invariant": "JNI and C/C# FFI boundaries must null-terminate byte arrays before passing them as C strings, verify symbol completeness on dlopen, and release both JNI references and native heap allocations on every exit path.",
+        "method": "source",
+        "result": "holds: In shim.c:71-90, callOp reads jsize n = GetArrayLength(env, json), allocates malloc((size_t)n + 1), copies n bytes via GetByteArrayRegion, sets j[n] = 0 before invoking p_callop(o, j, &st), frees j on both error and normal paths, releases op via ReleaseStringUTFChars, and frees the engine buffer via p_free(out) in take_result (lines 20-26). initEngine (lines 44-54) checks both GetStringUTFChars pointers, releases whichever succeeded, and frees err via p_free(err) without leaking payload content. load (lines 28-41) rejects libraries missing any of the three required symbols. In SmartVaJni.cpp:17-59, GetStringUTFChars buffers are copied into std::string before ReleaseStringUTFChars and the Rust-allocated output is freed via smartva_free_string(raw) before returning.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-native-infra",
+        "reviewed_paths": [
+          "mobile/digitva-collect/modules/digitva-icd11/android/src/main/AndroidManifest.xml",
+          "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/DigitvaIcd11Module.kt",
+          "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineHost.kt",
+          "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/Icd11Service.kt",
+          "mobile/digitva-collect/modules/digitva-smartva/android/src/main/AndroidManifest.xml",
+          "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/DigitvaSmartvaModule.kt",
+          "mobile/digitva-collect/modules/digitva-smartva/android/src/main/java/expo/modules/digitvasmartva/SmartvaService.kt",
+          "mobile/digitva-collect/src/offlineEngine.ts",
+          "mobile/digitva-collect/src/smartva/input.ts",
+          "mobile/digitva-collect/src/smartva/nativeEngine.ts"
+        ],
+        "invariant": "Android Messenger IPC services must not be exported to other apps, must bound request and reply sizes to stay within Binder transaction limits, must reject embedded NULs and invalid op names, and must not reflect raw engine exceptions or input data across IPC.",
+        "method": "source",
+        "result": "holds: Both Icd11Service and SmartvaService declare android:exported=\"false\" in their AndroidManifest.xml files. Icd11Service.kt:116-160 enforces OP_NAME = Regex(\"^[a-z_]{1,32}$\") and caps replies in boundReply at MAX_TEXT_CHARS = 250,000 UTF-16 chars while catching TransactionTooLargeException in answerWith; EngineHost.kt:145-153 strips engine response bodies on non-2xx status codes. SmartvaService.kt:42-93 and DigitvaSmartvaModule.kt:44-89 enforce MAX_REQUEST_BYTES (1 MiB), MAX_REPLY_BYTES (2 MiB), and reject embedded NULs in country and input strings.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-native-infra",
+        "reviewed_paths": [
+          "mobile/digitva-collect/modules/digitva-icd11/android/src/main/java/expo/modules/digitvaicd11/EngineData.kt",
+          "mobile/digitva-collect/modules/digitva-icd11/ios/DigitvaIcd11Module.swift",
+          "mobile/digitva-collect/modules/digitva-icd11/ios/EngineData.swift",
+          "mobile/digitva-collect/modules/digitva-icd11/ios/EngineHost.swift",
+          "mobile/digitva-collect/modules/digitva-smartva/ios/DigitvaSmartvaModule.swift"
+        ],
+        "invariant": "Asset staging and iOS Swift FFI bridges must prevent path traversal during asset extraction, verify SHA-256 digests before engine load, enforce request/reply bounds and NUL checks, and free C pointers on all paths.",
+        "method": "source",
+        "result": "holds: EngineData.kt:192-206 verifies out.canonicalPath.startsWith(engineDir.canonicalPath + File.separator) before deleting or writing target files and verifies SHA-256 against AssetSpec before atomic rename; EngineData.swift:102-121 checks file.path.hasPrefix(root.standardizedFileURL.path + \"/\") and verifies SHA-256 digests. EngineHost.swift:120-169 and DigitvaSmartvaModule.swift:70-108 enforce request/reply byte caps, reject embedded NUL bytes, and free returned C buffers via defer { digitva_icd11_free(...) } and defer { smartva_free_string(...) }.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "mobile%2Fdigitva-collect%2Fsrc%2Fauth.ts%23mobile_auth_and_profile_delete::mobile%2Fdigitva-collect%2Fsrc%2FpinResetGrant.ts%23hasProfileDeleteGrant::mobile%2Fdigitva-collect%2Fsrc::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "mobile/digitva-collect/src/auth.ts#mobile_auth_and_profile_delete",
+      "boundary": "mobile/digitva-collect/src/pinResetGrant.ts#hasProfileDeleteGrant",
+      "subsystem": "mobile/digitva-collect/src",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Mobile sign-in code/QR redemption, device limit chooser, PIN recovery, and offline profile deletion",
+    "boundary": "In-memory PIN reset/delete grants, server origin pinning, and unsent-work preservation",
+    "subsystem": "DigitVA Collect auth and local vault",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "mobile/digitva-collect/src/auth.ts",
+      "mobile/digitva-collect/src/pinResetGrant.ts",
+      "mobile/digitva-collect/src/interviewerDb.ts",
+      "mobile/digitva-collect/src/DeviceLimitChoice.tsx",
+      "mobile/digitva-collect/src/nativeAuthLinks.ts",
+      "mobile/digitva-collect/src/offlineProfile.ts",
+      "mobile/digitva-collect/src/nativeRoutes/unlock.tsx",
+      "mobile/digitva-collect/src/nativeRoutes/sign-in.tsx"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Core discipline",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Account switch, logout, and device restore leakage",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Custom-scheme and deep-link ambiguity",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Credential-store and local-secret boundary mismatch",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Universal moves",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+        "reason": "On-device React Native client state."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-w1-mobile-client",
+    "reviewed_paths": [
+      "mobile/digitva-collect/src/auth.ts",
+      "mobile/digitva-collect/src/pinResetGrant.ts",
+      "mobile/digitva-collect/src/interviewerDb.ts",
+      "mobile/digitva-collect/src/nativeRoutes/unlock.tsx",
+      "mobile/digitva-collect/src/nativeRoutes/sign-in.tsx",
+      "mobile/digitva-collect/src/vault.ts",
+      "app/routes/api/auth.py",
+      "app/services/device_auth_service.py",
+      "mobile/digitva-collect/src/DeviceLimitChoice.tsx",
+      "mobile/digitva-collect/src/nativeAuthLinks.ts",
+      "mobile/digitva-collect/src/offlineProfile.ts",
+      "mobile/digitva-collect/src/nativeRoutes/enrol.tsx",
+      "mobile/digitva-collect/src/nativeRoutes/demo.tsx",
+      "mobile/digitva-collect/src/nativeRoutes/index.tsx",
+      "mobile/digitva-collect/src/nativeRoutes/settings.tsx",
+      "mobile/digitva-collect/src/nativeRoutes/pin-setup.tsx",
+      "mobile/digitva-collect/src/accountStoreIdentity.ts",
+      "mobile/digitva-collect/src/accountServer.ts",
+      "mobile/digitva-collect/src/enrolment.ts",
+      "mobile/digitva-collect/src/reEnrolConfirm.ts",
+      "mobile/digitva-collect/src/AppState.tsx"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-mobile-client",
+        "reviewed_paths": [
+          "mobile/digitva-collect/src/auth.ts",
+          "mobile/digitva-collect/src/pinResetGrant.ts",
+          "mobile/digitva-collect/src/interviewerDb.ts",
+          "mobile/digitva-collect/src/nativeRoutes/unlock.tsx",
+          "mobile/digitva-collect/src/nativeRoutes/sign-in.tsx",
+          "mobile/digitva-collect/src/vault.ts",
+          "app/routes/api/auth.py",
+          "app/services/device_auth_service.py"
+        ],
+        "invariant": "Deleting a local profile via deleteProfile requires either an unlocked SQLCipher store (proving PIN possession) with zero unsent work, or an in-memory profile-delete grant issued by verifyPasswordForDelete after verifying that the authenticated user_id matches the target profile's user_id and the user explicitly confirms data loss.",
+        "method": "source",
+        "result": "sustained: Verified in auth.ts:1322-1455, pinResetGrant.ts:1-56, interviewerDb.ts:160-163, and unlock.tsx:96-205 that deleteProfile checks unsentWorkCount(userId); when the SQLCipher database is locked (storeCount === undefined), deleteProfile refuses with ProfileDeleteRefusedError('not_verified') unless hasProfileDeleteGrant(userId) is true, which is only set by allowProfileDelete(userId) after verifyPassword confirms String(body.user?.user_id) === userId against the slot's enrolled server, and refuses with 'confirmation_required' unless lossConfirmed is true. Also verified resetMissingStore(userId) in interviewerDb.ts:383-386 checks dbFileMissing(userId) before removing Keychain/SecureStore material, and standalone PIN-failure erasure in unlock.tsx:107-126 is gated on account.standalone === true.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-mobile-client",
+        "reviewed_paths": [
+          "mobile/digitva-collect/src/auth.ts",
+          "mobile/digitva-collect/src/DeviceLimitChoice.tsx",
+          "mobile/digitva-collect/src/nativeAuthLinks.ts",
+          "mobile/digitva-collect/src/offlineProfile.ts",
+          "mobile/digitva-collect/src/nativeRoutes/enrol.tsx",
+          "mobile/digitva-collect/src/nativeRoutes/sign-in.tsx",
+          "mobile/digitva-collect/src/nativeRoutes/demo.tsx",
+          "mobile/digitva-collect/src/nativeRoutes/index.tsx",
+          "mobile/digitva-collect/src/nativeRoutes/settings.tsx",
+          "mobile/digitva-collect/src/nativeRoutes/pin-setup.tsx",
+          "mobile/digitva-collect/src/accountStoreIdentity.ts",
+          "mobile/digitva-collect/src/accountServer.ts",
+          "mobile/digitva-collect/src/enrolment.ts",
+          "mobile/digitva-collect/src/reEnrolConfirm.ts",
+          "mobile/digitva-collect/src/AppState.tsx"
+        ],
+        "invariant": "Server origin pinning, sign-in code/QR redemption, device-limit replacement, and session revocation handling preserve unsent local work and prevent cross-server or cross-account store confusion.",
+        "method": "source",
+        "result": "sustained: Verified in enrolment.ts:144-169, auth.ts:749-968, and nativeAuthLinks.ts:18-30 that all enrollment, QR scan, sign-in code redemption, and native auth links enforce acceptedServerOrigin (HTTPS, causeofdeathindia.com or subdomain, no userinfo/port/path/query/fragment) and bind accounts to server_origin via assertSameServerStore in accountStoreIdentity.ts:48-87. Verified in auth.ts:1049-1114 that handleRevokedSession preserves the local profile and sets access_removed: true whenever unsentWorkCount(userId) is non-zero or undefined (locked SQLCipher DB). Verified in demo.tsx:41-95 and offlineProfile.ts:81-174 that demo sign-in uses isolated slot 'demo' and standalone profiles require all enrolled server slots to have no signed-in accounts.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "mobile%2Fdigitva-collect%2Fsrc%2Fsync.ts%23sync_and_offline_coding::mobile%2Fdigitva-collect%2Fsrc%2Fworkspace%2FpiiBoundary.ts%23assertNoPii::mobile%2Fdigitva-collect%2Fsrc%2Fworkspace::ATTACK-CLASSES.md%23Chained%20vulnerabilities%20and%20trust%20boundaries",
+    "canonical_refs": {
+      "surface": "mobile/digitva-collect/src/sync.ts#sync_and_offline_coding",
+      "boundary": "mobile/digitva-collect/src/workspace/piiBoundary.ts#assertNoPii",
+      "subsystem": "mobile/digitva-collect/src/workspace",
+      "attack_class": "ATTACK-CLASSES.md#Chained vulnerabilities and trust boundaries"
+    },
+    "surface": "Mobile sync, draftSync, attachment media handling, browser DORIS draft storage, and offline DORIS coding",
+    "boundary": "SHA-256 receipt check, PII boundary before native engine calls, and sessionStorage draft context binding",
+    "subsystem": "DigitVA Collect sync and coding workspace",
+    "attack_class": "Chained vulnerabilities and trust boundaries",
+    "starting_paths": [
+      "mobile/digitva-collect/src/sync.ts",
+      "mobile/digitva-collect/src/draftSync.ts",
+      "mobile/digitva-collect/src/attachmentUpload.ts",
+      "mobile/digitva-collect/src/workspace/offlineDoris.ts",
+      "mobile/digitva-collect/src/workspace/piiBoundary.ts",
+      "mobile/digitva-collect/src/workspace/doris/browserDraft.ts",
+      "mobile/digitva-collect/src/workspace/media/AttachmentMedia.native.tsx",
+      "mobile/digitva-collect/src/workspace/media/AttachmentGallery.web.tsx"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Chained vulnerabilities and trust boundaries",
+    "selected_companion_blocks": [
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Core discipline",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#File-open and intent authority confusion",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Account switch, logout, and device restore leakage",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Universal moves",
+      "DESKTOP-MOBILE-AND-LOCAL-IPC.md#Validation rules",
+      "CLIENT-SIDE.md#Core discipline",
+      "CLIENT-SIDE.md#Browser-storage disclosure and stale authorization",
+      "CLIENT-SIDE.md#Universal moves",
+      "CLIENT-SIDE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+        "reason": "Mobile/web client workspace code."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-w1-mobile-client",
+    "reviewed_paths": [
+      "mobile/digitva-collect/src/sync.ts",
+      "mobile/digitva-collect/src/draftSync.ts",
+      "mobile/digitva-collect/src/attachmentUpload.ts",
+      "mobile/digitva-collect/src/workspace/offlineDoris.ts",
+      "mobile/digitva-collect/src/workspace/dorisGuidance.ts",
+      "mobile/digitva-collect/src/workspace/piiBoundary.ts",
+      "mobile/digitva-collect/src/workspace/doris/browserDraft.ts",
+      "mobile/digitva-collect/src/workspace/viewState.ts",
+      "mobile/digitva-collect/src/workspace/media/AttachmentMedia.native.tsx",
+      "mobile/digitva-collect/src/workspace/media/AttachmentMedia.web.tsx",
+      "mobile/digitva-collect/src/workspace/media/AttachmentGallery.web.tsx",
+      "mobile/digitva-collect/src/workspace/media/attachmentScope.ts",
+      "mobile/digitva-collect/src/workspace/media/path.ts",
+      "mobile/digitva-collect/src/standalone/shareFile.ts"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-mobile-client",
+        "reviewed_paths": [
+          "mobile/digitva-collect/src/sync.ts",
+          "mobile/digitva-collect/src/draftSync.ts",
+          "mobile/digitva-collect/src/attachmentUpload.ts"
+        ],
+        "invariant": "Mobile submission upload, draft sync, and project access reconciliation verify SHA-256 receipts and server identity before mutating or deleting local drafts and never discard unsent work.",
+        "method": "source",
+        "result": "sustained: Verified in sync.ts:698-721 and 1806-1812 that uploadQueuedWork and codingOutcome verify received_sha256 === answersHash and coding_sha256 === sentDigest before marking work synced or calling deleteDraftSnapshot. Verified in draftSync.ts:557-598 that syncDraftSnapshot checks serverIdentityMatches (project_id, site_id, death_id, org_unit_id), server_draft_id, and answers_sha256, and uses a compare-and-set UPDATE guarded by envelope, updated_at, completed = 0, and draft_sync_blocked = 0. Verified in sync.ts:1276-1278 and 1439-1441 that reconcileReferenceAccess and loadReferenceData preserve unsent local work via purgeProjectData and recordPausedProjects.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-mobile-client",
+        "reviewed_paths": [
+          "mobile/digitva-collect/src/workspace/offlineDoris.ts",
+          "mobile/digitva-collect/src/workspace/dorisGuidance.ts",
+          "mobile/digitva-collect/src/workspace/piiBoundary.ts",
+          "mobile/digitva-collect/src/workspace/doris/browserDraft.ts",
+          "mobile/digitva-collect/src/workspace/viewState.ts",
+          "mobile/digitva-collect/src/workspace/media/AttachmentMedia.native.tsx",
+          "mobile/digitva-collect/src/workspace/media/AttachmentMedia.web.tsx",
+          "mobile/digitva-collect/src/workspace/media/AttachmentGallery.web.tsx",
+          "mobile/digitva-collect/src/workspace/media/attachmentScope.ts",
+          "mobile/digitva-collect/src/workspace/media/path.ts",
+          "mobile/digitva-collect/src/standalone/shareFile.ts"
+        ],
+        "invariant": "Offline DORIS coding and ICD-11 guidance enforce the client-side PII boundary before invoking the WHO engine, browser DORIS draft storage binds sessionStorage drafts to the user/case context fingerprint, and attachment media components validate attachment paths and clean up temporary files.",
+        "method": "source",
+        "result": "sustained: Verified in offlineDoris.ts:249-292, dorisGuidance.ts:417-425, and piiBoundary.ts:38-76 that onProcess, onTerms, onCodeInfo, onSelectionCheck, and guidance.answer run assertNoPii / assertNoPiiInText on all outgoing fields before calling the WHO engine. Verified in browserDraft.ts:50-139 that sessionStorage drafts under digitva:doris:draft:v1 require an exact match on all DraftContext fields (fingerprint/doris_draft_context, vaSid, mode, payloadVersion, projectMode) and call clearBrowserDraft() on any mismatch. Verified in path.ts:8-37, AttachmentMedia.native.tsx:23-53, AttachmentMedia.web.tsx:16-24, AttachmentGallery.web.tsx:130-156, and shareFile.ts:22-63 that attachment paths are strictly validated by attachmentMediaExtension before URL construction or cache file creation, and shareAndDelete removes the temporary cache file in a finally block.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "scripts%2Fmanual-db-restore.sh%23restore_and_deployment::scripts%2Fmanual-db-restore.sh%23SCRATCH_DB::scripts::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "scripts/manual-db-restore.sh#restore_and_deployment",
+      "boundary": "scripts/manual-db-restore.sh#SCRATCH_DB",
+      "subsystem": "scripts",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "Database restore script, parity scripts, and Docker Compose deployment configurations",
+    "boundary": "Shell/SQL quoting in manual-db-restore.sh, private/ output path guard, and container network isolation",
+    "subsystem": "Scripts and deployment manifests",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "scripts/manual-db-restore.sh",
+      "docker-compose.yml",
+      "docker-compose.demo.yml",
+      "scripts/icd11-parity/eval.sh",
+      "scripts/icd11-parity/run_ios_sim.sh",
+      "scripts/smartva-parity/run.sh",
+      "scripts/smartva-parity/export.py",
+      "scripts/smartva-parity/rescore_server.py",
+      "scripts/smartva-parity/compare.py"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline",
+      "CLOUD-AND-DEPLOYMENT.md#Unexpected service or management-plane reachability",
+      "CLOUD-AND-DEPLOYMENT.md#Security-control precedence drift",
+      "CLOUD-AND-DEPLOYMENT.md#Universal moves",
+      "CLOUD-AND-DEPLOYMENT.md#Validation rules",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Core discipline",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Workflow command and expression confusion",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Universal moves",
+      "SUPPLY-CHAIN-AND-RELEASE.md#Validation rules"
+    ],
+    "excluded_blocks": [
+      {
+        "block": "CLIENT-SIDE.md#Core discipline",
+        "reason": "CLI scripts and Docker manifests."
+      }
+    ],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "covered",
+    "agent_id": "hunter-w1-native-infra",
+    "reviewed_paths": [
+      "app/commands/backups.py",
+      "scripts/manual-db-restore.sh",
+      "app/public_doris/__init__.py",
+      "app/public_doris/routes.py",
+      "boot-public-doris.sh",
+      "deploy/doris-public-nginx.conf",
+      "deploy/ingress-common.conf",
+      "deploy/ingress-demo.conf",
+      "deploy/ingress-routes.conf",
+      "docker-compose.demo.yml",
+      "docker-compose.yml",
+      "docs/current-state/public-demo-deployment.md",
+      "public_doris_app.py",
+      "scripts/icd11-parity/eval.sh",
+      "scripts/icd11-parity/jni_smoke.c",
+      "scripts/icd11-parity/phone_harness.c",
+      "scripts/icd11-parity/run_ios_sim.sh",
+      "scripts/icd11-parity/run_phone.sh",
+      "scripts/smartva-parity/build_requests.js",
+      "scripts/smartva-parity/compare.py",
+      "scripts/smartva-parity/export.py",
+      "scripts/smartva-parity/harness.c",
+      "scripts/smartva-parity/rescore_server.py",
+      "scripts/smartva-parity/run.sh"
+    ],
+    "local_checks": [
+      {
+        "agent_id": "hunter-w1-native-infra",
+        "reviewed_paths": [
+          "app/commands/backups.py",
+          "scripts/manual-db-restore.sh"
+        ],
+        "invariant": "Database restore scripts must validate S3 backup integrity before restore, isolate scratch restore from the live DB until verification passes, prevent shell/SQL injection on restore inputs, and recover connections cleanly on swap failure.",
+        "method": "source",
+        "result": "holds: scripts/manual-db-restore.sh:225-246 delegates --from-s3 downloads to flask backups db-download, which verifies the SHA-256 digest against the recorded backup metadata before returning (app/commands/backups.py:130-189). SCRATCH_DB and OLD_DB are constructed from operator-controlled POSTGRES_DB and date +%Y%m%d_%H%M%S (lines 201-202), pg_restore runs with --no-owner --no-privileges --exit-on-error into SCRATCH_DB and verifies alembic_version and core table counts before stopping writers, and the swap block (lines 266-297) re-enables ALLOW_CONNECTIONS on POSTGRES_DB if the transactional rename fails.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-native-infra",
+        "reviewed_paths": [
+          "app/public_doris/__init__.py",
+          "app/public_doris/routes.py",
+          "boot-public-doris.sh",
+          "deploy/doris-public-nginx.conf",
+          "deploy/ingress-common.conf",
+          "deploy/ingress-demo.conf",
+          "deploy/ingress-routes.conf",
+          "docker-compose.demo.yml",
+          "docker-compose.yml",
+          "docs/current-state/public-demo-deployment.md",
+          "public_doris_app.py"
+        ],
+        "invariant": "The public DORIS service and demo ingress must isolate the unauthenticated DORIS runtime from main application databases, secrets, and host bind mounts, and must enforce proxy header trust and per-IP rate limits.",
+        "method": "source",
+        "result": "holds: In docker-compose.demo.yml:226-263, demo_doris_public_service uses a distinct DEMO_DORIS_PUBLIC_SECRET_KEY, DATABASE_URL: sqlite://, DORIS_PUBLIC_COOKIE_SECURE: \"true\", no-new-privileges:true, memory/CPU caps, no host bind mounts, and attaches only to internal networks doris_public and digitva_icd (unreachable from demo_db_service and demo_redis_service). deploy/ingress-demo.conf:13-22 and deploy/doris-public-nginx.conf:10-49 configure set_real_ip_from, real_ip_recursive off, clear X-DigitVA-Public-Ingress from external requests, set X-DigitVA-Public-Ingress: 1 only on the public DORIS proxy location, and enforce 30r/m rate limits and 32k body size caps.",
+        "artifact": null
+      },
+      {
+        "agent_id": "hunter-w1-native-infra",
+        "reviewed_paths": [
+          "scripts/icd11-parity/eval.sh",
+          "scripts/icd11-parity/jni_smoke.c",
+          "scripts/icd11-parity/phone_harness.c",
+          "scripts/icd11-parity/run_ios_sim.sh",
+          "scripts/icd11-parity/run_phone.sh",
+          "scripts/smartva-parity/build_requests.js",
+          "scripts/smartva-parity/compare.py",
+          "scripts/smartva-parity/export.py",
+          "scripts/smartva-parity/harness.c",
+          "scripts/smartva-parity/rescore_server.py",
+          "scripts/smartva-parity/run.sh"
+        ],
+        "invariant": "Developer parity scripts must not mutate the database, must validate shell-interpolated run identifiers, and must keep exported case data inside gitignored private directories.",
+        "method": "source",
+        "result": "holds: scripts/icd11-parity/eval.sh:34-37 rejects RUN_NAME matching *[!A-Za-z0-9._-]* before constructing container or host paths. scripts/smartva-parity/export.py:29-36 and rescore_server.py:92-122 execute DB queries inside SET TRANSACTION READ ONLY followed by db.session.rollback(). scripts/smartva-parity/run.sh places all outputs under private/smartva-parity/, and rescore_server.py:85-87 and compare.py:91-92 refuse output paths that do not include private.",
+        "artifact": null
+      }
+    ],
+    "result_fingerprints": [],
+    "unresolved": []
+  }
+]

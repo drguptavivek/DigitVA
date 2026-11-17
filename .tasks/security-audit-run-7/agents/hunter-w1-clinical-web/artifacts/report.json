@@ -1,0 +1,372 @@
+{
+  "agent_id": "hunter-w1-clinical-web",
+  "wave": 1,
+  "units": [
+    {
+      "coverage_id": "app%2Froutes%2Fapi%2Fdoris_clinical.py%23clinical_and_public_doris::app%2Froutes%2Fapi%2Fdoris_clinical.py%23_clinical_context::app%2Froutes%2Fapi%2Fdoris_clinical.py::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+      "status": "checked",
+      "prior_status": "none",
+      "reviewed_paths": [
+        "app/routes/api/doris_clinical.py",
+        "app/services/icd11_mms_service.py",
+        "app/services/icd11_postcoordination.py",
+        "app/services/who_icd_api.py",
+        "app/services/doris_processing.py",
+        "app/services/doris_certificate.py",
+        "app/services/doris_process_proof.py",
+        "app/services/public_demo_service.py",
+        "app/routes/api/icd11.py",
+        "app/public_doris/__init__.py",
+        "app/public_doris/routes.py",
+        "docker-compose.demo.yml",
+        "docker-compose.yml",
+        "deploy/ingress-demo.conf",
+        "deploy/ingress-common.conf",
+        "deploy/doris-public-nginx.conf"
+      ],
+      "check_ids": [
+        "CHK-W1-DORIS-01",
+        "CHK-W1-DORIS-02",
+        "CHK-W1-DORIS-03",
+        "CHK-W1-DORIS-04"
+      ],
+      "candidate_ids": [],
+      "hardening_ids": [
+        "HARD-W1-DORIS-01"
+      ],
+      "blocked_reason": null,
+      "notes": "Verified clinical DORIS allocation and training scope checks, request body caps (32 KB), per-account and global demo rate limits, WHO URI validation and upstream stream caps, parameterized ICD-11 MMS queries, and public DORIS nginx/gunicorn isolation."
+    },
+    {
+      "coverage_id": "app%2Froutes%2Fapi%2Fcoding.py%23coding_so_and_attachments::app%2Fservices%2Fcoder_workflow_service.py%23allocate_own_case::app%2Froutes%2Fapi%2Fcoding.py::ATTACK-CLASSES.md%23Access%20control",
+      "status": "candidate_found",
+      "prior_status": "none",
+      "reviewed_paths": [
+        "app/routes/api/coding.py",
+        "app/routes/api/so.py",
+        "app/routes/api/nqa.py",
+        "app/routes/api/attachments.py",
+        "app/routes/api/va_case.py",
+        "app/routes/api/reviewing.py",
+        "app/routes/va_form.py",
+        "app/routes/coding.py",
+        "app/routes/reviewing.py",
+        "app/services/coder_workflow_service.py",
+        "app/services/coder_cod_service.py",
+        "app/services/reviewer_coding_service.py",
+        "app/services/case_content_service.py",
+        "app/services/public_demo_purge_service.py",
+        "app/services/training_scope.py",
+        "app/services/attachment_service.py",
+        "app/utils/va_permission/va_permission_11_require_coding_access.py"
+      ],
+      "check_ids": [
+        "CHK-W1-CODING-01",
+        "CHK-W1-CODING-02",
+        "CHK-W1-CODING-03",
+        "CHK-W1-CODING-04",
+        "CHK-W1-CODING-05",
+        "CHK-W1-CODING-06"
+      ],
+      "candidate_ids": [
+        "CAND-W1-SO-01",
+        "CAND-W1-SO-02"
+      ],
+      "hardening_ids": [
+        "HARD-W1-ATT-01"
+      ],
+      "blocked_reason": null,
+      "notes": "Identified unbounded request body / remark storage in POST /api/v1/so/<va_sid> (CAND-W1-SO-01) and missing training_scope / va_allocation_training enforcement in POST /api/v1/so/<va_sid> and POST /api/v1/nqa/<va_sid> (CAND-W1-SO-02), plus defense-in-depth omission of training_scope checks on legacy /vaform/attachment and /vaform/media routes (HARD-W1-ATT-01)."
+    },
+    {
+      "coverage_id": "app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23admin_dom_and_templates::app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23esc::app%2Fstatic%2Fjs%2Fadmin::ATTACK-CLASSES.md%23Injection",
+      "status": "checked",
+      "prior_status": "none",
+      "reviewed_paths": [
+        "app/static/js/admin/users_panel.js",
+        "app/static/js/admin/project_person.js",
+        "app/templates/admin/project_roster.html",
+        "app/templates/admin/project_person.html",
+        "app/templates/admin/panels/project_setup.html",
+        "app/templates/admin/panels/training_sessions.html",
+        "app/templates/admin/panels/organization.html",
+        "app/templates/admin/panels/mentor_institutes.html",
+        "app/templates/admin/panels/projects.html",
+        "app/templates/va_frontpages/data_manager_partials/_user_management.html",
+        "app/templates/va_formcategory_partials/_va_cod_assessment_panel.html",
+        "app/services/project_user_import_service.py"
+      ],
+      "check_ids": [
+        "CHK-W1-DOM-01",
+        "CHK-W1-DOM-02",
+        "CHK-W1-DOM-03",
+        "CHK-W1-DOM-04"
+      ],
+      "candidate_ids": [],
+      "hardening_ids": [],
+      "blocked_reason": null,
+      "notes": "Audited all innerHTML, insertAdjacentHTML, and Jinja template sinks across users_panel.js, project_person.js, and modified admin/coding templates. All user-controlled and CSV/XLSX import values are escaped via esc() or rendered via textContent."
+    }
+  ],
+  "checks": [
+    {
+      "check_id": "CHK-W1-DORIS-01",
+      "coverage_id": "app%2Froutes%2Fapi%2Fdoris_clinical.py%23clinical_and_public_doris::app%2Froutes%2Fapi%2Fdoris_clinical.py%23_clinical_context::app%2Froutes%2Fapi%2Fdoris_clinical.py::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+      "file": "app/routes/api/doris_clinical.py",
+      "line_start": 42,
+      "line_end": 182,
+      "reviewed_paths": [
+        "app/routes/api/doris_clinical.py",
+        "app/services/doris_processing.py",
+        "app/services/doris_certificate.py",
+        "app/services/doris_process_proof.py",
+        "app/services/public_demo_service.py",
+        "app/routes/api/icd11.py"
+      ],
+      "hypothesis": "An authenticated user or public-demo account can invoke clinical DORIS endpoints (/api/v1/doris/clinical/*) for an unallocated submission, cross the real/training boundary, send an oversized request body, or bypass demo rate limits.",
+      "method": "source",
+      "outcome": "refuted",
+      "artifact": null,
+      "detail": "_json_object enforces request.content_length <= 32768 (rejecting missing Content-Length with 413), _clinical_context enforces training_scope.resolve, training_scope.sid_allowed(va_sid), authz.can(current_user, Action.CODE/REVIEW, va_sid), and an active VaAllocations row with VaAllocations.va_allocation_training == training_scope.on_training_side(), and _demo_limited applies both per-account (300/hr) and global (2000/hr) shared rate limits to public-demo accounts."
+    },
+    {
+      "check_id": "CHK-W1-DORIS-02",
+      "coverage_id": "app%2Froutes%2Fapi%2Fdoris_clinical.py%23clinical_and_public_doris::app%2Froutes%2Fapi%2Fdoris_clinical.py%23_clinical_context::app%2Froutes%2Fapi%2Fdoris_clinical.py::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+      "file": "app/services/icd11_postcoordination.py",
+      "line_start": 74,
+      "line_end": 135,
+      "reviewed_paths": [
+        "app/services/icd11_postcoordination.py",
+        "app/services/who_icd_api.py"
+      ],
+      "hypothesis": "Caller-supplied stem_uri or axis entity URIs in DORIS clinical or public endpoints can trigger SSRF, path traversal, or unbounded upstream response buffering against the internal WHO ICD-11 container.",
+      "method": "source",
+      "outcome": "refuted",
+      "artifact": null,
+      "detail": "icd11_postcoordination._resource and who_icd_api._validate_resource strictly match ^https?://id\\.who\\.int(/icd/(?:entity/\\d+(?:/\\d+)?|release/11/[0-9]{4}-[0-9]{2}/mms(?:/\\d+(?:/(?:other|unspecified))?)?))$, reject query/fragment/dot-segments, disable redirects (allow_redirects=False), and stream upstream responses with a hard 2 MB cap (_MAX_UPSTREAM_BYTES) and 512 KB cap for mortality computation."
+    },
+    {
+      "check_id": "CHK-W1-DORIS-03",
+      "coverage_id": "app%2Froutes%2Fapi%2Fdoris_clinical.py%23clinical_and_public_doris::app%2Froutes%2Fapi%2Fdoris_clinical.py%23_clinical_context::app%2Froutes%2Fapi%2Fdoris_clinical.py::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+      "file": "app/services/icd11_mms_service.py",
+      "line_start": 920,
+      "line_end": 1595,
+      "reviewed_paths": [
+        "app/services/icd11_mms_service.py"
+      ],
+      "hypothesis": "Search or entity lookup parameters in icd11_mms_service.py can cause SQL injection or algorithmic/regex complexity DoS via unescaped tsquery or unbounded token expansion.",
+      "method": "source",
+      "outcome": "refuted",
+      "artifact": null,
+      "detail": "Search input is truncated to MAX_QUERY_LENGTH (200 chars) and MAX_QUERY_TOKENS (8 alphanumeric tokens via _TOKEN_RE), LIKE wildcards are escaped via _escape_like, tsquery tokens are strictly [a-z0-9]+, and all SQL queries use bound SQLAlchemy parameters with MAX_RESULTS_LIMIT (50)."
+    },
+    {
+      "check_id": "CHK-W1-DORIS-04",
+      "coverage_id": "app%2Froutes%2Fapi%2Fdoris_clinical.py%23clinical_and_public_doris::app%2Froutes%2Fapi%2Fdoris_clinical.py%23_clinical_context::app%2Froutes%2Fapi%2Fdoris_clinical.py::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+      "file": "app/public_doris/routes.py",
+      "line_start": 27,
+      "line_end": 368,
+      "reviewed_paths": [
+        "app/public_doris/__init__.py",
+        "app/public_doris/routes.py",
+        "docker-compose.demo.yml",
+        "docker-compose.yml",
+        "deploy/ingress-demo.conf",
+        "deploy/ingress-common.conf",
+        "deploy/doris-public-nginx.conf"
+      ],
+      "hypothesis": "The unauthenticated public DORIS service (/api/v1/doris-demo/*) can be used to spoof X-Forwarded-For rate limits or exhaust memory/CPU via oversized payloads.",
+      "method": "source",
+      "outcome": "hardening",
+      "artifact": null,
+      "detail": "In docker-compose.demo.yml and deploy/ingress-demo.conf, nginx configures set_real_ip_from ${DEMO_PROXY_FROM}, real_ip_header X-Forwarded-For, real_ip_recursive off, and client_max_body_size 32k, and forwards $remote_addr to doris-public. However, in deploy/ingress-common.conf (used by docker-compose.yml), X-Forwarded-For is forwarded to minerva_app_service without ngx_http_realip_module normalization if deployed without an external header-rewriting DMZ proxy (recorded as HARD-W1-DORIS-01)."
+    },
+    {
+      "check_id": "CHK-W1-CODING-01",
+      "coverage_id": "app%2Froutes%2Fapi%2Fcoding.py%23coding_so_and_attachments::app%2Fservices%2Fcoder_workflow_service.py%23allocate_own_case::app%2Froutes%2Fapi%2Fcoding.py::ATTACK-CLASSES.md%23Access%20control",
+      "file": "app/services/coder_workflow_service.py",
+      "line_start": 900,
+      "line_end": 1030,
+      "reviewed_paths": [
+        "app/routes/api/coding.py",
+        "app/services/coder_workflow_service.py",
+        "app/services/coder_cod_service.py",
+        "app/services/reviewer_coding_service.py",
+        "app/routes/api/reviewing.py",
+        "app/routes/coding.py",
+        "app/routes/reviewing.py"
+      ],
+      "hypothesis": "A coder can call POST /api/v1/coding/code-now/<va_sid> (allocate_own_case) to self-allocate a submission from another interviewer, a project without self-coding enabled, or across the training_scope boundary.",
+      "method": "source",
+      "outcome": "refuted",
+      "artifact": null,
+      "detail": "api_code_now resolves training_scope.resolve('coding'), and allocate_own_case enforces training_scope.sid_allowed(va_sid), verifies self_coding_enabled (or training self-coding unit membership via training_self_coding_ids), locks VaWebIntakeDraft FOR UPDATE verifying VaWebIntakeDraft.user_id == user.user_id and status == 'submitted', and verifies authz.can(user, Action.CODE, va_sid)."
+    },
+    {
+      "check_id": "CHK-W1-CODING-02",
+      "coverage_id": "app%2Froutes%2Fapi%2Fcoding.py%23coding_so_and_attachments::app%2Fservices%2Fcoder_workflow_service.py%23allocate_own_case::app%2Froutes%2Fapi%2Fcoding.py::ATTACK-CLASSES.md%23Access%20control",
+      "file": "app/routes/api/so.py",
+      "line_start": 54,
+      "line_end": 206,
+      "reviewed_paths": [
+        "app/routes/api/so.py",
+        "app/routes/api/va_case.py",
+        "app/routes/va_form.py"
+      ],
+      "hypothesis": "POST /api/v1/so/<va_sid> (save_social_autopsy) accepts a JSON body without a request Content-Length cap or remark length limit, allowing an authenticated coder/reviewer (including a self-registered public-demo user on PUB01) to persist up to 64 MB per submission in VaSocialAutopsyAnalysis.va_saa_remark and amplify workspace/form responses.",
+      "method": "source",
+      "outcome": "needs_validation",
+      "artifact": null,
+      "detail": "Confirmed in source at app/routes/api/so.py:54-206: unlike PUT /api/v1/va/<va_sid>/note (64 KB body cap, 20,000 char cap) and /api/v1/doris/clinical/* (32 KB body cap), save_social_autopsy performs no request.content_length check and no length validation on remark = (data.get('remark') or '').strip() before storing it in VaSocialAutopsyAnalysis.va_saa_remark (db.Text). Recorded as CAND-W1-SO-01."
+    },
+    {
+      "check_id": "CHK-W1-CODING-03",
+      "coverage_id": "app%2Froutes%2Fapi%2Fcoding.py%23coding_so_and_attachments::app%2Fservices%2Fcoder_workflow_service.py%23allocate_own_case::app%2Froutes%2Fapi%2Fcoding.py::ATTACK-CLASSES.md%23Access%20control",
+      "file": "app/routes/api/so.py",
+      "line_start": 54,
+      "line_end": 160,
+      "reviewed_paths": [
+        "app/routes/api/so.py",
+        "app/routes/api/nqa.py",
+        "app/services/training_scope.py",
+        "app/utils/va_permission/va_permission_11_require_coding_access.py"
+      ],
+      "hypothesis": "POST /api/v1/so/<va_sid> and POST /api/v1/nqa/<va_sid> omit training_scope.resolve, training_scope.sid_allowed(va_sid), and VaAllocations.va_allocation_training filtering, and allow coder/reviewer mode selection via client-supplied va_actiontype.",
+      "method": "source",
+      "outcome": "needs_validation",
+      "artifact": null,
+      "detail": "Confirmed in source at app/routes/api/so.py:54-160 and app/routes/api/nqa.py:45-133: neither endpoint invokes training_scope.resolve or training_scope.sid_allowed(va_sid), nor filters VaAllocations by va_allocation_training == training_scope.on_training_side(). Additionally, in so.py:61-197, VaSocialAutopsyAnalysis is stored per (va_sid, va_saa_by, payload_version_id) without separating coder vs reviewer mode while selecting the authorization gate (social_autopsy_enabled vs reviewer_social_autopsy_enabled) from client-supplied va_actiontype. Recorded as CAND-W1-SO-02."
+    },
+    {
+      "check_id": "CHK-W1-CODING-04",
+      "coverage_id": "app%2Froutes%2Fapi%2Fcoding.py%23coding_so_and_attachments::app%2Fservices%2Fcoder_workflow_service.py%23allocate_own_case::app%2Froutes%2Fapi%2Fcoding.py::ATTACK-CLASSES.md%23Access%20control",
+      "file": "app/routes/api/attachments.py",
+      "line_start": 42,
+      "line_end": 93,
+      "reviewed_paths": [
+        "app/routes/api/attachments.py",
+        "app/routes/va_form.py",
+        "app/services/attachment_service.py"
+      ],
+      "hypothesis": "Attachment delivery routes (/api/v1/attachments/* vs /vaform/attachment/* and /vaform/media/*) have inconsistent training_scope enforcement.",
+      "method": "source",
+      "outcome": "hardening",
+      "artifact": null,
+      "detail": "app/routes/api/attachments.py:42-93 enforces training_scope.resolve('coding', 'review', 'interview') and training_scope.sid_allowed(record.va_sid), whereas app/routes/va_form.py:1188-1229 (/vaform/attachment/<storage_name_raw> and /vaform/media/<va_form_id>/<va_filename>) calls attachment_service.authorize_token_attachment / authorize_legacy_attachment without training_scope checks."
+    },
+    {
+      "check_id": "CHK-W1-CODING-05",
+      "coverage_id": "app%2Froutes%2Fapi%2Fcoding.py%23coding_so_and_attachments::app%2Fservices%2Fcoder_workflow_service.py%23allocate_own_case::app%2Froutes%2Fapi%2Fcoding.py::ATTACK-CLASSES.md%23Access%20control",
+      "file": "app/services/case_content_service.py",
+      "line_start": 440,
+      "line_end": 706,
+      "reviewed_paths": [
+        "app/services/case_content_service.py"
+      ],
+      "hypothesis": "case_content_service.load_case_fields or resolve_unblinded_pii_values can unblind sealed PII for a redacted viewer (collaborator, interview_supervisor, or Tier 1/2 user) or leak PII across projects.",
+      "method": "source",
+      "outcome": "refuted",
+      "artifact": null,
+      "detail": "resolve_unblinded_pii_values explicitly checks should_redact_pii(user, project_id=project_id) and returns {} when redaction applies, and load_case_fields masks every is_pii field with REDACTED_PII_DISPLAY ('[Redacted — non-PII access]') and omits audio/image/file media URLs when redact is True."
+    },
+    {
+      "check_id": "CHK-W1-CODING-06",
+      "coverage_id": "app%2Froutes%2Fapi%2Fcoding.py%23coding_so_and_attachments::app%2Fservices%2Fcoder_workflow_service.py%23allocate_own_case::app%2Froutes%2Fapi%2Fcoding.py::ATTACK-CLASSES.md%23Access%20control",
+      "file": "app/services/public_demo_purge_service.py",
+      "line_start": 100,
+      "line_end": 495,
+      "reviewed_paths": [
+        "app/services/public_demo_purge_service.py"
+      ],
+      "hypothesis": "public_demo_purge_service.purge_expired_demo_users can delete submissions, drafts, or users belonging to non-demo projects if a user_id or va_sid is referenced outside PUB01.",
+      "method": "source",
+      "outcome": "refuted",
+      "artifact": null,
+      "detail": "_purge_one locks the VaUsers row FOR UPDATE, verifies user.is_public_demo and demo_expires_at <= cutoff, refuses with RuntimeError if the user has any VaUserAccessGrants outside PUBLIC_DEMO_PROJECT_ID (PUB01), and restricts all deleted VaWebIntakeDraft, VaDeathRegister, and VaSubmissions rows to project_id == PUBLIC_DEMO_PROJECT_ID."
+    },
+    {
+      "check_id": "CHK-W1-DOM-01",
+      "coverage_id": "app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23admin_dom_and_templates::app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23esc::app%2Fstatic%2Fjs%2Fadmin::ATTACK-CLASSES.md%23Injection",
+      "file": "app/static/js/admin/users_panel.js",
+      "line_start": 1,
+      "line_end": 622,
+      "reviewed_paths": [
+        "app/static/js/admin/users_panel.js",
+        "app/templates/va_frontpages/data_manager_partials/_user_management.html"
+      ],
+      "hypothesis": "User-controlled profile fields (name, email, phone, job_title, languages) or CSV import error messages in users_panel.js reach innerHTML or insertAdjacentHTML without HTML escaping.",
+      "method": "source",
+      "outcome": "refuted",
+      "artifact": null,
+      "detail": "esc() escapes &, <, >, \", and ' (lines 16-24), and every dynamic value interpolated into innerHTML or insertAdjacentHTML in renderTable, showImportResult, loadAccessRequests, and toast is passed through esc()."
+    },
+    {
+      "check_id": "CHK-W1-DOM-02",
+      "coverage_id": "app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23admin_dom_and_templates::app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23esc::app%2Fstatic%2Fjs%2Fadmin::ATTACK-CLASSES.md%23Injection",
+      "file": "app/static/js/admin/project_person.js",
+      "line_start": 1,
+      "line_end": 198,
+      "reviewed_paths": [
+        "app/static/js/admin/project_person.js",
+        "app/templates/admin/project_roster.html",
+        "app/templates/admin/project_person.html"
+      ],
+      "hypothesis": "project_person.js or project_roster.html / project_person.html interpolates unescaped person details, unit names, or sign-in codes into DOM HTML sinks.",
+      "method": "source",
+      "outcome": "refuted",
+      "artifact": null,
+      "detail": "project_person.js constructs all DOM nodes via upEl (document.createElement + textContent) and replaceChildren with zero innerHTML sinks; project_roster.html and project_person.html use Jinja autoescaping and |tojson."
+    },
+    {
+      "check_id": "CHK-W1-DOM-03",
+      "coverage_id": "app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23admin_dom_and_templates::app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23esc::app%2Fstatic%2Fjs%2Fadmin::ATTACK-CLASSES.md%23Injection",
+      "file": "app/templates/admin/panels/project_setup.html",
+      "line_start": 380,
+      "line_end": 1993,
+      "reviewed_paths": [
+        "app/templates/admin/panels/project_setup.html",
+        "app/services/project_user_import_service.py"
+      ],
+      "hypothesis": "CSV/XLSX import results or bulk user grid cells in project_setup.html interpolate unescaped row values or error reasons into innerHTML.",
+      "method": "source",
+      "outcome": "refuted",
+      "artifact": null,
+      "detail": "esc() escapes &, <, >, and \", and all dynamic values in ugMembersRows.innerHTML (r.row, r.name, r.email, r.phone, r.reason at lines 1471-1483), ugGridBody, ugDrawerAssignments, and psRenderMatrix are wrapped in esc() or assigned via textContent."
+    },
+    {
+      "check_id": "CHK-W1-DOM-04",
+      "coverage_id": "app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23admin_dom_and_templates::app%2Fstatic%2Fjs%2Fadmin%2Fusers_panel.js%23esc::app%2Fstatic%2Fjs%2Fadmin::ATTACK-CLASSES.md%23Injection",
+      "file": "app/templates/admin/panels/organization.html",
+      "line_start": 470,
+      "line_end": 3149,
+      "reviewed_paths": [
+        "app/templates/admin/panels/training_sessions.html",
+        "app/templates/admin/panels/organization.html",
+        "app/templates/admin/panels/mentor_institutes.html",
+        "app/templates/admin/panels/projects.html",
+        "app/templates/va_formcategory_partials/_va_cod_assessment_panel.html"
+      ],
+      "hypothesis": "Modified admin panels (training_sessions.html, organization.html, mentor_institutes.html, projects.html) or _va_cod_assessment_panel.html introduce DOM XSS via innerHTML.",
+      "method": "source",
+      "outcome": "refuted",
+      "artifact": null,
+      "detail": "training_sessions.html uses textContent and insertRow/insertCell exclusively; organization.html wraps all dynamic fields in esc() and writes CSV import summaries (#org-units-result, #org-import-result, #org-users-result) via textContent."
+    }
+  ],
+  "candidates": [
+    {
+      "candidate_id": "CAND-W1-SO-01",
+      "fingerprint": "app/routes/api/so.py:save_social_autopsy:unbounded-remark-and-request-body-size",
+      "coverage_id": "app%2Froutes%2Fapi%2Fcoding.py%23coding_so_and_attachments::app%2Fservices%2Fcoder_workflow_service.py%23allocate_own_case::app%2Froutes%2Fapi%2Fcoding.py::ATTACK-CLASSES.md%23Access%20control",
+      "title": "Unbounded request body and remark length in POST /api/v1/so/<va_sid> allows 64 MB database and workspace payload amplification",
+      "proposed_verdict": "needs_validation"
+    },
+    {
+      "candidate_id": "CAND-W1-SO-02",
+      "fingerprint": "app/routes/api/so.py:save_social_autopsy:missing-training-scope-and-mode-confusion-in-so-and-nqa",
+      "coverage_id": "app%2Froutes%2Fapi%2Fcoding.py%23coding_so_and_attachments::app%2Fservices%2Fcoder_workflow_service.py%23allocate_own_case::app%2Froutes%2Fapi%2Fcoding.py::ATTACK-CLASSES.md%23Access%20control",
+      "title": "Missing training_scope enforcement and client-controlled mode gate in POST /api/v1/so/<va_sid> and POST /api/v1/nqa/<va_sid>",
+      "proposed_verdict": "needs_validation"
+    }
+  ]
+}

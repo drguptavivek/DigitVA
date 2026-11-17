@@ -6,6 +6,8 @@ import { useUiStyles } from "../ui";
 import { answerText, answerTone } from "./answerTone";
 import { categoryMode, groupDiseaseHistory, historySubcategoryIndex, subcategoryHeading, summaryPlacement, workflowGroups, type CategorySubcategory } from "./categoryLayout";
 import { AttachmentGallery } from "./media/AttachmentGallery.native";
+import { ImageViewerProvider, type RenderMedia, type ViewerImage } from "./media/ImageViewer.native";
+import { collectPaths } from "./media/path";
 import type { CategoryPayload, JsonValue, WorkspaceCategoryNav } from "./contracts";
 
 const ATTACHMENT_PATH = /^\/api\/v1\/attachments\/(?:legacy\/[^/?#]+\/[^/?#]+|[^/?#]+)(?:\.[a-zA-Z0-9]+)?$/;
@@ -111,6 +113,16 @@ function DiseaseHistoryCard({ items, renderMedia }: { items: CategorySubcategory
   );
 }
 
+/** The page's image attachments in display order (workflow pages show the attachments cards first), for the full-screen viewer. */
+function pageImages(category: CategoryPayload, mode: ReturnType<typeof categoryMode>, categoryNav?: WorkspaceCategoryNav[]): ViewerImage[] {
+  const subcategories = mode === "workflow_panel"
+    ? (({ attachmentSubs, historyItems, otherSubs }) => [...attachmentSubs, { items: historyItems }, ...otherSubs])(workflowGroups(category, categoryNav))
+    : category.subcategories;
+  return collectPaths(subcategories.flatMap((subcategory) => subcategory.items), true).attachments
+    .filter((attachment) => attachment.kind === "image" || attachment.kind === "local")
+    .map(({ path, label }) => ({ path, label }));
+}
+
 /** Render ordered server category data as escaped native text and optional media slots; layout rules in categoryLayout.ts. */
 export function CategoryPanel({
   category,
@@ -120,7 +132,7 @@ export function CategoryPanel({
   afterContent,
 }: {
   category: CategoryPayload;
-  renderMedia?: (attachmentPath: string) => ReactNode;
+  renderMedia?: RenderMedia;
   iconName?: string | null;
   categoryNav?: WorkspaceCategoryNav[];
   workspaceIdentity?: string;
@@ -143,6 +155,7 @@ export function CategoryPanel({
       : card(subcategory));
   }
   return (
+    <ImageViewerProvider images={pageImages(category, mode, categoryNav)} renderMedia={renderMedia}>
     <View accessibilityLabel={category.label}>
       {/* The symptoms card carries its own title; a second heading above it says the same (round-6 C6). */}
       {placement === "before" ? null : <Text style={styles.headline}>{category.label}</Text>}
@@ -151,6 +164,7 @@ export function CategoryPanel({
       {afterContent}
       {placement === "after" ? summary : null}
     </View>
+    </ImageViewerProvider>
   );
 }
 

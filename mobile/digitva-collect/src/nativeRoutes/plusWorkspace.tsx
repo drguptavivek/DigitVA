@@ -182,7 +182,7 @@ function Workspace({ mode, vaSid, training = false }: { mode: WorkspaceMode; vaS
         onSaved={onSaved}
         onDone={onDone}
       />}
-      renderMedia={(attachmentPath) => <AttachmentMedia identity={identity} attachmentPath={attachmentPath} userId={userId} training={training} />}
+      renderMedia={(attachmentPath, renderImage) => <AttachmentMedia identity={identity} attachmentPath={attachmentPath} userId={userId} training={training} renderImage={renderImage} />}
     />;
   }
   if (mode === "view") return <RedirectHome />;

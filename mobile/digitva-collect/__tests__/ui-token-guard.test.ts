@@ -43,6 +43,9 @@ const COLOUR_ALLOW: ReadonlyArray<{ file: string; text: string; why: string }> =
   { file: "src/workspace/doris/CodeDetailsSheet.tsx", text: "rgba(17,24,39,0.62)", why: "ICD-11 details sheet scrim (the picker scrim)" },
   { file: "src/workspace/media/AttachmentGallery.web.tsx", text: "rgba(8, 13, 20, 0.94)", why: "lightbox scrim" },
   { file: "src/workspace/media/AttachmentGallery.web.tsx", text: "color: \"#fff\"", why: "lightbox controls sit on the dark scrim" },
+  { file: "src/workspace/media/ImageViewer.native.tsx", text: "\"#000000\"", why: "phone image viewer backdrop, always dark like the camera" },
+  { file: "src/workspace/media/ImageViewer.native.tsx", text: "\"#ffffff\"", why: "phone image viewer controls sit on the dark backdrop" },
+  { file: "src/workspace/media/ImageViewer.native.tsx", text: "\"rgba(0,0,0,0.6)\"", why: "phone image viewer scrim behind its title and controls" },
   { file: "src/web/InterviewScreen.tsx", text: "stroke", why: "matches the literal stroke colours the WHO package paints on its SVG icons" }
 ];
 

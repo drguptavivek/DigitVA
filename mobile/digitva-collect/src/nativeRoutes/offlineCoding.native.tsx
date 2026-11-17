@@ -9,7 +9,7 @@
  */
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useEngineScreen } from "../engineIdle";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
 
@@ -792,8 +792,8 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
       </View>
     );
   };
-  const renderMedia = (path: string) => path.startsWith(LOCAL_ATTACHMENT_PREFIX)
-    ? <LocalAttachmentMedia db={db} draftId={clientDraftId} reference={localCase.current?.answers[path.slice(LOCAL_ATTACHMENT_PREFIX.length)]} assertAllowed={assertAllowed} />
+  const renderMedia = (path: string, renderImage?: (uri: string) => ReactNode) => path.startsWith(LOCAL_ATTACHMENT_PREFIX)
+    ? <LocalAttachmentMedia db={db} draftId={clientDraftId} reference={localCase.current?.answers[path.slice(LOCAL_ATTACHMENT_PREFIX.length)]} assertAllowed={assertAllowed} path={path} renderImage={renderImage} />
     : null;
   return (
     <CaseWorkspaceScreen

@@ -5,8 +5,8 @@
  * through a short-lived plain copy in the private cache, made and deleted as the questionnaire's own player does
  * (src/mediaFiles.ts writePlaybackCopy / removeFile; the folder is also wiped on lock). Nothing leaves the phone.
  */
-import { useEffect, useState } from "react";
-import { AppState, Image, Text, View } from "react-native";
+import { useEffect, useState, type ReactNode } from "react";
+import { AppState, Image, Pressable, Text, View } from "react-native";
 
 import { AttachmentAudioPlayer } from "../../AttachmentAudioPlayer";
 import { getAttachmentBytes, getAttachmentMeta, referenceId, type AttachmentKind } from "../../attachmentStore";
@@ -14,11 +14,12 @@ import type { Db } from "../../drafts";
 import { t } from "../../i18n";
 import { removeFile, writePlaybackCopy } from "../../mediaFiles";
 import { Button, useUiStyles } from "../../ui";
+import { useImageViewer } from "./ImageViewer.native";
 
 /** Closes the attachment open now, so opening another removes its plain copy first. */
 let closeOpen: (() => void) | undefined;
 
-export function LocalAttachmentMedia({ db, draftId, reference, assertAllowed }: {
+export function LocalAttachmentMedia({ db, draftId, reference, assertAllowed, path, renderImage }: {
   db: Db;
   /** The open case: a stored file of any other draft is not shown. */
   draftId: string;
@@ -26,9 +27,14 @@ export function LocalAttachmentMedia({ db, draftId, reference, assertAllowed }: 
   reference: unknown;
   /** The case's access check, run before the stored bytes are read. */
   assertAllowed: () => Promise<void>;
+  /** The category value naming this attachment: where the full-screen viewer opens. */
+  path?: string;
+  /** Full-screen viewer: opens at once and draws an image with this; no Open/Close buttons. */
+  renderImage?: (uri: string) => ReactNode;
 }) {
   const styles = useUiStyles();
-  const [open, setOpen] = useState(false);
+  const openViewer = useImageViewer();
+  const [open, setOpen] = useState(!!renderImage);
   const [media, setMedia] = useState<{ uri: string; kind: AttachmentKind } | "missing" | null>(null);
   const [active, setActive] = useState(AppState.currentState !== "background" && AppState.currentState !== "inactive");
 
@@ -73,6 +79,11 @@ export function LocalAttachmentMedia({ db, draftId, reference, assertAllowed }: 
     };
   }, [active, assertAllowed, db, draftId, open, reference]);
 
+  if (renderImage) {
+    if (media === "missing") return <Text accessibilityRole="alert" style={styles.error}>{t("offlineAttachmentUnavailable")}</Text>;
+    if (!media) return <Text style={styles.muted}>{t("offlineAttachmentLoading")}</Text>;
+    return media.kind === "image" ? <>{renderImage(media.uri)}</> : <Text style={styles.muted}>{t("offlineAttachmentDocument")}</Text>;
+  }
   if (!open) return <Button kind="secondary" label={t("offlineAttachmentOpen")} onPress={() => setOpen(true)} />;
   const close = <Button kind="secondary" label={t("offlineAttachmentClose")} onPress={() => setOpen(false)} />;
   let body;
@@ -80,7 +91,8 @@ export function LocalAttachmentMedia({ db, draftId, reference, assertAllowed }: 
   else if (!media) body = <Text style={styles.muted}>{t("offlineAttachmentLoading")}</Text>;
   else if (media.kind === "document") body = <Text style={styles.muted}>{t("offlineAttachmentDocument")}</Text>;
   else if (media.kind === "image") {
-    body = <Image accessibilityLabel={t("offlineAttachedImage")} source={{ uri: media.uri }} resizeMode="contain" onError={() => setMedia("missing")} style={{ width: "100%", aspectRatio: 4 / 3 }} />;
+    const image = <Image accessibilityLabel={t("offlineAttachedImage")} source={{ uri: media.uri }} resizeMode="contain" onError={() => setMedia("missing")} style={{ width: "100%", aspectRatio: 4 / 3 }} />;
+    body = openViewer && path ? <Pressable accessibilityRole="imagebutton" accessibilityLabel="Open image full screen" onPress={() => openViewer(path)}>{image}</Pressable> : image;
   } else {
     body = <AttachmentAudioPlayer uri={media.uri} accessibilityLabel={t("offlineAttachedAudio")} onError={() => setMedia("missing")} />;
   }

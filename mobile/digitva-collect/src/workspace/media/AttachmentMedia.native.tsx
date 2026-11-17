@@ -1,12 +1,13 @@
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { File } from "expo-file-system";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState, Image, Pressable, Text, View } from "react-native";
 
 import { getAuthenticatedAttachmentSource } from "../../auth";
 import { removeFile } from "../../mediaFiles";
 import { cacheFile, shareAndDelete } from "../../standalone/shareFile";
 import type { WorkspaceIdentity } from "../contracts";
+import { useImageViewer } from "./ImageViewer.native";
 import { attachmentMediaExtension, attachmentMediaKind } from "./path";
 
 type AttachmentMediaProps = {
@@ -16,6 +17,8 @@ type AttachmentMediaProps = {
   bearerSource?: { server: string; token: string };
   /** The case is a training case: its media is fetched with `training=1`. */
   training?: boolean;
+  /** Full-screen viewer: draw the loaded image with this instead of the tappable inline image. */
+  renderImage?: (uri: string) => ReactNode;
 };
 
 /** Load authenticated media from the API. A PDF is not shown inline: it opens from the share sheet. */
@@ -71,7 +74,8 @@ function pauseQuietly(player: { pause(): void }) {
   }
 }
 
-function AttachmentPlayback({ identity, attachmentPath, userId, training }: AttachmentMediaProps) {
+function AttachmentPlayback({ identity, attachmentPath, userId, training, renderImage }: AttachmentMediaProps) {
+  const openViewer = useImageViewer();
   const kind = attachmentMediaKind(attachmentPath);
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
@@ -142,7 +146,10 @@ function AttachmentPlayback({ identity, attachmentPath, userId, training }: Atta
   const currentSource = source?.key === key ? source : null;
   if (!currentSource) return <Text accessibilityRole="text">Loading attachment…</Text>;
   if (kind === "image") {
-    return <Image accessibilityLabel="Attached image" source={{ uri: currentSource.uri }} resizeMode="contain" onError={() => setError(true)} style={{ width: "100%", aspectRatio: 4 / 3 }} />;
+    if (renderImage) return <>{renderImage(currentSource.uri)}</>;
+    const image = <Image accessibilityLabel="Attached image" source={{ uri: currentSource.uri }} resizeMode="contain" onError={() => setError(true)} style={{ width: "100%", aspectRatio: 4 / 3 }} />;
+    if (!openViewer) return image;
+    return <Pressable accessibilityRole="imagebutton" accessibilityLabel="Open image full screen" onPress={() => openViewer(attachmentPath)}>{image}</Pressable>;
   }
   return (
     <View>

@@ -51,7 +51,7 @@ export function CaseWorkspaceScreen({
   onExit: () => void;
   onDone?: () => void;
   renderDoris?: (workspace: WorkspacePayload, onSaved: () => Promise<void>, onDone: () => void, guardedApi: WorkspaceApi) => ReactNode;
-  renderMedia?: (attachmentPath: string) => ReactNode;
+  renderMedia?: (attachmentPath: string, renderImage?: (uri: string) => ReactNode) => ReactNode;
   /** Section code from the route (`?section=`); unknown or missing falls back to the server default. */
   section?: string;
   /** Called when the user picks a section, so the route can record it (replace, not push). */

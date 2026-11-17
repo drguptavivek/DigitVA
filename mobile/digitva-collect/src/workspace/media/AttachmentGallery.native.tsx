@@ -3,7 +3,8 @@
  * narration image `imagenarr`, document images, PDFs and narration audio, bare or wrapped in an object or list),
  * one at a time with previous/next, and rotate for images. Every item is drawn by the screen's `renderMedia` slot,
  * so online media keeps the bearer transport (AttachmentMedia.native.tsx) and offline draft attachments keep the
- * encrypted store (LocalAttachmentMedia.native.tsx). Thumbnails and the pinch lightbox are web only.
+ * encrypted store (LocalAttachmentMedia.native.tsx). Tapping an image opens the full-screen viewer (ImageViewer.native.tsx: pinch zoom, pan, rotate, previous/next
+ * across the page's images); thumbnails and the web lightbox are web only.
  */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Text, View } from "react-native";

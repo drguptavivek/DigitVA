@@ -25,3 +25,24 @@ jest.mock("expo-symbols", () => {
       React.createElement(View, { testID: "symbol", name, tintColor, style: { width: size, height: size }, accessible, accessibilityLabel, importantForAccessibility }),
   };
 });
+
+// Reanimated's native runtime is unavailable under Node, and its own mock needs it too. This stub keeps shared values
+// across renders (collected in `__sharedValues`, in creation order) and evaluates animated styles on each render.
+jest.mock("react-native-reanimated", () => {
+  const React = require("react");
+  const { View } = require("react-native");
+  const sharedValues = [];
+  return {
+    __esModule: true,
+    __sharedValues: sharedValues,
+    default: { View, createAnimatedComponent: (component) => component },
+    useSharedValue: (initial) => {
+      const ref = React.useRef(null);
+      if (!ref.current) { ref.current = { value: initial }; sharedValues.push(ref.current); }
+      return ref.current;
+    },
+    useEvent: () => () => undefined,
+    useAnimatedStyle: (fn) => fn(),
+    withTiming: (value) => value,
+  };
+});

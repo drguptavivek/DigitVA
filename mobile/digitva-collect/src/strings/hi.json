@@ -1418,6 +1418,7 @@
   "consentNeededBeforeSave": "सूचनादाता का नाम, फ़ोन या पता भरने से पहले उत्तरदाता की सहमति का निर्णय दर्ज करें।",
   "attachPlay": "चलाएँ",
   "attachPause": "रोकें",
+  "attachSeek": "रिकॉर्डिंग में आगे-पीछे जाएँ",
   "attachContinue": "आगे बढ़ें",
   "attachOpenSettings": "सेटिंग खोलें",
   "attachMicTitle": "माइक्रोफ़ोन की अनुमति दें?",

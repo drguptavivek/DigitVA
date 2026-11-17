@@ -33,6 +33,30 @@ function clamp(value: number, low: number, high: number) {
   return Math.min(high, Math.max(low, value));
 }
 
+/** Offset limit on one axis: a scaled image larger than the stage pans to its edges; a smaller one stays centred. */
+export function clampOffset(offset: number, scale: number, imageSize: number, stageSize: number) {
+  "worklet";
+  const max = Math.max(0, (imageSize * scale - stageSize) / 2);
+  return clamp(offset, -max, max);
+}
+
+/** Contain-fit size of an image in the stage as drawn after rotating; 90/270 swap width and height. Unknown size = stage. */
+export function displayedSize(naturalW: number, naturalH: number, stageW: number, stageH: number, rotation: number) {
+  "worklet";
+  if (!naturalW || !naturalH) return { w: stageW, h: stageH };
+  const fit = Math.min(stageW / naturalW, stageH / naturalH);
+  const w = naturalW * fit;
+  const h = naturalH * fit;
+  return rotation % 180 === 0 ? { w, h } : { w: h, h: w };
+}
+
+/** Translation that keeps the content point under (focalX, focalY), measured from the stage centre, fixed when scale changes. */
+export function focalZoom(scale: number, tx: number, ty: number, nextScale: number, focalX: number, focalY: number) {
+  "worklet";
+  const ratio = nextScale / scale;
+  return { x: focalX - (focalX - tx) * ratio, y: focalY - (focalY - ty) * ratio };
+}
+
 const OpenContext = createContext<((path: string) => void) | null>(null);
 
 /** Opens the viewer at an image path; null outside a category page (the image is then not tappable). */
@@ -73,17 +97,31 @@ function ImageViewer({ images, start, renderMedia, onClose }: { images: ViewerIm
   const savedY = useSharedValue(0);
   const stageW = useSharedValue(0);
   const stageH = useSharedValue(0);
+  const natW = useSharedValue(0);
+  const natH = useSharedValue(0);
+  const rot = useSharedValue(0);
 
   const current = list[index];
 
-  // ponytail: zoom is about the stage centre, not the pinch point; add focal-point maths if reviewers miss it.
+  // Pinch keeps the content point under the fingers fixed; pan and zoom stay inside the displayed image.
+  const clampView = (at: number, tx: number, ty: number) => {
+    "worklet";
+    const size = displayedSize(natW.value, natH.value, stageW.value, stageH.value, rot.value);
+    return { x: clampOffset(tx, at, size.w, stageW.value), y: clampOffset(ty, at, size.h, stageH.value) };
+  };
   const pinch = Gesture.Pinch()
+    .onBegin(() => {
+      savedScale.value = scale.value;
+      savedX.value = x.value;
+      savedY.value = y.value;
+    })
     .onUpdate((event) => {
-      scale.value = clamp(savedScale.value * event.scale, MIN_SCALE, MAX_SCALE);
-      const mx = (stageW.value * (scale.value - 1)) / 2;
-      const my = (stageH.value * (scale.value - 1)) / 2;
-      x.value = clamp(x.value, -mx, mx);
-      y.value = clamp(y.value, -my, my);
+      const next = clamp(savedScale.value * event.scale, MIN_SCALE, MAX_SCALE);
+      const moved = focalZoom(savedScale.value, savedX.value, savedY.value, next, event.focalX - stageW.value / 2, event.focalY - stageH.value / 2);
+      const kept = clampView(next, moved.x, moved.y);
+      scale.value = next;
+      x.value = kept.x;
+      y.value = kept.y;
     })
     .onEnd(() => {
       savedScale.value = scale.value;
@@ -92,12 +130,15 @@ function ImageViewer({ images, start, renderMedia, onClose }: { images: ViewerIm
     });
   const pan = Gesture.Pan()
     .averageTouches(true)
+    .onBegin(() => {
+      savedX.value = x.value;
+      savedY.value = y.value;
+    })
     .onUpdate((event) => {
       if (scale.value <= MIN_SCALE) return;
-      const mx = (stageW.value * (scale.value - 1)) / 2;
-      const my = (stageH.value * (scale.value - 1)) / 2;
-      x.value = clamp(savedX.value + event.translationX, -mx, mx);
-      y.value = clamp(savedY.value + event.translationY, -my, my);
+      const kept = clampView(scale.value, savedX.value + event.translationX, savedY.value + event.translationY);
+      x.value = kept.x;
+      y.value = kept.y;
     })
     .onEnd(() => {
       savedX.value = x.value;
@@ -105,14 +146,17 @@ function ImageViewer({ images, start, renderMedia, onClose }: { images: ViewerIm
     });
   const doubleTap = Gesture.Tap()
     .numberOfTaps(2)
-    .onEnd(() => {
-      const next = scale.value > MIN_SCALE ? MIN_SCALE : DOUBLE_TAP_SCALE;
+    .onEnd((event) => {
+      const zoomIn = scale.value <= MIN_SCALE;
+      const next = zoomIn ? DOUBLE_TAP_SCALE : MIN_SCALE;
+      const moved = zoomIn ? focalZoom(scale.value, x.value, y.value, next, event.x - stageW.value / 2, event.y - stageH.value / 2) : { x: 0, y: 0 };
+      const kept = clampView(next, moved.x, moved.y);
       scale.value = withTiming(next);
       savedScale.value = next;
-      x.value = withTiming(0);
-      y.value = withTiming(0);
-      savedX.value = 0;
-      savedY.value = 0;
+      x.value = withTiming(kept.x);
+      y.value = withTiming(kept.y);
+      savedX.value = kept.x;
+      savedY.value = kept.y;
     });
   const gestures = Gesture.Simultaneous(pinch, pan, doubleTap);
   const zoomed = useAnimatedStyle(() => ({
@@ -127,13 +171,25 @@ function ImageViewer({ images, start, renderMedia, onClose }: { images: ViewerIm
     savedX.value = 0;
     savedY.value = 0;
   };
+  // Re-fits the current offset after the image, stage or rotation changes.
+  const refit = () => {
+    const kept = clampView(scale.value, x.value, y.value);
+    x.value = savedX.value = kept.x;
+    y.value = savedY.value = kept.y;
+  };
+  useEffect(() => {
+    rot.value = rotation;
+    refit();
+  }, [rotation]);
   const zoomBy = (factor: number) => {
     const next = clamp(scale.value * factor, MIN_SCALE, MAX_SCALE);
     if (next <= MIN_SCALE) return resetView();
+    const moved = focalZoom(scale.value, x.value, y.value, next, 0, 0);
+    const kept = clampView(next, moved.x, moved.y);
     scale.value = next;
     savedScale.value = next;
-    x.value = savedX.value = clamp(x.value, -(stageW.value * (next - 1)) / 2, (stageW.value * (next - 1)) / 2);
-    y.value = savedY.value = clamp(y.value, -(stageH.value * (next - 1)) / 2, (stageH.value * (next - 1)) / 2);
+    x.value = savedX.value = kept.x;
+    y.value = savedY.value = kept.y;
   };
   const move = (delta: number) => {
     setIndex((at) => (at + delta + list.length) % list.length);
@@ -148,6 +204,11 @@ function ImageViewer({ images, start, renderMedia, onClose }: { images: ViewerIm
       testID="image-viewer-image"
       source={{ uri }}
       resizeMode="contain"
+      onLoad={(event) => {
+        natW.value = event.nativeEvent.source.width;
+        natH.value = event.nativeEvent.source.height;
+        refit();
+      }}
       style={[styles.image, { transform: [{ rotate: `${rotation}deg` }] }]}
     />
   );
@@ -164,6 +225,7 @@ function ImageViewer({ images, start, renderMedia, onClose }: { images: ViewerIm
               onLayout={(event) => {
                 stageW.value = event.nativeEvent.layout.width;
                 stageH.value = event.nativeEvent.layout.height;
+                refit();
               }}
             >
               {/* Keyed by path: the next image mounts its own download and the last one's cache file is deleted. */}

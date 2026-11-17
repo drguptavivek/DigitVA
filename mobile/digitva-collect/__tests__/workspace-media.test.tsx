@@ -3,9 +3,10 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 const mockGetSource = jest.fn();
 const mockPlayer = { play: jest.fn(), pause: jest.fn(), replace: jest.fn(), seekTo: jest.fn() };
-const mockStatus = { playing: false, error: null };
+const mockStatus: Record<string, unknown> = { playing: false, error: null, currentTime: 0, duration: 0, didJustFinish: false };
+const mockUseAudioPlayer = jest.fn((_source?: unknown) => mockPlayer);
 jest.mock("expo-audio", () => ({
-  useAudioPlayer: () => mockPlayer,
+  useAudioPlayer: (source: unknown) => mockUseAudioPlayer(source),
   useAudioPlayerStatus: () => mockStatus,
 }));
 const mockDownload = jest.fn();
@@ -66,14 +67,14 @@ it("passes authenticated headers to the native audio player and exposes accessib
   });
 
   expect(mockGetSource).toHaveBeenCalledWith("user-1", audioPath, undefined);
-  expect(mockPlayer.replace).toHaveBeenCalledWith({ uri: `https://digitva.example${audioPath}`, headers: source.headers });
-  const button = tree.root.findByProps({ accessibilityLabel: "Play attached audio" });
-  await act(async () => button.props.onPress());
+  // The shared player gets the bearer source; nothing ever calls replace (expo-audio rejects null on a device).
+  expect(mockUseAudioPlayer).toHaveBeenLastCalledWith({ uri: `https://digitva.example${audioPath}`, headers: source.headers });
+  expect(tree.root.findByProps({ accessibilityLabel: "Attached audio" })).toBeDefined();
+  const play = tree.root.findAll((node) => node.props.label === "Play" && typeof node.props.onPress === "function")[0];
+  await act(async () => play.props.onPress());
   expect(mockPlayer.play).toHaveBeenCalledTimes(1);
   await act(async () => tree.unmount());
-  expect(mockPlayer.pause).toHaveBeenCalled();
-  // expo-audio rejects replace(null) on a device; never send it.
-  expect(mockPlayer.replace).not.toHaveBeenCalledWith(null);
+  expect(mockPlayer.replace).not.toHaveBeenCalled();
 });
 
 it("ignores a native source that resolves after its workspace identity changes", async () => {
@@ -96,8 +97,8 @@ it("ignores a native source that resolves after its workspace identity changes",
     await flush();
   });
 
-  expect(mockPlayer.replace).toHaveBeenCalledWith(newSource);
-  expect(mockPlayer.replace).not.toHaveBeenCalledWith(source);
+  expect(mockUseAudioPlayer).toHaveBeenLastCalledWith(newSource);
+  expect(mockUseAudioPlayer).not.toHaveBeenCalledWith(source);
   await act(async () => tree.unmount());
 });
 
@@ -180,18 +181,25 @@ it("deletes and does not show an image that finishes downloading after the ident
   await act(async () => tree.unmount());
 });
 
-it("unmounts cleanly when the native player was already released", async () => {
+it("seeks where the track is tapped and shows elapsed / total time", async () => {
   mockGetSource.mockResolvedValue({ uri: `https://digitva.example${audioPath}`, headers: source.headers });
+  Object.assign(mockStatus, { currentTime: 30, duration: 120 });
+  mockPlayer.seekTo.mockClear();
   let tree!: ReactTestRenderer;
-  await act(async () => {
-    tree = create(<NativeAttachmentMedia identity={identity} attachmentPath={audioPath} userId="user-1" />);
-    await flush();
-  });
-  mockPlayer.pause.mockImplementation(() => { throw new Error("Cannot use shared object that was already released"); });
   try {
+    await act(async () => {
+      tree = create(<NativeAttachmentMedia identity={identity} attachmentPath={audioPath} userId="user-1" />);
+      await flush();
+    });
+    const track = tree.root.findByProps({ accessibilityRole: "adjustable" });
+    expect(track.props.accessibilityValue).toEqual({ min: 0, max: 120, now: 30 });
+    await act(async () => track.props.onLayout({ nativeEvent: { layout: { width: 200 } } }));
+    await act(async () => tree.root.findByProps({ accessibilityRole: "adjustable" }).props.onPress({ nativeEvent: { locationX: 150 } }));
+    expect(mockPlayer.seekTo).toHaveBeenCalledWith(90);
+    const texts = tree.root.findAll((node) => typeof node.props.children !== "undefined").flatMap((node) => [node.props.children].flat()).filter((c) => typeof c === "string");
+    expect(texts.join(" ")).toContain("00:30");
     await act(async () => tree.unmount());
-    expect(mockPlayer.pause).toHaveBeenCalled();
   } finally {
-    mockPlayer.pause.mockReset();
+    Object.assign(mockStatus, { currentTime: 0, duration: 0 });
   }
 });

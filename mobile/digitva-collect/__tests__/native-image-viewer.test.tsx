@@ -15,6 +15,7 @@ jest.mock("../src/standalone/shareFile", () => ({ cacheFile: (name: string) => (
 jest.mock("../src/mediaFiles", () => ({ removeFile: (...args: unknown[]) => mockRemove(...args) }));
 
 import { CategoryPanel } from "../src/workspace/CategoryPanel";
+import { clampOffset, displayedSize, focalZoom } from "../src/workspace/media/ImageViewer.native";
 import { AttachmentMedia } from "../src/workspace/media/AttachmentMedia.native";
 
 const identity = { vaSid: "case-1", mode: "coding" as const };
@@ -115,6 +116,37 @@ it("closes from Close and from the Android back button, and deletes its cached f
 });
 
 it("does not open the viewer for audio, and lists only images", async () => {
-  expect(tree.root.findAllByProps({ accessibilityLabel: "Play attached audio" }).length).toBeGreaterThan(0);
+  expect(tree.root.findAllByProps({ accessibilityLabel: "Attached audio" }).length).toBeGreaterThan(0);
   expect(inlineImages(tree)).toHaveLength(2);
+});
+
+it("focal zoom keeps the point under the fingers fixed", () => {
+  const { x, y } = focalZoom(1, 0, 0, 2.5, 100, -40);
+  // content point under the focal before and after: (f - t) / s
+  expect((100 - x) / 2.5).toBeCloseTo(100);
+  expect((-40 - y) / 2.5).toBeCloseTo(-40);
+  const again = focalZoom(2, 30, -10, 4, 50, 20);
+  expect((50 - again.x) / 4).toBeCloseTo((50 - 30) / 2);
+  expect((20 - again.y) / 4).toBeCloseTo((20 + 10) / 2);
+  expect(focalZoom(1, 0, 0, 2, 0, 0)).toEqual({ x: 0, y: 0 });
+});
+
+it("clamps the offset to the displayed image: centred when small, limited when large", () => {
+  expect(clampOffset(50, 1, 300, 400)).toBeCloseTo(0);
+  expect(clampOffset(50, 1.2, 300, 400)).toBeCloseTo(0);
+  expect(clampOffset(500, 2, 300, 400)).toBeCloseTo(100);
+  expect(clampOffset(-500, 2, 300, 400)).toBeCloseTo(-100);
+  expect(clampOffset(30, 2, 300, 400)).toBe(30);
+});
+
+it("swaps the displayed width and height at 90 and 270 degrees", () => {
+  // 200x100 image in a 400x800 stage: fit 2x -> 400x200, rotated 200x400.
+  expect(displayedSize(200, 100, 400, 800, 0)).toEqual({ w: 400, h: 200 });
+  expect(displayedSize(200, 100, 400, 800, 90)).toEqual({ w: 200, h: 400 });
+  expect(displayedSize(200, 100, 400, 800, 270)).toEqual({ w: 200, h: 400 });
+  expect(displayedSize(200, 100, 400, 800, 180)).toEqual({ w: 400, h: 200 });
+  const rotated = displayedSize(200, 100, 400, 800, 90);
+  expect(clampOffset(999, 2, rotated.h, 800)).toBeCloseTo(0);
+  expect(clampOffset(999, 2, rotated.w, 400)).toBeCloseTo(0);
+  expect(clampOffset(999, 4, rotated.h, 800)).toBeCloseTo(400);
 });

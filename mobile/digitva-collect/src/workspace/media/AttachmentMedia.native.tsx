@@ -1,4 +1,3 @@
-import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { File } from "expo-file-system";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState, Image, Pressable, Text, View } from "react-native";
@@ -8,7 +7,9 @@ import { removeFile } from "../../mediaFiles";
 import { cacheFile, shareAndDelete } from "../../standalone/shareFile";
 import type { WorkspaceIdentity } from "../contracts";
 import { useImageViewer } from "./ImageViewer.native";
+import { AttachmentAudioPlayer } from "../../AttachmentAudioPlayer";
 import { attachmentMediaExtension, attachmentMediaKind } from "./path";
+
 
 type AttachmentMediaProps = {
   identity: WorkspaceIdentity;
@@ -65,20 +66,9 @@ function AttachmentDocument({ userId, attachmentPath, training }: { userId?: str
   );
 }
 
-/** Pause, ignoring a player useAudioPlayer has already released (cleanup can run after it on unmount). */
-function pauseQuietly(player: { pause(): void }) {
-  try {
-    player.pause();
-  } catch {
-    // released: nothing is playing
-  }
-}
-
 function AttachmentPlayback({ identity, attachmentPath, userId, training, renderImage }: AttachmentMediaProps) {
   const openViewer = useImageViewer();
   const kind = attachmentMediaKind(attachmentPath);
-  const player = useAudioPlayer(null);
-  const status = useAudioPlayerStatus(player);
   const [source, setSource] = useState<{ key: string; uri: string; headers: Record<string, string> } | null>(null);
   const [error, setError] = useState(false);
   const [active, setActive] = useState(AppState.currentState !== "background" && AppState.currentState !== "inactive");
@@ -102,15 +92,10 @@ function AttachmentPlayback({ identity, attachmentPath, userId, training, render
     let cancelled = false;
     setSource(null);
     setError(false);
-    // Pause only: expo-audio rejects replace(null) ("cannot be cast to
-    // AudioSource"); a new source replaces the old one below, and
-    // useAudioPlayer releases the player on unmount.
-    pauseQuietly(player);
     if (!kind || !userId || !active) {
       if (!kind || !userId) setError(true);
       return () => {
         cancelled = true;
-        pauseQuietly(player);
       };
     }
 
@@ -129,18 +114,16 @@ function AttachmentPlayback({ identity, attachmentPath, userId, training, render
         return;
       }
       setSource({ uri: cachedUri ?? next.uri, headers: cachedUri ? {} : next.headers, key });
-      if (kind === "audio") player.replace(next);
     })().catch(() => {
       removeFile(cachedUri);
       if (!cancelled) setError(true);
     });
     return () => {
       cancelled = true;
-      pauseQuietly(player);
       setSource(null);
       removeFile(cachedUri);
     };
-  }, [active, attachmentPath, key, kind, player, training, userId]);
+  }, [active, attachmentPath, key, kind, training, userId]);
 
   if (error) return <Text accessibilityRole="alert">Attachment unavailable.</Text>;
   const currentSource = source?.key === key ? source : null;
@@ -151,12 +134,14 @@ function AttachmentPlayback({ identity, attachmentPath, userId, training, render
     if (!openViewer) return image;
     return <Pressable accessibilityRole="imagebutton" accessibilityLabel="Open image full screen" onPress={() => openViewer(attachmentPath)}>{image}</Pressable>;
   }
+  // The shared player (also the interview's and offline coding's) owns its expo-audio player, so it is
+  // released when this source goes away, and it handles Android's end-of-clip loop.
   return (
-    <View>
-      <Pressable accessibilityRole="button" accessibilityLabel={status.playing ? "Pause attached audio" : "Play attached audio"} onPress={() => status.playing ? player.pause() : player.play()}>
-        <Text>{status.playing ? "Pause audio" : "Play audio"}</Text>
-      </Pressable>
-      {status.error ? <Text accessibilityRole="alert">Attachment unavailable.</Text> : null}
-    </View>
+    <AttachmentAudioPlayer
+      uri={currentSource.uri}
+      headers={currentSource.headers}
+      accessibilityLabel="Attached audio"
+      onError={() => setError(true)}
+    />
   );
 }

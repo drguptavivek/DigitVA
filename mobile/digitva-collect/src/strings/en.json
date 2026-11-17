@@ -1418,6 +1418,7 @@
   "consentNeededBeforeSave": "Record the respondent's consent decision before entering the informant's name, phone or address.",
   "attachPlay": "Play",
   "attachPause": "Pause",
+  "attachSeek": "Seek in the recording",
   "attachContinue": "Continue",
   "attachOpenSettings": "Open settings",
   "attachMicTitle": "Allow the microphone?",

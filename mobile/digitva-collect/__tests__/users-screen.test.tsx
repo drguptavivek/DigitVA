@@ -386,13 +386,15 @@ describe("UsersScreen", () => {
     expect(tree.root.findAllByType(Modal)).toHaveLength(0);
   });
 
-  it("offers the sign-in QR only for collector-only accounts", async () => {
+  it("offers the sign-in QR for collector and coder accounts, not other roles", async () => {
     const coder = { ...ASHA, user_id: "u2", name: "Coder Dev", grants: [{ ...ASHA.grants[0], role: "coder" }] };
-    mockRequest.mockImplementation((path: string) => (String(path).startsWith("/api/v1/users?") ? Promise.resolve({ ...PAGE, users: [ASHA, coder], total: 2 }) : route(path)));
+    const reviewer = { ...ASHA, user_id: "u3", name: "Reviewer Dev", grants: [{ ...ASHA.grants[0], role: "reviewer" }] };
+    mockRequest.mockImplementation((path: string) => (String(path).startsWith("/api/v1/users?") ? Promise.resolve({ ...PAGE, users: [ASHA, coder, reviewer], total: 3 }) : route(path)));
     const tree = await render();
     expect(hasButton(tree, "Create a sign-in QR for Asha Devi")).toBe(true);
-    expect(hasButton(tree, "Create a sign-in QR for Coder Dev")).toBe(false);
-    expect(hasButton(tree, "Show the status of Coder Dev")).toBe(true);
+    expect(hasButton(tree, "Create a sign-in QR for Coder Dev")).toBe(true);
+    expect(hasButton(tree, "Create a sign-in QR for Reviewer Dev")).toBe(false);
+    expect(hasButton(tree, "Show the status of Reviewer Dev")).toBe(true);
   });
 
   it("shows the status popup from the status endpoint, without codes or tokens", async () => {

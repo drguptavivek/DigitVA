@@ -5,6 +5,12 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-17
 
+- Roster onboarding: per-person sign-in QR on People and grants (death
+  reporters, interviewers and now coders, owner 2026-11-17), Show/Hide
+  QR, expiry in the project time zone, live "Onboarded" status; resend
+  password email, remove placement and remove from project with confirm;
+  Enrol worker and Project App QR open in place; Unit / Cadre on two
+  lines. Collect 0.3.24 (coder QR on the Users screen, SA remark limit).
 - Roster "Export CSV" on People and grants: name, email, phone in the
   members-import format, so a roster can be uploaded into another
   project; admin/PI/DM only, audited as `project_members_exported`

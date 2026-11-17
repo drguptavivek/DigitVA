@@ -408,16 +408,20 @@ Today a new data collector needs two things: the enrolment QR (a device
 credential, section 6) and then their own password. This proposal lets one
 scan do both for the least-privileged accounts.
 
-- **Who.** A user holding an active `interviewer` or `death_reporter` grant
-  (a data-collector grant). Never for an admin, project PI, data manager,
+- **Who.** A user holding an active `interviewer`, `death_reporter` or `coder`
+  grant (owner decision 2026-11-17, below). Never for an admin, project PI, data manager,
   In-charge, coding tester, reviewer or any other privileged account. If the
   person also holds any such other grant, in any project, no sign-in QR is
   offered or redeemable (checked at issue and again at redeem); they get the
   enrolment QR and password sign-in only.
-  **Amended 2026-10-27** (owner decision, `digitva-5bzf.15`): a `coder` grant
-  or a self-coding grant alone is not enough; those users sign in on the web.
-  A coder grant held beside a collector grant is tolerated. (Slice S8 had
-  allowed a coder grant alone; this reverses it.)
+  **Amended 2026-11-17** (owner decision, supersedes the 2026-10-27
+  amendment `digitva-5bzf.15`): a `coder` grant alone is eligible, as is any
+  mix of only `interviewer`, `death_reporter` and `coder` grants. Self-coding
+  is a project setting on a coder grant, not a role, so it counts as coder.
+  Any other grant anywhere (reviewer, data manager, coding tester, PI,
+  In-charge, admin) still makes the account ineligible. The Users page and the
+  People and grants roster show "valid until" in the project's time zone with
+  the zone ID (UTC if unset), and the roster QR can be hidden and shown again.
 - **What one scan does.** It enrols the device (as `enrol_device` does today)
   and opens the normal device session for that one user: same device API
   scope only, same 15-minute access and sliding refresh lifetimes, same
@@ -465,7 +469,7 @@ scan do both for the least-privileged accounts.
   the sessions); the phone still demands the PIN and screen lock on every
   unlock; the credential reaches only the device API, never web pages,
   account-security APIs or any admin or supervisory power; privileged roles
-  are excluded outright, and so is a coder-only account. Adopting standalone data
+  are excluded outright. Adopting standalone data
   into the account is an explicit, PIN-confirmed step on the phone
   ([Field Data Collection](field-data-collection.md) "Path C"). Residual risk: the window before redeem, and a
   stranger redeeming first. This is weaker than password sign-in, which

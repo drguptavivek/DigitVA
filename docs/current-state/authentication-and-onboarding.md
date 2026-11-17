@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-17
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -848,7 +848,7 @@ debug-build paste box) accepts this QR beside the enrolment QR
 server host, and on confirm calls `redeemSignInQr` (`src/auth.ts`), which stores
 the device and session as enrolment plus password sign-in do and then opens
 `/unlock`, which sends a new account to PIN setup. Every 400/404 shows one
-message that names the likely causes (expired after 6 hours, already scanned, replaced by a newer QR, or made for another server; the server's answer stays indistinguishable on purpose), a 429 says to wait a minute; a coder-only device session (Plus build, unlocked; not reachable by sign-in QR since `digitva-5bzf.15`, which needs a collector grant) lands on the pending-workspace screen with "Coding queue" and "Offline coding" buttons instead of the interviewer worklist; the token is never logged or
+message that names the likely causes (expired after 6 hours, already scanned, replaced by a newer QR, or made for another server; the server's answer stays indistinguishable on purpose), a 429 says to wait a minute; a coder-only device session (Plus build, unlocked; reachable by sign-in QR since owner decision 2026-11-17) lands on the pending-workspace screen with "Coding queue" and "Offline coding" buttons instead of the interviewer worklist; the token is never logged or
 stored. PIN entry and setup are six boxes; fingerprint and phone screen lock
 unlock options and their first-run offer: [policy section 9](../policy/mobile-sign-in.md).
 

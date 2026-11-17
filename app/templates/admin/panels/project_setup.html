@@ -696,6 +696,8 @@
     return '/admin/project-roster/' + encodeURIComponent(projectId) + '/people/' + encodeURIComponent(uid);
   }
 
+  var ugSelfId = {{ (current_user.user_id|string)|tojson }};
+
   function csrfHeaders() {
     return { 'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf || '' };
   }
@@ -1363,10 +1365,11 @@
       return pw ? esc(pw.cadre_code + ' at ' + pw.unit_code) : '<span class="text-muted">—</span>';
     }
     return pw
-      ? '<span class="badge text-bg-light border text-dark">' + esc(pw.cadre_code) + '</span> at <strong title="' + esc(pw.unit_code) + '">' + esc(pw.unit_name || pw.unit_code) + '</strong>'
-        + (pw.is_active === false ? ' <span class="badge text-bg-secondary">inactive</span>' : '')
-        + '<br>'
+      ? '<div><span class="badge text-bg-light border text-dark">' + esc(pw.cadre_code) + '</span>'
+        + (pw.is_active === false ? ' <span class="badge text-bg-secondary">inactive</span>' : '') + '</div>'
+        + '<div>at <strong title="' + esc(pw.unit_code) + '">' + esc(pw.unit_name || pw.unit_code) + '</strong></div>'
         + '<button type="button" class="btn btn-sm btn-link p-0 ug-place-edit" aria-label="' + esc('Edit unit and cadre of ' + u.name) + '"><i class="fa-solid fa-pen me-1"></i>Edit</button>'
+        + (pw.is_active === false ? '' : ' · <button type="button" class="btn btn-sm btn-link p-0 text-danger ug-place-remove" data-uid="' + esc(u.user_id) + '" aria-label="' + esc('Remove placement of ' + u.name) + '"><i class="fa-solid fa-xmark me-1"></i>Remove</button>')
       : '<span class="text-muted">Not placed in a unit</span><br>'
         + '<button type="button" class="btn btn-sm btn-outline-primary py-0 mt-1 ug-place-edit" aria-label="' + esc('Place ' + u.name + ' in a unit') + '"><i class="fa-solid fa-location-dot me-1"></i>Place</button>';
   }
@@ -1376,6 +1379,57 @@
     return (_ugData.level_cadres || []).filter(function (lc) {
       return lc.org_level_id === levelId && lc.is_active !== false && byId[lc.cadre_id] && byId[lc.cadre_id].is_active !== false;
     }).map(function (lc) { return { cadre_id: lc.cadre_id, cadre_code: lc.cadre_code, cadre_name: byId[lc.cadre_id].cadre_name, default_roles: lc.default_roles || [] }; });
+  }
+  function ugBindPlaceCell(cell) {
+    var edit = cell.querySelector('.ug-place-edit');
+    if (edit) edit.addEventListener('click', function () { ugOpenPlacementEditor(cell); });
+    var rm = cell.querySelector('.ug-place-remove');
+    if (rm) rm.addEventListener('click', function () { ugRemovePlacement(rm); });
+  }
+  // Remove placement: deactivates the worker only; grants are untouched (use Remove from project for those).
+  function ugRemovePlacement(btn) {
+    var user = (_ugData.users || []).find(function (x) { return x.user_id === btn.getAttribute('data-uid'); });
+    var pw = user && user.primary_worker;
+    if (!pw) return;
+    if (!window.confirm('Remove ' + user.name + "'s placement as " + pw.cadre_code + ' at ' + (pw.unit_name || pw.unit_code) + '? Their grants are not changed.')) return;
+    btn.disabled = true;
+    fetch('/admin/api/organization/' + encodeURIComponent(projectId) + '/workers/' + encodeURIComponent(pw.worker_id), { method: 'PATCH', headers: csrfHeaders(), body: JSON.stringify({ is_active: false }) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { btn.disabled = false; ugShowMsg('danger', (res.data && res.data.error) || 'Could not remove the placement.'); return; }
+        ugShowMsg('success', 'Placement removed.');
+        loadUsersGrid();
+      })
+      .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not remove the placement.'); });
+  }
+  // Password reset email: the server decides who may (shared accounts, no verified email, delivery off).
+  function ugResetPassword(btn) {
+    var user = (_ugData.users || []).find(function (x) { return x.user_id === btn.getAttribute('data-uid'); });
+    if (!user) return;
+    if (!window.confirm('Send a password reset email to ' + user.name + ' at ' + user.email + '?')) return;
+    btn.disabled = true;
+    fetch('/admin/api/projects/' + encodeURIComponent(projectId) + '/users-grid/' + encodeURIComponent(user.user_id) + '/password-reset', { method: 'POST', headers: csrfHeaders() })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        ugShowMsg(res.ok ? 'success' : 'danger', (res.data && (res.data.message || res.data.error)) || (res.ok ? 'Password reset link sent.' : 'Could not send the password reset email.'));
+      })
+      .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not send the password reset email.'); });
+  }
+  // Remove from project: server revokes this project's grants, deactivates their workers here, deletes membership.
+  function ugRemoveFromProject(btn) {
+    var user = (_ugData.users || []).find(function (x) { return x.user_id === btn.getAttribute('data-uid'); });
+    if (!user) return;
+    if (!window.confirm('Remove ' + user.name + ' from project ' + projectId + '?\n\nThis revokes their grants in this project and removes their unit placement here. Their account and other projects are kept.')) return;
+    btn.disabled = true;
+    fetch('/admin/api/projects/' + encodeURIComponent(projectId) + '/users-grid/' + encodeURIComponent(user.user_id) + '/remove', { method: 'POST', headers: csrfHeaders() })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { btn.disabled = false; ugShowMsg('danger', (res.data && res.data.error) || 'Could not remove this person from the project.'); return; }
+        ugShowMsg('success', user.name + ' was removed from the project.');
+        loadUsersGrid();
+      })
+      .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not remove this person from the project.'); });
   }
   function ugOpenPlacementEditor(cell) {
     var uid = cell.getAttribute('data-uid');
@@ -1420,7 +1474,7 @@
         picker = new TomSelect(unitSel, { maxOptions: null, placeholder: 'Search units…', allowEmptyOption: true, onChange: function () { fillCadres(cadreSel.value); } });
       }
     });
-    cell.querySelector('.ug-place-cancel').addEventListener('click', function () { cell.innerHTML = ugPlacementHtml(user); cell.querySelector('.ug-place-edit').addEventListener('click', function () { ugOpenPlacementEditor(cell); }); });
+    cell.querySelector('.ug-place-cancel').addEventListener('click', function () { cell.innerHTML = ugPlacementHtml(user); ugBindPlaceCell(cell); });
     cell.querySelector('.ug-place-save').addEventListener('click', function () {
       var unit = unitObj();
       if (!unit || !cadreSel.value) { note.textContent = 'Choose both a unit and a cadre.'; return; }
@@ -1489,17 +1543,22 @@
   }
 
   // Sign-in QR: the same one-time sign-in as the code, scanned in the app
-  // instead of typed. The server decides eligibility (collector accounts;
+  // instead of typed. The server decides eligibility (collector and coder accounts;
   // for a non-admin, no verified email, live phone or outside member) and
   // shows the QR once; it is never stored in the page data.
-  // Hide the obvious misses: the QR is for collector accounts (a coder grant
-  // beside one is fine). This
-  // page sees only this project's grants; the server checks all of them.
+  // Hide the obvious misses: the QR is for interviewer, death reporter and
+  // coder accounts (owner 2026-11-17). This page sees only this project's
+  // grants; the server checks all of them.
   function ugQrCandidate(u) {
     var roles = (u.project_grants || []).concat(u.unit_grants || []).map(function (g) { return g.role; });
-    var collector = function (r) { return r === 'interviewer' || r === 'death_reporter'; };
-    // A coder grant beside a collector grant is tolerated; coder alone is not.
-    return u.is_active && roles.some(collector) && roles.every(function (r) { return collector(r) || r === 'coder'; });
+    return u.is_active && roles.length > 0 && roles.every(function (r) { return r === 'interviewer' || r === 'death_reporter' || r === 'coder'; });
+  }
+  // "valid until 17 Nov 2026, 14:30 IST" in the project's zone (UTC if unset or unknown).
+  var UG_PROJECT_TZ = {{ (project.timezone or 'UTC') | tojson }};
+  function ugQrUntil(iso) {
+    var opts = { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false };
+    try { return new Date(iso).toLocaleString('en-GB', Object.assign({ timeZone: UG_PROJECT_TZ }, opts)); }
+    catch (e) { return new Date(iso).toLocaleString('en-GB', Object.assign({ timeZone: 'UTC' }, opts)); }
   }
   function ugIssueQr(btn) {
     btn.disabled = true;
@@ -1520,10 +1579,56 @@
         img.className = 'd-block border rounded bg-white p-1';
         var note = document.createElement('div');
         note.className = 'small text-muted';
-        note.textContent = 'Scan in the DigitVA app' + (res.data.expires_at ? ' · valid until ' + new Date(res.data.expires_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '');
-        cell.appendChild(img); cell.appendChild(note);
+        note.textContent = 'Scan in the DigitVA app' + (res.data.expires_at ? ' · valid until ' + ugQrUntil(res.data.expires_at) + ' (' + UG_PROJECT_TZ + ')' : '');
+        var toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'btn btn-sm btn-link p-0';
+        toggle.textContent = 'Hide QR';
+        toggle.addEventListener('click', function () {
+          img.classList.toggle('d-none');
+          toggle.textContent = img.classList.contains('d-none') ? 'Show QR' : 'Hide QR';
+        });
+        cell.appendChild(img); cell.appendChild(note); cell.appendChild(toggle);
+        ugWatchQr(cell, btn.getAttribute('data-uid'), res.data.expires_at);
       })
       .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not create a sign-in QR for this person.'); });
+  }
+
+  // While a shown QR is pending, ask the server every few seconds whether it
+  // was used. The newest token is this one (issuing voids older ones). Stops
+  // once it is redeemed, expired or revoked, or the row is redrawn.
+  var UG_QR_POLL_MS = 5000;
+  function ugWatchQr(cell, uid, expiresAt) {
+    function done(kind, text) {
+      cell.textContent = '';
+      var box = document.createElement('div');
+      box.className = 'small fw-semibold text-' + kind;
+      box.textContent = text;
+      cell.appendChild(box);
+    }
+    function tick() {
+      if (!cell.isConnected) return;
+      if (document.hidden) { setTimeout(tick, UG_QR_POLL_MS); return; }
+      fetch('/api/v1/users/' + encodeURIComponent(uid) + '/sign-in-qr', { headers: csrfHeaders() })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!cell.isConnected) return;
+          var item = d && d.items && d.items[0];
+          var status = item ? item.status : 'pending';
+          if (status === 'redeemed') {
+            done('success', '✓ Onboarded: signed in on the DigitVA app'
+              + (item.redeemed_at ? ' at ' + ugQrUntil(item.redeemed_at) + ' (' + UG_PROJECT_TZ + ')' : ''));
+          } else if (status === 'expired') {
+            done('muted', 'QR expired unused. Show a new one from the row after a refresh.');
+          } else if (status === 'revoked') {
+            done('muted', 'QR replaced or withdrawn.');
+          } else {
+            setTimeout(tick, UG_QR_POLL_MS);
+          }
+        })
+        .catch(function () { setTimeout(tick, UG_QR_POLL_MS); });
+    }
+    setTimeout(tick, UG_QR_POLL_MS);
   }
 
   // Upload users CSV (digitva-plgm): the preview writes nothing; Apply re-sends the
@@ -1623,6 +1728,9 @@
           + (u.phone_count ? ' · on ' + esc(String(u.phone_count)) + ' phone' + (u.phone_count === 1 ? '' : 's') : '')
           + (u.last_sign_in_at ? ' · last sign-in ' + esc(ugDateFmt.format(new Date(u.last_sign_in_at))) : '')
         + '</div>'
+        + (u.email && u.email_verified
+            ? '<div><button type="button" class="btn btn-sm btn-link p-0 ug-reset-pw" data-uid="' + esc(uid) + '" aria-label="' + esc('Resend password email to ' + u.name) + '"><i class="fa-solid fa-envelope me-1"></i>Resend password email</button></div>'
+            : '')
         + (u.can_issue_code
             ? '<div class="ug-code-cell"><button type="button" class="btn btn-sm btn-link p-0 ug-issue-code" data-uid="' + esc(uid) + '" aria-label="' + esc('Generate a sign-in code for ' + u.name) + '"><i class="fa-solid fa-key me-1"></i>Generate code</button>'
               + (!ugQrCandidate(u) ? '</div>' : ' · <button type="button" class="btn btn-sm btn-link p-0 ug-issue-qr" data-uid="' + esc(uid) + '" aria-label="' + esc('Show a sign-in QR for ' + u.name) + '"><i class="fa-solid fa-qrcode me-1"></i>Sign-in QR</button></div>')
@@ -1725,11 +1833,13 @@
         + '<td style="width:32px;"><input type="checkbox" class="form-check-input setup-ug-row-cb" value="' + esc(uid) + '" ' + checked + ' aria-label="Select ' + esc(u.name) + '"></td>'
         + '<td><a class="fw-semibold text-start" href="' + personUrl(uid) + '">' + esc(u.name) + '</a>'
         // No worker code here: it read as a username (owner, 2026-11-16).
-        + '<div class="mt-1">' + renderPiiStatusBadge(u.pii_status) + '</div></td>'
+        + '<div class="mt-1">' + renderPiiStatusBadge(u.pii_status) + '</div>'
+        + (String(uid) === ugSelfId ? '' : '<div class="mt-1"><button type="button" class="btn btn-sm btn-link p-0 text-danger ug-remove-member" data-uid="' + esc(uid) + '" aria-label="' + esc('Remove ' + u.name + ' from this project') + '"><i class="fa-solid fa-user-minus me-1"></i>Remove from project</button></div>')
+        + '</td>'
         + '<td>' + contactHtml + '</td>'
         + '<td>' + statusBadge + '</td>'
         // Fixed width: opening the editor must not reflow the table (owner, 2026-11-16).
-        + '<td class="ug-place-cell" style="width:16rem;min-width:16rem;max-width:16rem;" data-uid="' + esc(uid) + '">' + ugPlacementHtml(u) + '</td>'
+        + '<td class="ug-place-cell" style="width:11rem;min-width:11rem;max-width:11rem;" data-uid="' + esc(uid) + '">' + ugPlacementHtml(u) + '</td>'
         + '<td>' + projRolesHtml + '</td>'
         + '<td>' + unitRolesHtml + '</td>'
         + '</tr>' + drawerHtml;
@@ -1743,7 +1853,7 @@
       + '<th>User &amp; PII tier</th>'
       + '<th>Email &amp; 10-Digit Mobile</th>'
       + '<th>Status</th>'
-      + '<th style="width:16rem;min-width:16rem;">Unit / Cadre</th>'
+      + '<th style="width:11rem;min-width:11rem;">Unit / Cadre</th>'
       + '<th>Project / Site Roles</th>'
       + '<th>Unit-Level Roles (Smart Multi-Unit Grouping)</th>'
       + '</tr>'
@@ -1765,8 +1875,12 @@
         updateUgSelectionCount();
       });
     });
-    wrap.querySelectorAll('.ug-place-edit').forEach(function (btn) {
-      btn.addEventListener('click', function () { ugOpenPlacementEditor(btn.closest('.ug-place-cell')); });
+    wrap.querySelectorAll('.ug-place-cell').forEach(ugBindPlaceCell);
+    wrap.querySelectorAll('.ug-reset-pw').forEach(function (btn) {
+      btn.addEventListener('click', function () { ugResetPassword(btn); });
+    });
+    wrap.querySelectorAll('.ug-remove-member').forEach(function (btn) {
+      btn.addEventListener('click', function () { ugRemoveFromProject(btn); });
     });
     wrap.querySelectorAll('.ug-remove-grant').forEach(function (btn) {
       btn.addEventListener('click', function () { ugRemoveGrant(btn); });

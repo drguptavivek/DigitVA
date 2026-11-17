@@ -158,18 +158,26 @@ class SignInQrTests(AuthzFixtureMixin, BaseTestCase):
         self._add_grant("interviewer_p1", VaAccessRoles.reviewer, VaAccessScopeTypes.project, "AZSP01")
         self.assertEqual(self._issue("admin", "interviewer_p1").get_json()["code"], "not_eligible")
 
-    def test_coder_grant_alone_is_refused_at_issue_and_redeem(self):
-        # Owner 2026-10-27 (digitva-5bzf.15): a coder grant alone is not enough.
-        self.assertEqual(self._issue("admin", "coder_p1").get_json()["code"], "not_eligible")
+    def test_coder_grant_alone_is_eligible_at_issue_and_redeem(self):
+        # Owner 2026-11-17 (supersedes 2026-10-27): a coder alone may sign in by QR.
+        token = self._token("admin", "coder_p1")
+        res = self._redeem(token)
+        self.assertEqual(res.status_code, 201, res.get_json())
+        self.assertEqual(self._redeem(token).status_code, 404)  # used
+
+    def test_coder_with_a_reviewer_or_data_manager_grant_is_ineligible(self):
+        for role in (VaAccessRoles.reviewer, VaAccessRoles.data_manager):
+            self._add_grant("coder_p1", role, VaAccessScopeTypes.project, "AZSP01")
+            self.assertEqual(self._issue("admin", "coder_p1").get_json()["code"], "not_eligible", role)
+
+    def test_collector_turned_coder_only_redeems(self):
         token = self._token("admin", "interviewer_p1")
-        user = self.users["interviewer_p1"]
         db.session.execute(sa.update(VaUserAccessGrants).where(
-            VaUserAccessGrants.user_id == user.user_id,
+            VaUserAccessGrants.user_id == self.users["interviewer_p1"].user_id,
             VaUserAccessGrants.role == VaAccessRoles.interviewer,
         ).values(grant_status=VaStatuses.deactive))
         self._add_grant("interviewer_p1", VaAccessRoles.coder, VaAccessScopeTypes.project, "AZTA01")
-        self.assertEqual(self._redeem(token).status_code, 404)
-        self.assertEqual(len(self._events("sign_in_qr_refused")), 1)
+        self.assertEqual(self._redeem(token).status_code, 201)
 
     def test_interviewer_with_a_coder_grant_still_gets_and_redeems_a_sign_in_qr(self):
         self._add_grant("interviewer_p1", VaAccessRoles.coder, VaAccessScopeTypes.project, "AZTA01")

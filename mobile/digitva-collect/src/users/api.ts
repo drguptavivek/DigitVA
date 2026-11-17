@@ -194,9 +194,9 @@ export async function revokeSignInQr(request: JsonRequester, userId: string): Pr
   return ((await request(`${USERS_API}/${encodeURIComponent(userId)}/sign-in-qr`, { method: "DELETE" })) as { revoked: boolean }).revoked;
 }
 
-/** The sign-in QR is for accounts whose roles are only collector roles; the server decides (not_eligible), this just hides the obvious misses. */
+/** The sign-in QR is for accounts whose roles are only interviewer, death_reporter and coder (owner 2026-11-17); the server decides (not_eligible), this just hides the obvious misses. */
 export function signInQrCandidate(user: DirectoryUser): boolean {
-  return user.active && user.grants.length > 0 && user.grants.every((g) => g.role === "interviewer" || g.role === "death_reporter");
+  return user.active && user.grants.length > 0 && user.grants.every((g) => g.role === "interviewer" || g.role === "death_reporter" || g.role === "coder");
 }
 
 export const PAGE_SIZE = 50;

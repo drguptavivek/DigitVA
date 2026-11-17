@@ -38,7 +38,7 @@ from app.models import (
     VaSubmissionsAuditlog,
 )
 from app.routes.api.request_helpers import error as api_error
-from app.services import smartva_service
+from app.services import smartva_service, training_scope
 from app.services import web_intake_service as intake_svc
 from app.services.authz import Action, AuthzError, effective_roles, require
 from app.services.case_content_service import (
@@ -209,6 +209,7 @@ def _authorize_view(va_sid: str):
     try:
         require(current_user, Action.VIEW, va_sid)
     except AuthzError as exc:
+        training_scope.resolve("interview")  # a training case reads only with ?training=1
         if intake_svc.may_read_submitted_answers(current_user, va_sid):
             return _Session("view", False, intake_only=True)
         return api_error(exc.message, status_code=exc.status_code)

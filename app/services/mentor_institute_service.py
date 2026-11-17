@@ -434,7 +434,9 @@ def remove_staff(
     except units another institute they remain staff of still covers. The
     account is deactivated only when this institute created it and the person
     belongs to no other active institute, so an institute never switches off
-    someone who is also another body's staff or was not its own hire. Cannot
+    someone who is also another body's staff or was not its own hire; nor,
+    unless a platform admin removes them, while the person still holds an
+    active grant or a project membership. Cannot
     remove oneself, and only a platform admin may remove an institute admin.
     """
     if user_id == actor_user_id:
@@ -454,6 +456,9 @@ def remove_staff(
         user is not None
         and (user.other or {}).get("created_by_mentor_institute") == institute.institute_code
         and user_id not in member_user_ids([user_id])
+        # Owner rule (dm-user-grant-management.md): a non-admin never switches
+        # off an account that still holds a project role or membership.
+        and (actor_is_platform_admin or not _holds_project_access(user_id))
     ):
         user.user_status = VaStatuses.deactive
         deactivated = True
@@ -467,6 +472,17 @@ def remove_staff(
         grants_deactivated=grants_deactivated,
     )
     return deactivated, grants_deactivated
+
+
+def _holds_project_access(user_id) -> bool:
+    """Whether *user_id* still holds an active grant or any project membership."""
+    from app.models import MapProjectMember
+
+    return bool(db.session.scalar(sa.select(sa.or_(
+        sa.exists().where(VaUserAccessGrants.user_id == user_id,
+                          VaUserAccessGrants.grant_status == VaStatuses.active),
+        sa.exists().where(MapProjectMember.user_id == user_id),
+    ))))
 
 
 def _deactivate_institute_grants(institute: MasMentorInstitute, user_ids) -> int:

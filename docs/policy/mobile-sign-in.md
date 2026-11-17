@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-17
 ---
 
 # Sign-in by Mobile Number
@@ -173,6 +173,24 @@ passes a short one-time code to the person instead.
   not on the roster (access-control-model.md, "Project membership"). Without
   the second, an admin's grant here to another project's member would hand
   the account to this project's managers.
+  **A later import elsewhere does not lock this project out (owner
+  2026-11-17, `digitva-l9dp.3`).** Another project's members upload may
+  still attach the account. That **bare** membership (no active grant in
+  the other project) does not count as "a member of another project" when
+  it was added **after** the person already held an active grant in one of
+  the issuer's projects (project, pair or unit scope). Added before such a
+  grant, or at the same moment, it still counts: that order is the
+  grant-then-take-over attack above. The grant is dated by the later of its
+  creation and its last update, so revoking and reactivating it re-dates
+  it: a membership added while it was revoked counts. A grant in the other project always
+  counts, as before (rule (a) refuses it). The same holds for the
+  data-management code endpoint and for the roster panel's account edits.
+  **Mentoring-institute staff never (owner 2026-11-17, `digitva-l9dp.2`).**
+  An active member or administrator of an active mentoring institute is
+  managed from their institute. A non-admin gets no roster code and no
+  roster account edit for them, even when they are on the roster, and the
+  members upload refuses to add them for a non-admin ("account is
+  unavailable for this project import").
   **Who can be adopted by rule (b), stated plainly.** A PI or project data
   manager who adds an existing account to the roster with the members
   upload may then issue it a code when that account holds no active grant
@@ -423,6 +441,14 @@ scan do both for the least-privileged accounts.
   in-person delivery only. Who may issue: an admin, a project PI, or a data
   manager who may manage every active grant the person holds (the section 3
   `can_grant` rule), 10 requests a minute.
+  **Non-admin issuers meet the section 3 refusals too (owner 2026-11-17,
+  `digitva-l9dp.1`).** A non-admin may not show the QR on screen for an
+  account with a verified email (they email it instead), and gets no QR at
+  all for someone signed in on a phone or a member of a project outside
+  their grant-writing projects (the data-management code rule, with the
+  later-import exception of section 3). Each refusal is the same 404
+  `not_found` as an account they may not manage. Status and revoke are not
+  affected.
 - **Audit** (security events, never the token): `sign_in_qr_issued` (actor,
   user), `sign_in_qr_redeemed` (device id), `sign_in_qr_expired` and
   `sign_in_qr_revoked` (actor). A redeem also sends the user's email address

@@ -1872,6 +1872,10 @@ def get_draft(user: VaUsers, draft_id: object, *, require_open: bool = False) ->
         raise WebIntakeError("Draft not found.", 404)
     if require_open and draft.status != "draft":
         raise WebIntakeError("This draft is no longer editable.", 409)
+    # A real project keeps an in-flight draft after its grant goes
+    # (digitva-9xn9.22); a training draft ends with its session's grants.
+    if draft.project_id == training_scope.training_project_id():
+        _require_scope(user, draft.project_id, draft.site_id, draft.org_unit_id)
     return draft
 
 
@@ -3088,12 +3092,25 @@ def revision_unlocked(submission: VaSubmissions) -> bool:
 
 
 def find_own_submission(user: VaUsers, va_sid: str) -> VaWebIntakeDraft | None:
-    """*user*'s submitted draft that holds submission *va_sid*, or None."""
-    return db.session.scalar(sa.select(VaWebIntakeDraft).where(
+    """*user*'s submitted draft that holds submission *va_sid*, or None.
+
+    Unlike an unsent draft (digitva-9xn9.22), a submitted case is revised and
+    read only under a live interviewer grant on its unit, and a training case
+    only in training mode (``?training=1``) under an active session's grant
+    (digitva-l9dp.6); otherwise None."""
+    draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
         VaWebIntakeDraft.va_sid == va_sid,
         VaWebIntakeDraft.user_id == user.user_id,
         VaWebIntakeDraft.status == "submitted",
     ))
+    if draft is None or not training_scope.keeps_project(draft.project_id):
+        return None
+    try:
+        _require_scope(user, draft.project_id, draft.site_id, draft.org_unit_id)
+    except WebIntakeError as exc:
+        if exc.status_code == 403:  # no live grant; other refusals (e.g. an inactive unit) are not grant loss
+            return None
+    return draft
 
 
 def may_read_submitted_answers(user: VaUsers, va_sid: str) -> bool:

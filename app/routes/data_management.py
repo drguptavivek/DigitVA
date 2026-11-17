@@ -50,6 +50,7 @@ from app.routes.admin import (
 )
 from app.services import authz
 from app.services import mentor_institute_service as mentors
+from app.services.security_event_service import record_security_event
 from app.services import organization_service as org
 from app.services.org_grant_service import validate_org_unit_grant
 from app.services.organization_service import OrganizationError
@@ -1160,9 +1161,16 @@ def manage_update_user(target_user_id):
         invalid = [code for code in languages if code not in valid_codes]
         if invalid:
             return _json_error(f"Invalid language codes: {invalid}", 400)
-        if list(target_user.vacode_language or []) != list(languages):
+        old_languages = list(target_user.vacode_language or [])
+        if old_languages != list(languages):
             target_user.vacode_language = languages
             changed_languages = True
+            record_security_event(
+                user_id=target_user.user_id,
+                actor_user_id=current_user.user_id,
+                event_type="coding_languages_changed",
+                detail={"old": old_languages, "new": list(languages)},
+            )
 
     if changed_email or changed_languages or changed_job_title:
         db.session.commit()

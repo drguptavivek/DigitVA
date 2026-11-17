@@ -5,6 +5,18 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-17
 
+- Security audit run-7 (`digitva-l9dp`, all 9 leads reproduced then
+  resolved): non-admin sign-in QR refuses verified-email show, live
+  phones and outside members; mentoring-institute staff refused in
+  non-admin roster import, codes and edits; a bare outside membership
+  added after this project's grant (dated by its last change) no longer
+  locks the project out; DM language changes audited; institute staff
+  removal keeps accounts other projects use; closed-session trainees and
+  revoked interviewers lose revise/read of submitted cases (unsent real
+  drafts kept, 9xn9.22); reviewer initial/finalize get training scope;
+  social autopsy remark capped at 4000. Owner accepted the account panel
+  (.4) and post-close trainer reports (.8). Policies: mobile-sign-in,
+  dm-user-grant-management, web-intake, training-demo-project.
 - `81196f17d`, `fafa0fbdc`: backend performance survey filed as epic
   `digitva-f41g` (21 beads, not fixed, unmeasured).
 - Server image for `e6a17915d` built; staging deploy approved but not run

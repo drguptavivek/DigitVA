@@ -131,10 +131,12 @@ class SignInQrTests(AuthzFixtureMixin, BaseTestCase):
 
     def test_issuer_rule(self):
         # In-scope data manager and PI may; a DM outside the person's subtree,
-        # a coder and an interviewer may not (404 / 403).
-        self.assertEqual(self._issue("dm_c1", "interviewer_p1").status_code, 201)
-        self.assertEqual(self._issue("pi_ta", "interviewer_p1").status_code, 201)
-        self.assertEqual(self._issue("dm_sp", "interviewer_p1").status_code, 404)
+        # a coder and an interviewer may not (404 / 403). ``nobody`` has no
+        # verified email: a non-admin never sees one for a verified account.
+        self.assertEqual(self._issue("dm_c1", "nobody").status_code, 201)
+        self.assertEqual(self._issue("pi_ta", "nobody").status_code, 201)
+        self.assertEqual(self._issue("dm_sp", "nobody").status_code, 404)
+        self.assertEqual(self._issue("dm_c1", "interviewer_p1").status_code, 404)
         self.assertEqual(self._issue("coder_p1", "interviewer_p1").status_code, 403)
         self.assertEqual(self._issue("interviewer_p1", "interviewer_p1").status_code, 403)
 

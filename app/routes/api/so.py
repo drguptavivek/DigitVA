@@ -46,6 +46,8 @@ from app.utils.va_permission.va_permission_11_require_coding_access import requi
 bp = Blueprint("so_api", __name__)
 log = logging.getLogger(__name__)
 
+_REMARK_CAP = 4000  # characters; the same bound as the coder's remark (coding.py _FREE_TEXT_CAP)
+
 
 def _error(message: str, status_code: int, code: str, **extra):
     return jsonify({"error": message, "code": code, **extra}), status_code
@@ -95,7 +97,12 @@ def save_social_autopsy(va_sid: str):
         return _error("Coder Social Autopsy is disabled for this project.", 403, "forbidden")
 
     selected_options = data.get("selected_options") or []
-    remark = (data.get("remark") or "").strip() or None
+    remark = data.get("remark")
+    if remark is not None and not isinstance(remark, str):
+        return _error("remark must be text.", 400, "invalid_request")
+    remark = (remark or "").strip() or None
+    if remark and len(remark) > _REMARK_CAP:
+        return _error("remark is too long.", 422, "invalid_request")
 
     if not isinstance(selected_options, list):
         return _error("selected_options must be a list.", 400, "invalid_request")

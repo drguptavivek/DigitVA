@@ -219,6 +219,9 @@ def history():
 @bp.post("/finalize/<va_sid>")
 @role_required("reviewer")
 def finalize(va_sid):
+    training_scope.resolve("review")
+    if not training_scope.sid_allowed(va_sid):
+        return _error("This case is not available in this area.", 409, code="not_available")
     project = get_project_for_submission(va_sid)
     if (
         project is not None
@@ -289,6 +292,9 @@ def initial(va_sid):
     ``age_restriction_confirmed`` confirms an ICD-11 underlying cause that
     fails only its age restriction; without it that is a 422
     ``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` carrying ``age_restriction``."""
+    training_scope.resolve("review")
+    if not training_scope.sid_allowed(va_sid):
+        return _error("This case is not available in this area.", 409, code="not_available")
     project = get_project_for_submission(va_sid)
     masked_doris = project is not None and project_mode(project) == "masked_doris"
     # Masked DORIS Step 1 carries the certificate and its envelopes.

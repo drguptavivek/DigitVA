@@ -663,7 +663,8 @@ def prepare_members(project_id, rows, *, actor, reactivate_rows=frozenset()):
     creates accounts (``may_create_member_accounts``). Every non-admin gets
     the project import's single "unavailable" refusal for an inactive
     account, for a mismatch between accounts and for a mobile number another
-    account holds, and a project PI also for a missing account.
+    account holds, for an active mentoring-institute member not yet on the
+    roster, and a project PI also for a missing account.
     Raises ProjectUserImportError for an inactive or unknown project.
     """
     project = db.session.get(VaProjectMaster, project_id)
@@ -690,6 +691,8 @@ def prepare_members(project_id, rows, *, actor, reactivate_rows=frozenset()):
             if user.mobile_login in mobiles:
                 users_by_mobile[user.mobile_login] = user
     known_ids = {user.user_id for user in (*users_by_email.values(), *users_by_mobile.values())}
+    # Mentoring-institute staff are managed from their institute (digitva-l9dp.2).
+    mentor_ids = set() if is_admin else member_user_ids(known_ids)
     members = set(db.session.scalars(sa.select(MapProjectMember.user_id).where(
         MapProjectMember.project_id == project_id, MapProjectMember.user_id.in_(known_ids),
     ))) if known_ids else set()
@@ -734,6 +737,8 @@ def prepare_members(project_id, rows, *, actor, reactivate_rows=frozenset()):
                 if user.is_admin():
                     raise ProjectUserImportError("an admin account is reactivated on the admin Users panel")
                 reactivate = True
+            if user and user.user_id in mentor_ids and user.user_id not in members:
+                raise ProjectUserImportError("account is unavailable for this project import")
             key = user.user_id if user else identity
             if key in seen:
                 raise ProjectUserImportError("repeats the account of an earlier row")

@@ -3,7 +3,7 @@ title: Training and Demo Project (TRN01)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-17
 ---
 
 # Training and demo project (TRN01)
@@ -393,6 +393,8 @@ the answer key, so only an administrator and a user with an **active**
 `reviewer_data_manager` participation in that same session may read it; every
 other user, other sessions' managers and all trainees included, is refused
 (403, the same answer for an unknown session so existence is not probed).
+Access continues after the session is closed: the manager keeps the report and
+both CSV exports (owner, 2026-11-17, `digitva-l9dp.8`).
 A manager who holds or ever held a `coder` participation in that session may
 not read its report at all (refused like any other user): the reference cause,
 its VA cause group, the per-case match and the agreement would each let them

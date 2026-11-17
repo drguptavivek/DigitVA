@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-17
 ---
 
 # Web Intake Policy
@@ -90,6 +90,13 @@ submission enters the workflow. Plan:
   draft's project, site or unit does not close an in-flight browser draft: the
   interviewer may still read, edit and submit it (owner, 2026-11-12,
   `digitva-9xn9.22`).
+  This holds for real projects only: a training draft ends with its session's
+  grants (closing or removal), and a submitted case, real or training, may be
+  revised (`find_own_submission`, `revise_submission`) or read
+  (`may_read_submitted_answers`) only under a live interviewer grant covering
+  its unit, a training case also only with `?training=1` (owner, 2026-11-17,
+  `digitva-l9dp.6`). Refusals use the existing 403 scope error (drafts) and 404
+  "Submission not found" (revise).
 - **Prefill contract** (`web_intake_service._prefill_from_death`): the
   package's `createWhoVaInitialDataFromPrefill` (`vendor/who-va-2022/src/
   prefill.ts`) throws if both `deceased.dateOfDeath` and `deceased.

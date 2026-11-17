@@ -5,6 +5,7 @@ Rules under test: docs/policy/organization-model.md, "Mentoring institutes"
 routes in app/routes/data_management.py, the staff API in
 app/routes/admin_mentor_institute.py, mentor_institute_service and its CLI.
 """
+import uuid
 from unittest import mock
 
 import sqlalchemy as sa
@@ -532,6 +533,28 @@ class InstituteAdminTests(Stage1bBase):
         self.assertTrue(removed.get_json()["account_deactivated"])
         user = db.session.get(VaUsers, new_id)
         self.assertEqual(user.user_status, VaStatuses.deactive)
+
+    def test_remove_keeps_an_institute_hire_who_is_another_project_member(self):
+        # Owner rule (dm-user-grant-management.md): an institute admin never
+        # switches off an account another project still holds.
+        from app.models import MapProjectMember
+
+        self._two_institutes()
+        boss = self._admin_of("MC1", "boss.one@test.local")
+        self._login(str(boss.user_id))
+        with mock.patch("app.services.user_account_service.send_invitation"):
+            created = self._create("MC1", "shared.staff@test.local")
+        self.assertEqual(created.status_code, 201, created.get_json())
+        new_id = created.get_json()["staff"]["user_id"]
+        db.session.add(MapProjectMember(project_id=self.P2, user_id=uuid.UUID(new_id)))
+        db.session.commit()
+        removed = self.client.post(
+            f"{STAFF.format(code='MC1')}/{new_id}/remove", headers=self._csrf_headers()
+        )
+        self.assertEqual(removed.status_code, 200, removed.get_json())
+        self.assertFalse(removed.get_json()["account_deactivated"])
+        self.assertEqual(db.session.get(VaUsers, new_id).user_status, VaStatuses.active)
+        self.assertNotIn(uuid.UUID(new_id), mentors.member_user_ids([uuid.UUID(new_id)]))
 
     def test_remove_keeps_the_account_of_someone_the_institute_did_not_hire(self):
         _, _, _, one, two = self._two_institutes()

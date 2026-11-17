@@ -3,7 +3,7 @@ title: Data-Manager User and Grant Management Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-17
 ---
 
 # Data-Manager User and Grant Management Policy
@@ -154,6 +154,23 @@ A data-manager may **not** toggle grants with other roles or grants outside
 their scope. They also may not revoke their own `data_manager` grant through
 this interface.
 
+### Account status (owner 2026-11-17)
+
+A project's managers (data-manager, project PI, institute admin) set only
+their own project's access to a person: grants and membership there. Only a
+global admin switches a whole account (`va_users.user_status`) on or off.
+
+- Project users grid bulk `activate_users` / `deactivate_users`: admin only,
+  for every account (a single-project account included).
+- Users grid row `active`, admin Users panel status and toggle: admin only.
+- Roster import reactivates an inactive account only for an admin.
+- Removing institute staff deactivates the account only when the institute
+  created it, the person is staff of no other institute, and, unless a
+  platform admin removes them, holds no active grant and no project
+  membership.
+- Revoking one's own project's grant (`/api/access-grants/<id>/toggle`)
+  never changes the account's status.
+
 ## User Creation
 
 A data-manager may create new users. Created users:
@@ -256,7 +273,10 @@ The details panel includes:
   - unit-level grants (organizational projects)
 - resend verification action (for unverified users)
 - email update action only for users created by the same data-manager
-- language update action for data-managers/admins
+- language update action for data-managers/admins; a change is audited as
+  `coding_languages_changed` (actor, old and new list) as from Profile
+  (owner 2026-11-17, `digitva-l9dp.5`: the account is shared, so the change
+  reaches every project)
 - a `Manage Grants` action that opens the grants tab focused on that user
 
 ## Roster User Panel (owner 2026-11-16, digitva-eyp3)
@@ -302,7 +322,12 @@ verified-email and live-phone clauses:
 
 - the person is on this project's roster, active, and not an admin;
 - they are a member (`map_project_members`) of no project outside the
-  viewer's managed projects;
+  viewer's managed projects, except a bare membership (no grant there) added
+  after they held an active grant in one of the viewer's projects (dated by
+  its later of creation and last update, so reactivation re-dates it)
+  (mobile-sign-in.md section 3, `digitva-l9dp.3`);
+- they are not an active mentoring-institute member or administrator
+  (`digitva-l9dp.2`);
 - the viewer manages every active grant the person holds anywhere, or the
   person holds no grants at all.
 

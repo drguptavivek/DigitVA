@@ -11,7 +11,8 @@ or ``death_reporter`` grant that reaches an active project (a coder grant, or a
 self-coding grant, alone is not enough: owner 2026-10-27, those users sign in
 on the web) and no other active grant of any kind, in any project; a coder
 grant held beside a collector grant is tolerated. Issuer: an admin, or anyone who may manage every active grant the
-person holds (``authz.grant_list_filter``, the section 3 ``can_grant`` rule).
+person holds (``authz.grant_list_filter``, the section 3 ``can_grant`` rule)
+and, at issue, passes ``_refused_for_non_admin``.
 
 Audit: ``sign_in_qr_issued`` / ``_redeemed`` / ``_expired`` / ``_revoked`` / ``_refused``,
 never the token. Expiry is noticed lazily (at the next issue, revoke or
@@ -130,6 +131,25 @@ def may_issue(actor, user_id) -> bool:
     ))))
 
 
+def _refused_for_non_admin(actor, user, delivery) -> bool:
+    """The section 3 anti-takeover refusals a non-admin issuer meets on top of
+    ``may_issue`` (digitva-l9dp.1): no on-screen QR for a verified-email
+    account (section 8: it is emailed to that address instead), none at all
+    for someone signed in on a phone or a member of a project outside the
+    issuer's grant-writing projects (``_outside_or_signed_in``, as
+    ``may_issue_code_from_data_management``). Only ``issue`` applies them, so
+    a manager can still see and revoke a QR once the person signs in."""
+    from app.services.mobile_sign_in_service import _outside_or_signed_in
+
+    grants = authz.resolve_grants(actor)
+    if grants.is_admin:
+        return False
+    if delivery == "show" and user.email and user.email_verified:
+        return True
+    projects = {x.project_id for x in authz.writer_grants(grants)}
+    return bool(db.session.scalar(sa.select(_outside_or_signed_in(user.user_id, projects))))
+
+
 # ---------------------------------------------------------------------------
 # Issue, revoke, status
 # ---------------------------------------------------------------------------
@@ -188,6 +208,8 @@ def issue(actor, user_id, delivery) -> dict:
             "A sign-in QR is only for an active data collector or death reporter with no other role.",
             400, "not_eligible",
         )
+    if _refused_for_non_admin(actor, user, delivery):
+        raise _not_found()
     if delivery == "email" and not (user.email and user.email_verified):
         raise SignInQrError("This user has no verified email; show the QR instead.", 400, "no_verified_email")
     if delivery == "email" and not email_service.can_deliver_to(user.email):

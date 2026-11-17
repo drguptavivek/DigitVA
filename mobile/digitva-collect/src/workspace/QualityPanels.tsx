@@ -119,7 +119,7 @@ function SocialAutopsyPanel({ data, width, onSave }: { data: SocialAutopsy; widt
           />
         </View>
       ))}
-      <TextInput accessibilityLabel="Social autopsy remark" placeholder="Remark" value={remark} onChangeText={setRemark} style={styles.input} multiline />
+      <TextInput accessibilityLabel="Social autopsy remark" placeholder="Remark" value={remark} onChangeText={setRemark} maxLength={4000} style={styles.input} multiline />
       <Button label="Save social autopsy" onPress={() => {
         setBusy(true);
         const selected_options = data.questions.flatMap((question) => (selected[question.delay_level] ?? []).map((option_code) => ({ delay_level: question.delay_level, option_code })));

@@ -159,7 +159,8 @@ def _roster_rule(actor, project_id: str, user_id_col):
 
     *clause* holds when the account *user_id_col* is on *project_id*'s roster
     (``organization_service.on_project_roster``), a member of no project
-    outside the actor's managed ones (``_outside_member``), and either
+    outside the actor's managed ones (``_outside_member``), not an active
+    mentoring-institute member (``mentor_institute_service``), and either
     (a) holds at least one active grant, every one managed by the actor
     (``authz.grant_list_filter``) and none privileged (``_PRIVILEGED_ROLES``
     or global scope), or (b) is an unplaced member: no active grant
@@ -187,9 +188,13 @@ def _roster_rule(actor, project_id: str, user_id_col):
         U.user_status == VaStatuses.active,
         sa.exists().where(M.user_id == user_id_col, M.project_id == project_id),
     )
+    from app.services.mentor_institute_service import active_member_ids_select
+
     return sa.and_(
         on_project_roster(project_id, user_id_col),
         sa.not_(_outside_member(user_id_col, managed_projects)),
+        # Mentoring-institute staff are managed from their institute, never a roster (digitva-l9dp.2).
+        user_id_col.not_in(active_member_ids_select()),
         sa.or_(rule_a, rule_b),
     )
 
@@ -259,13 +264,58 @@ def may_edit_account(actor, target_user_id, project_id: str) -> bool:
     return uuid.UUID(str(target_user_id)) in editable_user_ids(actor, project_id, [target_user_id])
 
 
+def _grant_in_projects(user_id_col, project_match) -> sa.ColumnElement:
+    """SQL: the account holds an active grant whose project (project, site or
+    unit scope, resolved as ``admin._grant_project_id_expression`` does)
+    and the grant row satisfy *project_match(project_id, grant)*."""
+    from app.models import MasOrgUnit, VaProjectSites
+
+    G = VaUserAccessGrants
+    project_id = sa.case(
+        (G.scope_type == VaAccessScopeTypes.project, G.project_id),
+        (G.scope_type == VaAccessScopeTypes.org_unit,
+         sa.select(MasOrgUnit.project_id).where(MasOrgUnit.org_unit_id == G.org_unit_id).scalar_subquery()),
+        (G.scope_type == VaAccessScopeTypes.project_site,
+         sa.select(VaProjectSites.project_id)
+         .where(VaProjectSites.project_site_id == G.project_site_id).scalar_subquery()),
+    )
+    return sa.exists().where(
+        G.user_id == user_id_col, G.grant_status == VaStatuses.active, project_match(project_id, G),
+    )
+
+
 def _outside_member(user_id_col, project_ids) -> sa.ColumnElement:
     """SQL: the account is a member (``map_project_members``) of a project
-    outside *project_ids*: not the actor's to take over or edit."""
+    outside *project_ids*: not the actor's to take over or edit.
+
+    A bare outside membership -- no active grant in that outside project --
+    added after the account already held an active grant in one of
+    *project_ids* (dated by the later of its creation and last update, so a
+    revoke-and-reactivate re-dates it) does not count (owner 2026-11-17, digitva-l9dp.3): another
+    project importing the person must not lock the managers who placed them
+    out. Added before such a grant (or at the same instant), it still counts,
+    so a manager cannot grant a role to another project's member and then
+    take the account over. An outside grant always counts (``_roster_rule``'s
+    managed-grant clause refuses it).
+    """
     from app.models import MapProjectMember
 
     M = MapProjectMember
-    return sa.exists().where(M.user_id == user_id_col, M.project_id.not_in(sorted(project_ids)))
+    home = sorted(project_ids)
+    # A reactivated grant keeps grant_created_at but bumps grant_updated_at,
+    # so the later of the two dates the active grant (digitva-l9dp.3). Both
+    # are naive UTC; read them as UTC to compare with added_at.
+    created = lambda G: sa.func.timezone(  # noqa: E731
+        "UTC", sa.func.greatest(G.grant_created_at, G.grant_updated_at))
+    return sa.exists().where(
+        M.user_id == user_id_col,
+        M.project_id.not_in(home),
+        sa.or_(
+            # M.user_id, not user_id_col: these correlate to the membership row.
+            _grant_in_projects(M.user_id, lambda pid, G: pid == M.project_id),
+            sa.not_(_grant_in_projects(M.user_id, lambda pid, G: sa.and_(pid.in_(home), created(G) < M.added_at))),
+        ),
+    )
 
 
 def _live_phone(user_id_col) -> sa.ColumnElement:

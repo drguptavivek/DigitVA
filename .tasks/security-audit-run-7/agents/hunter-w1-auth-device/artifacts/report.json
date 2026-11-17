@@ -1,0 +1,191 @@
+{
+  "agent_id": "hunter-w1-auth-device",
+  "units": [
+    {
+      "coverage_id": "app%2Froutes%2Fapi%2Fauth.py%23sign_in_code_and_qr::app%2Fservices%2Fmobile_sign_in_service.py%23issue_and_redeem_code::app%2Fservices%2Fmobile_sign_in_service.py::ATTACK-CLASSES.md%23Access%20control",
+      "disposition": "candidate",
+      "reviewed_paths": [
+        "app/models/va_users.py",
+        "app/routes/admin.py",
+        "app/routes/admin_mentor_institute.py",
+        "app/routes/admin_organization.py",
+        "app/routes/api/auth.py",
+        "app/routes/api/users.py",
+        "app/routes/data_management.py",
+        "app/services/authz/grant_writes.py",
+        "app/services/device_auth_service.py",
+        "app/services/mobile_sign_in_service.py",
+        "app/services/project_user_import_service.py",
+        "app/services/sign_in_qr_service.py",
+        "app/services/user_directory_service.py",
+        "docs/policy/dm-user-grant-management.md",
+        "docs/policy/mobile-sign-in.md"
+      ],
+      "checks": [
+        {
+          "hypothesis": "Non-admin issuers (project_pi, site_pi, data_manager) can issue a Sign-In QR or 8-char mobile sign-in code for an account with a verified email, a collector with a live phone session, or an account belonging to another project or mentoring institute.",
+          "Scope": "app/services/mobile_sign_in_service.py, app/services/sign_in_qr_service.py, app/routes/api/users.py, app/routes/api/auth.py, app/routes/admin_organization.py, app/routes/data_management.py, app/services/project_user_import_service.py, app/routes/admin_mentor_institute.py",
+          "method": "source",
+          "outcome": "survived",
+          "summary": "Found two access-control invariant failures: (1) sign_in_qr_service.may_issue and issue allow non-admins (project_pi, site_pi, data_manager) to issue a delivery='show' Sign-In QR token for accounts with a verified email, accounts already signed in on a live phone, and accounts on another project's MapProjectMember roster, returning the raw one-time token in the HTTP response and allowing the issuer to open a device session as the target user and decommission their existing phone via replace_device_id; (2) mobile_sign_in_service and project_user_import_service ignore MapMentorInstituteUser memberships, allowing a project_pi or data_manager to import an existing mentor_institute_admin into a project roster, issue a one-time sign-in code for an unverified/mobile-only mentor_institute_admin to take over their web session, or overwrite a verified mentor_institute_admin's global profile.",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/models/va_users.py",
+            "app/routes/admin_mentor_institute.py",
+            "app/routes/admin_organization.py",
+            "app/routes/api/auth.py",
+            "app/routes/api/users.py",
+            "app/routes/data_management.py",
+            "app/services/authz/grant_writes.py",
+            "app/services/device_auth_service.py",
+            "app/services/mobile_sign_in_service.py",
+            "app/services/project_user_import_service.py",
+            "app/services/sign_in_qr_service.py",
+            "app/services/user_directory_service.py",
+            "docs/policy/mobile-sign-in.md"
+          ]
+        },
+        {
+          "hypothesis": "Data Management user profile update and verification-email endpoints allow a project or site Data Manager to mutate global profile fields (such as vacode_language and job_title) of a user shared with another project or belonging to another project's roster.",
+          "Scope": "app/routes/data_management.py, app/services/mobile_sign_in_service.py, docs/policy/dm-user-grant-management.md",
+          "method": "source",
+          "outcome": "survived",
+          "summary": "In app/routes/data_management.py, _dm_can_manage_user_profile checks _managed_user_condition() (which only tests whether the target user holds at least one active grant managed by the caller rather than requiring every active grant of the target user to be within the caller's scope) and, for users with zero active grants, does not check MapProjectMember outside the caller's projects. A Data Manager in Project A can therefore overwrite vacode_language and job_title via PUT /data-management/api/users/<target_user_id> for a coder/reviewer shared with Project B or an unplaced roster member of Project B.",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/routes/admin.py",
+            "app/routes/data_management.py",
+            "app/services/mobile_sign_in_service.py",
+            "docs/policy/dm-user-grant-management.md"
+          ]
+        },
+        {
+          "hypothesis": "One-time 8-char mobile sign-in code redemption can be brute-forced across concurrent requests or replayed after redemption or lockout.",
+          "Scope": "app/services/mobile_sign_in_service.py, app/routes/api/auth.py",
+          "method": "source",
+          "outcome": "refuted",
+          "summary": "mobile_sign_in_service._consume_code hashes the normalized 8-char Crockford Base32 code with SHA-256, locks the candidate AuthSignInToken row with SELECT ... FOR UPDATE (or increments failed_attempts atomically on all active code rows when no hash matches, locking the user row FOR UPDATE), enforces _MAX_FAILED_ATTEMPTS = 5 and _CODE_TTL = 15 minutes, sets redeemed_at = now, rotates the user's password to a 24-char random secret, and calls user.bump_session_version() before returning.",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/routes/api/auth.py",
+            "app/services/mobile_sign_in_service.py"
+          ]
+        }
+      ],
+      "candidate_fingerprints": [
+        "app/services/sign_in_qr_service.py:may_issue:non-admin-sign-in-qr-bypasses-verified-email-live-phone-and-outside-member-guards",
+        "app/services/mobile_sign_in_service.py:_roster_rule:mentor-institute-admin-account-takeover-and-profile-edit-via-project-import",
+        "app/routes/data_management.py:_dm_can_manage_user_profile:shared-user-profile-and-coding-languages-overwrite-across-projects"
+      ],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "app%2Froutes%2Fapi%2Fauth.py%23device_limit_eviction::app%2Fservices%2Fdevice_auth_service.py%23check_device_slot::app%2Fservices%2Fdevice_auth_service.py::ATTACK-CLASSES.md%23Business%20logic",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "app/routes/api/auth.py",
+        "app/services/authz/grant_cache.py",
+        "app/services/device_auth_service.py",
+        "app/services/mobile_sign_in_service.py",
+        "app/services/notification_service.py",
+        "app/services/sign_in_qr_service.py"
+      ],
+      "checks": [
+        {
+          "hypothesis": "Redeeming a one-time 8-char sign-in code or Sign-In QR token on a 4th device hits the 3-device limit (409 device_limit) after consuming the one-time token or rotating the password, stranding the user on retry with replace_device_id.",
+          "Scope": "app/routes/api/auth.py, app/services/mobile_sign_in_service.py, app/services/sign_in_qr_service.py, app/services/device_auth_service.py",
+          "method": "source",
+          "outcome": "refuted",
+          "summary": "For 8-char sign-in codes, POST /api/v1/auth/sign-in-code/redeem (mobile_sign_in_service.redeem_code_and_accept_terms) consumes the code, rotates the password, bumps auth_session_version (which immediately invalidates all prior device sessions because _live_session requires AuthDeviceSession.user_session_version == user.auth_session_version), commits, and returns the generated password to the client; the client then calls POST /api/v1/auth/password-enroll with that password in memory and can retry with replace_device_id without re-redeeming the code. For Sign-In QR tokens, sign_in_qr_service.redeem calls devices.check_device_slot(user, replace_device_id=replace_device_id) at line 350 before executing the UPDATE on AuthSignInToken.redeemed_at at line 351; when check_device_slot raises DeviceAuthError('device_limit', 409), @bp.errorhandler(devices.DeviceAuthError) in app/routes/api/auth.py:102-106 rolls back the database session, leaving the QR token unconsumed for the retry with replace_device_id.",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/routes/api/auth.py",
+            "app/services/device_auth_service.py",
+            "app/services/mobile_sign_in_service.py",
+            "app/services/sign_in_qr_service.py"
+          ]
+        },
+        {
+          "hypothesis": "check_device_slot or enrol_demo_device allows cross-user device eviction via replace_device_id, concurrent bypass of MAX_ACTIVE_DEVICES_PER_USER (3), or stranding demo-enroll when _check_demo_device_cap fails after replace_device_id.",
+          "Scope": "app/services/device_auth_service.py, app/routes/api/auth.py",
+          "method": "source",
+          "outcome": "refuted",
+          "summary": "check_device_slot locks the target VaUsers row FOR UPDATE (serializing concurrent sign-ins for the same user), loads live sessions filtered by AuthDeviceSession.user_id == user.user_id, verifies replaced in live and replaced != device_id before calling decommission_account_device(user.user_id, replaced, user, reason='replaced_at_sign_in'), and runs inside the caller's transaction so any subsequent failure (such as _check_demo_device_cap raising 429 demo_limit in enrol_demo_device) rolls back the decommission via the blueprint error handler.",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/routes/api/auth.py",
+            "app/services/device_auth_service.py"
+          ]
+        },
+        {
+          "hypothesis": "POST /api/v1/auth/profile-deletions allows a device to revoke another user's sessions on a different device or bypasses device_secret verification or unsent-work loss confirmation.",
+          "Scope": "app/routes/api/auth.py, app/services/device_auth_service.py",
+          "method": "source",
+          "outcome": "refuted",
+          "summary": "record_profile_deletion (app/services/device_auth_service.py:983-1050) authenticates the calling device via _authenticate_device_secret using hmac.compare_digest, requires either unsent_count == 0 or (unsent_count is None and loss_confirmed is True), verifies the target user_id had a session on that specific device.device_id (latest_session_at is not None), and revokes only AuthDeviceSession rows matching both device_id and user_id.",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/routes/api/auth.py",
+            "app/services/device_auth_service.py"
+          ]
+        },
+        {
+          "hypothesis": "notification_service.notify or grant_cache._send_access_notices leaks cross-user notifications or fails transactionally when access grants change.",
+          "Scope": "app/services/notification_service.py, app/services/authz/grant_cache.py",
+          "method": "source",
+          "outcome": "refuted",
+          "summary": "grant_cache._send_access_notices queues affected user UUIDs on outer transaction commit (excluding newly created or deleted VaUsers rows) and inserts per-recipient UserNotification rows with project_id=NO_PROJECT inside before_commit; after_commit bumps only the per-user Redis watermark keys.",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/services/authz/grant_cache.py",
+            "app/services/notification_service.py"
+          ]
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "app%2Froutes%2Fva_auth.py%23web_login_and_demo_signup::app%2Froutes%2Fapi%2Fprofile.py%23_account_security_is_cookie_only::app%2Froutes%2Fva_auth.py::ATTACK-CLASSES.md%23Chained%20vulnerabilities%20and%20trust%20boundaries",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "app/__init__.py",
+        "app/routes/api/profile.py",
+        "app/routes/va_auth.py",
+        "app/services/access_summary_service.py",
+        "app/services/training_demo_service.py",
+        "app/services/user_admin_tools_service.py"
+      ],
+      "checks": [
+        {
+          "hypothesis": "A stolen or active mobile device bearer token can reach account-security or coding-language mutation endpoints on /api/v1/profile/* or bypass the terms-of-use gate.",
+          "Scope": "app/__init__.py, app/routes/api/profile.py",
+          "method": "source",
+          "outcome": "refuted",
+          "summary": "_account_security_is_cookie_only in app/routes/api/profile.py:33-41 rejects any request where g.get('bearer_auth') is truthy unless the endpoint is in {'get_profile', 'update_timezone', 'update_interviewer_profile', 'accept_terms'}. Password change, email change, coding languages (PATCH /api/v1/profile/languages), TOTP, and recovery-code endpoints are strictly cookie-only and CSRF-protected. In app/__init__.py:231-250 and 663-733, authenticate_bearer pins the bearer user without falling back to a session cookie, and force_password_update blocks bearer requests with 403 terms_required when fresh_user.pw_reset_t_and_c is False except on accept_terms and end_session.",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/__init__.py",
+            "app/routes/api/profile.py"
+          ]
+        },
+        {
+          "hypothesis": "Web code login (/login/code), public demo signup (/demo/try), or profile/admin user tools allow CSRF bypass, open redirect, training grant leakage into native device summaries, or unauthorized admin user mutations.",
+          "Scope": "app/routes/va_auth.py, app/services/access_summary_service.py, app/services/user_admin_tools_service.py, app/services/training_demo_service.py",
+          "method": "source",
+          "outcome": "refuted",
+          "summary": "va_auth.va_login_code validates CSRF by default (Flask-WTF CSRFProtect), redeems the code via mobile_sign_in_service.redeem_code_for_web (setting pw_reset_t_and_c=False so force_password_update redirects the browser session to /profile/force-password-change before any other page), and regenerates the session. va_demo_try checks Config.PUBLIC_DEMO_ENABLED, rate limits, and validates the HMAC captcha token unless invited. access_summary_service.build_access_summary strips TRN01 training grants and roles when native=True. user_admin_tools_service enforces _require_admin(viewer) on every entry point and prevents one admin from modifying or deactivating another admin in _apply_profile.",
+          "artifact": null,
+          "reviewed_paths": [
+            "app/routes/va_auth.py",
+            "app/services/access_summary_service.py",
+            "app/services/training_demo_service.py",
+            "app/services/user_admin_tools_service.py"
+          ]
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    }
+  ]
+}

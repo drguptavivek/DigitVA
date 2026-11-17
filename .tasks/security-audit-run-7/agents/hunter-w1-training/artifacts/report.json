@@ -1,0 +1,201 @@
+{
+  "units": [
+    {
+      "coverage_id": "app%2Froutes%2Fadmin_training.py%23sessions_and_graduation::app%2Fservices%2Ftraining_demo_service.py%23graduate_participants::app%2Fservices%2Ftraining_demo_service.py::ATTACK-CLASSES.md%23Access%20control",
+      "disposition": "covered",
+      "reviewed_paths": [
+        "app/routes/admin_training.py#L46-L426",
+        "app/services/training_demo_service.py#L714-L1089",
+        "app/services/training_demo_service.py#L1401-L2349",
+        "app/models/mas_training.py#L22-L133",
+        "app/services/project_user_import_service.py#L172-L547"
+      ],
+      "checks": [
+        {
+          "agent_id": "hunter-w1-training",
+          "reviewed_paths": [
+            "app/routes/admin_training.py#L46-L426",
+            "app/services/training_demo_service.py#L714-L720",
+            "app/services/training_demo_service.py#L1401-L1643"
+          ],
+          "invariant": "All admin training routes and underlying service entrypoints enforce admin role authorization and validate session_type against SESSION_TYPES",
+          "method": "source",
+          "result": "holds",
+          "artifact": null
+        },
+        {
+          "agent_id": "hunter-w1-training",
+          "reviewed_paths": [
+            "app/routes/admin_training.py#L149-L263",
+            "app/services/training_demo_service.py#L774-L824",
+            "app/services/training_demo_service.py#L1645-L1971",
+            "app/services/project_user_import_service.py#L172-L265"
+          ],
+          "invariant": "bulk_add_participants and import_trainees enforce session_type role boundaries (_TYPE_ROLES and IMPORT_KINDS), active session status, row caps (50), coder language requirements, and all-or-nothing rollback on dry_run or row refusal",
+          "method": "source",
+          "result": "holds",
+          "artifact": null
+        },
+        {
+          "agent_id": "hunter-w1-training",
+          "reviewed_paths": [
+            "app/routes/admin_training.py#L276-L355",
+            "app/services/training_demo_service.py#L1974-L2273",
+            "app/services/project_user_import_service.py#L268-L547"
+          ],
+          "invariant": "graduate rejects TRN01 and demo projects via _require_graduation_target, maps session roles strictly via _GRADUATION_ROLES (interviewer and coder only), and requires explicit user_id presence in confirm before reactivating accounts or changing cadre",
+          "method": "source",
+          "result": "holds",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "app%2Fservices%2Ftraining_scope.py%23resolve_and_queue::app%2Fservices%2Ftraining_demo_service.py%23AREA_RULES::app%2Fservices%2Ftraining_scope.py::ATTACK-CLASSES.md%23Business%20logic",
+      "disposition": "candidate",
+      "reviewed_paths": [
+        "app/services/training_scope.py#L1-L261",
+        "app/services/training_demo_service.py#L84-L115",
+        "app/services/training_demo_service.py#L2361-L2531",
+        "app/services/authz/grants.py#L62-L448",
+        "app/services/authz/grant_writes.py#L48-L354",
+        "app/services/authz/predicates.py#L31-L260",
+        "app/routes/api/intake.py#L510-L1445",
+        "app/services/web_intake_service.py#L789-L990",
+        "app/services/web_intake_service.py#L1768-L1905",
+        "app/services/web_intake_service.py#L2547-L3442",
+        "app/routes/api/va_case.py#L156-L315",
+        "app/routes/api/coding.py#L211-L678",
+        "app/services/coder_workflow_service.py#L87-L320",
+        "app/services/coder_dashboard_service.py#L62-L380",
+        "app/routes/api/reviewing.py#L101-L343",
+        "app/services/reviewer_coding_service.py#L112-L545",
+        "app/routes/api/doris_clinical.py#L49-L140",
+        "app/routes/api/attachments.py#L71-L220"
+      ],
+      "checks": [
+        {
+          "agent_id": "hunter-w1-training",
+          "reviewed_paths": [
+            "app/services/training_scope.py#L86-L261",
+            "app/services/training_demo_service.py#L94-L115",
+            "app/services/training_demo_service.py#L2420-L2531",
+            "app/services/coder_workflow_service.py#L104-L202",
+            "app/services/coder_dashboard_service.py#L86-L152"
+          ],
+          "invariant": "AREA_RULES, may_use_area, resolve_queue, and _training_queue_clause isolate coder (standard set SIDs) from self_coding (own active session units and own submitted drafts) across single and multi-session enrolments",
+          "method": "source",
+          "result": "holds",
+          "artifact": null
+        },
+        {
+          "agent_id": "hunter-w1-training",
+          "reviewed_paths": [
+            "app/routes/api/intake.py#L755-L1131",
+            "app/routes/api/intake.py#L1387-L1445",
+            "app/services/web_intake_service.py#L1853-L1905",
+            "app/services/web_intake_service.py#L2619-L3108",
+            "app/services/web_intake_service.py#L3154-L3442",
+            "app/routes/api/va_case.py#L187-L315"
+          ],
+          "invariant": "All web intake draft reads, draft saves, draft submissions, submission revisions, and interviewer read-only case views require an active interviewer grant on the draft/submission org_unit_id and respect training_scope isolation",
+          "method": "source",
+          "result": "falsified",
+          "artifact": null
+        },
+        {
+          "agent_id": "hunter-w1-training",
+          "reviewed_paths": [
+            "app/routes/api/coding.py#L472-L678",
+            "app/routes/api/reviewing.py#L101-L343"
+          ],
+          "invariant": "All coding and reviewing assessment write endpoints resolve training_scope for their area and enforce training_scope.sid_allowed(va_sid)",
+          "method": "source",
+          "result": "falsified",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [
+        "app/services/web_intake_service.py::get_draft_and_find_own_submission::missing-active-grant-and-training-scope",
+        "app/routes/api/reviewing.py::initial_and_finalize::missing-training-scope-resolve-and-sid-allowed"
+      ],
+      "unresolved": []
+    },
+    {
+      "coverage_id": "app%2Froutes%2Fdm_training.py%23trainer_reports_and_pseudonymiser::app%2Fservices%2Ftraining_report_service.py%23authorized_session::app%2Fservices%2Ftraining_report_service.py::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+      "disposition": "candidate",
+      "reviewed_paths": [
+        "app/routes/dm_training.py#L1-L157",
+        "app/services/training_report_service.py#L1-L398",
+        "app/services/training_pseudonymiser.py#L1-L404",
+        "app/commands/training_demo.py#L1-L78"
+      ],
+      "checks": [
+        {
+          "agent_id": "hunter-w1-training",
+          "reviewed_paths": [
+            "app/services/training_report_service.py#L64-L81",
+            "app/services/training_report_service.py#L144-L398",
+            "app/routes/dm_training.py#L51-L157"
+          ],
+          "invariant": "_viewer_was_coder_in_session checks MapTrainingParticipant without filtering on active status so removed or former coders cannot view or export reference answer keys even if later promoted to reviewer_data_manager",
+          "method": "source",
+          "result": "holds",
+          "artifact": null
+        },
+        {
+          "agent_id": "hunter-w1-training",
+          "reviewed_paths": [
+            "app/services/training_pseudonymiser.py#L1-L404",
+            "app/commands/training_demo.py#L1-L78"
+          ],
+          "invariant": "training_pseudonymiser replaces direct identifiers, shifts linked dates consistently, drops narratives and attachments, and requires manual review approval before import",
+          "method": "source",
+          "result": "holds",
+          "artifact": null
+        },
+        {
+          "agent_id": "hunter-w1-training",
+          "reviewed_paths": [
+            "app/services/training_report_service.py#L84-L136",
+            "app/services/training_demo_service.py#L2308-L2349",
+            "app/routes/dm_training.py#L36-L64"
+          ],
+          "invariant": "Non-admin reviewer_data_manager access to trainer reports and CSV exports is restricted to active legacy training sessions where the viewer holds an active participation and grant",
+          "method": "source",
+          "result": "falsified",
+          "artifact": null
+        }
+      ],
+      "candidate_fingerprints": [
+        "app/services/training_report_service.py::_reviewer_session_ids::missing-active-session-status-filter"
+      ],
+      "unresolved": []
+    }
+  ],
+  "candidates": [
+    {
+      "proposed_verdict": "needs_validation",
+      "fingerprint": "app/services/web_intake_service.py::get_draft_and_find_own_submission::missing-active-grant-and-training-scope",
+      "title": "Revoked or closed-session trainees and interviewers retain read, save, submit, and revision access via owner-only VaWebIntakeDraft checks",
+      "description": "Once a VaWebIntakeDraft row is created while a user has an active interviewer grant, subsequent draft and submission operations in web_intake_service.py authorize solely via draft.user_id == user.user_id without verifying that the user still holds an active interviewer grant on (draft.project_id, draft.site_id, draft.org_unit_id). First, get_draft, list_drafts, save_draft, and submit_draft omit _require_scope(user, draft.project_id, draft.site_id, draft.org_unit_id); because close_training_session and remove_participant deactivate VaUserAccessGrants while leaving the training session MasOrgUnit.is_active == True, a trainee whose session S001 was closed or revoked (while remaining enrolled in another active session S002 so may_use_area(user_id, 'intake') passes, or a real-project interviewer whose unit grant was narrowed/revoked while retaining another unit grant) can still read, edit, and submit drafts into the closed/revoked org_unit_id. Second, find_own_submission checks only VaWebIntakeDraft.va_sid == va_sid, VaWebIntakeDraft.user_id == user.user_id, and VaWebIntakeDraft.status == 'submitted', omitting both _require_scope and training_scope.keeps_project; this allows a user whose training session was closed or whose interviewer grant was revoked to create and submit new revisions via revise_submission and to read submitted interview answers via GET /api/v1/va/<va_sid>/workspace?mode=view and GET /api/v1/va/<va_sid>/categories/<code>?mode=view.",
+      "claimed_root_cause": "app/services/web_intake_service.py#get_draft (lines 1862-1875), list_drafts (lines 1853-1859), save_draft (lines 1878-1905), and submit_draft (lines 2829-3063) rely on draft.user_id == user.user_id and _require_live_org_unit without calling _require_scope(user, draft.project_id, draft.site_id, draft.org_unit_id), and find_own_submission (lines 3090-3096) checks only VaWebIntakeDraft ownership without calling _require_scope or training_scope.keeps_project."
+    },
+    {
+      "proposed_verdict": "needs_validation",
+      "fingerprint": "app/routes/api/reviewing.py::initial_and_finalize::missing-training-scope-resolve-and-sid-allowed",
+      "title": "Reviewer initial and finalize endpoints omit training_scope.resolve('review') and training_scope.sid_allowed(va_sid)",
+      "description": "In app/routes/api/reviewing.py, all read and allocation endpoints (get_current_allocation, allocate_case, release_allocation, get_stats, get_projects, get_available, get_history) call training_scope.resolve('review'), and allocate_case additionally checks training_scope.sid_allowed(va_sid). Likewise, all coder assessment write endpoints in app/routes/api/coding.py (submit_initial_assessment, finalize_cod, mark_not_codeable) call training_scope.resolve('coding') and verify training_scope.sid_allowed(va_sid). However, POST /api/v1/reviewing/finalize/<va_sid> and POST /api/v1/reviewing/initial/<va_sid> in app/routes/api/reviewing.py omit both training_scope.resolve('review') and training_scope.sid_allowed(va_sid). Because training_scope defaults to 'exclude' when resolve() is not called, requests to these two endpoints ignore ?training=1, skip training_demo_service.may_use_area(current_user.user_id, 'review'), and allow submitting Step 1 and final COD reviews on TRN01 cases without ?training=1 or on production cases even when ?training=1 is passed.",
+      "claimed_root_cause": "app/routes/api/reviewing.py#finalize (lines 219-282) and initial (lines 285-343) do not call training_scope.resolve('review') or check training_scope.sid_allowed(va_sid) before invoking reviewer_coding_service.finalize_review and reviewer_coding_service.submit_initial_assessment."
+    },
+    {
+      "proposed_verdict": "needs_validation",
+      "fingerprint": "app/services/training_report_service.py::_reviewer_session_ids::missing-active-session-status-filter",
+      "title": "training_report_service._reviewer_session_ids omits MasTrainingSession.status == 'active', allowing reviewer_data_manager participants of closed sessions to access trainer reports and CSV exports",
+      "description": "When an admin closes a training session via close_training_session (app/services/training_demo_service.py:2308-2340), the service sets MasTrainingSession.status = 'closed' and deactivates all participant VaUserAccessGrants while preserving MapTrainingParticipant.status = 'active' so that reopen_training_session can restore grants for non-removed participants. Every other training participation query in training_demo_service.py joins MasTrainingSession and filters on MasTrainingSession.status == 'active'. However, _reviewer_session_ids(viewer_id) in app/services/training_report_service.py:84-100 filters only on MasTrainingSession.session_type.is_(None) and MapTrainingParticipant.status == 'active', omitting MasTrainingSession.status == 'active'. Consequently, authorized_session and sessions_for_viewer allow a non-admin user who was a reviewer_data_manager in a closed legacy training session (and who retains the reviewer or data_manager role from any other project or active session to pass @role_required('data_manager', 'reviewer', 'admin')) to continue viewing and exporting the closed session's trainee PII and reference answer keys via /data-management/training/<ref>, /data-management/training/<ref>/coders.csv, and /data-management/training/<ref>/cases.csv.",
+      "claimed_root_cause": "app/services/training_report_service.py#_reviewer_session_ids (lines 84-100) omits MasTrainingSession.status == 'active' in its join condition on MasTrainingSession."
+    }
+  ]
+}

@@ -1,0 +1,614 @@
+{
+  "agent_id": "hunter-w1-roster-org",
+  "units": [
+    {
+      "coverage_id": "app%2Froutes%2Fadmin_organization.py%23roster_and_users_grid::app%2Fservices%2Forganization_service.py%23require_on_project_roster::app%2Fservices%2Forganization_service.py::ATTACK-CLASSES.md%23Access%20control",
+      "status": "completed",
+      "reviewed_paths": [
+        "app/models/map_project_members.py",
+        "app/routes/admin_organization.py",
+        "app/services/authz/grant_writes.py",
+        "app/services/mobile_sign_in_service.py",
+        "app/services/organization_service.py",
+        "app/services/project_user_import_service.py"
+      ],
+      "checks": [
+        {
+          "block_id": "ATTACK-CLASSES.md#Access control",
+          "method": "source",
+          "reviewed_paths": [
+            "app/models/map_project_members.py",
+            "app/routes/admin_organization.py",
+            "app/services/authz/grant_writes.py",
+            "app/services/organization_service.py",
+            "app/services/project_user_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L43-L234",
+            "app/routes/admin_organization.py#L710-L927",
+            "app/routes/admin_organization.py#L1401-L1859",
+            "app/services/organization_service.py#L3956-L3986",
+            "app/services/organization_service.py#L4060-L5176",
+            "app/services/authz/grant_writes.py#L78-L295"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+          ],
+          "not_applicable_ref": null,
+          "notes": "Verified _roster_guard, _require_dm_unit_scope, check_grant_write_allowed, and require_on_project_roster across get_project_users_grid, bulk_apply_project_users_grid, admin_org_create_worker, and admin_org_update_worker. Found that require_on_project_roster trusts MapProjectMember rows without verifying target account isolation, and _import_workers/prepare_members allow attaching arbitrary existing platform accounts to the roster, unlocking full user-grid and person-panel inspection as well as subsequent bulk-apply/worker placement."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/organization_service.py",
+            "app/services/project_user_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/services/organization_service.py#L3956-L3986",
+            "app/services/organization_service.py#L4060-L4543",
+            "app/routes/admin_organization.py#L1482-L1603"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+          ],
+          "not_applicable_ref": null,
+          "notes": "Traced project-roster boundary in on_project_roster and get_project_users_grid; once an existing user is added to MapProjectMember (or linked via _import_workers), all project-roster read surfaces treat the account as an in-project member and expose global VaUsers profile attributes, enrolled devices, and security event history."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/authz/grant_writes.py",
+            "app/services/organization_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1521-L1603",
+            "app/services/organization_service.py#L2598-L2663",
+            "app/services/organization_service.py#L4569-L5176",
+            "app/services/authz/grant_writes.py#L145-L260"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+          ],
+          "not_applicable_ref": null,
+          "notes": "In admin_project_user_panel (app/routes/admin_organization.py:1521-1603), _panel_activity queries VaSecurityEvent by target_user_id without filtering by project_id, and list_account_devices queries all enrolled devices for user_id across projects; combined with unconsented roster attachment, a PI/DM in Project B can read cross-project security events (including actor names from Project A) and device metadata."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/mobile_sign_in_service.py",
+            "app/services/organization_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L753-L756",
+            "app/routes/admin_organization.py#L859-L861",
+            "app/services/organization_service.py#L2598-L2663",
+            "app/services/organization_service.py#L3956-L3986"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+          ],
+          "not_applicable_ref": null,
+          "notes": "Single-worker endpoints (admin_org_create_worker at line 755 and admin_org_update_worker at line 860) and bulk_apply_project_users_grid (line 4660) enforce require_on_project_roster, whereas _import_workers (organization_service.py:2598-2663), prepare_members/apply_members (project_user_import_service.py:645-791), and project-users/import (project_user_import_service.py:337-504) attach arbitrary existing users without require_on_project_roster."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Stale authorization and derived copy use",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/authz/grant_writes.py",
+            "app/services/organization_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1407-L1416",
+            "app/routes/admin_organization.py#L1810-L1817",
+            "app/services/organization_service.py#L5155-L5176"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Verified bump_bulk_grant_versions and bump_grant_version calls after bulk_apply_project_users_grid and remove_from_project; grant version invalidation is consistently triggered on grant changes."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/organization_service.py"
+          ],
+          "uri_anchors": [
+            "app/services/organization_service.py#L4569-L5176"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Checked cross-project org_unit_id, cadre_id, site_id, and form_type_id references in bulk_apply_project_users_grid; unit, cadre, site, and form lookups are scoped to project_id."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/organization_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1401-L1859"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Applied data-isolation validation rules to trace caller roles, project boundaries, and downstream query predicates."
+        }
+      ]
+    },
+    {
+      "coverage_id": "app%2Froutes%2Fadmin_organization.py%23members_and_users_import::app%2Fservices%2Fproject_user_import_service.py%23prepare_members::app%2Fservices%2Fproject_user_import_service.py::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+      "status": "completed",
+      "reviewed_paths": [
+        "app/models/map_project_members.py",
+        "app/routes/admin_organization.py",
+        "app/services/mobile_sign_in_service.py",
+        "app/services/organization_service.py",
+        "app/services/project_user_import_service.py",
+        "app/services/tabular_import_service.py"
+      ],
+      "checks": [
+        {
+          "block_id": "ATTACK-CLASSES.md#Feature abuse and data leakage",
+          "method": "source",
+          "reviewed_paths": [
+            "app/models/map_project_members.py",
+            "app/routes/admin_organization.py",
+            "app/services/organization_service.py",
+            "app/services/project_user_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1006-L1061",
+            "app/routes/admin_organization.py#L1750-L1820",
+            "app/services/project_user_import_service.py#L337-L598",
+            "app/services/project_user_import_service.py#L645-L791"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management",
+            "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+          ],
+          "not_applicable_ref": null,
+          "notes": "Traced prepare_members and apply_members in app/services/project_user_import_service.py:645-791 called from POST /admin/api/projects/<project_id>/users-grid/members/import. Any project_pi or project-scope data_manager can match any active platform user by email (with blank phone) or by 10-digit mobile (with blank email) and insert a MapProjectMember row in their project, both leaking full account/device/event details via the roster/person panel and causing _outside_member to lock out the victim project's managers."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+          "method": "source",
+          "reviewed_paths": [
+            "app/models/map_project_members.py",
+            "app/services/mobile_sign_in_service.py",
+            "app/services/project_user_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/models/map_project_members.py#L10-L39",
+            "app/services/mobile_sign_in_service.py#L155-L320",
+            "app/services/project_user_import_service.py#L645-L791"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management"
+          ],
+          "not_applicable_ref": null,
+          "notes": "MapProjectMember rows created in Project B by prepare_members/apply_members mutate global isolation predicates (_outside_member in mobile_sign_in_service.py:262-269) evaluated when Project A's managers manage their own project's users."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Import and restore authority expansion",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/organization_service.py",
+            "app/services/project_user_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1121-L1161",
+            "app/routes/admin_organization.py#L1750-L1820",
+            "app/services/organization_service.py#L2598-L2663",
+            "app/services/project_user_import_service.py#L645-L791"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management",
+            "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+          ],
+          "not_applicable_ref": null,
+          "notes": "Bulk import endpoints (POST /users-grid/members/import, POST /project-users/import, and POST /organization/<project_id>/import) bind existing VaUsers accounts to a project without checking whether the target user belongs to another tenant/project or holds a privileged role (e.g., platform admin, project_pi), expanding the caller's authority to view the user's panel and pass require_on_project_roster."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Enumeration and aggregate oracles",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/organization_service.py",
+            "app/services/project_user_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/services/organization_service.py#L3088-L3197",
+            "app/services/project_user_import_service.py#L698-L788"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+          ],
+          "not_applicable_ref": null,
+          "notes": "While lookup_existing_user (organization_service.py:3116-3118) and prepare_members dry_run preview (project_user_import_service.py:784) withhold the unqueried contact channel (phone vs email) and restrict lookup to admin/project_pi, a project_pi or project-scope data_manager can batch-query up to 500 emails or phone numbers per request via members/import (dry_run=1 reveals existing user_id and name; dry_run=0 attaches them to the roster and exposes their unqueried contact channel, profile, devices, and security events)."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+          "method": "source",
+          "reviewed_paths": [
+            "app/services/project_user_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/services/project_user_import_service.py#L287-L334",
+            "app/services/project_user_import_service.py#L725-L745"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Verified inactive-user reactivation guard: prepare_members (lines 727-739) rejects inactive existing accounts unless allow_reactivate is True (admin only), and prepare (lines 310-317, 456-468) requires admin to reactivate inactive accounts."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/project_user_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1750-L1820",
+            "app/services/project_user_import_service.py#L645-L791"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Applied data-isolation validation rules to trace import preview and apply paths end to end."
+        },
+        {
+          "block_id": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/organization_service.py",
+            "app/services/project_user_import_service.py",
+            "app/services/tabular_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/services/project_user_import_service.py#L166-L246",
+            "app/services/tabular_import_service.py#L19-L141",
+            "app/services/organization_service.py#L2200-L2340"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Verified upload size and row caps across parse_upload, read_upload_bytes, and _check_xlsx_archive."
+        },
+        {
+          "block_id": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Decompression and representation amplification",
+          "method": "source",
+          "reviewed_paths": [
+            "app/services/organization_service.py",
+            "app/services/project_user_import_service.py",
+            "app/services/tabular_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/services/tabular_import_service.py#L51-L97",
+            "app/services/project_user_import_service.py#L166-L246"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Checked XLSX zip bomb defenses in tabular_import_service._check_xlsx_archive: enforces MAX_UPLOAD_BYTES (5 MB), MAX_XLSX_ENTRIES (100), MAX_XLSX_UNCOMPRESSED_BYTES (25 MB) prior to openpyxl load_workbook(read_only=True), and caps rows at MAX_IMPORT_ROWS (500) with cell length limit MAX_CELL_CHARS (1000)."
+        },
+        {
+          "block_id": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Universal moves",
+          "method": "source",
+          "reviewed_paths": [
+            "app/services/project_user_import_service.py",
+            "app/services/tabular_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/services/project_user_import_service.py#L506-L598",
+            "app/services/project_user_import_service.py#L755-L791"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Verified that apply_members only hashes passwords for newly created mobile-only accounts (capped by MAX_IMPORT_ROWS=500) and existing accounts skip password hashing."
+        },
+        {
+          "block_id": "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Validation rules",
+          "method": "source",
+          "reviewed_paths": [
+            "app/services/tabular_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/services/tabular_import_service.py#L19-L141"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Confirmed explicit bounds exist on archive entries, uncompressed bytes, row count, and column count."
+        }
+      ]
+    },
+    {
+      "coverage_id": "app%2Froutes%2Fadmin_organization.py%23workers_and_person_panel::app%2Fservices%2Fmobile_sign_in_service.py%23may_edit_account::app%2Froutes%2Fadmin_organization.py::ATTACK-CLASSES.md%23Business%20logic",
+      "status": "completed",
+      "reviewed_paths": [
+        "app/routes/admin_organization.py",
+        "app/services/mobile_sign_in_service.py",
+        "app/services/organization_service.py",
+        "app/services/project_user_import_service.py"
+      ],
+      "checks": [
+        {
+          "block_id": "ATTACK-CLASSES.md#Business logic",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/mobile_sign_in_service.py",
+            "app/services/organization_service.py",
+            "app/services/project_user_import_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1431-L1859",
+            "app/services/mobile_sign_in_service.py#L155-L320",
+            "app/services/organization_service.py#L3989-L4057"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management"
+          ],
+          "not_applicable_ref": null,
+          "notes": "Traced interaction between prepare_members/apply_members (project_user_import_service.py:645-791) and _outside_member / _roster_rule / may_issue_code_from_data_management (mobile_sign_in_service.py:155-320). Because _outside_member checks whether the target user has any MapProjectMember row in a project outside the caller's managed projects, a PI or project-scope DM in Project B who imports User X's email or mobile into Project B's MapProjectMember immediately blocks Project A's PI, project-scope DM, and unit-scope DMs/In-charges from issuing sign-in codes, editing User X's profile, or sending password-reset links."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/mobile_sign_in_service.py",
+            "app/services/organization_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1482-L1747",
+            "app/services/mobile_sign_in_service.py#L155-L320",
+            "app/services/organization_service.py#L3989-L4057"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management",
+            "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+          ],
+          "not_applicable_ref": null,
+          "notes": "Verified remove_from_project (organization_service.py:3989-4057) all-or-nothing grant revocation check for unit-scope DMs and cross-project member isolation in mobile_sign_in_service.py."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/mobile_sign_in_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1521-L1603",
+            "app/services/mobile_sign_in_service.py#L155-L269"
+          ],
+          "outcome": "candidate",
+          "artifact": null,
+          "candidate_refs": [
+            "app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management",
+            "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard"
+          ],
+          "not_applicable_ref": null,
+          "notes": "Confirmed that _panel_grants (admin_organization.py:1490-1518) does not even surface MapProjectMember rows from other projects, so when Project B adds a MapProjectMember row for Project A's user, Project A's managers lose edit/code/reset capabilities without any visible other-project grant in the panel and have no way to remove Project B's MapProjectMember row."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Stale authorization and derived copy use",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/organization_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1709-L1747",
+            "app/services/organization_service.py#L3989-L4057"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Verified that remove_from_project revokes all active project grants, unlinks active project workers, deletes the MapProjectMember row, and bumps grant_version (admin_organization.py:1728)."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Universal moves",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/organization_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L710-L927",
+            "app/routes/admin_organization.py#L1622-L1747"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Checked worker create/update/deactivate and person panel profile/password-reset/remove routes for unit-scope DM boundaries and self-removal guards."
+        },
+        {
+          "block_id": "DATA-ISOLATION-AND-LIFECYCLE.md#Validation rules",
+          "method": "source",
+          "reviewed_paths": [
+            "app/routes/admin_organization.py",
+            "app/services/mobile_sign_in_service.py"
+          ],
+          "uri_anchors": [
+            "app/routes/admin_organization.py#L1431-L1747",
+            "app/services/mobile_sign_in_service.py#L155-L320"
+          ],
+          "outcome": "clean",
+          "artifact": null,
+          "candidate_refs": [],
+          "not_applicable_ref": null,
+          "notes": "Traced all callers of may_edit_account, editable_user_ids, may_issue_code_in_project, issuable_user_ids, and may_issue_code_from_data_management."
+        }
+      ]
+    }
+  ],
+  "candidates": [
+    {
+      "fingerprint": "app/services/project_user_import_service.py:prepare_members:cross-project-member-import-locks-out-victim-project-account-management",
+      "coverage_ids": [
+        "app%2Froutes%2Fadmin_organization.py%23members_and_users_import::app%2Fservices%2Fproject_user_import_service.py%23prepare_members::app%2Fservices%2Fproject_user_import_service.py::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+        "app%2Froutes%2Fadmin_organization.py%23workers_and_person_panel::app%2Fservices%2Fmobile_sign_in_service.py%23may_edit_account::app%2Froutes%2Fadmin_organization.py::ATTACK-CLASSES.md%23Business%20logic"
+      ],
+      "block_ids": [
+        "ATTACK-CLASSES.md#Feature abuse and data leakage",
+        "ATTACK-CLASSES.md#Business logic",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Import and restore authority expansion",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement"
+      ],
+      "proposed_verdict": "needs_validation",
+      "Proposed-Severity": "medium",
+      "confidence": "high",
+      "title": "Unconsented Cross-Project Member Import Triggers _outside_member Lockout on Victim Project Account Management and Sign-In Code Issuance",
+      "claim": "A project_pi or project-scope data_manager in Project B can import any existing Project A user's email or 10-digit mobile number via POST /admin/api/projects/<project_B>/users-grid/members/import, creating a MapProjectMember row in Project B that causes _outside_member() to evaluate to True for Project A's managers and blocks them from issuing mobile sign-in codes, editing the user's profile, or sending password-reset links.",
+      "Attack-Path": [
+        "1. An authenticated project_pi or project-scope data_manager in an organization-mode project (Project B) obtains the email address or 10-digit mobile number of a user U belonging to Project A (either already known or discovered via GET /data-management/api/users?search=<prefix> or GET /admin/api/organization/<project_B>/users/lookup).",
+        "2. The Project B manager sends a multipart POST request to /admin/api/projects/<project_B>/users-grid/members/import with dry_run=0 and a 1-row CSV containing either 'name,email,phone\\nIgnored,userU@example.org,' (for an email account) or 'name,email,phone\\nIgnored,,9876543210' (for a mobile account).",
+        "3. admin_project_members_import (app/routes/admin_organization.py:1750-1820) invokes user_import.prepare_members and user_import.apply_members (app/services/project_user_import_service.py:645-791), which matches U in VaUsers without checking whether U already belongs to another project and inserts MapProjectMember(project_id=project_B, user_id=U.user_id) (line 784).",
+        "4. When Project A's project_pi, project-scope data_manager, or unit-scope data_manager/in-charge subsequently attempts to issue a one-time mobile sign-in code for U (POST /admin/api/projects/<project_A>/users-grid/<U>/sign-in-code or POST /data-management/api/users/<U>/sign-in-code), edit U's profile (PATCH /admin/api/projects/<project_A>/users-grid/<U>/profile), or send a password-reset email (POST /admin/api/projects/<project_A>/users-grid/<U>/password-reset), mobile_sign_in_service._roster_rule (lines 185-190) and may_issue_code_from_data_management (lines 306-311) evaluate sa.not_(_outside_member(VaUsers.user_id, managed_projects)).",
+        "5. Because _outside_member (app/services/mobile_sign_in_service.py:262-269) checks sa.exists().where(MapProjectMember.user_id == user_id_col, MapProjectMember.project_id.not_in(sorted(project_ids))), and Project B is not in Project A's manager's project_ids, the check fails with 403 Forbidden, locking Project A's managers out of managing or onboarding U until a platform admin intervenes."
+      ],
+      "root_cause": "prepare_members and apply_members in app/services/project_user_import_service.py:645-791 allow any project_pi or project-scope data_manager to attach any active existing VaUsers account to their project's MapProjectMember table by email or mobile without checking whether the user already belongs to another project, while _outside_member in app/services/mobile_sign_in_service.py:262-269 treats any MapProjectMember row in an unmanaged project as disqualifying for _roster_rule (used by issuable_user_ids, may_issue_code_in_project, editable_user_ids, and may_edit_account) and may_issue_code_from_data_management.",
+      "affected_files": [
+        "app/services/project_user_import_service.py",
+        "app/services/mobile_sign_in_service.py",
+        "app/routes/admin_organization.py"
+      ],
+      "uri_anchors": [
+        "app/routes/admin_organization.py#L1431-L1459",
+        "app/routes/admin_organization.py#L1622-L1706",
+        "app/routes/admin_organization.py#L1750-L1820",
+        "app/services/project_user_import_service.py#L645-L791",
+        "app/services/mobile_sign_in_service.py#L155-L320"
+      ],
+      "evidence": [
+        "In app/services/project_user_import_service.py:725-745 (prepare_members) and 780-788 (apply_members), when an uploaded row matches an existing active user by email (with blank phone) or by mobile_login (with blank email), action='add_existing' is emitted and db.session.add(MapProjectMember(project_id=project_id, user_id=user.user_id, added_by=actor.user_id)) is executed without verifying whether the user already has grants, worker rows, or membership in another project.",
+        "In app/services/mobile_sign_in_service.py:262-269, _outside_member(user_id_col, project_ids) returns sa.exists().where(M.user_id == user_id_col, M.project_id.not_in(sorted(project_ids))).",
+        "In app/services/mobile_sign_in_service.py:185-190 (_roster_rule) and 306-311 (may_issue_code_from_data_management), authorization requires sa.not_(_outside_member(user_id_col, roster_projects)).",
+        "In app/routes/admin_organization.py:1439 (admin_project_user_sign_in_code), 1628 (admin_project_user_panel_profile), and 1689 (admin_project_user_panel_password_reset), those helpers gate sign-in code issuance, profile editing, and password-reset link sending; once Project B adds U to MapProjectMember, all three return 403 to Project A's managers, and _panel_grants (lines 1490-1518) does not even show MapProjectMember rows from other projects."
+      ],
+      "validation_artifacts": [],
+      "validation_plan": [
+        "Blocker: Local runtime execution is unavailable in this environment (unshare returns 'Operation not permitted', Docker daemon/socket is absent, PostgreSQL is not running, and no local Python virtualenv with project dependencies exists).",
+        "In the project test harness (docker compose exec -T -e TEST_DATABASE_URL=postgresql://minerva:minerva@minerva_db_service:5432/minerva_test_pii minerva_app_service uv run --no-sync python -m pytest), create two organization-mode projects PROJA (with PI pi_a and worker/member user_a) and PROJB (with PI or project-scope DM dm_b).",
+        "Verify that pi_a can initially call POST /admin/api/projects/PROJA/users-grid/<user_a.user_id>/sign-in-code (200 OK) and PATCH /admin/api/projects/PROJA/users-grid/<user_a.user_id>/profile (200 OK).",
+        "Authenticate as dm_b and POST to /admin/api/projects/PROJB/users-grid/members/import with dry_run=0 and CSV 'name,email,phone\\nTest,' + user_a.email + ',' (or user_a.mobile_login in the phone column); verify 200 OK and that MapProjectMember(project_id='PROJB', user_id=user_a.user_id) exists.",
+        "Authenticate as pi_a again and call POST /admin/api/projects/PROJA/users-grid/<user_a.user_id>/sign-in-code, PATCH /admin/api/projects/PROJA/users-grid/<user_a.user_id>/profile, and POST /admin/api/projects/PROJA/users-grid/<user_a.user_id>/password-reset; verify all now fail with 403 Forbidden."
+      ],
+      "contradicting_evidence": [
+        "Platform admins (VaUsers.is_admin == True) bypass _roster_rule and _outside_member (app/services/mobile_sign_in_service.py:165, 294) and remain able to edit the user or issue sign-in codes."
+      ],
+      "fix_direction": "Prevent prepare_members/apply_members (or non-admin callers) from silently attaching existing users who already belong to another project without an explicit cross-project consent/admin flow, or scope _outside_member to not allow an ungranted MapProjectMember row alone in another project to strip management rights from a project where the user holds active grants or worker placements (and surface cross-project MapProjectMember membership in _panel_grants)."
+    },
+    {
+      "fingerprint": "app/services/project_user_import_service.py:prepare_members:unconsented-cross-project-roster-attachment-discloses-account-panel-and-bypasses-roster-guard",
+      "coverage_ids": [
+        "app%2Froutes%2Fadmin_organization.py%23roster_and_users_grid::app%2Fservices%2Forganization_service.py%23require_on_project_roster::app%2Fservices%2Forganization_service.py::ATTACK-CLASSES.md%23Access%20control",
+        "app%2Froutes%2Fadmin_organization.py%23members_and_users_import::app%2Fservices%2Fproject_user_import_service.py%23prepare_members::app%2Fservices%2Fproject_user_import_service.py::ATTACK-CLASSES.md%23Feature%20abuse%20and%20data%20leakage",
+        "app%2Froutes%2Fadmin_organization.py%23workers_and_person_panel::app%2Fservices%2Fmobile_sign_in_service.py%23may_edit_account::app%2Froutes%2Fadmin_organization.py::ATTACK-CLASSES.md%23Business%20logic"
+      ],
+      "block_ids": [
+        "ATTACK-CLASSES.md#Access control",
+        "ATTACK-CLASSES.md#Feature abuse and data leakage",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Missing tenant or owner enforcement",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Policy and query disagreement",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Import and restore authority expansion",
+        "DATA-ISOLATION-AND-LIFECYCLE.md#Enumeration and aggregate oracles"
+      ],
+      "proposed_verdict": "needs_validation",
+      "Proposed-Severity": "medium",
+      "confidence": "high",
+      "title": "Unconsented Cross-Project Roster Attachment via Imports Discloses Full Account Profile, Unqueried Contact Channel, Devices, and Global Security Event Log",
+      "claim": "A project_pi or project-scope data_manager can unilaterally attach any active user on the platform (including platform admins and users in other projects) to their project roster via POST /admin/api/projects/<project_id>/users-grid/members/import (or via POST /admin/api/organization/<project_id>/import for a project_pi), bypassing the single-channel privacy boundary of lookup_existing_user and unlocking GET /admin/api/projects/<project_id>/users-grid/<user_id> to read the target user's unqueried contact channel (phone or email), demographics, enrolled mobile devices across all projects, and global security event history (including cross-project actor names).",
+      "Attack-Path": [
+        "1. A project_pi or project-scope data_manager in Project B knows only the email address (or only the 10-digit mobile number) of a target user U (such as a platform admin, another project's PI/DM, or another project's worker). Note that lookup_existing_user (app/services/organization_service.py:3116-3118) is restricted to admin/project_pi and deliberately hides the unqueried contact channel (phone when queried by email, email when queried by phone) as well as profile demographics, devices, and security events.",
+        "2. The Project B manager uploads a CSV to POST /admin/api/projects/<project_B>/users-grid/members/import with dry_run=0 containing U's email (or 10-digit mobile). Alternatively, a project_pi uploads a workers CSV/XLSX to POST /admin/api/organization/<project_B>/import (_import_workers in app/services/organization_service.py:2598-2663), which calls create_worker/update_worker without require_on_project_roster and links U by email or UUID.",
+        "3. Because U now has a MapProjectMember row (or MasOrgUnitWorker row) in Project B, org.on_project_roster(project_B, U.user_id) (app/services/organization_service.py:3956-3970) returns True.",
+        "4. The Project B manager calls GET /admin/api/projects/<project_B>/users-grid and GET /admin/api/projects/<project_B>/users-grid/<U.user_id> (admin_project_user_panel in app/routes/admin_organization.py:1558-1603).",
+        "5. admin_project_user_panel returns U's full VaUsers profile (both email and phone/mobile_login, email_verified, is_admin, year_of_birth, age, sex, languages, last_sign_in_at), all of U's enrolled mobile devices across the entire platform via list_account_devices(U.user_id) (line 1575), and the last 100 global VaSecurityEvent records for U via _panel_activity(U.user_id) (lines 1521-1541), which is not filtered by project_id and exposes the full names of actors (admins, PIs, DMs) who acted on U in other projects."
+      ],
+      "root_cause": "on_project_roster (app/services/organization_service.py:3956-3970) gates access to full cross-project user profile, device inventory (list_account_devices), and unfiltered security event history (_panel_activity in app/routes/admin_organization.py:1521-1541) solely on whether the target user appears in MapProjectMember, MasOrgUnitWorker, or VaUserAccessGrants for the caller's project, while prepare_members/apply_members (app/services/project_user_import_service.py:645-791) and _import_workers (app/services/organization_service.py:2598-2663) allow a project_pi or project-scope data_manager to unilaterally add any active platform user (including platform admins and other projects' users) to MapProjectMember or MasOrgUnitWorker knowing only their email or mobile number.",
+      "affected_files": [
+        "app/services/project_user_import_service.py",
+        "app/services/organization_service.py",
+        "app/routes/admin_organization.py"
+      ],
+      "uri_anchors": [
+        "app/routes/admin_organization.py#L1482-L1603",
+        "app/routes/admin_organization.py#L1750-L1820",
+        "app/services/organization_service.py#L2598-L2663",
+        "app/services/organization_service.py#L3088-L3197",
+        "app/services/organization_service.py#L3956-L3986",
+        "app/services/organization_service.py#L4060-L4543",
+        "app/services/project_user_import_service.py#L645-L791"
+      ],
+      "evidence": [
+        "In app/services/organization_service.py:3116-3118 (lookup_existing_user) and 3184-3190 (suggest_existing_users), the codebase explicitly documents and enforces a privacy invariant: 'Return only the contact channel the caller already had; the other channel is not needed to confirm the match' (withholding phone when matched by email, and withholding email when matched by phone).",
+        "In app/services/project_user_import_service.py:645-791, prepare_members and apply_members accept any active VaUsers row (including is_admin=True or users belonging to other projects) matched by email alone or mobile_login alone and insert MapProjectMember(project_id=project_id, user_id=user.user_id).",
+        "Similarly, in app/services/organization_service.py:2598-2663 (_import_workers), create_worker and update_worker are called with user=row.get('user_email') without calling require_on_project_roster(project_id, [linked.user_id], actor=current_user), bypassing the roster guard enforced on single-worker routes at app/routes/admin_organization.py:755 and 860.",
+        "Once on the project roster, admin_project_user_panel (app/routes/admin_organization.py:1558-1603) returns both user.email and user.mobile_login/phone, demographics (year_of_birth, age, sex, languages), list_account_devices(user.user_id) across all projects, and _panel_activity(user.user_id) (lines 1521-1541), which queries VaSecurityEvent.target_user_id == user_id without any project scope and resolves VaSecurityEvent.actor_user_id to actor names across all projects."
+      ],
+      "validation_artifacts": [],
+      "validation_plan": [
+        "Blocker: Local runtime execution is unavailable in this environment (unshare returns 'Operation not permitted', Docker daemon/socket is absent, PostgreSQL is not running, and no local Python virtualenv with project dependencies exists).",
+        "In the project test harness, create Project A (with PI pi_a and user_a having both email and phone/mobile_login, an enrolled device, and a VaSecurityEvent recorded by pi_a) and Project B (with project-scope DM dm_b).",
+        "Verify that dm_b initially receives 404 when calling GET /admin/api/projects/PROJB/users-grid/<user_a.user_id> and 403 when calling GET /admin/api/organization/PROJB/users/lookup.",
+        "Authenticate as dm_b and POST to /admin/api/projects/PROJB/users-grid/members/import with dry_run=0 and CSV containing only user_a's email (leaving phone blank).",
+        "Call GET /admin/api/projects/PROJB/users-grid/<user_a.user_id> as dm_b and verify 200 OK returning user_a's phone/mobile_login, demographics, enrolled devices from Project A, and security events including pi_a's full name."
+      ],
+      "contradicting_evidence": [
+        "_panel_grants in app/routes/admin_organization.py:1490-1518 scopes detail grant rows to project_id and summarizes other projects only as an integer other_project_count, showing that project isolation was intended on the person panel but omitted on _panel_activity, list_account_devices, and unqueried contact channels after unconsented MapProjectMember attachment."
+      ],
+      "fix_direction": "Enforce require_on_project_roster in _import_workers for non-admin callers, restrict cross-project or admin account attachment in prepare_members/apply_members, and filter or redact _panel_activity actor/event details, device listings, and unqueried contact attributes when the caller's project is not the sole/owning project of the user (`_outside_member` / `other_project_count > 0`)."
+    }
+  ]
+}

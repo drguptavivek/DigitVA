@@ -36,8 +36,15 @@ export const icons = {
   atSign: { ios: "at", android: "alternate_email" },
   phoneOnly: { ios: "iphone", android: "phone_android" },
   play: { ios: "play.fill", android: "play_arrow" },
+  pause: { ios: "pause.fill", android: "pause" },
   // The full-screen photo viewer (src/AttachmentImageViewer.tsx).
   rotate: { ios: "rotate.right", android: "rotate_right" },
+  rotateLeft: { ios: "rotate.left", android: "rotate_left" },
+  // The coding workspace's full-screen image viewer (src/workspace/media/ImageViewer.native.tsx).
+  previous: { ios: "chevron.left", android: "chevron_left" },
+  zoomIn: { ios: "plus.magnifyingglass", android: "zoom_in" },
+  zoomOut: { ios: "minus.magnifyingglass", android: "zoom_out" },
+  resetView: { ios: "arrow.counterclockwise", android: "fit_screen" },
   accepted: { ios: "checkmark", android: "check" },
   settings: { ios: "gearshape", android: "settings" },
   lock: { ios: "lock", android: "lock" },

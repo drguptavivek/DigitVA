@@ -70,7 +70,7 @@ it("passes authenticated headers to the native audio player and exposes accessib
   // The shared player gets the bearer source; nothing ever calls replace (expo-audio rejects null on a device).
   expect(mockUseAudioPlayer).toHaveBeenLastCalledWith({ uri: `https://digitva.example${audioPath}`, headers: source.headers });
   expect(tree.root.findByProps({ accessibilityLabel: "Attached audio" })).toBeDefined();
-  const play = tree.root.findAll((node) => node.props.label === "Play" && typeof node.props.onPress === "function")[0];
+  const play = tree.root.findAll((node) => node.props.accessibilityLabel === "Play" && typeof node.props.onPress === "function")[0];
   await act(async () => play.props.onPress());
   expect(mockPlayer.play).toHaveBeenCalledTimes(1);
   await act(async () => tree.unmount());

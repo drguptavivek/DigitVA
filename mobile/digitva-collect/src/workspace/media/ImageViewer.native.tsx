@@ -15,6 +15,8 @@ import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-g
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Icon, icons, type IconName } from "../../Icon";
+
 export type ViewerImage = { path: string; label: string };
 export type RenderMedia = (attachmentPath: string, renderImage?: (uri: string) => ReactNode) => ReactNode;
 
@@ -76,10 +78,10 @@ export function ImageViewerProvider({ images, renderMedia, children }: { images:
   );
 }
 
-function Control({ label, text, onPress }: { label: string; text: string; onPress: () => void }) {
+function Control({ label, icon, onPress }: { label: string; icon: IconName; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} hitSlop={4} style={styles.button} onPress={onPress}>
-      <Text style={styles.glyph}>{text}</Text>
+      <Icon name={icon} color={ON_BACKDROP} size={28} />
     </Pressable>
   );
 }
@@ -233,22 +235,22 @@ function ImageViewer({ images, start, renderMedia, onClose }: { images: ViewerIm
             </Animated.View>
           </GestureDetector>
           <View style={[styles.top, { paddingTop: insets.top + 8, paddingLeft: insets.left + 12, paddingRight: insets.right + 12 }]}>
-            <Control label="Close full screen" text="✕" onPress={onClose} />
+            <Control label="Close full screen" icon={icons.close} onPress={onClose} />
             <Text accessibilityRole="header" numberOfLines={1} style={styles.counter}>
               {current.label ? `${current.label}  ` : ""}{index + 1} / {list.length}
             </Text>
           </View>
           <View style={[styles.bottom, { paddingBottom: insets.bottom + 8 }]}>
             <View style={styles.row}>
-              {list.length > 1 ? <Control label="Previous attachment" text="‹" onPress={() => move(-1)} /> : null}
-              <Control label="Rotate left" text="↶" onPress={() => rotate(-90)} />
-              <Control label="Rotate right" text="↷" onPress={() => rotate(90)} />
-              {list.length > 1 ? <Control label="Next attachment" text="›" onPress={() => move(1)} /> : null}
+              {list.length > 1 ? <Control label="Previous attachment" icon={icons.previous} onPress={() => move(-1)} /> : null}
+              <Control label="Rotate left" icon={icons.rotateLeft} onPress={() => rotate(-90)} />
+              <Control label="Rotate right" icon={icons.rotate} onPress={() => rotate(90)} />
+              {list.length > 1 ? <Control label="Next attachment" icon={icons.chevronRight} onPress={() => move(1)} /> : null}
             </View>
             <View style={styles.row}>
-              <Control label="Zoom out" text="−" onPress={() => zoomBy(1 / ZOOM_STEP)} />
-              <Control label="Reset view" text="Reset" onPress={() => { setRotation(0); resetView(); }} />
-              <Control label="Zoom in" text="+" onPress={() => zoomBy(ZOOM_STEP)} />
+              <Control label="Zoom out" icon={icons.zoomOut} onPress={() => zoomBy(1 / ZOOM_STEP)} />
+              <Control label="Reset view" icon={icons.resetView} onPress={() => { setRotation(0); resetView(); }} />
+              <Control label="Zoom in" icon={icons.zoomIn} onPress={() => zoomBy(ZOOM_STEP)} />
             </View>
           </View>
         </View>
@@ -265,6 +267,5 @@ const styles = StyleSheet.create({
   bottom: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: SCRIM, paddingTop: 8, gap: 8 },
   row: { flexDirection: "row", justifyContent: "center", gap: 12 },
   button: { minWidth: 48, minHeight: 48, alignItems: "center", justifyContent: "center" },
-  glyph: { color: ON_BACKDROP, fontSize: 26 },
   counter: { flex: 1, color: ON_BACKDROP, fontSize: 16 },
 });

@@ -8,8 +8,8 @@ import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { t } from "./i18n";
+import { Icon, icons } from "./Icon";
 import { useTheme } from "./theme";
-import { Button } from "./ui";
 
 const clock = (seconds: number) =>
   `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
@@ -43,10 +43,11 @@ export function AttachmentAudioPlayer({ uri, headers, accessibilityLabel, onErro
   };
   return (
     <View accessibilityLabel={accessibilityLabel} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 }}>
-      <Button
-        size="sm"
-        kind="secondary"
-        label={status.playing ? t("attachPause") : t("attachPlay")}
+      {/* Play / Pause as an icon, like the web's native audio controls. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={status.playing ? t("attachPause") : t("attachPlay")}
+        hitSlop={4}
         onPress={() => {
           try {
             if (status.playing) player.pause();
@@ -55,7 +56,10 @@ export function AttachmentAudioPlayer({ uri, headers, accessibilityLabel, onErro
             onError();
           }
         }}
-      />
+        style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: theme.ui.primary }}
+      >
+        <Icon name={status.playing ? icons.pause : icons.play} color={theme.ui.primaryForeground} size={24} />
+      </Pressable>
       {/* Tap the track to jump there; the tall touch area wraps a thin bar. */}
       <Pressable
         accessibilityRole="adjustable"

@@ -82,3 +82,20 @@ test("badge text keeps 4.5:1 on its fill in both modes", () => {
     expect(contrastRatio(t.success, t.primaryForeground)).toBeGreaterThanOrEqual(4.5);
   }
 });
+
+test("native attachment answers sit under their question at full width, not in the half-width answer column", () => {
+  const media = { ...category, subcategories: [{ code: "s", label: "Section", render_mode: "default", items: [{ label: "Narration image", value: "/api/v1/attachments/abc.jpg", flip: false, info: false }] }] } as unknown as CategoryPayload;
+  let r: any;
+  act(() => { r = create(<CategoryPanel category={media} renderMedia={(path: string) => <MediaProbe path={path} />} />); });
+  const probe = r.root.findByType(MediaProbe);
+  expect(probe.props.path).toBe("/api/v1/attachments/abc.jpg");
+  // The row holding the question and the media stacks them (no row direction).
+  const row = flat(r.toJSON()).find((node) => node.children?.some((child: any) => text(child) === "Narration image") && flat(node).some((n) => n.props?.testID === "media-probe"));
+  expect(row).toBeDefined();
+  expect(row.props.style.flexDirection).toBeUndefined();
+});
+
+function MediaProbe(_props: { path: string }) {
+  const { View } = require("react-native");
+  return <View testID="media-probe" />;
+}

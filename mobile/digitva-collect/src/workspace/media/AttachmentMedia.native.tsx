@@ -133,7 +133,7 @@ function AttachmentPlayback({ identity, attachmentPath, userId, training }: Atta
   const currentSource = source?.key === key ? source : null;
   if (!currentSource) return <Text accessibilityRole="text">Loading attachment…</Text>;
   if (kind === "image") {
-    return <Image accessibilityLabel="Attached image" source={{ uri: currentSource.uri }} resizeMode="contain" onError={() => setError(true)} style={{ width: 280, height: 220 }} />;
+    return <Image accessibilityLabel="Attached image" source={{ uri: currentSource.uri }} resizeMode="contain" onError={() => setError(true)} style={{ width: "100%", aspectRatio: 4 / 3 }} />;
   }
   return (
     <View>

@@ -80,7 +80,7 @@ export function LocalAttachmentMedia({ db, draftId, reference, assertAllowed }: 
   else if (!media) body = <Text style={styles.muted}>{t("offlineAttachmentLoading")}</Text>;
   else if (media.kind === "document") body = <Text style={styles.muted}>{t("offlineAttachmentDocument")}</Text>;
   else if (media.kind === "image") {
-    body = <Image accessibilityLabel={t("offlineAttachedImage")} source={{ uri: media.uri }} resizeMode="contain" onError={() => setMedia("missing")} style={{ width: 280, height: 220 }} />;
+    body = <Image accessibilityLabel={t("offlineAttachedImage")} source={{ uri: media.uri }} resizeMode="contain" onError={() => setMedia("missing")} style={{ width: "100%", aspectRatio: 4 / 3 }} />;
   } else {
     body = <AttachmentAudioPlayer uri={media.uri} accessibilityLabel={t("offlineAttachedAudio")} onError={() => setMedia("missing")} />;
   }

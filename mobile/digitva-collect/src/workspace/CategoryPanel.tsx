@@ -46,6 +46,16 @@ function QuestionRow({ item, first, renderMedia }: {
     : tone === "green" ? { bg: ui.success, fg: ui.primaryForeground }
     : tone === "info" ? { bg: ui.primary, fg: ui.primaryForeground } : null;
   const text = answerText(item.value);
+  // An attachment answer (image, audio) sits under its question at full width; the half-width answer column clips it.
+  const media = !!renderMedia && typeof item.value === "string" && (ATTACHMENT_PATH.test(item.value) || LOCAL_ATTACHMENT.test(item.value));
+  if (media) {
+    return (
+      <View style={{ gap: spacing.xs, paddingVertical: spacing.xs, borderTopWidth: first ? 0 : StyleSheet.hairlineWidth, borderColor: ui.separator }}>
+        <Text style={[styles.text, { fontWeight: "600" }]}>{item.label}</Text>
+        <CategoryValue value={item.value} renderMedia={renderMedia} />
+      </View>
+    );
+  }
   return (
     <View style={{ flexDirection: "row", gap: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: first ? 0 : StyleSheet.hairlineWidth, borderColor: ui.separator }}>
       <Text style={[styles.text, { flex: 1, flexShrink: 1, fontWeight: "600" }]}>{item.label}</Text>

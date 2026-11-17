@@ -397,6 +397,9 @@
                     <button type="button" class="btn btn-sm btn-outline-primary" id="setup-ug-members-toggle" aria-expanded="false" aria-controls="setup-ug-members-panel">
                       <i class="fa-solid fa-file-arrow-up me-1"></i>Upload users CSV
                     </button>
+                    <a class="btn btn-sm btn-outline-primary" id="setup-ug-export-btn" href="/admin/api/projects/{{ project.project_id|urlencode }}/users-grid/members/export.csv" title="Active people as name, email, phone, ready to upload to another project">
+                      <i class="fa-solid fa-file-arrow-down me-1"></i>Export CSV
+                    </a>
                     {% endif %}
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="setup-ug-fullscreen-btn" aria-pressed="false" title="Full screen">
                       <i class="fa-solid fa-expand"></i><span class="ms-1 d-none d-md-inline">Full screen</span>

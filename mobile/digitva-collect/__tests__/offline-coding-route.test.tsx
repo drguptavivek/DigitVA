@@ -863,9 +863,8 @@ describe("the offline coding workspace's local API", () => {
       // The probe settles while the coder is on another section.
       await act(async () => { settleProbe({ ok: true, version: "3.0.1" }); });
       await act(async () => { await Promise.resolve(); });
-      // The section list's entry: the nearest pressable around the COD Assessment label.
-      let cod: ReactTestInstance | null = root.root.findAll((node) => node.props.children === codLabel)[0] ?? null;
-      while (cod && typeof cod.props.onPress !== "function") cod = cod.parent;
+      // The section rail's COD Assessment button.
+      const cod = root.root.findAll((node) => node.props.accessibilityLabel === codLabel && typeof node.props.onPress === "function")[0];
       expect(cod).toBeDefined();
       await act(async () => { cod!.props.onPress(); });
       await act(async () => { await Promise.resolve(); });
@@ -892,7 +891,7 @@ describe("the offline coding workspace's local API", () => {
       expect(alerts(root)).toEqual([]);
       const text = () => JSON.stringify(root.toJSON());
       // The mocked Button drops `disabled`, so moving is the observable: Next leaves the first category, Previous returns.
-      const stripSelected = () => root.root.findAll((n) => n.props.accessibilityRole === "button" && n.props.accessibilityState?.selected).map((n) => n.findAll((c) => String(c.type) === "Text").map((c) => c.children.join("")).join(""));
+      const stripSelected = () => root.root.findAll((n) => n.props.accessibilityRole === "button" && n.props.accessibilityState?.selected).map((n) => String(n.props.accessibilityLabel));
       const first = [...new Set(stripSelected())];
       expect(first).toHaveLength(1);
       await press("Next");

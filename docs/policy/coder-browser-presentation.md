@@ -3,7 +3,7 @@ title: Coder Browser Presentation
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-31
+last_updated: 2026-11-17
 ---
 
 # Coder browser presentation
@@ -102,3 +102,16 @@ assessment screens:
 
 Beyond those telemetry fields, save payloads, allowability checks and workflow
 gates do not change.
+
+## Phone section rail (owner 2026-11-17)
+
+The phone coding workspace (online and offline) navigates case sections with a
+left icon rail, like the web rail, not a row of text tabs. The rail floats over
+the page (the content keeps its full width). A rightward swipe on the rail, or
+its menu button, widens it to show the section names, counts and attachment
+badge over a scrim; a leftward swipe, the scrim, choosing a section, the button
+or Android back collapses it. Buttons do everything the swipe does. Icons come
+from the server's `icon_name` (folder when unknown). Previous / Next / Notes are
+unchanged. The phone has no SmartVA status view, so the web's SmartVA rail
+button has no phone counterpart.
+

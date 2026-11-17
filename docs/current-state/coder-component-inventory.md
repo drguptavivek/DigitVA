@@ -94,6 +94,18 @@ before proceeding.") and the reason shows under it. A Notes button follows on
 every page and toggles `PrivateNotePanel`, kept mounted so a draft survives
 category changes. Phone only; `WorkspaceLayout.web.tsx` is unchanged.
 
+## Phone section rail (owner 2026-11-17)
+
+`WorkspaceLayout.tsx` (native, also offline coding) has no tab strip. Sections
+are `PhoneSectionRail.tsx`: a 56pt icon rail absolutely positioned over the left
+edge of the page (the page is not narrowed; the rail is 90% opaque with a shadow
+while collapsed). A rightward pan on the rail (gesture-handler, horizontal
+intent only) or the menu button animates it (reanimated) to 75% of the screen
+(max 320pt) with names, counts and attachment badges over a scrim; scrim, leftward
+pan, choosing a section, the button and Android back collapse it. Icons: the
+`sectionIcon(icon_name)` lookup in `src/Icon.tsx`, folder fallback. Tablet keeps
+the vertical sidebar; `WorkspaceLayout.web.tsx` is unchanged.
+
 ## Browser workspace colours and audio (9cll.22.16)
 
 - The Expo browser coding pages (`src/workspace/*.web.tsx`, the web gallery

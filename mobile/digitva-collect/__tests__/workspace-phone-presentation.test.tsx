@@ -89,19 +89,16 @@ describe("workflow history", () => {
 });
 
 describe("case view", () => {
-  test("phone layout has no Exit button and marks the selected tab with an underline", async () => {
+  test("phone layout has no Exit button and marks the selected section on the icon rail", async () => {
     let r!: ReactTestRenderer;
     await act(async () => {
       r = create(<WorkspaceLayout identity={{} as never} workspace={{ case: { instance_name: "f" } } as never}
         categories={[{ code: "a", label: "A", nav_label: "A" }, { code: "b", label: "B", nav_label: "B" }] as never[]}
         selectedCode="b" categoryLoading={false} onSelectCategory={() => undefined} onExit={() => undefined}><Text>x</Text></WorkspaceLayout>);
     });
-    expect(r.root.findAll((n) => n.type === ScrollView && n.props.accessibilityLabel === "Case categories").length).toBeGreaterThan(0);
     expect(labelled(r, "Exit")).toHaveLength(0);
-    const tabs = r.root.findAll((n) => n.props.accessibilityState && "selected" in n.props.accessibilityState && n.props.onLayout);
-    const underline = (sel: boolean) => tabs.find((n) => n.props.accessibilityState.selected === sel)!.props.style.borderBottomColor;
-    expect(underline(false)).toBe("transparent");
-    expect(underline(true)).not.toBe("transparent");
+    const sections = r.root.findAll((n) => typeof n.props.onPress === "function" && n.props.accessibilityState && "selected" in n.props.accessibilityState && ["A", "B"].includes(n.props.accessibilityLabel));
+    expect(sections.map((n) => [n.props.accessibilityLabel, n.props.accessibilityState.selected])).toEqual([["A", false], ["B", true]]);
   });
 
   test("category panel humanises raw section keys and drops the heading above the symptoms card", () => {

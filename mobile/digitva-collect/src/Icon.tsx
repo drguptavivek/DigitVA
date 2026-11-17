@@ -53,8 +53,38 @@ export const icons = {
   // Coding case lists (Home, Interviews, Settings).
   localCases: { ios: "iphone", android: "phone_android" },
   onlineCases: { ios: "cloud", android: "cloud" },
-  codedCases: { ios: "checkmark.seal", android: "verified" }
+  codedCases: { ios: "checkmark.seal", android: "verified" },
+  // The phone coding workspace's section rail (src/workspace/PhoneSectionRail.native.tsx).
+  menu: { ios: "line.3.horizontal", android: "menu" },
+  dismiss: { ios: "xmark", android: "close" },
+  attachments: { ios: "paperclip", android: "attach_file" }
 } as const satisfies Record<string, IconName>;
+
+const folderIcon = { ios: "folder", android: "folder_open" } as const satisfies IconName;
+
+/** Coding section icons by the server's FontAwesome `icon_name` (the web rail draws the same names); unknown or missing: a folder. */
+const SECTION_ICONS = {
+  "fa-brain": { ios: "brain.head.profile", android: "psychology" },
+  "fa-female": { ios: "figure.stand.dress", android: "female" },
+  "fa-allergies": { ios: "allergens", android: "allergy" },
+  "fa-info-circle": { ios: "info.circle", android: "info" },
+  "fa-history": { ios: "clock.arrow.circlepath", android: "history" },
+  "fa-lungs": { ios: "lungs", android: "pulmonology" },
+  "fa-baby": { ios: "figure.child", android: "child_care" },
+  "fa-user": { ios: "person", android: "person" },
+  "fa-first-aid": { ios: "cross.case", android: "medical_services" },
+  "fa-hospital-alt": { ios: "cross.circle", android: "local_hospital" },
+  "fa-thermometer": { ios: "thermometer.medium", android: "thermostat" },
+  "fa-file-medical-alt": { ios: "doc.text", android: "description" },
+  "fa-capsules": { ios: "pills", android: "medication" },
+  "fa-baby-carriage": { ios: "stroller", android: "stroller" },
+  "fa-users": { ios: "person.2", android: "group" },
+  "fa-folder-open": folderIcon
+} as const satisfies Record<string, IconName>;
+
+export function sectionIcon(name?: string | null): IconName {
+  return (name && (SECTION_ICONS as Record<string, IconName>)[name]) || folderIcon;
+}
 
 export function Icon({ name, color, size = 20, fallback, accessibilityLabel }: {
   name: IconName;

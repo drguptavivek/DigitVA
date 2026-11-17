@@ -2,20 +2,22 @@
 
 ## Start here
 
-Staging runs `e6a17915d` (deployed 2026-11-17 with `scripts/deploy-staging.sh`
-on the owner's direct go in session "Handoff and open issues"; backup
-verified, migrations at head; rollback:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 019e8ac7ec24380e21a9840c4157b6435313fb27`).
-That deploy ran after the training hold below was recorded: check with the
-owner that the staging training was not disrupted. Staging's
-`/download/android` still serves 0.3.20: its hosted folder
-`private/android-hosted` has nothing newer; copying 0.3.23 in (runbook in
-`docs/current-state/android-release-builds.md`) awaits the owner's go.
-Main is at `4a2080879` (coding parity PR #775 merged; full backend suite
-7771 passed, Jest 5306 passed, `make check-web` green). Images exist for
-`798d811d8` and `2e7a51a17`; any newer deploy needs the owner's go.
+Staging runs `ad9603e0e` (deployed 2026-11-18 01:58 IST with
+`scripts/deploy-staging.sh` on the owner's go, which lifted the training
+hold; backup verified, migrations at head, smoke check 200 on `/`, `/app/`,
+`/download/android`; rollback:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh e6a17915dddb741acd57abbf084e65a5b9f5ad3b`).
+The image carries Collect `android-v0.3.24`, Collect Plus
+`collect-plus-v0.3.24-plus.1` and web `expo-web-v2026.11.18.1`
+(`docs/current-state/android-release-builds.md`). Staging's
+`/download/android` still serves 0.3.20 from `private/android-hosted`;
+copying 0.3.24 in awaits the owner's go. The Play AAB (run 44161580345)
+awaits the owner's Play upload.
 
-Old-APK audit: `019e8ac7e..e6a17915d` is done (additive migration
+Old-APK audit: `b95f26e4a..0fd111363` (2026-11-18) SAFE WITH NOTES: no
+migration, additive `code_titles`; moving or deactivating a worker's
+placement now revokes their unit roles, so a collector with unsent work
+cannot upload until re-granted (tell admins). Earlier: `019e8ac7e..e6a17915d` is done (additive migration
 `d8a2f4c6e1b3`, `access_changed` notification accepted by old apps).
 `e6a17915d..b95f26e4a` adds no migration; old APKs see new refusals with
 existing shapes: non-admin on-screen sign-in QR for verified-email / live
@@ -30,8 +32,8 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Ranked next steps
 
-0. **HOLD: no staging deploy while a training is running on staging (owner
-   2026-11-17); wait for the owner to lift it.** On staging check: the
+0. On staging check today's phone coding changes on a real phone (0.3.24),
+   and: the
    roster person page (`digitva-eyp3`, closed), and on a phone consent
    "No" then back (Id10013 fill). Verified on the emulator against dev
    (Plus debug of main, 2026-11-17): ICD-11 first-launch prompt, phone

@@ -3,7 +3,7 @@ title: Android Release Builds
 doc_type: runbook
 status: active
 owner: engineering
-last_updated: 2026-10-29
+last_updated: 2026-11-18
 ---
 
 # Android release builds
@@ -16,6 +16,24 @@ pending and must not be implied. Local release builds are authorized in this
 session. The normal package remains the default download.
 Version 0.3.13 introduces the manual Settings server compatibility/build check
 (`digitva-hs7e.18`); the server contract and deployed commit are distinct values.
+
+## Public 0.3.24 APKs and Play bundle (2026-11-18)
+
+Built on CI from `7b7412950` (both variants and the Play bundle), pinned in
+`docker-compose.yml` by `ad9603e0e` with web release `expo-web-v2026.11.18.1`
+(`b331824b8ac519515f1049b24d0e8ed9d9d82ee3ce74d33a8dd955060e4caf1c`). Release
+certificate `6d94718a…6d361767`; checksums verified after download against
+each release's `.sha256`. Contents: Android 9 photo storage permission and
+keyboard room, phone coding layout, ICD-10 code titles, Appearance setting
+(`CHANGELOG.md`, 2026-11-18). The Play bundle is a run artifact of
+`android-play-bundle.yml` (run 44161580345); the Play upload is the owner's.
+Staging's `/download/android` serves `private/android-hosted`, not the image
+pin: copying 0.3.24 there is a separate owner step (runbook below).
+
+| Variant | Public release | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| Collect | `android-v0.3.24` | 70,070,229 | `cf6bc7383e3bc54b6307bff9e7f170faba9b27038883c2fdc4633c9bd2ca4c3a` |
+| Collect Plus | `collect-plus-v0.3.24-plus.1` (prerelease) | 150,904,809 | `ad3e6f6c24df00af0c8eb05853c5fc4ece1af08a2a510531f85f6705124b0def` |
 
 ## Public 0.3.15 APKs (2026-10-29)
 

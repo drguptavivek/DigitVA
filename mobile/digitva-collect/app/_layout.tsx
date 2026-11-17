@@ -36,7 +36,7 @@ let notificationRegistrationWarningShown = false;
 function ActivityRoot() {
   const { activity, ready, accounts } = useAppState();
   const { colors } = useTheme();
-  const keyboardInset = useKeyboardInset();
+  const [keyboardInset, recheckKeyboardInset] = useKeyboardInset();
   useEffect(() => {
     if (!ready || Platform.OS !== "android") return;
     const eligible = accounts.some(
@@ -63,6 +63,7 @@ function ActivityRoot() {
       style={{ flex: 1, backgroundColor: colors.background, paddingBottom: keyboardInset }}
       onStartShouldSetResponderCapture={() => {
         activity();
+        recheckKeyboardInset();
         return false;
       }}
     >

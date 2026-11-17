@@ -15,7 +15,11 @@ export function missingKeyboardSpace(windowHeight: number, screenHeight: number,
   return Math.round(covered);
 }
 
-export function useKeyboardInset(): number {
+/**
+ * The inset and a recheck to run on every touch: a keyboard closed inside a Modal (the ICD browser) can skip the
+ * root's keyboardDidHide on Android 9, leaving half the page blank under a stale inset.
+ */
+export function useKeyboardInset(): [number, () => void] {
   const [inset, setInset] = useState(0);
   useEffect(() => {
     if (Platform.OS !== "android") return;
@@ -30,5 +34,6 @@ export function useKeyboardInset(): number {
       hide.remove();
     };
   }, []);
-  return inset;
+  const recheck = () => { if (Platform.OS === "android" && !Keyboard.isVisible()) setInset((value) => (value ? 0 : value)); };
+  return [inset, recheck];
 }

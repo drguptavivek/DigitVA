@@ -82,3 +82,11 @@ test("phone workflow panel orders narration, disease group, then the rest", () =
   expect(at("Story")).toBeLessThan(at("Disease / Co-morbidity"));
   expect(at("Disease / Co-morbidity")).toBeLessThan(at("Other Q"));
 });
+
+test("splitFieldId takes the WHO id off the question and leaves other labels whole", () => {
+  const { splitFieldId } = require("../src/workspace/answerTone");
+  expect(splitFieldId("(Id10123) Deceased died suddenly")).toEqual({ id: "Id10123", text: "Deceased died suddenly" });
+  expect(splitFieldId("(Id10248_b) Months").id).toBe("Id10248_b");
+  expect(splitFieldId("(narr_language) Narration language")).toEqual({ id: "narr_language", text: "Narration language" });
+  expect(splitFieldId("Survey district")).toEqual({ id: null, text: "Survey district" });
+});

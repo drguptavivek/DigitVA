@@ -190,7 +190,7 @@ export function SimpleCodPanel({
           {field("immediate_cod", "Immediate cause")}
           {field("conclusive_cod", "Underlying cause", undefined, setConclusive)}
           <Text style={styles.fieldLabel}>Associated conditions (optional)</Text>
-          <TextInput accessibilityLabel="Associated conditions (optional)" value={otherConditions.join(" | ")} onChangeText={(value) => setOtherConditions(value ? value.split("|").map((part) => part.trim()).filter(Boolean) : [])} style={styles.input} multiline />
+          <TextInput accessibilityLabel="Associated conditions (optional)" value={otherConditions.join(" | ")} onChangeText={(value) => setOtherConditions(value ? value.split("|").map((part) => part.trim()).filter(Boolean) : [])} style={[styles.input, styles.inputOnCard]} multiline />
         </>
       ) : (
         <>
@@ -211,7 +211,7 @@ export function SimpleCodPanel({
       {!isInitial ? (
         <>
           <Text style={styles.fieldLabel}>{unmasked ? "Remarks" : "Remarks (if any)"}</Text>
-          <TextInput accessibilityLabel={unmasked ? "Remarks" : "Remarks (if any)"} placeholder={unmasked ? undefined : "Please enter the additional details here, if any."} value={remark} onChangeText={setRemark} style={styles.input} multiline />
+          <TextInput accessibilityLabel={unmasked ? "Remarks" : "Remarks (if any)"} placeholder={unmasked ? undefined : "Please enter the additional details here, if any."} value={remark} onChangeText={setRemark} style={[styles.input, styles.inputOnCard]} multiline />
         </>
       ) : null}
       {errorLine}
@@ -300,7 +300,7 @@ function NotCodeablePanel({ api, vaSid, reason, other, onReason, onOther, onDone
       {reason === "others" ? (
         <>
           <RequiredLabel label="Please brief the other issue" />
-          <TextInput accessibilityLabel="Please brief the other issue" placeholder="Brief about the issue here." value={other} onChangeText={onOther} style={styles.input} multiline />
+          <TextInput accessibilityLabel="Please brief the other issue" placeholder="Brief about the issue here." value={other} onChangeText={onOther} style={[styles.input, styles.inputOnCard]} multiline />
         </>
       ) : null}
       <Button label="Report Issue" kind="danger" disabled={busy || !reason || (reason === "others" && !other.trim())} loading={busy} onPress={() => {
@@ -426,6 +426,10 @@ function IcdCodeField({
         accessibilityLabel={label}
         placeholder="Search ICD codes..."
         value={query}
+        // Wraps so a chosen code's long title shows whole, code first; a one-line field scrolled to its end hid the code.
+        multiline
+        scrollEnabled={false}
+        submitBehavior="blurAndSubmit"
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         onChangeText={(text) => {
@@ -435,7 +439,7 @@ function IcdCodeField({
             onChoice?.(null);
           }
         }}
-        style={styles.input}
+        style={[styles.input, styles.inputOnCard]}
       />
       {/* Select2's inputTooShort wording (minimumInputLength 2). */}
       {!value && remaining > 0 && (focused || query.trim()) ? <Text style={styles.muted}>{`Please enter ${remaining} or more characters`}</Text> : null}
@@ -527,7 +531,7 @@ function VaDefinitionsModal({ api, onClose }: { api: WorkspaceApi; onClose: () =
       <View style={styles.safe}>
         <View testID="va-definitions-header" style={[styles.body, { gap: 8 }]}>
           <Text accessibilityRole="header" style={styles.headline}>VA Codes, Titles and Definitions</Text>
-          <TextInput accessibilityLabel="Filter VA definitions" placeholder="Filter by VA cause name, code or definition" value={filter} onChangeText={setFilter} style={styles.input} />
+          <TextInput accessibilityLabel="Filter VA definitions" placeholder="Filter by VA cause name, code or definition" value={filter} onChangeText={setFilter} style={[styles.input, styles.inputOnCard]} />
           {loadError ? <Text accessibilityRole="alert" style={styles.error}>{loadError}</Text> : null}
           {items === null && !loadError ? <Text style={styles.muted}>Loading…</Text> : null}
           {items !== null ? <Text style={styles.muted}>{`${shown.length} of ${items.length}`}</Text> : null}
@@ -566,7 +570,7 @@ function ConditionPicker({ label, hint, options, selected, onChange }: { label: 
           ))}
         </View>
       ) : null}
-      <TextInput accessibilityLabel={label} placeholder="Search conditions" value={filter} onFocus={() => setOpen(true)} onChangeText={(text) => { setFilter(text); setOpen(true); }} style={styles.input} />
+      <TextInput accessibilityLabel={label} placeholder="Search conditions" value={filter} onFocus={() => setOpen(true)} onChangeText={(text) => { setFilter(text); setOpen(true); }} style={[styles.input, styles.inputOnCard]} />
       {open ? (
         <>
           {available.map((option) => (

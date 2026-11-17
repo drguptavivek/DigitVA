@@ -116,7 +116,13 @@ leftward swipe, the scrim, choosing a section, the close button or Android
 back closes it. The bottom tab bar is hidden on the case workspace (online and
 offline coding); the header back arrow leaves the case. Disease / Co-morbidity
 shows Diagnosed as a light red panel and Absent as a light green panel with
-dark text, like a lab report. Buttons do everything the swipe does. Icons come
+dark text, like a lab report. Question rows keep a fixed answer column; the
+WHO field id (`Id10123`, `narr_language`) leaves the question text and sits
+faint in the row's top-right corner, adding no height. The narration and any
+free-text answer over 40 characters sit under the question at full width,
+indented. Text fields on cards (ICD search, remarks, notes) carry the tinted
+card fill so they show; the ICD field wraps so a pick shows its code and full
+title. Buttons do everything the swipe does. Icons come
 from the server's `icon_name` (folder when unknown). Previous / Next / Notes are
 unchanged. The phone has no SmartVA status view, so the web's SmartVA rail
 button has no phone counterpart.

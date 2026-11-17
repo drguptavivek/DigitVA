@@ -9,7 +9,11 @@ What landed, newest first. Details live in the commits and the linked docs;
   pull tab so no page text sits under it (an inset column was rejected as
   too narrow); the title is centred with the section icon; the bottom tab
   bar is hidden in the case workspace; disease Diagnosed/Absent panels are
-  lab-report tints. Policy: `docs/policy/coder-browser-presentation.md`.
+  lab-report tints. Then: field ids as a faint corner tag, fixed answer
+  column, full-width indented narration, gaps between cards, tinted card
+  fields with a wrapping ICD field, and a stale Android 9 keyboard inset
+  cleared on the next touch (it blanked half the page after the ICD
+  browser). Policy: `docs/policy/coder-browser-presentation.md`.
 - Android 9 photos (`68f418d71`): the Samsung A730F discarded every camera
   and gallery image because `WRITE_EXTERNAL_STORAGE` was blocked and
   expo-image-picker needs it below Android 10. It is now declared up to API

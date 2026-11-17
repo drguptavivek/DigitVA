@@ -145,7 +145,7 @@ export function PrivateNotePanel({
         </>
       ) : (
         <>
-          <TextInput accessibilityLabel="Private note" placeholder="Private note" value={content} onChangeText={updateContent} style={styles.input} multiline maxLength={20_000} />
+          <TextInput accessibilityLabel="Private note" placeholder="Private note" value={content} onChangeText={updateContent} style={[styles.input, styles.inputOnCard]} multiline maxLength={20_000} />
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
           <View style={{ flexDirection: "row", gap: 8 }}>
             <View style={{ flex: 1 }}><Button label="Save private note" onPress={() => void save()} loading={saving} disabled={saving} /></View>

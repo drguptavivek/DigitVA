@@ -4,7 +4,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Icon, sectionIcon } from "../Icon";
 import { controls, radius, spacing, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
-import { answerText, answerTone } from "./answerTone";
+import { answerText, answerTone, splitFieldId } from "./answerTone";
 import { categoryMode, groupDiseaseHistory, historySubcategoryIndex, subcategoryHeading, summaryPlacement, workflowGroups, type CategorySubcategory } from "./categoryLayout";
 import { AttachmentGallery } from "./media/AttachmentGallery.native";
 import { ImageViewerProvider, type RenderMedia, type ViewerImage } from "./media/ImageViewer.native";
@@ -36,6 +36,10 @@ function SymptomSummary({ items }: { items: JsonValue[] }) {
 }
 
 /** One question and its answer as two wrapping columns, the phone form of the web's Query/Response table. */
+const ID_CORNER = 64;
+const LONG_ANSWER = 40;
+const NARRATION = "Id10476";
+
 function QuestionRow({ item, first, renderMedia }: {
   item: CategoryPayload["subcategories"][number]["items"][number];
   first: boolean;
@@ -49,26 +53,37 @@ function QuestionRow({ item, first, renderMedia }: {
     : tone === "green" ? { bg: ui.success, fg: ui.primaryForeground }
     : tone === "info" ? { bg: ui.primary, fg: ui.primaryForeground } : null;
   const text = answerText(item.value);
+  // The WHO field id stays findable for coders who cross-check the form, but faint in the row's top-right corner (absolute: it adds no height).
+  const { id: fieldId, text: question } = splitFieldId(item.label);
+  const idTag = fieldId ? <Text style={{ ...typography.caption, color: ui.mutedForeground, position: "absolute", top: 0, right: 0, opacity: 0.8 }}>{fieldId}</Text> : null;
   // An attachment answer (image, audio) sits under its question at full width; the half-width answer column clips it.
   const media = !!renderMedia && typeof item.value === "string" && (ATTACHMENT_PATH.test(item.value) || LOCAL_ATTACHMENT.test(item.value));
-  if (media) {
+  // Free text (the narration above all) reads under its question at full width; the answer column makes it a tall strip.
+  const longText = !badge && typeof item.value === "string" && (fieldId === NARRATION || item.value.length > LONG_ANSWER);
+  if (media || longText) {
     return (
       <View style={{ gap: spacing.xs, paddingVertical: spacing.xs, borderTopWidth: first ? 0 : StyleSheet.hairlineWidth, borderColor: ui.separator }}>
-        <Text style={[styles.text, { fontWeight: "600" }]}>{item.label}</Text>
-        <CategoryValue value={item.value} renderMedia={renderMedia} />
+        <Text style={[styles.text, { fontWeight: "600", paddingRight: ID_CORNER }]}>{question}</Text>
+        {/* Free text is indented so it stands apart from the questions (owner 2026-11-18). */}
+        <View style={longText ? { paddingHorizontal: spacing.md, alignItems: "flex-start" } : undefined}>
+          <CategoryValue value={item.value} renderMedia={renderMedia} />
+        </View>
+        {idTag}
       </View>
     );
   }
   return (
-    <View style={{ flexDirection: "row", gap: spacing.sm, paddingVertical: spacing.xs, borderTopWidth: first ? 0 : StyleSheet.hairlineWidth, borderColor: ui.separator }}>
-      <Text style={[styles.text, { flex: 1, flexShrink: 1, fontWeight: "600" }]}>{item.label}</Text>
-      <View style={{ flex: 1, flexShrink: 1, alignItems: "flex-start" }}>
+    // Every row reserves the id corner, with or without an id, so the answer column lines up down the card.
+    <View style={{ flexDirection: "row", gap: spacing.sm, paddingVertical: spacing.xs, paddingRight: ID_CORNER, borderTopWidth: first ? 0 : StyleSheet.hairlineWidth, borderColor: ui.separator }}>
+      <Text style={[styles.text, { width: "58%", fontWeight: "600" }]}>{question}</Text>
+      <View style={{ flex: 1, alignItems: "flex-start" }}>
         {badge && text ? (
           <View accessibilityLabel={tone === "info" ? `Informational response: ${text}` : undefined} style={{ backgroundColor: badge.bg, borderRadius: radius.sm, paddingVertical: spacing.xxs, paddingHorizontal: spacing.sm }}>
             <Text style={{ ...typography.subhead, fontWeight: "700", color: badge.fg, fontFamily: controls.fontFamily }}>{text}</Text>
           </View>
         ) : <CategoryValue value={item.value} renderMedia={renderMedia} />}
       </View>
+      {idTag}
     </View>
   );
 }
@@ -106,11 +121,11 @@ function DiseaseHistoryCard({ items, renderMedia, titled }: { items: CategorySub
       (owner 2026-11-18: the solid badge red was too deep for a block of text). */}
       <Text style={[styles.text, { fontWeight: "600" }]}>Diagnosed by Health Professional</Text>
       <View style={{ backgroundColor: ui.destructiveSoft, borderRadius: radius.sm, padding: spacing.sm }}>
-        <Text style={[styles.text, { color: ui.destructiveText }]}>{positive.length ? positive.join("\n") : "No positive diagnoses found."}</Text>
+        <Text style={[styles.text, { color: ui.destructiveText }]}>{positive.length ? positive.map((name) => splitFieldId(name).text).join("\n") : "No positive diagnoses found."}</Text>
       </View>
       <Text style={[styles.text, { fontWeight: "600", marginTop: spacing.sm }]}>Absent</Text>
       <View style={{ backgroundColor: ui.successTint, borderRadius: radius.sm, padding: spacing.sm }}>
-        <Text style={[styles.text, { color: ui.foreground }]}>{negative.length ? negative.join(", ") : "No negative diagnoses found."}</Text>
+        <Text style={[styles.text, { color: ui.foreground }]}>{negative.length ? negative.map((name) => splitFieldId(name).text).join(", ") : "No negative diagnoses found."}</Text>
       </View>
       {remaining.length ? (
         <View style={{ marginTop: spacing.sm }}>
@@ -168,10 +183,10 @@ export function CategoryPanel({
   }
   return (
     <ImageViewerProvider images={pageImages(category, mode, categoryNav)} renderMedia={renderMedia}>
-    <View accessibilityLabel={category.label}>
+    <View accessibilityLabel={category.label} style={{ gap: spacing.sm }}>
       {/* The symptoms card carries its own title; a second heading above it says the same (round-6 C6). */}
       {placement === "before" ? null : (
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: spacing.sm }}>
           {icon ? <Icon name={sectionIcon(icon)} color={ui.primary} size={24} /> : null}
           <Text accessibilityRole="header" style={[styles.headline, { textAlign: "center", flexShrink: 1 }]}>{category.label}</Text>
         </View>

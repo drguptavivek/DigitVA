@@ -22,3 +22,9 @@ export function answerTone(value: JsonValue, flip: boolean, info: boolean): Answ
   if (!isYes && !isNo) return null;
   return (flip ? isNo : isYes) ? "red" : "green";
 }
+
+/** "(Id10123) Deceased died suddenly" or "(narr_language) ..." -> the field id and the question text; no id leaves the label whole. */
+export function splitFieldId(label: string): { id: string | null; text: string } {
+  const match = /^\(([A-Za-z]\w*)\)\s*(.+)$/s.exec(label);
+  return match ? { id: match[1], text: match[2] } : { id: null, text: label };
+}

@@ -386,7 +386,7 @@
                   </div>
                   <div class="d-flex flex-wrap gap-2">
                     {% if is_org and not roster_only %}
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-jump-section="structure" data-jump-org-tab="workers" data-jump-click="org-worker-add-btn">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-open-worker-form data-jump-section="structure" data-jump-org-tab="workers">
                       <i class="fa-solid fa-user-plus me-1"></i>Enrol Worker / App QR
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-jump-section="structure" data-jump-org-tab="mentoring">
@@ -739,13 +739,33 @@
     }
     var target = document.getElementById(link.getAttribute('data-jump-to') || '');
     if (target) target.scrollIntoView({ block: 'start' });
-    // Open a form straight away (e.g. Add worker); a disabled button leaves
-    // the tab showing why (no units or cadres yet).
-    var action = document.getElementById(link.getAttribute('data-jump-click') || '');
-    if (action && !action.disabled) action.click();
+  }
+
+  // People & Grants opens Structure's Add worker form in place. The form's
+  // offcanvas lives inside the hidden Structure section, so it is moved up to
+  // the page root first. A disabled Add worker (no units or cadres yet) falls
+  // back to the Workers tab, which says why.
+  function openWorkerForm(link) {
+    var addBtn = document.getElementById('org-worker-add-btn');
+    var canvas = document.getElementById('org-worker-canvas');
+    if (!addBtn || !canvas || addBtn.disabled) { jump(link); return; }
+    if (canvas.parentElement !== root) {
+      root.appendChild(canvas);
+      canvas.addEventListener('hidden.bs.offcanvas', function () {
+        var refresh = document.getElementById('setup-ug-refresh-btn');
+        if (refresh) refresh.click();
+      });
+    }
+    addBtn.click();
   }
 
   root.addEventListener('click', function (e) {
+    var workerLink = e.target.closest('[data-open-worker-form]');
+    if (workerLink) {
+      e.preventDefault();
+      openWorkerForm(workerLink);
+      return;
+    }
     var jumpLink = e.target.closest('[data-jump-section]');
     if (jumpLink) {
       e.preventDefault();

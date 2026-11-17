@@ -449,10 +449,97 @@ export function certificateSeedFromInterview(data: Record<string, unknown>): { c
     if (years !== null) put("EstimatedAge", `P${years}Y`, ["age_adult"]);
   }
 
+  const manner = mannerOfDeathSeed(data, choice, whole);
+
   return {
-    certificate: Object.keys(admin).length ? { ICDVersion: "ICD11", AdministrativeData: admin } : { ICDVersion: "ICD11" },
-    provenance,
+    certificate: {
+      ICDVersion: "ICD11",
+      ...(Object.keys(admin).length ? { AdministrativeData: admin } : {}),
+      ...(Object.keys(manner.fields).length ? { MannerOfDeath: manner.fields } : {}),
+    },
+    provenance: { ...provenance, ...manner.provenance },
   };
+}
+
+const INTENT: readonly [string, number][] = [["Id10098", 1], ["Id10099", 2], ["Id10100", 3]];
+const INJURY_TYPES: readonly [string, string][] = [
+  ["Id10079", "Road traffic injury"],
+  ["Id10082", "Non-road transport injury"],
+  ["Id10083", "Fall"],
+  ["Id10084", "Poisoning"],
+  ["Id10085", "Drowning"],
+  ["Id10086", "Venomous bite or sting"],
+  ["Id10087", "Injury by an animal or insect (non-venomous)"],
+  ["Id10089", "Burns or fire"],
+  ["Id10091", "Firearm injury"],
+  ["Id10092", "Stabbed, cut or pierced"],
+  ["Id10093", "Strangulation"],
+  ["Id10096", "Electrocution"],
+  ["Id10094", "Blunt force"],
+  ["Id10095", "Force of nature"],
+  ["Id10097", "Other injury"],
+];
+const MAX_TEXT_LENGTH = 500; // doris_certificate.MAX_TEXT_LENGTH
+
+/** The calendar date as recorded (a leading YYYY-MM-DD, any time suffix ignored), or null; app/services/who_va_answers.calendar_date. */
+function calendarDate(value: unknown): { year: number; month: number; day: number } | null {
+  const match = typeof value === "string" ? /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim()) : null;
+  if (!match) return null;
+  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return year >= 1 && date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? { year, month, day } : null;
+}
+
+/**
+ * MannerOfDeath, a port of app/services/doris_prefill.py `_manner` and `_injury_date`, with the server's rule V6
+ * (external-cause fields only under manner 1-7). Provenance entries are `{ sources }` like the server's.
+ */
+function mannerOfDeathSeed(
+  data: Record<string, unknown>,
+  choice: (key: string) => string,
+  whole: (key: string, min: number, max: number) => number | null,
+): { fields: JsonObject; provenance: JsonObject } {
+  const fields: JsonObject = {};
+  const provenance: JsonObject = {};
+  const put = (field: string, value: JsonValue, sources: string[]) => {
+    fields[field] = value;
+    provenance[`MannerOfDeath.${field}`] = { sources };
+  };
+  const yes = (key: string) => choice(key) === "yes";
+  const unknown = (key: string) => choice(key) === "dk" || choice(key) === "ref";
+
+  const injury = choice("Id10077");
+  if (injury === "no") put("MannerOfDeath", 0, ["Id10077"]);
+  else if (unknown("Id10077")) put("MannerOfDeath", 9, ["Id10077"]);
+  if (injury !== "yes") return { fields, provenance };
+
+  const legalWar = { legal: 4, war: 5 }[choice("doris_injury_legal_war") as "legal" | "war"];
+  if (legalWar !== undefined) put("MannerOfDeath", legalWar, ["doris_injury_legal_war"]);
+  else if (yes("Id10095")) put("MannerOfDeath", 1, ["Id10095"]); // force of nature: intent questions are skipped
+  else {
+    const intent = INTENT.find(([key]) => yes(key));
+    if (intent) put("MannerOfDeath", intent[1], [intent[0]]);
+    else {
+      const asked = INTENT.map(([key]) => key).filter((key) => choice(key));
+      put("MannerOfDeath", asked.some(unknown) ? 9 : 6, asked.length ? asked : ["Id10077"]);
+    }
+  }
+  // Rule V6: the external-cause fields apply only to manner 1-7 (a 9 here means the intent was unknown).
+  const manner = fields.MannerOfDeath as number;
+  if (manner < 1 || manner > 7) return { fields, provenance };
+
+  const known = choice("doris_injury_date_known");
+  const full = known === "full" ? calendarDate(data["doris_injury_date"]) : null;
+  const monthYear = known === "month_year" ? calendarDate(data["doris_injury_month_year"]) : null;
+  const pad = (n: number, width: number) => String(n).padStart(width, "0");
+  if (full) put("DateOfExternalCauseOrPoisoning", `${pad(full.year, 4)}-${pad(full.month, 2)}-${pad(full.day, 2)}`, ["doris_injury_date"]);
+  else if (monthYear) put("DateOfExternalCauseOrPoisoning", `${pad(monthYear.year, 4)}-${pad(monthYear.month, 2)}`, ["doris_injury_month_year"]);
+  const place = whole("doris_injury_place", 0, 9);
+  if (place !== null) put("PlaceOfOccuranceExternalCause", place, ["doris_injury_place"]);
+  const kinds = INJURY_TYPES.filter(([key]) => yes(key));
+  const description = kinds.map(([, label]) => label).join("; ");
+  if (kinds.length && description.length <= MAX_TEXT_LENGTH) put("DescriptionExternalCause", description, kinds.map(([key]) => key));
+  return { fields, provenance };
 }
 
 const GUIDANCE_PATH = new RegExp(`^/api/v1/doris-clinical/(${GUIDANCE_ENDPOINTS.join("|")})/([^/?#]+)$`);

@@ -1,0 +1,307 @@
+{
+ "accident": {
+  "answers": {
+   "Id10077": "yes",
+   "Id10085": "yes",
+   "Id10098": "yes",
+   "Id10100": "yes"
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "DescriptionExternalCause": "Drowning",
+    "MannerOfDeath": 1
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.DescriptionExternalCause": {
+    "sources": [
+     "Id10085"
+    ]
+   },
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10098"
+    ]
+   }
+  }
+ },
+ "assault": {
+  "answers": {
+   "Id10077": "yes",
+   "Id10098": "no",
+   "Id10099": "no",
+   "Id10100": "yes"
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "MannerOfDeath": 3
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10100"
+    ]
+   }
+  }
+ },
+ "bad_date": {
+  "answers": {
+   "Id10077": "yes",
+   "Id10098": "yes",
+   "doris_injury_date": "2026-02-31",
+   "doris_injury_date_known": "full",
+   "doris_injury_place": 10
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "MannerOfDeath": 1
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10098"
+    ]
+   }
+  }
+ },
+ "blank": {
+  "answers": {
+   "Id10077": ""
+  },
+  "certificate": {},
+  "provenance": {}
+ },
+ "dk": {
+  "answers": {
+   "Id10077": "dk"
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "MannerOfDeath": 9
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10077"
+    ]
+   }
+  }
+ },
+ "intent_unknown": {
+  "answers": {
+   "Id10077": "yes",
+   "Id10079": "yes",
+   "Id10098": "dk",
+   "Id10099": "no",
+   "doris_injury_date": "2026-02-03",
+   "doris_injury_date_known": "full"
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "MannerOfDeath": 9
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10098",
+     "Id10099"
+    ]
+   }
+  }
+ },
+ "legal": {
+  "answers": {
+   "Id10077": "yes",
+   "Id10079": "yes",
+   "Id10091": "yes",
+   "doris_injury_date": "2026-02-03T00:00:00+05:30",
+   "doris_injury_date_known": "full",
+   "doris_injury_legal_war": "legal",
+   "doris_injury_place": "3"
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "DateOfExternalCauseOrPoisoning": "2026-02-03",
+    "DescriptionExternalCause": "Road traffic injury; Firearm injury",
+    "MannerOfDeath": 4,
+    "PlaceOfOccuranceExternalCause": 3
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.DateOfExternalCauseOrPoisoning": {
+    "sources": [
+     "doris_injury_date"
+    ]
+   },
+   "MannerOfDeath.DescriptionExternalCause": {
+    "sources": [
+     "Id10079",
+     "Id10091"
+    ]
+   },
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "doris_injury_legal_war"
+    ]
+   },
+   "MannerOfDeath.PlaceOfOccuranceExternalCause": {
+    "sources": [
+     "doris_injury_place"
+    ]
+   }
+  }
+ },
+ "nature": {
+  "answers": {
+   "Id10077": "yes",
+   "Id10095": "yes",
+   "Id10098": "yes",
+   "doris_injury_date_known": "unknown",
+   "doris_injury_place": 9
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "DescriptionExternalCause": "Force of nature",
+    "MannerOfDeath": 1,
+    "PlaceOfOccuranceExternalCause": 9
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.DescriptionExternalCause": {
+    "sources": [
+     "Id10095"
+    ]
+   },
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10095"
+    ]
+   },
+   "MannerOfDeath.PlaceOfOccuranceExternalCause": {
+    "sources": [
+     "doris_injury_place"
+    ]
+   }
+  }
+ },
+ "no": {
+  "answers": {
+   "Id10077": "no"
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "MannerOfDeath": 0
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10077"
+    ]
+   }
+  }
+ },
+ "none_asked": {
+  "answers": {
+   "Id10077": "yes",
+   "doris_injury_date": "2026-02-03",
+   "doris_injury_date_known": "full"
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "DateOfExternalCauseOrPoisoning": "2026-02-03",
+    "MannerOfDeath": 6
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.DateOfExternalCauseOrPoisoning": {
+    "sources": [
+     "doris_injury_date"
+    ]
+   },
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10077"
+    ]
+   }
+  }
+ },
+ "self": {
+  "answers": {
+   "Id10077": "yes",
+   "Id10098": "no",
+   "Id10099": "yes"
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "MannerOfDeath": 2
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10099"
+    ]
+   }
+  }
+ },
+ "undetermined": {
+  "answers": {
+   "Id10077": "yes",
+   "Id10098": "no",
+   "Id10099": "no",
+   "Id10100": "no"
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "MannerOfDeath": 6
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "Id10098",
+     "Id10099",
+     "Id10100"
+    ]
+   }
+  }
+ },
+ "war": {
+  "answers": {
+   "Id10077": "yes",
+   "Id10083": "yes",
+   "doris_injury_date_known": "month_year",
+   "doris_injury_legal_war": "war",
+   "doris_injury_month_year": "2026-02-01"
+  },
+  "certificate": {
+   "MannerOfDeath": {
+    "DateOfExternalCauseOrPoisoning": "2026-02",
+    "DescriptionExternalCause": "Fall",
+    "MannerOfDeath": 5
+   }
+  },
+  "provenance": {
+   "MannerOfDeath.DateOfExternalCauseOrPoisoning": {
+    "sources": [
+     "doris_injury_month_year"
+    ]
+   },
+   "MannerOfDeath.DescriptionExternalCause": {
+    "sources": [
+     "Id10083"
+    ]
+   },
+   "MannerOfDeath.MannerOfDeath": {
+    "sources": [
+     "doris_injury_legal_war"
+    ]
+   }
+  }
+ }
+}

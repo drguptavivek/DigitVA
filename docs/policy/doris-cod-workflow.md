@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-13
+last_updated: 2026-11-17
 ---
 
 # DORIS COD Workflow Policy
@@ -288,6 +288,7 @@ attachments, then SmartVA, the DORIS certificate and the private note.
   server keeps on submission (irrelevant answers left out, multi-select answers
   labelled whether they arrive as an array or a space-joined string). The
   server renders array answers the same way.
+- **Prefill.** Offline, the certificate seed also prefills manner of death (with its injury date, place and description) like the server, with the same provenance; other sections stay unported.
 - **Nothing leaves the phone.** The workspace makes no server call offline.
   Attachments are read from the encrypted store; temporary plain copies follow
   the existing attachment rules. The coder sees what they collected, so no PII

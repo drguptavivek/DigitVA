@@ -179,3 +179,19 @@ it("deletes and does not show an image that finishes downloading after the ident
   expect(shown).not.toBe(oldUri);
   await act(async () => tree.unmount());
 });
+
+it("unmounts cleanly when the native player was already released", async () => {
+  mockGetSource.mockResolvedValue({ uri: `https://digitva.example${audioPath}`, headers: source.headers });
+  let tree!: ReactTestRenderer;
+  await act(async () => {
+    tree = create(<NativeAttachmentMedia identity={identity} attachmentPath={audioPath} userId="user-1" />);
+    await flush();
+  });
+  mockPlayer.pause.mockImplementation(() => { throw new Error("Cannot use shared object that was already released"); });
+  try {
+    await act(async () => tree.unmount());
+    expect(mockPlayer.pause).toHaveBeenCalled();
+  } finally {
+    mockPlayer.pause.mockReset();
+  }
+});

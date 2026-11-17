@@ -62,6 +62,15 @@ function AttachmentDocument({ userId, attachmentPath, training }: { userId?: str
   );
 }
 
+/** Pause, ignoring a player useAudioPlayer has already released (cleanup can run after it on unmount). */
+function pauseQuietly(player: { pause(): void }) {
+  try {
+    player.pause();
+  } catch {
+    // released: nothing is playing
+  }
+}
+
 function AttachmentPlayback({ identity, attachmentPath, userId, training }: AttachmentMediaProps) {
   const kind = attachmentMediaKind(attachmentPath);
   const player = useAudioPlayer(null);
@@ -92,12 +101,12 @@ function AttachmentPlayback({ identity, attachmentPath, userId, training }: Atta
     // Pause only: expo-audio rejects replace(null) ("cannot be cast to
     // AudioSource"); a new source replaces the old one below, and
     // useAudioPlayer releases the player on unmount.
-    player.pause();
+    pauseQuietly(player);
     if (!kind || !userId || !active) {
       if (!kind || !userId) setError(true);
       return () => {
         cancelled = true;
-        player.pause();
+        pauseQuietly(player);
       };
     }
 
@@ -123,7 +132,7 @@ function AttachmentPlayback({ identity, attachmentPath, userId, training }: Atta
     });
     return () => {
       cancelled = true;
-      player.pause();
+      pauseQuietly(player);
       setSource(null);
       removeFile(cachedUri);
     };

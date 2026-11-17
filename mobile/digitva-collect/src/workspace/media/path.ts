@@ -46,10 +46,13 @@ export function attachmentMediaKind(path: string): AttachmentMediaKind | null {
   return AUDIO_EXTENSIONS.has(extension) ? "audio" : null;
 }
 
-/** AMR is accepted by the API but has no reliable native browser decoder. */
+/**
+ * Every audio attachment plays in the browser: the server stores an AMR recording as its MP3 derivative and serves it
+ * as audio/mpeg (attachment_service.generate_storage_name, sync's AMR->MP3 conversion), whatever the path's extension.
+ * A file the browser still cannot decode falls back to the download link through the player's onError.
+ */
 export function browserAudioSupported(path: string): boolean {
-  const extension = attachmentMediaExtension(path);
-  return extension !== "amr" && extension !== null && AUDIO_EXTENSIONS.has(extension);
+  return attachmentMediaKind(path) === "audio";
 }
 
 export type CategoryItem = CategoryPayload["subcategories"][number]["items"][number];

@@ -44,7 +44,7 @@ function ResponseValue({ value, flip, info, renderMedia }: { value: JsonValue; f
   const isNo = normalized === "no";
   // The legacy renderer changes the badge colour only; the answer text stays as served.
   if (info) return <Text accessibilityLabel={`Informational response: ${text}`} style={webStyles.info}>{text}</Text>;
-  if (isYes || isNo) return <Text style={[webStyles.answer, { backgroundColor: (flip ? isNo : isYes) ? w.yes : w.no }]}>{text}</Text>;
+  if (isYes || isNo) return <Text style={[webStyles.answer, (flip ? isNo : isYes) ? { backgroundColor: w.yes, color: w.onYes } : { backgroundColor: w.no, color: w.onNo }]}>{text}</Text>;
   return <WebValue value={value} renderMedia={renderMedia} />;
 }
 
@@ -71,15 +71,15 @@ function DiseaseHistory({ items, renderMedia }: { items: CategoryItem[]; renderM
   return <View style={webStyles.diseaseHistory} accessibilityLabel="Disease history summary">
     <View style={webStyles.diseaseColumns}>
       <View style={webStyles.diseaseColumn}>
-        <Text style={webStyles.diseaseHeading}><FaIcon name="fa-clipboard-check" color={w.blue} /> Diagnosed by Health Professional</Text>
+        <Text style={webStyles.diseaseHeading}><FaIcon name="fa-clipboard-check" color={w.primary} /> Diagnosed by Health Professional</Text>
         <View style={[webStyles.diseasePanel, webStyles.positivePanel]}>
-          <Text style={webStyles.diseasePanelText}>{positive.length ? positive.join("\n") : "No positive diagnoses found."}</Text>
+          <Text style={[webStyles.diseasePanelText, { color: w.onYes }]}>{positive.length ? positive.join("\n") : "No positive diagnoses found."}</Text>
         </View>
       </View>
       <View style={webStyles.diseaseColumn}>
-        <Text style={webStyles.diseaseHeading}><FaIcon name="fa-clipboard" color={w.blue} /> Absent</Text>
+        <Text style={webStyles.diseaseHeading}><FaIcon name="fa-clipboard" color={w.primary} /> Absent</Text>
         <View style={[webStyles.diseasePanel, webStyles.negativePanel]}>
-          <Text style={webStyles.diseasePanelText}>{negative.length ? negative.join(", ") : "No negative diagnoses found."}</Text>
+          <Text style={[webStyles.diseasePanelText, { color: w.onNo }]}>{negative.length ? negative.join(", ") : "No negative diagnoses found."}</Text>
         </View>
       </View>
     </View>
@@ -224,7 +224,7 @@ const makeStyles = (w: WebPalette) => ({
   summaryBadge: { color: w.text, backgroundColor: w.header, border: `1px solid ${w.border}`, borderRadius: radius.sm, padding: "5px 9px", fontFamily: ROBOTO, fontSize: 14, lineHeight: "24px" } as any,
   workflowGroup: { gap: 10, marginTop: 18 },
   section: { gap: 12, marginTop: 14 },
-  sectionHeading: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: "32px", marginBottom: 12 } as any,
+  sectionHeading: { color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: "32px", marginBottom: 12 } as any,
   table: { width: "100%", border: `1px solid ${w.border}`, fontFamily: ROBOTO } as React.CSSProperties,
   tableHeaderRow: { display: "grid", minHeight: 44 } as React.CSSProperties,
   queryHeader: { height: 44, padding: "8px 9px", backgroundColor: w.header, border: `1px solid ${w.border}`, color: w.text, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: "27.2px", textAlign: "left", verticalAlign: "middle", boxSizing: "border-box" } as React.CSSProperties,
@@ -242,13 +242,13 @@ const makeStyles = (w: WebPalette) => ({
   diseaseHistory: { gap: 18 },
   diseaseColumns: { flexDirection: "row", flexWrap: "wrap", gap: 24 },
   diseaseColumn: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 240, gap: 8 } as any,
-  diseaseHeading: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: "32px" } as any,
+  diseaseHeading: { color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 24, lineHeight: "32px" } as any,
   diseasePanel: { minHeight: 72, borderRadius: radius.lg, padding: 16, justifyContent: "center" } as any,
-  positivePanel: { backgroundColor: w.yesPanel },
-  negativePanel: { backgroundColor: w.noPanel },
+  positivePanel: { backgroundColor: w.yes },
+  negativePanel: { backgroundColor: w.no },
   diseasePanelText: { color: w.onBar, fontFamily: ROBOTO, fontSize: 16, lineHeight: "27.2px" } as any,
   diseaseRemaining: { gap: 8 },
-  remainingHeading: { color: w.blue, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: "27.2px" } as any,
+  remainingHeading: { color: w.primary, fontFamily: ROBOTO, fontWeight: "700", fontSize: 16, lineHeight: "27.2px" } as any,
 }) as const;
 
 const valueLabels: Record<string, string> = {

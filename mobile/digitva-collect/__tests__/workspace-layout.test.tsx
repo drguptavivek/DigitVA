@@ -38,7 +38,7 @@ test("browser category panel keeps the HTMX query/response table and flip colour
   expect(output).toContain("Informational response: Yes");
   expect(output.match(/"children":\["Yes"\]/g)).toHaveLength(2);
   expect(output).toContain(ui.light.primary);
-  expect(output).toContain("#2f7a50");
+  expect(output).toContain("#1f7a4d");
   const yesBadges = renderer.root.findAllByType(Text).filter((node) => node.props.children === "Yes");
   expect(yesBadges).toHaveLength(2);
   const informational = yesBadges.find((node) => node.props.accessibilityLabel === "Informational response: Yes");
@@ -72,8 +72,8 @@ test("browser disease history groups explicit answers without using flip or hidi
   expect(output).toContain("fa-clipboard-check");
   expect(output).toContain("Absent");
   expect(output).toContain("fa-clipboard");
-  expect(output).toContain("#b44b52");
-  expect(output).toContain("#477b5b");
+  expect(output).toContain("#b3261e");
+  expect(output).toContain("#1f7a4d");
   expect(output).toContain("Malaria\\nStroke");
   expect(output).toContain("Diabetes");
   expect(output).toContain("Tuberculosis");

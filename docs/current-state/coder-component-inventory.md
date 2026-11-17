@@ -93,3 +93,18 @@ category's `blocked_by` holds (e.g. "Complete the Narrative Quality Assessment
 before proceeding.") and the reason shows under it. A Notes button follows on
 every page and toggles `PrivateNotePanel`, kept mounted so a draft survives
 category changes. Phone only; `WorkspaceLayout.web.tsx` is unchanged.
+
+## Browser workspace colours and audio (9cll.22.16)
+
+- The Expo browser coding pages (`src/workspace/*.web.tsx`, the web gallery
+  and DORIS web fields) take every colour from `webPalette.ts`, which reads
+  only Petrol `ui` tokens (`src/theme.ts`). Yes/No badges and the Diagnosed /
+  Absent panels use the phone's fills: Yes `destructive` with
+  `destructiveForeground`, No `success` with `primaryForeground` (light
+  `#b3261e` / `#1f7a4d` on white; dark `#b3261e` on `#e8edf0`, `#6cc796` on
+  `#0f1418`). `__tests__/ui-token-contrast.test.ts` holds each text pair at
+  4.5:1 or more in both modes.
+- AMR narration plays in the browser `<audio>` player. Sync stores an AMR
+  recording as its MP3 derivative and the attachment routes serve it as
+  `audio/mpeg`, so the client no longer treats `.amr` as download-only; a
+  file the browser cannot decode still falls back to a download link.

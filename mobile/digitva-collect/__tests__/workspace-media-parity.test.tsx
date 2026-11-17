@@ -22,7 +22,7 @@ it("keeps attachment paths same-origin and recognizes browser image/audio format
   expect(attachmentMediaExtension(imageTwo)).toBe("webp");
   expect(attachmentMediaKind(imageTwo)).toBe("image");
   expect(attachmentMediaKind(amr)).toBe("audio");
-  expect(browserAudioSupported(amr)).toBe(false);
+  expect(browserAudioSupported(amr)).toBe(true);
   expect(attachmentMediaExtension(validPdf)).toBe("pdf");
   expect(attachmentMediaKind(validPdf)).toBeNull();
   expect(attachmentMediaKind(unsafe)).toBeNull();
@@ -112,7 +112,7 @@ it("keeps the lightbox on image boundaries, resets zoom, and closes on Escape", 
   }
 });
 
-it("exposes image controls for a default single-image attachment and an AMR download fallback", async () => {
+it("exposes image controls for a default single-image attachment, plays AMR, and falls back to a download on error", async () => {
   let imageRenderer!: ReactTestRenderer;
   await act(async () => {
     imageRenderer = create(<AttachmentMedia identity={{ vaSid: "case-1", mode: "view" }} attachmentPath={imageOne} />);
@@ -124,7 +124,11 @@ it("exposes image controls for a default single-image attachment and an AMR down
   await act(async () => {
     audioRenderer = create(<AttachmentGallery items={[items[2]]} label="Narration" />);
   });
+  const player = audioRenderer.root.findByType("audio");
+  expect(player.props.src).toContain(amr);
+  await act(async () => { player.props.onError(); });
   expect(audioRenderer.root.findByProps({ download: "11111111111111111111111111111111.amr" })).toBeDefined();
+  expect(audioRenderer.root.findAllByType("audio")).toHaveLength(0);
 });
 
 it("renders validated PDFs as same-origin downloads in both default and grouped views", async () => {

@@ -56,6 +56,19 @@ One Expo / React Native codebase, two builds:
 
 English and Hindi UI; the interview language follows the questionnaire.
 
+Onboarding a phone takes one scan: the data manager shows a person's **sign-in QR** on the project
+roster (death reporters, interviewers and coders), and the app enrols the phone and signs them in.
+The project enrolment QR and one-time sign-in codes remain for everyone else.
+
+### 🩺 DigitVA Collect Plus · experimental prerelease
+DigitVA Collect with physician coding on the phone, online or fully offline. It bundles WHO's ICD-11
+coding tool and DORIS (cause-of-death rules) and SmartVA, each running in its own isolated process
+on the device, so a coder can assign and check underlying causes without a connection; results sync
+when back online and are coded the same way as on the web. Arm64 Android only, published on the
+[`collect-plus-v*` releases](https://github.com/drguptavivek/DigitVA/releases); on-device coding
+starts off until turned on. See the
+[technical note](docs/manuscript/who-technical-note-offline-icd11-doris.md).
+
 ### 📝 WHO VA 2022 form engine · [`vendor/who-va-2022/`](vendor/who-va-2022/README.md)
 An independent JavaScript implementation of the **2022 WHO VA instrument v1.1**, published as
 `@drguptavivek/who-2022-va`. One checked-in JSON contract drives the Android app, the web app and

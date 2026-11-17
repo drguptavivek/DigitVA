@@ -1,7 +1,7 @@
 /**
  * The phone coding workspace's section navigation, like the web's icon rail (WorkspaceLayout.web.tsx): a narrow
- * left rail of one icon button per section that FLOATS over the page (absolute; the page keeps its full width).
- * A rightward swipe on the rail, or the menu button, widens it rightwards to show every section name over a scrim;
+ * pull tab on the left edge (owner 2026-11-18: the page keeps its full width; the section icon sits by the page title).
+ * Tapping the tab or swiping it rightwards pulls out a panel with every section name over a scrim;
  * a leftward swipe, the scrim, the button, choosing a section or Android back collapses it. Buttons do everything the
  * swipe does. Labels carry the full name, response count and attachment count, as on the web. Colours are theme tokens.
  * Native only: its one importer, WorkspaceLayout.tsx, is shadowed on the web by WorkspaceLayout.web.tsx, so
@@ -17,7 +17,8 @@ import { useTheme } from "../theme";
 import { useUiStyles } from "../ui";
 import type { WorkspaceCategoryNav } from "./contracts";
 
-export const RAIL_WIDTH = 56;
+const TAB_WIDTH = 22;
+const TAB_HEIGHT = 64;
 const MAX_EXPANDED = 320;
 const SWIPE_DISTANCE = 40;
 const ANIMATION_MS = 180;
@@ -38,8 +39,8 @@ export function PhoneSectionRail({ categories, selectedCode, onSelect }: {
   const styles = useUiStyles();
   const { width: screenWidth } = useWindowDimensions();
   const expandedWidth = Math.min(MAX_EXPANDED, screenWidth * 0.75);
-  const width = useSharedValue(RAIL_WIDTH);
-  useEffect(() => { width.value = withTiming(open ? expandedWidth : RAIL_WIDTH, { duration: ANIMATION_MS }); }, [open, expandedWidth, width]);
+  const width = useSharedValue(0);
+  useEffect(() => { width.value = withTiming(open ? expandedWidth : 0, { duration: ANIMATION_MS }); }, [open, expandedWidth, width]);
   // The back button closes the open panel first (it is not a screen).
   useEffect(() => {
     if (!open) return undefined;
@@ -62,22 +63,37 @@ export function PhoneSectionRail({ categories, selectedCode, onSelect }: {
       {open ? (
         <Pressable accessibilityElementsHidden importantForAccessibility="no" testID="section-rail-scrim" onPress={() => setOpen(false)} style={[StyleSheet.absoluteFill, { backgroundColor: ui.scrim }]} />
       ) : null}
+      {open ? null : (
+        <GestureDetector gesture={swipe}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Show section names"
+            accessibilityState={{ expanded: false }}
+            testID="section-rail-tab"
+            onPress={() => setOpen(true)}
+            hitSlop={{ top: 8, bottom: 8, right: 16 }}
+            style={{ position: "absolute", left: 0, top: "40%", width: TAB_WIDTH, height: TAB_HEIGHT, alignItems: "center", justifyContent: "center", backgroundColor: ui.primary, borderTopRightRadius: 12, borderBottomRightRadius: 12, elevation: 6, shadowColor: ui.foreground, shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 2, height: 0 } }}
+          >
+            <Icon name={icons.chevronRight} color={ui.primaryForeground} size={18} />
+          </Pressable>
+        </GestureDetector>
+      )}
       <GestureDetector gesture={swipe}>
         <Animated.View
           accessibilityLabel="Case categories"
           accessibilityViewIsModal={open}
-          // Semi-opaque while collapsed so the page text beneath stays legible; solid when it is the open panel.
-          style={[{ position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: ui.card, borderRightWidth: 1, borderRightColor: ui.border, opacity: open ? 1 : 0.9, overflow: "hidden", shadowColor: ui.foreground, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 2, height: 0 }, elevation: 6 }, panelStyle]}
+          pointerEvents={open ? "auto" : "none"}
+          style={[{ position: "absolute", left: 0, top: 0, bottom: 0, backgroundColor: ui.card, borderRightWidth: open ? 1 : 0, borderRightColor: ui.border, overflow: "hidden", shadowColor: ui.foreground, shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 2, height: 0 }, elevation: 6 }, panelStyle]}
         >
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={open ? "Hide section names" : "Show section names"}
-            accessibilityState={{ expanded: open }}
-            onPress={() => setOpen(!open)}
+            accessibilityLabel="Hide section names"
+            accessibilityState={{ expanded: true }}
+            onPress={() => setOpen(false)}
             style={{ minHeight: 48, minWidth: 48, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16 }}
           >
-            <Icon name={open ? icons.dismiss : icons.menu} color={ui.primary} size={24} />
-            {open ? <Text accessibilityRole="header" style={styles.headline}>Sections</Text> : null}
+            <Icon name={icons.dismiss} color={ui.primary} size={24} />
+            <Text accessibilityRole="header" style={styles.headline}>Sections</Text>
           </Pressable>
           <ScrollView showsVerticalScrollIndicator={false}>
             {categories.map((item) => {

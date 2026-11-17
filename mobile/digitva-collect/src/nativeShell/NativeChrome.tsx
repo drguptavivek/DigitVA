@@ -198,9 +198,13 @@ function HeaderBar() {
   );
 }
 
+// The case workspace needs the whole height (owner 2026-11-18); its own back arrow leaves it.
+const NO_TAB_BAR = ["/workspace", "/offline-coding"];
+
 export function NativeTabs() {
   const shell = useShell();
-  return shell.tabs && shell.userId ? <TabBar /> : null;
+  const pathname = usePathname().replace(/\/$/, "") || "/";
+  return shell.tabs && shell.userId && !NO_TAB_BAR.includes(pathname) ? <TabBar /> : null;
 }
 
 function TabBar() {

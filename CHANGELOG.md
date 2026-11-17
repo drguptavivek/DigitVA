@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-18
 
+- Phone coding pages (owner 2026-11-18): the section rail becomes a left
+  pull tab so no page text sits under it (an inset column was rejected as
+  too narrow); the title is centred with the section icon; the bottom tab
+  bar is hidden in the case workspace; disease Diagnosed/Absent panels are
+  lab-report tints. Policy: `docs/policy/coder-browser-presentation.md`.
 - Android 9 photos (`68f418d71`): the Samsung A730F discarded every camera
   and gallery image because `WRITE_EXTERNAL_STORAGE` was blocked and
   expo-image-picker needs it below Android 10. It is now declared up to API

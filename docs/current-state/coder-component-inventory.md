@@ -3,7 +3,7 @@ title: Coder Workspace Component Inventory
 doc_type: reference
 status: active
 owner: engineering
-last_updated: 2026-11-17
+last_updated: 2026-11-18
 ---
 
 # Coder workspace component inventory
@@ -97,9 +97,10 @@ category changes. Phone only; `WorkspaceLayout.web.tsx` is unchanged.
 ## Phone section rail (owner 2026-11-17)
 
 `WorkspaceLayout.tsx` (native, also offline coding) has no tab strip. Sections
-are `PhoneSectionRail.tsx`: a 56pt icon rail absolutely positioned over the left
-edge of the page (the page is not narrowed; the rail is 90% opaque with a shadow
-while collapsed). A rightward pan on the rail (gesture-handler, horizontal
+are `PhoneSectionRail.tsx`: a 22x64pt pull tab at the left edge, 40% down;
+the panel is width 0 until opened (the page is not narrowed). `CategoryPanel.tsx`
+centres the page title with `sectionIcon(icon_name)`; `NativeChrome.tsx` hides
+the tab bar on `/workspace` and `/offline-coding`. A rightward pan on the tab (gesture-handler, horizontal
 intent only) or the menu button animates it (reanimated) to 75% of the screen
 (max 320pt) with names, counts and attachment badges over a scrim; scrim, leftward
 pan, choosing a section, the button and Android back collapse it. Icons: the

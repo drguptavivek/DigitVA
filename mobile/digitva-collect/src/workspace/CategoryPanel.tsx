@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { Icon, sectionIcon } from "../Icon";
 import { controls, radius, spacing, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
 import { answerText, answerTone } from "./answerTone";
@@ -93,16 +94,24 @@ function SubcategoryCard({ subcategory, renderMedia, workspaceIdentity }: {
 }
 
 /** Disease / Co-morbidity as the web's DiseaseHistory: Diagnosed, Absent, then the other answers as a grid. */
-function DiseaseHistoryCard({ items, renderMedia }: { items: CategorySubcategory["items"]; renderMedia?: (attachmentPath: string) => ReactNode }) {
+function DiseaseHistoryCard({ items, renderMedia, titled }: { items: CategorySubcategory["items"]; renderMedia?: (attachmentPath: string) => ReactNode; titled?: boolean }) {
   const styles = useUiStyles();
+  const { ui } = useTheme();
   const { positive, negative, remaining } = groupDiseaseHistory(items);
   return (
     <View style={styles.card} accessibilityLabel="Disease history summary">
-      <Text style={styles.headline}>Disease / Co-morbidity</Text>
+      {/* On its own page the page title already names it; inside a workflow page it needs its heading. */}
+      {titled ? <Text style={styles.headline}>Disease / Co-morbidity</Text> : null}
+      {/* Coloured like the web's DiseaseHistory panels and the Yes/No badges: diagnosed red, absent green, as lab-report tints
+      (owner 2026-11-18: the solid badge red was too deep for a block of text). */}
       <Text style={[styles.text, { fontWeight: "600" }]}>Diagnosed by Health Professional</Text>
-      <Text style={styles.text}>{positive.length ? positive.join("\n") : "No positive diagnoses found."}</Text>
+      <View style={{ backgroundColor: ui.destructiveSoft, borderRadius: radius.sm, padding: spacing.sm }}>
+        <Text style={[styles.text, { color: ui.destructiveText }]}>{positive.length ? positive.join("\n") : "No positive diagnoses found."}</Text>
+      </View>
       <Text style={[styles.text, { fontWeight: "600", marginTop: spacing.sm }]}>Absent</Text>
-      <Text style={styles.text}>{negative.length ? negative.join(", ") : "No negative diagnoses found."}</Text>
+      <View style={{ backgroundColor: ui.successTint, borderRadius: radius.sm, padding: spacing.sm }}>
+        <Text style={[styles.text, { color: ui.foreground }]}>{negative.length ? negative.join(", ") : "No negative diagnoses found."}</Text>
+      </View>
       {remaining.length ? (
         <View style={{ marginTop: spacing.sm }}>
           <Text style={[styles.text, { fontWeight: "600" }]}>Medical History (Responses)</Text>
@@ -140,6 +149,9 @@ export function CategoryPanel({
   afterContent?: ReactNode;
 }) {
   const styles = useUiStyles();
+  const { ui } = useTheme();
+  // The section's own icon by its title: the phone's section list is a pull tab, so the page says where you are.
+  const icon = categoryNav?.find((item) => item.code === category.code)?.icon_name;
   const mode = categoryMode(category, categoryNav);
   const placement = summaryPlacement(mode, category.summary_items);
   const card = (subcategory: CategorySubcategory) => <SubcategoryCard key={subcategory.code} subcategory={subcategory} renderMedia={renderMedia} workspaceIdentity={workspaceIdentity} />;
@@ -147,7 +159,7 @@ export function CategoryPanel({
   let body: ReactNode;
   if (mode === "workflow_panel") {
     const { attachmentSubs, historyItems, otherSubs } = workflowGroups(category, categoryNav);
-    body = <>{attachmentSubs.map(card)}{historyItems.length ? <DiseaseHistoryCard items={historyItems} renderMedia={renderMedia} /> : null}{otherSubs.map(card)}</>;
+    body = <>{attachmentSubs.map(card)}{historyItems.length ? <DiseaseHistoryCard titled items={historyItems} renderMedia={renderMedia} /> : null}{otherSubs.map(card)}</>;
   } else {
     const historyIndex = historySubcategoryIndex({ ...category, render_mode: mode }, categoryNav);
     body = category.subcategories.map((subcategory, index) => index === historyIndex
@@ -158,7 +170,12 @@ export function CategoryPanel({
     <ImageViewerProvider images={pageImages(category, mode, categoryNav)} renderMedia={renderMedia}>
     <View accessibilityLabel={category.label}>
       {/* The symptoms card carries its own title; a second heading above it says the same (round-6 C6). */}
-      {placement === "before" ? null : <Text style={styles.headline}>{category.label}</Text>}
+      {placement === "before" ? null : (
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          {icon ? <Icon name={sectionIcon(icon)} color={ui.primary} size={24} /> : null}
+          <Text accessibilityRole="header" style={[styles.headline, { textAlign: "center", flexShrink: 1 }]}>{category.label}</Text>
+        </View>
+      )}
       {placement === "before" ? summary : null}
       {body}
       {afterContent}

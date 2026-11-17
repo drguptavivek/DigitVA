@@ -3,6 +3,18 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-18
+
+- Android 9 photos (`68f418d71`): the Samsung A730F discarded every camera
+  and gallery image because `WRITE_EXTERNAL_STORAGE` was blocked and
+  expo-image-picker needs it below Android 10. It is now declared up to API
+  28 only (read up to 32); verified on Android 9 and 16 emulators. Policy:
+  `docs/policy/phone-attachments.md` section 7.
+- Keyboard room on Android 9 (`cf077cf71`): edge-to-edge windows there do
+  not shrink for the keyboard, so the root view pads by the covered height.
+- Collect 0.3.24 APK and Play AAB built on CI from `68f418d71`. Document
+  scanner untested (emulator camera crashes): `digitva-e2ju`.
+
 ## 2026-11-17
 
 - High contrast is neutral greys (owner 2026-11-17, `digitva-24gv`): dark

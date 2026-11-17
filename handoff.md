@@ -58,7 +58,11 @@ any change to one is re-checked against `frozen/` and refrozen.
    (code endpoint vs grid for deactivated accounts). Optional, offered and
    not approved: hide other projects' actor names in the person page's
    account events.
-5. Collect: TalkBack/VoiceOver (`digitva-eizq`), Play screenshots
+5. Collect 0.3.24 (`68f418d71`, Android 9 photo and keyboard fixes): CI APK
+   and Play AAB built; Play upload is the owner's. Real-phone document scan
+   check `digitva-e2ju`. Not built: recovering the camera result after
+   Android kills the app on low-RAM phones (`ImagePicker.getPendingResultAsync`).
+   Collect: TalkBack/VoiceOver (`digitva-eizq`), Play screenshots
    (`digitva-fthd`; raw captures untracked in
    `mobile/digitva-collect/store/play/screenshots/`), arm64 engine
    `load_failed` (`digitva-rih6`), SM-E146B speed (`digitva-xxfz`), web
@@ -100,6 +104,8 @@ any change to one is re-checked against `frozen/` and refrozen.
 - Untracked on purpose: the orientation deck files under `docs/manuscript/`
   (owner: don't commit), `.claude/launch.json`, the Play screenshots.
   Full parity TSVs live in `private/icd11-parity/results/`.
+- Dev DB: DEMO01 has narration languages enabled (english, hindi) for the
+  narration image question; revert if unwanted.
 - Test databases still present for other work: `minerva_test_codeapp`,
   `_consent`, `_pii`, `_tst002` (and their `_gw*`).
 - `npm run vendor:build` reinstalls the vendor package: stop Metro first

@@ -2,10 +2,11 @@
 
 ## Start here
 
-Staging runs `019e8ac7e`. Main is at `2e7a51a17` (run-7 security fixes,
-`digitva-l9dp`, all closed) plus whatever lands after it. A server image
-build for `2e7a51a179c53296a5f5332390484f510136bc5e` was started on CI
-(`server-images.yml` run 44030465341); check it finished. The earlier
+Staging runs `019e8ac7e`. Main is at `b95f26e4a` (run-7 security fixes `digitva-l9dp`, all
+closed, plus the roster members CSV export). Server image build for
+`b95f26e4a724cde79bd15b2ff634cd8427bd7a51` started on CI
+(`server-images.yml` run 44032773406); check it finished. An image for
+`2e7a51a17` (fixes without the export) also exists. The earlier
 image for `e6a17915d` (Collect 0.3.23 pinned) also exists. The owner
 approved deploying `e6a17915d` on 2026-11-17; deploying the newer sha
 instead needs the owner's go. Either way: `aws login --profile digitva`
@@ -13,7 +14,7 @@ first, then `scripts/deploy-staging.sh <full sha>`.
 
 Old-APK audit: `019e8ac7e..e6a17915d` is done (additive migration
 `d8a2f4c6e1b3`, `access_changed` notification accepted by old apps).
-`e6a17915d..2e7a51a17` adds no migration; old APKs see new refusals with
+`e6a17915d..b95f26e4a` adds no migration; old APKs see new refusals with
 existing shapes: non-admin on-screen sign-in QR for verified-email / live
 phone / outside-member accounts -> 404; revoked interviewer revising a
 submitted case -> 404; closed-session trainee drafts -> 403; social
@@ -26,7 +27,7 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Ranked next steps
 
-0. Deploy to staging (above: `e6a17915d` approved, `2e7a51a17` needs a go). Afterwards check on staging: the
+0. Deploy to staging (above: `e6a17915d` approved, `b95f26e4a` needs a go). Afterwards check on staging: the
    roster person page (`digitva-eyp3`, closed), `/download/android` serves
    0.3.23, and on a phone consent "No" then back (Id10013 fill) and the
    ICD-11 first-launch prompt.
@@ -60,8 +61,8 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Open owner decisions
 
-- Staging deploy: which sha (`e6a17915d` approved; `2e7a51a17` adds run-7
-  fixes) and timing (waiting on AWS sign-in).
+- Staging deploy: which sha (`e6a17915d` approved; `b95f26e4a` adds run-7
+  fixes and the roster export) and timing (waiting on AWS sign-in).
 - Run-7 decisions are recorded in `docs/policy/mobile-sign-in.md`,
   `dm-user-grant-management.md`, `web-intake.md`, `training-demo-project.md`.
 - When to start `digitva-f41g` fixes.

@@ -386,7 +386,7 @@
                   </div>
                   <div class="d-flex flex-wrap gap-2">
                     {% if is_org and not roster_only %}
-                    <button type="button" class="btn btn-sm btn-outline-primary" data-jump-section="structure" data-jump-org-tab="workers">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-jump-section="structure" data-jump-org-tab="workers" data-jump-click="org-worker-add-btn">
                       <i class="fa-solid fa-user-plus me-1"></i>Enrol Worker / App QR
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" data-jump-section="structure" data-jump-org-tab="mentoring">
@@ -739,6 +739,10 @@
     }
     var target = document.getElementById(link.getAttribute('data-jump-to') || '');
     if (target) target.scrollIntoView({ block: 'start' });
+    // Open a form straight away (e.g. Add worker); a disabled button leaves
+    // the tab showing why (no units or cadres yet).
+    var action = document.getElementById(link.getAttribute('data-jump-click') || '');
+    if (action && !action.disabled) action.click();
   }
 
   root.addEventListener('click', function (e) {

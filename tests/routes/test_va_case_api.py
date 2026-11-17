@@ -927,6 +927,16 @@ class VaCaseApiTests(BaseTestCase):
         # Display-only: no process token is minted by the read.
         self.assertNotIn("process_token", doris["saved_processing"])
 
+    def test_a_redacted_viewer_reopens_a_saved_step_one_with_its_administrative_data(self):
+        self._doris(masked=True)
+        sid = self._coding_case(payload={"Id10019": "female"})
+        self._initial(sid, doris_certificate=self._CERT, **self._RESULTS)
+        with patch("app.routes.api.va_case.should_redact_pii", return_value=True):
+            doris = self._workspace(sid)["doris"]
+        self.assertEqual(doris["initial_certificate"]["AdministrativeData"], {"Sex": 1})
+        self.assertEqual(doris["saved_processing"]["certificate"]["AdministrativeData"], {"Sex": 1})
+        self.assertEqual(doris["step1_certificate"]["AdministrativeData"], {"Sex": 1})
+
     def test_a_step_one_without_a_result_does_not_reopen_as_processed(self):
         self._doris(masked=True)
         sid = self._coding_case()

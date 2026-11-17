@@ -192,8 +192,7 @@ prefilled.
   fetal, surgery, autopsy) on the web partials and
   `GET /api/v1/va/<sid>/workspace`, online and offline, read from the payload
   joined with its sealed fields. Device-token grants are not widened for it.
-  A saved certificate is still returned without `AdministrativeData` to a
-  viewer `should_redact_pii` redacts.
+  Saved certificates keep `AdministrativeData` for every viewer too.
 - One function serves web and ODK cases from the active payload version.
   Extra questions (extension `doris_support_whova_2022`) fill the gaps the
   WHO questions leave; names and rules are Annex A of

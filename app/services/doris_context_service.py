@@ -7,10 +7,11 @@ prefill, a saved Step 1 result reopened display-only, and the Step 1
 reference a masked Step 2 confirms against. Workflow:
 ``docs/current-state/doris-cod-workflow.md``.
 
-PII: every certificate returned here goes through ``_redacted``. A redacting
-viewer (``viewer_pii_service.should_redact_pii``, passed in as ``redact_pii``)
-keeps the cause chain and the non-PII prefill; ``AdministrativeData`` holds the deceased's Sex,
-DateBirth, DateDeath and age.
+PII: DORIS shows ``AdministrativeData`` (the deceased's Sex, DateBirth,
+DateDeath, age) to every coder whatever ``redact_pii`` says: owner
+2026-11-17, these are VA form answers the coder already reads
+(``docs/policy/doris-cod-workflow.md``). ``redact_pii`` is still threaded
+through so a future DORIS-only redaction has one place to go.
 """
 
 from __future__ import annotations
@@ -28,12 +29,7 @@ from app.services.submission_payload_version_service import get_active_payload_v
 
 
 def _redacted(certificate, redact_pii: bool):
-    """The certificate without ``AdministrativeData`` for a redacting viewer.
-
-    A copy: the stored row's JSON is never mutated.
-    """
-    if redact_pii and isinstance(certificate, dict):
-        return {k: v for k, v in certificate.items() if k != "AdministrativeData"}
+    """The certificate as saved, for every viewer (owner 2026-11-17)."""
     return certificate
 
 

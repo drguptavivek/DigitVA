@@ -1,8 +1,8 @@
 """DORIS seeds and saved-processing context (app/services/doris_context_service.py).
 
 Pure unit tests: rows are namespaces, so no database is needed. The one rule
-under test: a saved certificate reaches a redacting viewer without AdministrativeData
-(the interview prefill is full for everyone, owner 2026-11-17).
+under test: AdministrativeData and the interview prefill reach every viewer,
+saved certificates included, whatever their PII access (owner 2026-11-17).
 """
 
 import unittest
@@ -41,15 +41,16 @@ def _walk_has_administrative_data(value) -> bool:
 
 
 class DorisInitialTests(unittest.TestCase):
-    def test_saved_certificate_is_copied_and_redacted_only_for_a_redacting_viewer(self):
+    def test_saved_certificate_is_copied_and_keeps_administrative_data_for_a_redacting_viewer(self):
         saved = _certificate()
         full, provenance = svc.doris_initial(saved, None, "masked_doris", False)
         self.assertIn("AdministrativeData", full)  # present before asserting absent
         self.assertIsNot(full, saved)
         self.assertEqual(provenance, {})
-        redacted, _ = svc.doris_initial(saved, None, "masked_doris", True)
-        self.assertNotIn("AdministrativeData", redacted)
-        self.assertEqual(redacted["Part1"], [_PART1])
+        kept, _ = svc.doris_initial(saved, None, "masked_doris", True)
+        self.assertIn("AdministrativeData", kept)
+        self.assertEqual(kept["Part1"], [_PART1])
+        self.assertIsNot(kept, saved)
         self.assertIn("AdministrativeData", saved)  # the stored row is untouched
 
     def test_prefill_only_for_a_doris_project_whatever_the_pii_access(self):
@@ -69,14 +70,14 @@ class DorisInitialTests(unittest.TestCase):
 
 
 class SavedProcessingTests(unittest.TestCase):
-    def test_a_saved_result_reopens_with_a_redacted_certificate(self):
+    def test_a_saved_result_reopens_with_its_administrative_data_for_a_redacting_viewer(self):
         step1 = _step1()
         full = svc.saved_step1_processing(step1, False)
         self.assertIn("AdministrativeData", full["certificate"])
-        redacted = svc.saved_step1_processing(step1, True)
-        self.assertNotIn("AdministrativeData", redacted["certificate"])
-        self.assertEqual(redacted["final_choice"], "1B10.Z TB")
-        self.assertEqual(redacted["doris"], {"status": "ok"})
+        kept = svc.saved_step1_processing(step1, True)
+        self.assertIn("AdministrativeData", kept["certificate"])
+        self.assertEqual(kept["final_choice"], "1B10.Z TB")
+        self.assertEqual(kept["doris"], {"status": "ok"})
         self.assertIn("AdministrativeData", step1.doris_certificate)
 
     def test_no_row_or_no_result_is_none(self):
@@ -100,11 +101,11 @@ class SavedProcessingTests(unittest.TestCase):
         saved = svc.saved_step1_processing(_step1(), False)
         self.assertEqual((saved["ucod_parts"], saved["who_notes"]), ([], []))
 
-    def test_step2_context_redacts_the_step1_certificate(self):
+    def test_step2_context_keeps_administrative_data_in_the_step1_certificate(self):
         step1 = _step1()
         self.assertIn("AdministrativeData", svc.masked_step2_context(step1, None, False)["step1_doris_certificate"])
         context = svc.masked_step2_context(step1, None, True)
-        self.assertNotIn("AdministrativeData", context["step1_doris_certificate"])
+        self.assertIn("AdministrativeData", context["step1_doris_certificate"])
         self.assertEqual(
             context["step1_doris_processing"],
             {"doris": {"status": "ok"}, "codedit": {"status": "ok"}, "ucod_parts": [], "who_notes": []},
@@ -116,12 +117,12 @@ class SavedProcessingTests(unittest.TestCase):
 
 
 class MaskedReviewerContextTests(unittest.TestCase):
-    def test_own_saved_step1_is_the_seed_and_reopens_redacted(self):
+    def test_own_saved_step1_is_the_seed_and_reopens_with_administrative_data(self):
         own = _step1()
         source, context = svc.masked_reviewer_context("uuid:x", own, None, True)
         self.assertIs(source, own)
-        self.assertNotIn("AdministrativeData", context["doris_initial_processing"]["certificate"])
-        self.assertNotIn("AdministrativeData", context["step1_doris_certificate"])
+        self.assertIn("AdministrativeData", context["doris_initial_processing"]["certificate"])
+        self.assertIn("AdministrativeData", context["step1_doris_certificate"])
 
     def test_without_an_own_step1_the_coders_step1_is_the_seed(self):
         coder_step1 = _step1()
@@ -169,7 +170,7 @@ class WorkspaceDorisTests(unittest.TestCase):
         self.assertIsNone(prior["step1_certificate"])
         self.assertIsNone(self._call(step1=None)["saved_processing"])
 
-    def test_every_certificate_is_redacted_for_a_redacting_viewer(self):
+    def test_every_certificate_keeps_administrative_data_for_a_redacting_viewer(self):
         for kwargs in (
             dict(mode="coding", step1=_step1()),
             dict(mode="reviewing", reviewer_initial=_step1()),
@@ -177,8 +178,8 @@ class WorkspaceDorisTests(unittest.TestCase):
             with self.subTest(kwargs=sorted(kwargs)):
                 # Present for a viewer entitled to personal data ...
                 self.assertTrue(_walk_has_administrative_data(self._call(**kwargs)))
-                # ... and gone, in every field, for a redacting one.
-                self.assertFalse(
+                # ... and equally for a redacting one.
+                self.assertTrue(
                     _walk_has_administrative_data(self._call(redact_pii=True, **kwargs))
                 )
         seed = SimpleNamespace(doris_certificate=_certificate())
@@ -189,7 +190,7 @@ class WorkspaceDorisTests(unittest.TestCase):
                         self.assertTrue(
                             _walk_has_administrative_data(self._call(project_mode=project_mode, mode=mode))
                         )
-                        self.assertFalse(_walk_has_administrative_data(
+                        self.assertTrue(_walk_has_administrative_data(
                             self._call(project_mode=project_mode, mode=mode, redact_pii=True)
                         ))
 

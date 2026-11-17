@@ -2,110 +2,88 @@
 
 ## Start here
 
-Continue fully offline DORIS coding in Collect Plus (`digitva-9cll`). The
-staging runs `fcca7b2de`; training session types (`d45ac7b1b`) and the
-Maestro suite (`b527dc2c8`) are on main, not deployed. Verify the installed build and enrollment before device
-acceptance. Preserve shared checkout edits, including the iOS and SmartVA
-work, parity tooling, manuscript files and Play assets. WHO notes, parity
-runs and phone measurements live in `private/`.
+Staging runs `019e8ac7e`. Main is at `e6a17915d` plus beads-only commits;
+its server image is built (`ghcr.io/drguptavivek/digitva-app:e6a17915dddb741acd57abbf084e65a5b9f5ad3b`)
+and pins Collect 0.3.23 (APKs verified: versionCodes 3232/3231, release
+cert). The owner approved the deploy on 2026-11-17; it stopped only because
+the AWS `digitva` session had expired. Once the owner has run
+`aws login --profile digitva` and says go, run
+`scripts/deploy-staging.sh e6a17915dddb741acd57abbf084e65a5b9f5ad3b`.
+The old-APK audit of `019e8ac7e..e6a17915d` is done: old apps accept the
+new `access_changed` notification (any kind string, empty `project_id`),
+the one migration (`d8a2f4c6e1b3`, `map_project_members`) is additive, and
+nothing touches unsent work.
 
 Owner rule (bd memory `coding-parity-all-surfaces`): coding works the same on
 the web, Collect online and Collect Plus online and offline. Design rule:
 Collect screens are frozen (`docs/design/collect-petrol-theme/README.md`);
-any change to one is re-checked against `frozen/` (light, dark, high
-contrast, Large text) and refrozen.
+any change to one is re-checked against `frozen/` and refrozen.
 
 ## Ranked next steps
 
-0. Training (`digitva-9qer`): owner supplies
+0. Deploy `e6a17915d` to staging (above). Afterwards check on staging: the
+   roster person page (`digitva-eyp3`, closed), `/download/android` serves
+   0.3.23, and on a phone consent "No" then back (Id10013 fill) and the
+   ICD-11 first-launch prompt.
+1. Training (`digitva-9qer`, `digitva-q3iu`): owner supplies
    `app/services/training_corpus/english_v1.txt`; Maestro flows 96–98 need a
    trainee setup role; training media scope; refuse outdated apps (N11);
-   hide DEMO01 in graduation; Add participant roles by session type. Low
-   audit items: `digitva-q3iu`. Old-APK audit before deploying `d45ac7b1b`.
-1. Prove the full offline coding flow on a phone (`digitva-9cll.5`), first
-   standalone and then as an enrolled TST001 coder. Re-enrol the Samsung
-   for device checks. Remaining coding parity work is under
-   `digitva-9cll.22`, including `.22.3`–`.22.6`, `.22.8` and `.22.9`.
-2. Collect redesign follow-ups: TalkBack and VoiceOver on a real phone
-   (`digitva-eizq`), Hindi review of the new theme strings (`digitva-jt1w`),
-   Play screenshots in the new theme (`digitva-fthd`), offline engine
-   `load_failed` on the arm64 emulator (`digitva-rih6`, so the coding tools
-   and Demo mode were never design-reviewed), app speed on the SM-E146B with
-   the CI APK (`digitva-xxfz`).
-3. Verify device handling of "Saved on server" attachments (`digitva-n3ec`
-   closed for implementation). On staging check saved web audio after
-   leaving and returning (`digitva-oll6`), and the sent read-only media view
-   (`digitva-e621`). Hindi attachment and camera strings need owner review.
-4. Run-6 audit (`digitva-9xn9`) is closed: every item landed 2026-11-12 and
-   none is deployed (CHANGELOG). Before the next staging deploy, run the new
-   restore swap and staging backup checker once under supervision
-   (`digitva-rbj8`), and audit for old APKs: a changed coding now gets a
-   receipt instead of 409 `coding_conflict`; non-leaf ICD-11 codes get 422
-   `non_leaf_category`. Check on a phone: consent "No" Cancel (verified on
-   web), station key confirm and PIN lockout, offline non-leaf child list,
-   ICD-10 coding online (`digitva-tk7j`; web save verified). Open small
-   follow-up: web client sends explicit nulls for cleared answers (D22
-   remainder). Run-5 acceptance still open: a multi-project user's
-   supervision views for per-project PII. For the offline PHC station, run
-   the packaged macOS security acceptance with dummy data (`digitva-xt9y`).
-5. On staging, by hand, refuse then re-consent a direct interview
-   (`digitva-lgzl`); a DORIS cluster such as BD1Z shows the whole title
-   (`digitva-iae8`); the other-interviewer banner names them.
-6. Check PIN lockout/reset, standalone erase, reopen, View/Revise and PDF
-   viewer (`2d78e9660`) on the Samsung. Keep the in-place upgrade check for
-   older APKs and verify icons, Hindi wrapping, certificate camera,
-   standalone documents and warm DORIS (`digitva-9l5c`, `digitva-ljx2`,
-   `digitva-4j8h`). The iPhone awaits an owner-approved CI/TestFlight build.
-8. Standalone engine (`digitva-xw1s`): `v0.1.0` draft release built; the
-   owner publishes it, then close. Not run on Linux/Intel Mac; no Windows.
-9. Help chatbot (`digitva-wawz`, `docs/policy/help-chatbot.md`) still needs
-   its PII redaction step. Manuscript owner inputs and reference gaps are
-   listed in `docs/manuscript/LDH-manuscript-review-2026-11-06.md`.
-10. `digitva-gt2v`, `digitva-bged`; DORIS validation gaps
-    (`docs/current-state/doris-validation-checks.md`: `digitva-l0ey`,
-    `digitva-2j57`, `digitva-e505`, `digitva-giym`, `digitva-o16a`,
-    `digitva-37gr`); `digitva-9cll.11`, `.13`–`.21`.
-11. `make collect-plus-local` container mode untested (Docker 12 GB+).
+   hide DEMO01 in graduation; participant roles by session type.
+2. Prove the full offline coding flow on a phone (`digitva-9cll.5`),
+   standalone then as an enrolled TST001 coder. Coding parity remainder:
+   `digitva-9cll.22` (`.22.3`–`.22.6`, `.22.8`, `.22.9`); ICD-10 parity
+   `digitva-tk7j`.
+3. Backend performance epic `digitva-f41g` (21 beads, filed not fixed,
+   owner: "dont fix for now"). P1s `.1`–`.5`: repair batching, SmartVA
+   pending scan, backfill stats filesystem checks, coder gate computed three
+   times, non-concurrent MV refresh after DM actions. Unmeasured: confirm on
+   production stats first. `.10` and `.20` need an old-APK check.
+4. Roster follow-ups: `digitva-sjts` (grant-then-issue QR), `digitva-42yo`
+   (code endpoint vs grid for deactivated accounts). Optional, offered and
+   not approved: hide other projects' actor names in the person page's
+   account events.
+5. Collect: TalkBack/VoiceOver (`digitva-eizq`), Play screenshots
+   (`digitva-fthd`; raw captures untracked in
+   `mobile/digitva-collect/store/play/screenshots/`), arm64 engine
+   `load_failed` (`digitva-rih6`), SM-E146B speed (`digitva-xxfz`), web
+   attachments (`digitva-e621`). Owner review of the Hindi strings.
+6. Offline PHC station macOS security acceptance (`digitva-xt9y`).
+   Standalone engine `v0.1.0` draft awaits owner publish (`digitva-xw1s`).
+7. Help chatbot PII redaction (`digitva-wawz`). DORIS validation gaps
+   (`docs/current-state/doris-validation-checks.md`). iOS simulator CI
+   workflow (`digitva-bfq3`).
 
 ## Open owner decisions
 
+- Staging deploy timing (approved; waiting on AWS sign-in).
+- When to start `digitva-f41g` fixes.
 - Send the WHO technical note (one `[OPEN]`: a WHO contact email).
-- Engine `tests/fixtures/doris_help_examples.json` provenance.
-- WHO data files' duplicated sha256 values; CI as engine release source.
-- InterVA2022/InSilicoVA2022 experimental (`.tasks` note): candidates, no go yet.
-- AI interview-quality checks are on hold (`docs/policy/ai-data-quality.md`,
-  `digitva-qtmq` deferred).
+- Engine `tests/fixtures/doris_help_examples.json` provenance; WHO data
+  files' duplicated sha256 values; CI as engine release source.
+- InterVA2022/InSilicoVA2022 experimental: no go yet.
+- AI interview-quality checks on hold (`digitva-qtmq`).
 
 ## Boundaries still true
 
-- Golden corpora are owner-approved and frozen (`scripts/icd11-golden/README.md`).
+- Staging deploys only via `scripts/deploy-staging.sh <full sha>` on the
+  owner's go. `server-images.yml` needs the full 40-char sha.
 - Release builds only on CI; local debug builds for development only.
   Publishing releases and tags is the owner's command.
-- On the owner's real phone: no PINs, passwords or system settings; leave
-  "vivekdemo" alone. Emulator accounts: `private/emulator-test-accounts.md`.
-- Plus stays prerelease; WHO has not answered the licence points in writing.
-- Device ICD/DORIS coding starts off; enabling grants no permission.
-- No Fable agents (owner; the screen-review exception has ended).
+- Golden corpora are owner-approved and frozen.
+- On the owner's real phone: no PINs, passwords or system settings.
+- Plus stays prerelease; device ICD/DORIS coding starts off.
+- No Fable agents.
 
 ## Caveats
 
-- Full-suite noise: a few tests fail only under `-n 4` (`digitva-6igh`);
-  about 13 are clock-dependent between 18:30 and 24:00 UTC (`digitva-qiff`).
-- Still uncommitted from before 2026-11-12: public-demo config and docs,
-  `va_smartva_02_prepdata.py`, `smartva-analysis.md`, parity tooling,
-  `AGENTS.md`.
-- The previous staging deployment was `210ea326e`. Use the release runbook
-  and owner approval for a rollback (`docs/current-state/release-process.md`).
-- `ios/` and `android/` are Collect Plus prebuilds. Plain Collect prebuilds
-  are untracked in `ios.plain-bak/` and `android.plain-bak/`.
-- On :8051, rebuild the vendor package and restart the web HMR container
-  before verifying changes to the WHO interview component.
-- `npm run vendor:build` reinstalls the vendor package: stop Metro first and
-  restart it with `--clear`. Local vendor `dist` may lag the source.
-- The emulator holds two test drafts ("Test Case", "Test Consent"; the latter
-  synced to the local dev server only).
+- Full-suite noise under `-n 4`: `digitva-6igh`, and 9 export streaming
+  tests (`digitva-jaea`) that pass serially.
+- Untracked on purpose: the orientation deck files under `docs/manuscript/`
+  (owner: don't commit), `.claude/launch.json`, the Play screenshots.
+  Full parity TSVs live in `private/icd11-parity/results/`.
+- Test databases still present for other work: `minerva_test_codeapp`,
+  `_consent`, `_pii`, `_tst002` (and their `_gw*`).
+- `npm run vendor:build` reinstalls the vendor package: stop Metro first
+  and restart it with `--clear`.
 - Old APKs show "The selected code does not match its WHO URI." for the
   extension/category refusals (same `INVALID_SELECTION` 422).
-- 0.3.16 phones: the standalone home list is stale until Lock and unlock.
-- `build/collect-plus-local/…-LOCAL.apk` (31 Oct) was built mid-edit; do not
-  test from it.

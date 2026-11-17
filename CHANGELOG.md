@@ -3,6 +3,44 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-17
+
+- `81196f17d`, `fafa0fbdc`: backend performance survey filed as epic
+  `digitva-f41g` (21 beads, not fixed, unmeasured).
+- Server image for `e6a17915d` built; staging deploy approved but not run
+  (AWS session expired). Staging still `019e8ac7e`.
+
+## 2026-11-16
+
+- **Deployed to staging as `019e8ac7e`:** project roster work from
+  `9b12b986c` through `019e8ac7e` — device-limit sign-out and chooser,
+  8-character sign-in codes valid 90 minutes, redeeming a code inside the
+  app, roster filters (role, no unit, created date), per-role unit grants
+  edited inline, full-screen roster, PII badge; training media scope and
+  test fixes (`86dfb2179`); owner location strings (`4f0d2f504`).
+- **On main, not deployed** (server image `e6a17915d` built):
+  - Roster: inline grant removal, unit names in full, worker code hidden
+    (`1ab0a8b7a`–`0cb9224c8`); members uploaded without access
+    (`527fc1628`, migration `d8a2f4c6e1b3`); tabs renamed (`dcb77e06d`);
+    roster open to PIs and data managers with code generation
+    (`292f78bfb`); phones told at once when grants change (`9e62eda9b`,
+    `access_changed`); each roster person gets a page with profile,
+    coding languages, grants, phones, activity, reset password and remove
+    from project (`690420cc3`, `digitva-eyp3`;
+    `docs/policy/dm-user-grant-management.md`).
+  - Site collection and coding gates as two cards (`34553e677`).
+  - SmartVA inputs written as integers for whole numbers (`e0d390589`,
+    `digitva-mv3q`; `docs/policy/smartva-generation-policy.md`).
+  - SmartVA parity kit and ICD-11 iOS Simulator harness (`36ec8097a`);
+    unsigned iOS Simulator build check (`ad5e2dfdd`).
+  - Public demo hosts the DORIS training service (`1dcaac4a5`,
+    `digitva-9cll.9`).
+  - Collect 0.3.21 (`baf9fe2f7`), 0.3.22 (`3865ce932`), 0.3.23
+    (`f32d241d9`, pinned `e6a17915d`): UI language asked first
+    (`8800871f0`), lighter web start-up bundle (`db3aa9a2d`), quality
+    panels on phones (`73641e476`), directions to the death place and
+    consent filling Id10013 (`48bcf040d`).
+
 ## 2026-11-15
 
 - `d45ac7b1b`: training split into interviewer, coder and self-coding

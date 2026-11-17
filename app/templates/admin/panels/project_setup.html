@@ -1492,11 +1492,14 @@
   // instead of typed. The server decides eligibility (collector accounts;
   // for a non-admin, no verified email, live phone or outside member) and
   // shows the QR once; it is never stored in the page data.
-  // Hide the obvious misses: the QR is for collector-only accounts. This
+  // Hide the obvious misses: the QR is for collector accounts (a coder grant
+  // beside one is fine). This
   // page sees only this project's grants; the server checks all of them.
   function ugQrCandidate(u) {
     var roles = (u.project_grants || []).concat(u.unit_grants || []).map(function (g) { return g.role; });
-    return u.is_active && roles.length > 0 && roles.every(function (r) { return r === 'interviewer' || r === 'death_reporter'; });
+    var collector = function (r) { return r === 'interviewer' || r === 'death_reporter'; };
+    // A coder grant beside a collector grant is tolerated; coder alone is not.
+    return u.is_active && roles.some(collector) && roles.every(function (r) { return collector(r) || r === 'coder'; });
   }
   function ugIssueQr(btn) {
     btn.disabled = true;

@@ -880,6 +880,12 @@
     el.textContent = msg;
   }
   function $(id) { return document.getElementById(id); }
+  // A worker move or deactivation replaces unit roles; say which.
+  function workerGrantsAlert(grants) {
+    if (!grants || (!(grants.revoked || []).length && !(grants.granted || []).length)) return;
+    var fmt = function (list) { return (list || []).map(function (g) { return g.role + ' at ' + (g.unit_name || g.unit_code); }).join(', ') || 'none'; };
+    alertBox('info', 'Unit roles changed. Revoked: ' + fmt(grants.revoked) + '; granted: ' + fmt(grants.granted) + '.');
+  }
 
   // Vendor assets for the Units tab. htmx does not wait for <script src> in a
   // swapped panel, so they are injected here and awaited. The panel is swapped
@@ -1986,8 +1992,8 @@
       return;
     }
     var on = !w.is_active;
-    var go = function () { api(base() + '/workers/' + w.worker_id, 'PATCH', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } loadAll(); }); };
-    if (on) go(); else askConfirm('Deactivate worker ' + w.worker_name + '?', go);
+    var go = function () { api(base() + '/workers/' + w.worker_id, 'PATCH', { is_active: on }).then(function (res) { if (!res.ok) { fail(res); return; } workerGrantsAlert(res.data && res.data.grants); loadAll(); }); };
+    if (on) go(); else askConfirm('Deactivate worker ' + w.worker_name + '? Their unit roles at ' + (w.unit_name || w.unit_code || 'this unit') + ' are revoked; project-wide roles stay.', go);
   });
   var appQrBtn = $('org-worker-app-qr-btn');
   if (appQrBtn) {
@@ -2498,6 +2504,7 @@
       save.disabled = false;
       if (!res.ok) { canvasFail('ow-alert', res); return; }
       unitCanvas('org-worker-canvas').hide();
+      workerGrantsAlert(res.data && res.data.grants);
       if (!id || (res.data && res.data.onboarding)) {
         showWorkerOnboarding((res.data && res.data.onboarding) || { created_users: 0, changed_grants: 0 }, res.data && res.data.worker);
       }

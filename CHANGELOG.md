@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-17
 
+- Placement changes replace unit roles (owner 2026-11-17): moving a
+  worker's unit or cadre revokes their unit roles at the old unit and
+  grants the new cadre's defaults at the new unit; removing a placement
+  revokes that unit's roles; all-or-nothing for non-admins, audited
+  (`docs/policy/dm-user-grant-management.md`).
 - Roster onboarding: per-person sign-in QR on People and grants (death
   reporters, interviewers and now coders, owner 2026-11-17), Show/Hide
   QR, expiry in the project time zone, live "Onboarded" status; resend

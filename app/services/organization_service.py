@@ -1947,6 +1947,91 @@ def update_worker(project_id: str, worker_id: object, **fields) -> MasOrgUnitWor
     return worker
 
 
+def replace_placement_grants(
+    project_id: str,
+    worker: MasOrgUnitWorker,
+    *,
+    old_unit_id: uuid.UUID,
+    old_cadre_id: uuid.UUID,
+    was_active: bool,
+    actor: VaUsers,
+) -> list[tuple[dict, str]]:
+    """Make the linked person's unit roles follow a placement change
+    (dm-user-grant-management.md, "Placement changes replace unit roles").
+
+    Call after ``update_worker`` with the worker's pre-edit unit, cadre and
+    active flag. When an active placement moves unit or cadre, or is
+    deactivated, every active unit-scope grant the person holds at the OLD
+    unit is set inactive (unless another active placement of the person is
+    at that unit); a placement still active then gets the new
+    level x cadre ``default_roles`` at its unit through the bulk
+    ``cadre_defaults`` operation (``bulk_apply_project_users_grid``).
+    Project, site and other-unit grants (cross-unit coding or supervision
+    scope included) are untouched; reactivation restores nothing.
+
+    All or nothing: raises OrganizationError, before the caller commits,
+    when *actor* may not revoke one of the grants (``authz.grant_list_filter``)
+    or grant a default role. A grant revoked and granted again (cadre change
+    at one unit keeping a role) is left out of the result.
+
+    Returns changed grants in ``project_user_import_service.finalize_apply``'s
+    shape; empty when nothing placement-related changed or no account is linked.
+    """
+    moved = worker.org_unit_id != old_unit_id or worker.cadre_id != old_cadre_id
+    if worker.user_id is None or not was_active or not (moved or not worker.is_active):
+        return []
+    G = VaUserAccessGrants
+    # Another active placement of the person at the old unit keeps its roles.
+    still_placed = db.session.scalar(
+        sa.select(MasOrgUnitWorker.worker_id).where(
+            MasOrgUnitWorker.project_id == project_id,
+            MasOrgUnitWorker.user_id == worker.user_id,
+            MasOrgUnitWorker.org_unit_id == old_unit_id,
+            MasOrgUnitWorker.is_active.is_(True),
+            MasOrgUnitWorker.worker_id != worker.worker_id,
+        ).limit(1)
+    )
+    managed = sa.func.coalesce(authz.grant_list_filter(actor), sa.false())
+    rows = [] if still_placed is not None else db.session.execute(
+        sa.select(G, managed.label("managed")).where(
+            G.user_id == worker.user_id,
+            G.grant_status == VaStatuses.active,
+            G.scope_type == VaAccessScopeTypes.org_unit,
+            G.org_unit_id == old_unit_id,
+        ).with_for_update(of=G)
+    ).all()
+    refused = sorted({g.role.value for g, ok in rows if not ok})
+    if refused:
+        raise OrganizationError(
+            "You may not revoke this person's " + ", ".join(refused)
+            + " role at their current unit; nothing was changed."
+        )
+    revoked: dict = {}
+    for grant, _ in rows:
+        grant.grant_status = VaStatuses.deactive
+        revoked[grant.grant_id] = (dict(
+            user_id=grant.user_id, grant_id=grant.grant_id, role=grant.role.value,
+            scope_type=grant.scope_type.value, org_unit_id=grant.org_unit_id, cadre_id=grant.cadre_id,
+        ), "grant_toggled_inactive")
+    db.session.flush()
+    granted: list[tuple[dict, str]] = []
+    person = db.session.get(VaUsers, worker.user_id)
+    if worker.is_active and person is not None and person.user_status == VaStatuses.active:
+        # The loaded ``worker.unit`` may still be the old unit after a move.
+        permission = get_level_cadre_permission(_get_unit(project_id, worker.org_unit_id).org_level_id, worker.cadre_id)
+        if permission is not None and permission.default_roles:
+            _, granted = bulk_apply_project_users_grid(
+                project_id,
+                {"user_ids": [str(worker.user_id)], "operation": "cadre_defaults", "scope_mode": "project",
+                 "worker_id": worker.worker_id},
+                actor=actor,
+            )
+    regranted = {g["grant_id"] for g, _ in granted} & set(revoked)
+    return [revoked[k] for k in revoked if k not in regranted] + [
+        c for c in granted if c[0]["grant_id"] not in regranted
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Seed template
 # ---------------------------------------------------------------------------
@@ -5108,8 +5193,13 @@ def bulk_apply_project_users_grid(
     if operation == "cadre_defaults":
         if project.project_structure_mode != "organization":
             raise OrganizationError("Cadre default roles apply to organization-mode projects.")
+        # A placement edit names its own worker; the primary one may be
+        # another placement of the same person (replace_placement_grants).
+        override = payload.get("worker_id")
         for uid in target_user_uuids:
             worker = primary_worker_by_user.get(uid)
+            if override is not None:
+                worker = next((w for w in worker_rows if w.worker_id == override and w.is_active), None)
             if worker is None or worker.org_unit_id not in active_units:
                 if len(target_user_uuids) == 1:
                     raise OrganizationError("Selected user does not have an active worker placement in this project.")

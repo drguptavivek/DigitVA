@@ -839,7 +839,10 @@ def admin_org_create_worker(project_id):
 @admin.patch(f"{_API}/workers/<worker_id>")
 @role_required("admin", "project_pi", "data_manager")
 def admin_org_update_worker(project_id, worker_id):
-    """Edit a worker; moving it changes no grant. A project-scope data
+    """Edit a worker. Moving an active placement (unit or cadre) or
+    deactivating it replaces the linked person's unit roles, all or nothing
+    (``organization_service.replace_placement_grants``); the response's
+    ``grants`` lists what was revoked and granted. A project-scope data
     manager only moves (unit, cadre, active) and only when both the old and
     the new unit lie inside their grant-writing scope (``_may_place_at``).
     A non-admin relinking the worker must name an account on the roster."""
@@ -861,10 +864,25 @@ def admin_org_update_worker(project_id, worker_id):
             org.require_on_project_roster(project_id, [target.user_id], actor=current_user)
         except org.OrganizationError as exc:
             return _json_error(str(exc), 400)
+    if "user" in p and set(p) & _DM_MOVE_FIELDS:
+        try:
+            current_user_id = org._get_worker(project_id, worker_id).user_id
+            new_user = _resolve_worker_user(p["user"], require_active=False) if str(p["user"] or "").strip() else None
+        except org.OrganizationError as exc:
+            return _json_error(str(exc), 400)
+        if (new_user.user_id if new_user else None) != current_user_id:
+            # Unit roles follow the linked person; one edit cannot say whose.
+            return _json_error("Change the linked account and the placement in separate saves.", 400)
     allowed = {k: p[k] for k in _WORKER_FIELDS + ("is_active",) if k in p}
     scope_changed = []
     try:
+        before = org._get_worker(project_id, worker_id)
+        old_unit_id, old_cadre_id, was_active = before.org_unit_id, before.cadre_id, before.is_active
         worker = org.update_worker(project_id, worker_id, **allowed)
+        placement_changed = org.replace_placement_grants(
+            project_id, worker, old_unit_id=old_unit_id, old_cadre_id=old_cadre_id,
+            was_active=was_active, actor=current_user,
+        )
         if "coding_unit_ids" in p or "supervision_unit_ids" in p:
             scope_changed = org.sync_worker_unit_scope_grants(
                 project_id,
@@ -879,16 +897,26 @@ def admin_org_update_worker(project_id, worker_id):
         db.session.rollback()
         return _json_error(str(exc), 400)
     _commit_and_log("worker-update", project_id, worker.worker_code)
-    if scope_changed:
+    if scope_changed or placement_changed:
         user_import.finalize_apply(
             project_id,
             actor_user_id=current_user.user_id,
             actor_role=_actor_role(project_id),
-            changed_grants=scope_changed,
+            changed_grants=placement_changed + scope_changed,
             invitations=[],
             request_ip=request.remote_addr,
         )
-    return jsonify({"worker": serialized})
+    units = {}
+    for g, _ in placement_changed:
+        if g["org_unit_id"] not in units:
+            units[g["org_unit_id"]] = db.session.get(MasOrgUnit, g["org_unit_id"])
+    grants = {"revoked": [], "granted": []}
+    for g, action in placement_changed:
+        unit = units[g["org_unit_id"]]
+        grants["revoked" if action == "grant_toggled_inactive" else "granted"].append(
+            {"role": g["role"], "unit_code": unit.unit_code, "unit_name": unit.unit_name}
+        )
+    return jsonify({"worker": serialized, "grants": grants})
 
 
 @admin.post(f"{_API}/workers/<worker_id>/enrolment-email")

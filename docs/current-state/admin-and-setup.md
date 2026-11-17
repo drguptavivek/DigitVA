@@ -70,7 +70,10 @@ The `/admin` interface provides the following management panels:
        grant-writing scope (the cadre's default grants each pass
        `can_grant` or nothing is written) and moves only unit, cadre and
        active between two such units (`POST`/`PATCH
-       /admin/api/organization/<project_id>/workers`), and removes grants
+       /admin/api/organization/<project_id>/workers`; a move or
+       deactivation revokes the person's unit roles at the old unit and
+       grants the new cadre defaults, all or nothing,
+       `organization_service.replace_placement_grants`), and removes grants
        through the data-management toggle. A non-admin's bulk apply, Place
        and move refuse anyone not already on the roster
        (`organization_service.on_project_roster`: member, active grant in

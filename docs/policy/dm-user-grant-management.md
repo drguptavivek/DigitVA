@@ -154,6 +154,26 @@ A data-manager may **not** toggle grants with other roles or grants outside
 their scope. They also may not revoke their own `data_manager` grant through
 this interface.
 
+### Placement changes replace unit roles (owner 2026-11-17)
+
+Editing a person's worker placement (`PATCH
+/admin/api/organization/<project_id>/workers/<worker_id>`, the roster's
+Move and Remove placement, the Organization panel's worker edit and
+deactivate) changes their grants:
+
+- Moving an active placement to another unit or cadre revokes (sets
+  inactive) every active unit-scope grant the linked person holds in the
+  project at the OLD unit, then grants the new level x cadre default roles
+  at the NEW unit (the roster's "cadre defaults" operation).
+- Deactivating a placement revokes their active unit-scope grants at its
+  unit. Reactivating restores nothing; apply cadre defaults explicitly.
+- Project-scope, site-scope and other-unit grants (cross-unit coding or
+  supervision scope included) are untouched.
+- All or nothing: if the actor may not revoke one of those grants or grant
+  one default role, the whole edit is refused and nothing changes.
+- Each revoke and grant is audited like any grant write; the response
+  carries `grants: {revoked, granted}` for the UI.
+
 ### Account status (owner 2026-11-17)
 
 A project's managers (data-manager, project PI, institute admin) set only

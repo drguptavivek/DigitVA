@@ -1386,18 +1386,24 @@
     var rm = cell.querySelector('.ug-place-remove');
     if (rm) rm.addEventListener('click', function () { ugRemovePlacement(rm); });
   }
-  // Remove placement: deactivates the worker only; grants are untouched (use Remove from project for those).
+  // "Revoked: coder at PHC1; granted: interviewer at PHC2" from the worker PATCH response's grants.
+  function ugPlacementGrantsText(grants) {
+    var fmt = function (list) { return (list || []).map(function (g) { return g.role + ' at ' + (g.unit_name || g.unit_code); }).join(', ') || 'none'; };
+    if (!grants || (!(grants.revoked || []).length && !(grants.granted || []).length)) return '';
+    return ' Revoked: ' + fmt(grants.revoked) + '; granted: ' + fmt(grants.granted) + '.';
+  }
+  // Remove placement: deactivates the worker and revokes their unit roles at that unit (project/site roles stay).
   function ugRemovePlacement(btn) {
     var user = (_ugData.users || []).find(function (x) { return x.user_id === btn.getAttribute('data-uid'); });
     var pw = user && user.primary_worker;
     if (!pw) return;
-    if (!window.confirm('Remove ' + user.name + "'s placement as " + pw.cadre_code + ' at ' + (pw.unit_name || pw.unit_code) + '? Their grants are not changed.')) return;
+    if (!window.confirm('Remove ' + user.name + "'s placement as " + pw.cadre_code + ' at ' + (pw.unit_name || pw.unit_code) + '? Their unit roles at that unit are revoked; project-wide roles stay.')) return;
     btn.disabled = true;
     fetch('/admin/api/organization/' + encodeURIComponent(projectId) + '/workers/' + encodeURIComponent(pw.worker_id), { method: 'PATCH', headers: csrfHeaders(), body: JSON.stringify({ is_active: false }) })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
         if (!res.ok) { btn.disabled = false; ugShowMsg('danger', (res.data && res.data.error) || 'Could not remove the placement.'); return; }
-        ugShowMsg('success', 'Placement removed.');
+        ugShowMsg('success', 'Placement removed.' + ugPlacementGrantsText(res.data.grants));
         loadUsersGrid();
       })
       .catch(function () { btn.disabled = false; ugShowMsg('danger', 'Could not remove the placement.'); });
@@ -1491,7 +1497,7 @@
             return;
           }
           var made = res.data.onboarding && res.data.onboarding.changed_grants;
-          ugShowMsg('success', pw ? 'Moved.' : ('Placed' + (made ? '; ' + made + ' default grant(s) added.' : '.')));
+          ugShowMsg('success', pw ? 'Moved.' + ugPlacementGrantsText(res.data.grants) : ('Placed' + (made ? '; ' + made + ' default grant(s) added.' : '.')));
           loadUsersGrid();
         })
         .catch(function () { cell.querySelector('.ug-place-save').disabled = false; note.textContent = 'Could not save the placement.'; });

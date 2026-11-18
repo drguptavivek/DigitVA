@@ -68,9 +68,10 @@ export function RefreshIconButton({ onPress, disabled }: { onPress: () => void; 
   const s = usePickerStyles();
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={t("refresh")} accessibilityState={{ disabled, busy: disabled }} disabled={disabled} onPress={onPress} style={[s.iconButton, disabled && { opacity: 0.5 }]}>
-      <Svg width={20} height={20} viewBox="0 0 20 20">
-        <Path d="M16 10a6 6 0 1 1-1.8-4.3" stroke={colors.text} strokeWidth={1.8} fill="none" strokeLinecap="round" />
-        <Path d="M16.5 3v4h-4" stroke={colors.text} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {/* Tabler "refresh": two arrows round a circle, like the chevrons (Chevron.tsx). */}
+      <Svg width={22} height={22} viewBox="0 0 24 24">
+        <Path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" stroke={colors.text} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <Path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" stroke={colors.text} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
       </Svg>
     </Pressable>
   );

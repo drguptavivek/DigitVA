@@ -446,6 +446,8 @@ function useKeyboardOpen(): boolean {
 
 /** The phone bottom bar's own tabs, in navEntries order; every other entry is under More. */
 const PHONE_BAR_KEYS = ["/", "/death-registration", "/collection", "/coding", "/reviewing"];
+// "VA Interview" wraps to two lines in a 390 px bar (iPhone 17e); the bar drops the "VA" the page titles keep.
+const BAR_LABELS: Record<string, "navBarInterview" | "navBarCode" | "navBarReview"> = { "/collection": "navBarInterview", "/coding": "navBarCode", "/reviewing": "navBarReview" };
 
 /**
  * Phone bottom tab bar (< 768px): the primary navEntries and a More sheet with the rest and Sign out, the same items
@@ -491,7 +493,7 @@ export function BottomTabs() {
     },
     items.map((item) => h(HeaderLink, { key: item.key, href: item.href, to: item.to, onNavigate: go, onActivate: item.onActivate, current: current === item.key, className: "dva-bottom-tab", style: { color: undefined, flexDirection: "column", gap: 2 } },
       current === item.key ? h("span", { "aria-hidden": true, style: { position: "absolute", left: 8, right: 8, top: 0, height: 3, borderRadius: 4, background: tokens.primary } }) : null,
-      h(Icon, { name: item.icon, size: 22 }), h("span", { className: "dva-bottom-label" }, item.label))),
+      h(Icon, { name: item.icon, size: 22 }), h("span", { className: "dva-bottom-label" }, BAR_LABELS[item.key] ? t(BAR_LABELS[item.key]) : item.label))),
     h("button", {
       ref: trigger, type: "button", className: "dva-bottom-tab", "aria-haspopup": "menu", "aria-expanded": open, "aria-controls": open ? id : undefined,
       onClick: () => (open ? close() : setOpen(true)), ...(moreCurrent ? { "data-current": "true" } : {}),

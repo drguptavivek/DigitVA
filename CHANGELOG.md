@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-18
 
+- Phone web bottom bar: Interview, Code and Review drop the "VA" prefix there
+  (page titles and menus keep it), so "VA Interview" no longer wraps to two
+  lines and lifts its icon on a 390 px iPhone 17e. Home-page flicker
+  `digitva-2cy0` closed: not reproduced on Expo web iOS Safari (idle, poll,
+  lock/unlock video) or the Android tablet 0.3.25.
 - iOS Safari interviews (`7ed274698`, `digitva-te2a`): the web app no longer
   treats a `/me/access` re-read that differs only by `server_time` as a new
   session, so a screen lock or app switch no longer re-initialises the open

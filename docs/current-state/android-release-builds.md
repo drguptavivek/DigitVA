@@ -17,6 +17,23 @@ session. The normal package remains the default download.
 Version 0.3.13 introduces the manual Settings server compatibility/build check
 (`digitva-hs7e.18`); the server contract and deployed commit are distinct values.
 
+## Public 0.3.25 APKs and Play bundle (2026-11-18)
+
+Built on CI from `4926c6ea4` (APK run 44257806258, Plus 44257811174, Play
+bundle 44257815327), pinned in `docker-compose.yml` with web release
+`expo-web-v2026.11.18.3` (`e0f1e68b0b287edbf17212cd6bb54f7c9ae5b3eda4bd0878e242c7479905d9ca`,
+built from `8ff6c707a`). Release certificate `6d94718a…6d361767`; checksums verified
+after download against each release's `.sha256`. Contents: Interview
+language offers the project's Narration languages (native script), with the
+web fixes of the same day (`CHANGELOG.md`, 2026-11-18). Later commits that
+day change only the web app and a Collect Plus queue icon, so no rebuild.
+The Play upload is the owner's.
+
+| Variant | Public release | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| Collect | `android-v0.3.25` | 70,073,085 | `dc8c29c7e6d7afef5cfa7575cb9656a9b2daa5a85258c8cf2ac6cd52cf59ea41` |
+| Collect Plus | `collect-plus-v0.3.25-plus.1` (prerelease) | 150,907,661 | `68b91901b0fc84308bef17b0e8792be83fdc186546d75adf08d9ec48b8c16bd7` |
+
 ## Public 0.3.24 APKs and Play bundle (2026-11-18)
 
 Built on CI from `7b7412950` (both variants and the Play bundle), pinned in

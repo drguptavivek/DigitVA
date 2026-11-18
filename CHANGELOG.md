@@ -30,6 +30,13 @@ What landed, newest first. Details live in the commits and the linked docs;
   frozen-request reason above. Filed: `digitva-fllj` (Safari 7-day storage
   eviction of unsent attachments), `digitva-y4ly` (leave dialog after a
   resume with nothing edited).
+- Phone bottom bar keeps Home, Deaths, VA Interview, VA Code and VA Review;
+  the rest under More (`1ed1a4506`). An old browser (iOS Safari < 15.4,
+  Chrome < 108) shows a warning icon beside the language button
+  (`c4c19989b`, `196bccffd`). Tabler refresh icon (`8ff6c707a`). Web export
+  `expo-web-v2026.11.18.3` and Collect / Plus 0.3.25 APKs pinned for the
+  server image; Android not rebuilt (later commits are web-only apart from
+  a Plus queue icon).
 
 - Releases from `7b7412950`, pinned in `docker-compose.yml` for the server
   image: Collect `android-v0.3.24` (arm64 `cf6bc738…4c3a`), Collect Plus

@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-17
+last_updated: 2026-11-18
 ---
 
 # Web Intake Policy
@@ -490,6 +490,11 @@ stay on the server draft only.
   browser (and hourly while it stays open): a browser never reopened to
   the page keeps its ciphertext until it is, so the bound is on use, not a
   timer.
+  Safari (outside a home-screen web app) clears site storage after seven
+  days of use without a visit, counted from the last visit, which is never
+  before the capture: it can only remove what this sweep already would,
+  but silently, without the deleted-file notice. Accepted (2026-11-18,
+  `digitva-fllj`); `navigator.storage.persist()` is not granted there.
 - **Sign-out.** Signing out from the questionnaire page deletes the whole
   buffer and its key. If unsent files exist the page asks first ("N file(s)
   have not been sent and will be deleted") and signs out only on

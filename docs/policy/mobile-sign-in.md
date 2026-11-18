@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-17
+last_updated: 2026-11-19
 ---
 
 # Sign-in by Mobile Number
@@ -147,7 +147,9 @@ passes a short one-time code to the person instead.
   Project Setup People roster ("All Users") has a **Generate code** button
   in each row's contact cell, shown only when the server says the viewer
   may issue for that row. There the rule is project-scoped
-  (`may_issue_code_in_project`): an admin always; otherwise the issuer must
+  (`may_issue_code_in_project`): only for an active account (a deactivated
+  one gets no code from the roster, admin or not: 2026-11-18,
+  `digitva-42yo`); an admin always; otherwise the issuer must
   be the project's `project_pi` or a project-scope `data_manager` of that
   project (not a site- or unit-scope DM, not an In-charge, not through the
   training project), **and** either
@@ -225,7 +227,11 @@ passes a short one-time code to the person instead.
   membership elsewhere, no live phone and no verified email can still be
   granted a role and given a code by a data manager who looked it up. Such
   an account has no access to take and no verified email to reset by; its
-  owner has never signed in on a phone.
+  owner has never signed in on a phone. The sign-in QR has the same rule
+  and the same residual (`digitva-sjts`). Kept on purpose (owner
+  2026-11-19): grant, then code or QR, is how a data manager onboards
+  ASHAs, ANMs and other field workers in one sitting; do not add a
+  waiting period or an admin-only step for freshly granted accounts.
 - **Redeeming it.** On the sign-in page the person chooses "I have a code",
   enters their email or mobile number and the code. If both match, the server
   generates a new password and shows it **once**, on that screen only, with

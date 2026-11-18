@@ -122,6 +122,8 @@ class RosterSignInCodeTests(BaseTestCase):
         self._login(self.base_admin_id)
         verified = self._person(email="rsc.verified@test.local", verified=True)
         self.assertEqual(self._issue(verified.user_id).status_code, 200)
+        # Not a deactivated account, even for an admin: the grid shows no button for one (digitva-42yo).
+        self.assertEqual(self._issue(self._person(members=[self.A], active=False).user_id).status_code, 404)
 
     def test_refusals_are_404(self):
         admin_target = self._person(members=[self.A])
@@ -138,6 +140,8 @@ class RosterSignInCodeTests(BaseTestCase):
             "verified email": self._person(members=[self.A], email="rsc.v2@test.local", verified=True),
             "admin": admin_target,
             "inactive": self._person(members=[self.A], active=False),
+            # Rule (a) with every grant managed: the grid never showed a button (digitva-42yo).
+            "inactive, managed grant": self._person(grants=[(R.coder, P, self.A)], active=False),
             "not a member, no grants": self._person(),
         }
         for actor in (self.pi_a, self.dm_a):

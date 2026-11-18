@@ -204,8 +204,8 @@ def issuable_user_ids(actor, project_id: str, user_ids) -> set[uuid.UUID]:
     *project_id*'s People roster (``may_issue_code_in_project``), in one
     query whatever the number of ids; the roster grid flags every row with it.
 
-    Admin: all of them. Anyone else must manage *project_id*'s roster, and
-    then a target must pass ``_roster_rule`` (on the roster, a member of no
+    Only active accounts. Admin: all of those. Anyone else must manage
+    *project_id*'s roster, and then a target must pass ``_roster_rule`` (on the roster, a member of no
     project the actor does not manage, every active grant managed and none
     privileged, or an unplaced member), have no live phone sign-in and no
     verified email. The roster, membership and live-phone clauses apply to
@@ -217,16 +217,19 @@ def issuable_user_ids(actor, project_id: str, user_ids) -> set[uuid.UUID]:
     ids = {uuid.UUID(str(u)) for u in user_ids}
     if not ids:
         return set()
-    if authz.resolve_grants(actor).is_admin:
-        return ids
     U = VaUsers
+    # A deactivated account gets no code, admin or not: the grid and the person
+    # page never offered one, so the endpoint now agrees with them (digitva-42yo).
+    active_ids = sa.and_(U.user_id.in_(ids), U.user_status == VaStatuses.active)
+    if authz.resolve_grants(actor).is_admin:
+        return set(db.session.scalars(sa.select(U.user_id).where(active_ids)))
     clause = _roster_rule(actor, project_id, U.user_id)
     if clause is None:
         return set()
     verified_email = sa.and_(U.email.is_not(None), U.email_verified.is_(True))
     return set(db.session.scalars(
         sa.select(U.user_id).where(
-            U.user_id.in_(ids), clause,
+            active_ids, clause,
             sa.not_(_live_phone(U.user_id)),
             sa.not_(verified_email),
         )

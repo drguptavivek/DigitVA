@@ -3,6 +3,16 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-19
+
+- Roster sign-in codes (`digitva-42yo`): a deactivated account gets no code
+  from the project roster, admin or not, so the endpoint agrees with the grid
+  and person page that never showed the button. `digitva-sjts` closed as
+  fixed by `1ddf592a2`; the grant-then-issue residual is kept on purpose for
+  onboarding ASHAs and ANMs (docs/policy/mobile-sign-in.md). `digitva-iycg`
+  closed: a queue test proves a return hides the held case before the
+  server answers.
+
 ## 2026-11-18
 
 - Phone web bottom bar: Interview, Code and Review drop the "VA" prefix there

@@ -350,6 +350,25 @@ describe("QueueScreen", () => {
     alert.mockRestore();
   });
 
+  test("a return to the queue (reloadKey) hides the held case before the server answers again (digitva-iycg)", async () => {
+    const next = deferred<{ va_sid: string } | null>();
+    const api = makeApi({
+      getCodingAllocation: jest.fn().mockResolvedValueOnce({ va_sid: "held-sid" }).mockImplementation(() => next.promise),
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = create(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} reloadKey={0} />); });
+    await settle();
+    expect(button(renderer.root, "Resume case")).toBeDefined();
+    // The coder saved the final COD and came back: the server has closed the allocation but has not answered yet.
+    await act(async () => { renderer.update(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} reloadKey={1} />); });
+    expect(api.getCodingAllocation).toHaveBeenCalledTimes(2);
+    expect(button(renderer.root, "Resume case")).toBeUndefined();
+    await act(async () => { next.resolve(null); await next.promise; });
+    await settle();
+    expect(button(renderer.root, "Resume case")).toBeUndefined();
+    await unmount(renderer);
+  });
+
   test("allocation refresh failure hides a previously active allocation", async () => {
     const api = makeApi({
       getCodingAllocation: jest.fn().mockResolvedValueOnce({ va_sid: "held-sid" }).mockRejectedValue(new ApiError(403, "forbidden")),

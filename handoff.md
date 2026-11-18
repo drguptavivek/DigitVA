@@ -2,10 +2,10 @@
 
 ## Start here
 
-Staging runs `560dafe5e` (deployed 2026-11-18 on the owner's go; backup
+Staging runs `f2333a29e` (deployed 2026-11-18 on the owner's go; backup
 verified by the script; rollback:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh c7e473ab83af40f6a0b1e562e2478c97732307a5`).
-It carries web `expo-web-v2026.11.18.3`, Collect `android-v0.3.25` and Collect
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 560dafe5e27385a1823906481db07e46d0e47145`).
+It carries web `expo-web-v2026.11.18.4`, Collect `android-v0.3.25` and Collect
 Plus `collect-plus-v0.3.25-plus.1`; both 0.3.25 APKs were copied into
 `private/android-hosted` (older files kept), and both downloads and
 `/api/v1/app/android/latest` (both variants) return the 0.3.25 checksums.
@@ -31,8 +31,7 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Ranked next steps
 
-0. Leave-dialog fix (`digitva-y4ly`, closed) is in main, not yet on staging:
-   needs a web export, image and deploy on the owner's go. iPhone 17e wraps "VA Interview" onto two lines in the bottom bar.
+0. iPhone 17e wraps "VA Interview" onto two lines in the bottom bar.
    Attachment eviction after 7 days in Safari: `digitva-fllj`, unverified.
    Earlier phone coding checks on 0.3.24 (real phone) still open.
 1. Training (`digitva-9qer`, `digitva-q3iu`): owner supplies

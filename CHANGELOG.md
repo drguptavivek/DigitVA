@@ -45,7 +45,9 @@ What landed, newest first. Details live in the commits and the linked docs;
   asks "not finished saving" after a save or a resume with nothing edited.
   The form hands over a new answers object after a save even when nothing
   changed, so the guard now compares the answers with the last saved or
-  loaded ones. Not yet deployed.
+  loaded ones. Web export `expo-web-v2026.11.18.4`; staging deployed
+  `f2333a29e` (owner's go) and checked in Safari on an iPhone 17e: Back to
+  collection leaves with no dialog.
 
 - Releases from `7b7412950`, pinned in `docker-compose.yml` for the server
   image: Collect `android-v0.3.24` (arm64 `cf6bc738…4c3a`), Collect Plus

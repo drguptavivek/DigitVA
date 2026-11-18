@@ -31,9 +31,8 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Ranked next steps
 
-0. Leave dialog after a save with nothing pending (`digitva-y4ly`, P2):
-   every Back to collection asks "not finished saving" on staging too.
-   iPhone 17e wraps "VA Interview" onto two lines in the bottom bar.
+0. Leave-dialog fix (`digitva-y4ly`, closed) is in main, not yet on staging:
+   needs a web export, image and deploy on the owner's go. iPhone 17e wraps "VA Interview" onto two lines in the bottom bar.
    Attachment eviction after 7 days in Safari: `digitva-fllj`, unverified.
    Earlier phone coding checks on 0.3.24 (real phone) still open.
 1. Training (`digitva-9qer`, `digitva-q3iu`): owner supplies

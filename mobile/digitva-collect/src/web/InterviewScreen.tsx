@@ -267,6 +267,13 @@ export function normalizeRevisionEnvelope(
   };
 }
 
+/** JSON with object keys sorted, so the same answers compare equal whatever order they were built in. */
+function stableJson(value: unknown): string {
+  return JSON.stringify(value ?? null, (_key, entry) => entry && typeof entry === "object" && !Array.isArray(entry)
+    ? Object.fromEntries(Object.entries(entry as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+    : entry);
+}
+
 export default function InterviewScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -314,6 +321,8 @@ export default function InterviewScreen() {
   const dirtyRef = useRef(false);
   // The answers of the latest change: a save of older answers settling later must not mark newer ones saved.
   const changedDataRef = useRef<SubmissionData | undefined>(undefined);
+  // The answers the server last acknowledged (stableJson), for the leave guard's content check.
+  const savedJsonRef = useRef<string | undefined>(undefined);
   // The last autosave or leave-save failed; the leave dialog then says the answers could not be saved.
   const saveFailedRef = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -693,6 +702,7 @@ export default function InterviewScreen() {
     setController(undefined);
     dirtyRef.current = false;
     changedDataRef.current = undefined;
+    savedJsonRef.current = undefined;
     saveFailedRef.current = false;
     setSaveHeld(false);
     setOvertaken(undefined);
@@ -1030,8 +1040,17 @@ export default function InterviewScreen() {
   }, [bootstrap, controller, store]);
 
   // Answers autosave about 600 ms after the last change, so the leave dialog only opens while that save is pending
-  // or after it failed.
-  useNavigationGuard(() => dirtyRef.current, saveForLeave, () => saveFailedRef.current);
+  // or after it failed. The form hands onChange a new data object after a save even when nothing changed (a
+  // calculation, the consent agree, a section move), which kept dirtyRef set with nothing left to send and asked on
+  // every leave (digitva-y4ly): the server draft is dirty only while its answers differ from the last saved or
+  // loaded ones.
+  const isDirty = useCallback(() => {
+    if (!dirtyRef.current) return false;
+    if (!(store instanceof ServerDraftStore) || saveFailedRef.current || !changedDataRef.current) return true;
+    const baseline = savedJsonRef.current ?? (draft?.envelope.data ? stableJson(draft.envelope.data) : undefined);
+    return baseline === undefined || stableJson(changedDataRef.current) !== baseline;
+  }, [draft, store]);
+  useNavigationGuard(isDirty, saveForLeave, () => saveFailedRef.current);
 
   const staleHeld = saveHeld && store instanceof ServerDraftStore ? store.heldStaleChange()?.change : undefined;
   const staleChange = overtaken ?? staleHeld;
@@ -1161,6 +1180,7 @@ export default function InterviewScreen() {
   const handleDraftSaved = useCallback((saved?: { data?: SubmissionData }) => {
     if (!(store instanceof ServerDraftStore)) return;
     saveFailedRef.current = false;
+    savedJsonRef.current = stableJson(saved?.data);
     if (saved?.data === changedDataRef.current) dirtyRef.current = false;
     updateLiveAnswers(saved?.data as Record<string, unknown> | undefined);
   }, [store, updateLiveAnswers]);

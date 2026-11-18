@@ -41,6 +41,11 @@ What landed, newest first. Details live in the commits and the linked docs;
   from `private/android-hosted`, checksums verified. Checked on dev: Safari
   on iPhone 17e and iPad Air; release 0.3.25 on a Pixel Tablet emulator
   (demo account) shows Hindi (हिन्दी) as an interview language.
+- Web interview leave guard (`digitva-y4ly`): Back to collection no longer
+  asks "not finished saving" after a save or a resume with nothing edited.
+  The form hands over a new answers object after a save even when nothing
+  changed, so the guard now compares the answers with the last saved or
+  loaded ones. Not yet deployed.
 
 - Releases from `7b7412950`, pinned in `docker-compose.yml` for the server
   image: Collect `android-v0.3.24` (arm64 `cf6bc738…4c3a`), Collect Plus

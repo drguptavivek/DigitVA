@@ -849,6 +849,28 @@ describe("leave guard of an open interview", () => {
     await act(async () => tree.unmount());
   });
 
+  it("does not ask after a save when the form only hands over equal answers again (digitva-y4ly)", async () => {
+    const {tree, form} = await openEdited(false);
+    await act(async () => { form.props.onChange({Id10017: "Vivek", Id10018: "Gupta"}); });
+    await act(async () => { form.props.onDraftSaved({data: {Id10017: "Vivek", Id10018: "Gupta"}}); });
+    // A recalculation or section move: a new object, the same answers, in another key order.
+    await act(async () => { form.props.onChange({Id10018: "Gupta", Id10017: "Vivek"}); });
+    await act(async () => { backButton(tree).props.onPress(); });
+    expect(leaveDialogOpen()).toBe(false);
+    expect(mockRouter.replace).toHaveBeenCalledWith("/collection");
+    await act(async () => tree.unmount());
+  });
+
+  it("still asks when an answer differs from the last save", async () => {
+    const {tree, form} = await openEdited(false);
+    await act(async () => { form.props.onDraftSaved({data: {Id10017: "Vivek"}}); });
+    await act(async () => { form.props.onChange({Id10017: "Vivekxy"}); });
+    await act(async () => { backButton(tree).props.onPress(); });
+    expect(leaveDialogOpen()).toBe(true);
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    await act(async () => tree.unmount());
+  });
+
   it("asks before leaving an edited draft; Stay keeps the user, Leave without saving goes back", async () => {
     const {tree, saveDraft} = await openEdited();
     await act(async () => { backButton(tree).props.onPress(); });

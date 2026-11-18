@@ -187,12 +187,12 @@ test("bottom bar: the owner's labels and order, icons hidden from assistive tech
   mockBootstrap = everything();
   mockWidth = 375;
   mountAll();
-  expect(barLabels()).toEqual(["Home", "Deaths", "VA Interview", "VA Code", "VA Review", "Statistics", "More"]);
+  expect(barLabels()).toEqual(["Home", "Deaths", "VA Interview", "VA Code", "VA Review", "More"]);
   expect(Array.from(bar()!.querySelectorAll("svg")).every((svg) => svg.getAttribute("aria-hidden") === "true")).toBe(true);
-  expect(bar()!.querySelector("a[href='/app/statistics']")!.textContent).toBe("Statistics");
+  expect(bar()!.querySelector("a[href='/app/statistics']")).toBeNull();
   act(() => moreButton().click());
   const labels = Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
-  expect(labels).toEqual(["Organization", "Users", "Settings", "Website", "Data management", "Mentoring Institution", "Admin console", "Sign out"]);
+  expect(labels).toEqual(["Statistics", "Organization", "Users", "Settings", "Website", "Data management", "Mentoring Institution", "Admin console", "Sign out"]);
   const website = host.querySelector<HTMLAnchorElement>("[role='menuitem'][href='/vaindex']")!;
   expect([website.target, website.rel]).toEqual(["_blank", "noopener"]);
   expect(host.querySelector("[role='menuitem'][href='/app/organization']")).not.toBeNull();
@@ -312,7 +312,7 @@ test("phone: in-app click on a bottom tab navigates without leaving, and the Mor
   expect(mockRouter.push).toHaveBeenLastCalledWith("/reviewing");
   act(() => moreButton().click());
   const labels = Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
-  expect(labels).toEqual(["Organization", "Settings", "Website", "Sign out"]);
+  expect(labels).toEqual(["Statistics", "Organization", "Settings", "Website", "Sign out"]);
   expect(click(host.querySelector("[role='menuitem'][href='/app/settings']")!).defaultPrevented).toBe(true);
   expect(mockRouter.push).toHaveBeenLastCalledWith("/settings");
   expect(host.querySelector("[role='menu']")).toBeNull();
@@ -500,12 +500,12 @@ describe("leave dialog of an open interview's navigation guard", () => {
     expect(dialog()).toBeNull();
   });
 
-  test("the logo, Statistics and Sign out ask first too", async () => {
+  test("the logo, a bar tab and Sign out ask first too", async () => {
     mountAll();
     click(link("/app/"));
     expect(dialog()).not.toBeNull();
     act(() => dialogButton("Stay").click());
-    expect(click(link("/app/statistics")).defaultPrevented).toBe(true);
+    expect(click(link("/app/reviewing")).defaultPrevented).toBe(true);
     expect(dialog()).not.toBeNull();
     act(() => dialogButton("Stay").click());
     act(() => { host.querySelector<HTMLButtonElement>("button[aria-label^='Account menu']")!.click(); });

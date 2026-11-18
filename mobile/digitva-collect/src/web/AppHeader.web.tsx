@@ -444,6 +444,9 @@ function useKeyboardOpen(): boolean {
   return shrunk || focused;
 }
 
+/** The phone bottom bar's own tabs, in navEntries order; every other entry is under More. */
+const PHONE_BAR_KEYS = ["/", "/death-registration", "/collection", "/coding", "/reviewing"];
+
 /**
  * Phone bottom tab bar (< 768px): the primary navEntries and a More sheet with the rest and Sign out, the same items
  * as the wide left sidebar. Shown on every signed-in screen except a case in focus mode (`showBottomTabs`). Renders an in-flow spacer of its own
@@ -459,11 +462,14 @@ export function BottomTabs() {
   const trigger = useRef<HTMLButtonElement>(null);
   const close = useCallback((restore = true) => { setOpen(false); if (restore) trigger.current?.focus(); }, []);
   const menu = useMenu(close, open, trigger);
-  const { pathname, params, go, items, more, current, signOut } = nav;
+  const { pathname, params, go, current, signOut } = nav;
+  // Owner 2026-11-18: the bar holds only these five; Statistics, Training and the rest go under More.
+  const items = nav.items.filter((item) => PHONE_BAR_KEYS.includes(item.key));
+  const more = [...nav.items.filter((item) => !PHONE_BAR_KEYS.includes(item.key)), ...nav.more];
   useEffect(() => setOpen(false), [pathname]);
   if (nav.hidden || width >= PHONE_BREAKPOINT || keyboard || !showBottomTabs(pathname, params)) return null;
 
-  const moreCurrent = more.some((item) => item.key === current);
+  const moreCurrent = more.some((item) => item.key === current || Boolean(current?.startsWith(`${item.key}/`)));
   const entry = itemStyle(tokens);
   return h(React.Fragment, null,
     h("div", { "aria-hidden": true, style: { height: BOTTOM_BAR, flexShrink: 0 } }),

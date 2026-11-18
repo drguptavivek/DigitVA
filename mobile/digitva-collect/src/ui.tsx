@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ApiError } from "./api";
 import { APP_VERSION } from "./appVersion";
+import { outdatedBrowser } from "./browserSupport";
 import { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { describeError, recordError } from "./errorLog";
 import { Icon, icons, type IconName } from "./Icon";
@@ -136,6 +137,11 @@ export function Screen({
           accessibilityRole="alert"
         >
           {t("debugWarning")}
+        </Text>
+      ) : null}
+      {Platform.OS === "web" && outdatedBrowser() ? (
+        <Text style={[screenStyles.debug, { backgroundColor: theme.colors.warning, color: theme.colors.onAccent }]} accessibilityRole="alert">
+          {t("outdatedBrowserWarning")}
         </Text>
       ) : null}
       {!sidebar && !scroll ? titleNode : null}

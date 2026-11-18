@@ -17,8 +17,8 @@ x-release-pins: &release-pins
   ANDROID_APK_TAG: "android-v0.3.25"
   ANDROID_APK_ASSET: "digitva-collect-0.3.25-arm64-v8a.apk"
   ANDROID_APK_SHA256: "dc8c29c7e6d7afef5cfa7575cb9656a9b2daa5a85258c8cf2ac6cd52cf59ea41"
-  EXPO_WEB_TAG: "expo-web-v2026.11.18.3"
-  EXPO_WEB_SHA256: "e0f1e68b0b287edbf17212cd6bb54f7c9ae5b3eda4bd0878e242c7479905d9ca"
+  EXPO_WEB_TAG: "expo-web-v2026.11.18.4"
+  EXPO_WEB_SHA256: "6104c4c752c1def04d1af0cc45c57b14f3bd415ef2d9a3a8ccd7d76bae9d48b3"
   SMARTVA_RS_SOURCE: ${SMARTVA_RS_SOURCE:-release}
   SMARTVA_RS_VERSION: "v3.0.2"
   SMARTVA_RS_SHA256_ARM64: "a4f3f59f75d4b31b406b3de68f348f32a684566efc8a769b5fdf25d825d71c66"

@@ -2,16 +2,16 @@
 
 ## Start here
 
-Staging runs `c7e473ab8` (deployed 2026-11-18 on the owner's go; backup
-verified, smoke 200 on `/`, `/app/`, both downloads and
-`/api/v1/app/android/latest`; rollback:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh ad9603e0e29f6b358d9f41ea5c7cc245f40088ca`).
-It carries web `expo-web-v2026.11.18.2` (Safari reset fix, interview
-languages) and still serves the 0.3.24 APKs. Collect 0.3.25 builds (APK run
-44257806258, Plus 44257811174, AAB 44257815327) were running at hand-off:
-verify cert 6D94718A..., pin `android-v0.3.25` / `collect-plus-v0.3.25-plus.1`
-in `docker-compose.yml`, build the image; the next deploy and the hosted APK
-copy are the owner's go. The Play AAB upload is the owner's.
+Staging runs `560dafe5e` (deployed 2026-11-18 on the owner's go; backup
+verified by the script; rollback:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh c7e473ab83af40f6a0b1e562e2478c97732307a5`).
+It carries web `expo-web-v2026.11.18.3`, Collect `android-v0.3.25` and Collect
+Plus `collect-plus-v0.3.25-plus.1`; both 0.3.25 APKs were copied into
+`private/android-hosted` (older files kept), and both downloads and
+`/api/v1/app/android/latest` (both variants) return the 0.3.25 checksums.
+The Play AAB (run 44257815327) awaits the owner's Play upload. Old-APK
+check `c7e473ab8..560dafe5e`: only the web intake page's script changed on
+the server; no API, shape or migration change.
 
 Old-APK audit: `b95f26e4a..0fd111363` (2026-11-18) SAFE WITH NOTES: no
 migration, additive `code_titles`; moving or deactivating a worker's

@@ -37,6 +37,10 @@ What landed, newest first. Details live in the commits and the linked docs;
   `expo-web-v2026.11.18.3` and Collect / Plus 0.3.25 APKs pinned for the
   server image; Android not rebuilt (later commits are web-only apart from
   a Plus queue icon).
+- Staging deployed `560dafe5e` (owner's go) and serves the 0.3.25 APKs
+  from `private/android-hosted`, checksums verified. Checked on dev: Safari
+  on iPhone 17e and iPad Air; release 0.3.25 on a Pixel Tablet emulator
+  (demo account) shows Hindi (हिन्दी) as an interview language.
 
 - Releases from `7b7412950`, pinned in `docker-compose.yml` for the server
   image: Collect `android-v0.3.24` (arm64 `cf6bc738…4c3a`), Collect Plus

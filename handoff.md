@@ -63,8 +63,7 @@ any change to one is re-checked against `frozen/` and refrozen.
    Standalone engine `v0.1.0` draft awaits owner publish (`digitva-xw1s`).
 7. Help chatbot (`digitva-wawz`): the whole feature is unbuilt; decisions
    and corpus are done (`docs/policy/help-chatbot.md`, `docs/help-corpus/`). DORIS validation gaps
-   (`docs/current-state/doris-validation-checks.md`). iOS simulator CI
-   workflow (`digitva-bfq3`).
+   (`docs/current-state/doris-validation-checks.md`).
 
 ## Open owner decisions
 

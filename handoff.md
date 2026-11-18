@@ -57,12 +57,12 @@ any change to one is re-checked against `frozen/` and refrozen.
    Android kills the app on low-RAM phones (`ImagePicker.getPendingResultAsync`).
    Collect: TalkBack/VoiceOver (`digitva-eizq`), Play screenshots
    (`digitva-fthd`; raw captures untracked in
-   `mobile/digitva-collect/store/play/screenshots/`), arm64 engine
-   `load_failed` (`digitva-rih6`), SM-E146B speed (`digitva-xxfz`), web
-   attachments (`digitva-e621`). Owner review of the Hindi strings.
+   `mobile/digitva-collect/store/play/screenshots/`), SM-E146B speed
+   (`digitva-xxfz`). Owner review of the Hindi strings.
 6. Offline PHC station macOS security acceptance (`digitva-xt9y`).
    Standalone engine `v0.1.0` draft awaits owner publish (`digitva-xw1s`).
-7. Help chatbot PII redaction (`digitva-wawz`). DORIS validation gaps
+7. Help chatbot (`digitva-wawz`): the whole feature is unbuilt; decisions
+   and corpus are done (`docs/policy/help-chatbot.md`, `docs/help-corpus/`). DORIS validation gaps
    (`docs/current-state/doris-validation-checks.md`). iOS simulator CI
    workflow (`digitva-bfq3`).
 

@@ -466,7 +466,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
     if (!overwrite && Object.keys(changed).length === 0 && draft.currentSection === this.lastSection && !metadataChanged) return;
     const acknowledgement = await requestClientJson<{
       saved_sections: number;
-      draft: { draft_id: string; updated_at: string };
+      draft: { draft_id: string; updated_at: string; sections_saved?: number };
     }>(`${this.endpoint}/${encodeURIComponent(draft.id)}`, {
       method: "PATCH",
       csrf: this.csrf,
@@ -515,9 +515,12 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.baselineDefinitionPin = this.definitionPin;
     this.baselineWorkflowTimeline = this.workflowTimeline;
     if (!options?.isPinOnly) {
+      // `saved_sections` counts only what this request wrote; the draft's own `sections_saved` is the total the
+      // case header shows (it read 8 -> 2 when a save touched two sections).
+      const total = acknowledgement.draft.sections_saved;
       const savedSections =
-        acknowledgement.saved_sections > 0
-          ? acknowledgement.saved_sections
+        typeof total === "number" && Number.isInteger(total) && total >= 0
+          ? total
           : Object.values(this.baseline).filter((value) => value !== "{}").length;
       this.onSaveAcknowledged?.({ savedSections, updatedAt: this.serverUpdatedAt });
     }

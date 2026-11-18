@@ -385,3 +385,19 @@ it("accepts va_who_2022 instrumentId and matches tag-filtered extensions from fo
   });
   expect(saved).toMatchObject({ provenance: "served" });
 });
+
+it("offers the project's narration languages on Interview language on the served and bundled paths (digitva-te2a)", async () => {
+  const value = await verified();
+  const languages = [{ code: "english", label: "English" }, { code: "hindi", label: "Hindi" }];
+  const served = await resolveNewInterviewDefinition({ ...newInput(value, async () => response(value)), interviewLanguages: languages });
+  const choices = (instrument: { questions: Array<{ name: string; choices?: Array<{ value: string }> }> }) =>
+    instrument.questions.find((question) => question.name === "language")?.choices?.map((choice) => choice.value);
+  expect(choices(served.instrument)).toEqual(["en", "hindi"]);
+  const bundled = await resolveNewInterviewDefinition({
+    ...newInput(value, async () => { throw new TypeError("offline"); }),
+    canUseBundledFallback: jest.fn().mockResolvedValue(true),
+    interviewLanguages: languages,
+  });
+  expect(bundled.provenance).toBe("bundled-original");
+  expect(choices(bundled.instrument)).toEqual(["en", "hindi"]);
+});

@@ -1281,6 +1281,8 @@ export default function InterviewScreen() {
     } catch (error) { setMessage(interviewErrorText(error)); } finally { setBusy(false); setConfirmWhoGrant(false); }
   }
 
+  const leaveToCollection = () => guardedNavigate(() => router.replace(collectionPath as never));
+
   return (
     <WebShell
       title={t(revision ? "revisionTitle" : "interviewTitle")}
@@ -1315,12 +1317,11 @@ export default function InterviewScreen() {
         <>
           {/* Leaves the interview; the footer's Back only steps to the previous
               section. Answers autosave (and the footer's Save draft saves at
-              once), so there is no second Save here. */}
-          <View style={styles.row}>
-            <Button kind="secondary" label={t("backToCollection")} onPress={() => guardedNavigate(() => router.replace(collectionPath as never))} />
-          </View>
+              once), so there is no second Save here. With the case strip it is
+              the back arrow before the case ID, saving a row. */}
           {showCaseStrip && !consentRefused && !whoRefused ? (
             <InterviewCaseStrip
+              onBack={leaveToCollection}
               prefill={stripPrefill}
               onHeight={setCaseStripHeight}
               uniqueId={draft?.draft.unique_id}
@@ -1329,7 +1330,11 @@ export default function InterviewScreen() {
               answers={liveAnswers}
               showLiveSummary
             />
-          ) : null}
+          ) : (
+            <View style={styles.row}>
+              <Button kind="secondary" label={t("backToCollection")} onPress={leaveToCollection} />
+            </View>
+          )}
           {revision ? (
             <View>
               <Text style={styles.headline}>{t("revisionReason")}</Text>

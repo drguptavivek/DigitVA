@@ -131,3 +131,15 @@ it("renders the case id, location, save status and live summary row when showLiv
     "Asha Devi · DOD: 2026-09-22 · Age: 51 yr · Sex: Female",
   );
 });
+
+it("puts Back to collection as a back arrow before the case ID", () => {
+  const onBack = jest.fn();
+  let tree!: ReactTestRenderer;
+  act(() => { tree = create(<InterviewCaseStrip prefill={{ deceased } as never} uniqueId="TST-001" onBack={onBack} />); });
+  const back = tree.root.find((node) => node.props.testID === "interview-back-to-collection" && typeof node.props.onPress === "function");
+  expect(back.props.accessibilityLabel).toBe("Back to collection");
+  act(() => back.props.onPress());
+  expect(onBack).toHaveBeenCalledTimes(1);
+  act(() => { tree.update(<InterviewCaseStrip prefill={{ deceased } as never} uniqueId="TST-001" />); });
+  expect(tree.root.findAll((node) => node.props.testID === "interview-back-to-collection")).toHaveLength(0);
+});

@@ -261,7 +261,7 @@ test.each([
   ["/", {}, true], ["/coding", {}, true], ["/reviewing", {}, true], ["/collection", {}, true], ["/worklist", {}, true], ["/supervision", {}, true],
   ["/organization", {}, true], ["/settings", {}, true], ["/workspace", { mode: "coding" }, true],
   ["/workspace", { vaSid: "s1", mode: "coding" }, false], ["/workspace", { vaSid: ["s1"] }, false],
-  ["/case", {}, true], ["/form", {}, true], ["/interview", {}, true], ["/death-registration", {}, true], ["/revision", {}, true],
+  ["/case", {}, true], ["/form", {}, true], ["/interview", {}, false], ["/death-registration", {}, true], ["/revision", {}, true],
   ["/sign-in", {}, false], ["/enrol", {}, false], ["/unlock", {}, false], ["/pin-setup", {}, false], ["/register", {}, false],
 ])("showBottomTabs(%s, %j) = %s", (path, params, expected) => {
   expect(showBottomTabs(path, params)).toBe(expected);
@@ -291,15 +291,16 @@ test("phone: bottom bar on the queue and home, a compact header with Help, none 
   expect(bar()).toBeNull();
 });
 
-test("phone: the bottom bar also shows on /interview and /case with VA Interview current", () => {
+test("phone: the bottom bar shows on /case with VA Interview current, and not on the /interview form", () => {
   mockBootstrap = { ...boot(["coder", "interviewer"]), capabilities: { intake: true, registerDeath: false, registeredDeaths: false, supervision: false } };
   mockWidth = 375;
-  for (const path of ["/interview", "/case"]) {
-    mockPathname = path;
-    mountAll();
-    expect(bar()).not.toBeNull();
-    expect(bar()!.querySelector("a[href='/app/collection']")!.getAttribute("aria-current")).toBe("page");
-  }
+  mockPathname = "/case";
+  mountAll();
+  expect(bar()).not.toBeNull();
+  expect(bar()!.querySelector("a[href='/app/collection']")!.getAttribute("aria-current")).toBe("page");
+  mockPathname = "/interview";
+  mountAll();
+  expect(bar()).toBeNull();
 });
 
 test("phone: in-app click on a bottom tab navigates without leaving, and the More sheet closes on Escape and outside press", () => {
@@ -410,7 +411,9 @@ describe("leave dialog of an open interview's navigation guard", () => {
     unregister = registerNavigationGuard({ isDirty: () => dirty, save, saveFailed: () => failed });
     mockBootstrap = everything();
     mockWidth = 375;
-    mockPathname = "/interview";
+    // /interview itself hides the phone bottom bar (its case strip's back arrow leaves); the guard is the same on
+    // any route, so these exercise it from /case, where the bar still shows.
+    mockPathname = "/case";
   });
   afterEach(() => unregister());
 

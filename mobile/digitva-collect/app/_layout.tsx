@@ -1,3 +1,4 @@
+import "../src/polyfills";
 import { Stack } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { StatusBar } from "expo-status-bar";

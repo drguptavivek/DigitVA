@@ -159,7 +159,6 @@ let baselineLoaded = false;
 // the detailed narrative is a long field.
 const SAVE_DEBOUNCE_MS = 2000;
 const SAVE_MAX_WAIT_MS = 5000;
-let unloading = false;
 let firstPendingAt = 0;
 let pendingDraft;
 let debounceTimer;
@@ -181,7 +180,7 @@ async function patchDraft(body, opts) {
   return res;
 }
 
-async function writeDraft(draft) {
+async function writeDraft(draft, unloading = false) {
   // Refuse to PATCH anything until load() has established a baseline for
   // this draft (digitva-ybz belt and braces, alongside the package's own
   // restore-before-autosave gate): without a baseline there is nothing to
@@ -228,7 +227,7 @@ async function flagDuplicate(candidate, button) {
   alertBox("success", `Flagged as a possible duplicate of ${candidate.unique_id}. A supervisor will confirm or reject it.`);
 }
 
-function flushDraft() {
+function flushDraft(unloading = false) {
   if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = undefined; }
   if (!pendingDraft) return writing;
   const draft = pendingDraft;
@@ -240,7 +239,7 @@ function flushDraft() {
   // callback, so one failed PATCH would silently stop all saving for the rest
   // of the interview. The queue is cleared before chaining; each caller still
   // learns about its own failure through the promise save() returned.
-  writing = writing.catch(() => {}).then(() => writeDraft(draft));
+  writing = writing.catch(() => {}).then(() => writeDraft(draft, unloading));
   writing.then(
     () => settle.forEach((w) => w.resolve()),
     (error) => settle.forEach((w) => w.reject(error))
@@ -300,7 +299,11 @@ const draftStore = {
 };
 
 // A reload or a closed tab must not discard the debounce window.
-window.addEventListener("beforeunload", () => { unloading = true; if (pendingDraft) flushDraft(); });
+// keepalive only for this one write: the page can stay open after a
+// beforeunload (a cancelled navigation), and a lasting keepalive flag capped
+// every later save at the browser's 64 KB keepalive limit and stopped the
+// duplicate check.
+window.addEventListener("beforeunload", () => { if (pendingDraft) flushDraft(true); });
 
 // The interviewer's working language. The project serves the languages the
 // bundled questionnaire has translations for (docs/policy/va-web-form-options.md);

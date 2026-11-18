@@ -291,6 +291,36 @@ describe("server draft store", () => {
     expect(calls).toHaveLength(2);
   });
 
+  it("reports the draft's total saved sections, not the count one save wrote", async () => {
+    let calls = 0;
+    jest.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      calls += 1;
+      if (calls === 1) {
+        return response({
+          status: 200,
+          body: {
+            draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" },
+            envelope: { ...draft, data: {} },
+            prefill: {},
+          },
+        });
+      }
+      return response({ status: 200, body: { saved_sections: 2, draft: { draft_id: "d1", updated_at: "2026-10-03T00:02:00Z", sections_saved: 8 } } });
+    });
+    const acknowledged: number[] = [];
+    const store = new ServerDraftStore({
+      endpoint: "/api/v1/intake/drafts",
+      csrf,
+      sectionOf: new Map([["Id10007", "s1"]]),
+      onSaveAcknowledged: ({ savedSections }) => acknowledged.push(savedSections),
+    });
+    await store.load("d1");
+    const saved = store.save(draft);
+    await store.flush();
+    await saved;
+    expect(acknowledged).toEqual([8]);
+  });
+
   it("retains a failed write so an unchanged draft can be retried", async () => {
     const calls: Array<{ url: string; body?: Record<string, unknown> }> = [];
     jest.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

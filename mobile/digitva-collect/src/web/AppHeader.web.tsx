@@ -396,9 +396,22 @@ export function LeaveDialog() {
   h("button", { type: "button", className: "dva-dialog-button", disabled: busy, onClick: leavePage, style: { ...button(false), color: tokens.destructiveText } }, t("leaveWithoutSaving"))));
 }
 
-/** True while the on-screen keyboard is up: the visual viewport is much shorter than the tallest height seen. */
+/** A text field that raises the on-screen keyboard while focused. */
+export function isKeyboardTarget(element: Element | null): boolean {
+  if (!element) return false;
+  if ((element as HTMLElement).isContentEditable || element.tagName === "TEXTAREA") return true;
+  if (element.tagName !== "INPUT") return false;
+  return !["button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit"].includes((element as HTMLInputElement).type);
+}
+
+/**
+ * True while the on-screen keyboard is up: the visual viewport is much shorter than the tallest height seen, or, on a
+ * touch screen, a text field has focus. iOS Safari does not always resize the visual viewport (and resizes it late
+ * on blur), which drew the tab bar in mid-screen above the keyboard.
+ */
 function useKeyboardOpen(): boolean {
-  const [open, setOpen] = useState(false);
+  const [shrunk, setShrunk] = useState(false);
+  const [focused, setFocused] = useState(false);
   useEffect(() => {
     const viewport = typeof window === "undefined" ? undefined : window.visualViewport;
     if (!viewport) return undefined;
@@ -407,12 +420,28 @@ function useKeyboardOpen(): boolean {
     const check = () => {
       if (viewport.width !== width) { width = viewport.width; baseline = Math.max(window.innerHeight, viewport.height); } // rotation
       baseline = Math.max(baseline, viewport.height);
-      setOpen(baseline - viewport.height > 150);
+      setShrunk(baseline - viewport.height > 150);
     };
     viewport.addEventListener("resize", check);
     return () => viewport.removeEventListener("resize", check);
   }, []);
-  return open;
+  useEffect(() => {
+    if (typeof document === "undefined" || !window.matchMedia?.("(pointer: coarse)").matches) return undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const update = () => {
+      clearTimeout(timer);
+      // Moving focus between fields blurs one before focusing the next: wait a moment so the bar does not flash.
+      timer = setTimeout(() => setFocused(isKeyboardTarget(document.activeElement)), 100);
+    };
+    document.addEventListener("focusin", update);
+    document.addEventListener("focusout", update);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("focusin", update);
+      document.removeEventListener("focusout", update);
+    };
+  }, []);
+  return shrunk || focused;
 }
 
 /**

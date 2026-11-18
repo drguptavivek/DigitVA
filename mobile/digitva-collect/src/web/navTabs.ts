@@ -107,9 +107,13 @@ export function activeTab(pathname: string, params: NavParams = {}): string | un
     .find((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
-/** The phone bottom bar: every signed-in screen except the case workspace (/workspace with a vaSid, coding/review focus) and the pre-login routes. */
+/**
+ * The phone bottom bar: every signed-in screen except the case workspace (/workspace with a vaSid, coding/review
+ * focus), the interview form (its case strip's back arrow leaves it; the bar only took height from the form) and the
+ * pre-login routes.
+ */
 export function showBottomTabs(pathname: string, params: NavParams = {}): boolean {
-  if (HEADERLESS_ROUTES.includes(pathname)) return false;
+  if (HEADERLESS_ROUTES.includes(pathname) || pathname === "/interview") return false;
   if (pathname === "/workspace" && first(params.vaSid)) return false;
   return true;
 }

@@ -2,18 +2,16 @@
 
 ## Start here
 
-Staging runs `ad9603e0e` (deployed 2026-11-18 01:58 IST with
-`scripts/deploy-staging.sh` on the owner's go, which lifted the training
-hold; backup verified, migrations at head, smoke check 200 on `/`, `/app/`,
-`/download/android`; rollback:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh e6a17915dddb741acd57abbf084e65a5b9f5ad3b`).
-The image carries Collect `android-v0.3.24`, Collect Plus
-`collect-plus-v0.3.24-plus.1` and web `expo-web-v2026.11.18.1`
-(`docs/current-state/android-release-builds.md`). Staging's
-`/download/android` and `/download/android/plus` serve 0.3.24 from
-`private/android-hosted` (copied 2026-11-18 on the owner's go; downloads and
-`/api/v1/app/android/latest` checksums verified). The Play AAB (run 44161580345)
-awaits the owner's Play upload.
+Staging runs `c7e473ab8` (deployed 2026-11-18 on the owner's go; backup
+verified, smoke 200 on `/`, `/app/`, both downloads and
+`/api/v1/app/android/latest`; rollback:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh ad9603e0e29f6b358d9f41ea5c7cc245f40088ca`).
+It carries web `expo-web-v2026.11.18.2` (Safari reset fix, interview
+languages) and still serves the 0.3.24 APKs. Collect 0.3.25 builds (APK run
+44257806258, Plus 44257811174, AAB 44257815327) were running at hand-off:
+verify cert 6D94718A..., pin `android-v0.3.25` / `collect-plus-v0.3.25-plus.1`
+in `docker-compose.yml`, build the image; the next deploy and the hosted APK
+copy are the owner's go. The Play AAB upload is the owner's.
 
 Old-APK audit: `b95f26e4a..0fd111363` (2026-11-18) SAFE WITH NOTES: no
 migration, additive `code_titles`; moving or deactivating a worker's
@@ -33,17 +31,17 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Ranked next steps
 
-0. On staging check today's phone coding changes on a real phone (0.3.24),
-   and: the
-   roster person page (`digitva-eyp3`, closed), and on a phone consent
-   "No" then back (Id10013 fill). Verified on the emulator against dev
-   (Plus debug of main, 2026-11-17): ICD-11 first-launch prompt, phone
-   grid, pager with NQA blocked reason, Notes on every page, symptoms card
-   after the narrative, NQA "0 / 10 · Cannot Grade", DORIS sex prefill,
-   Step 2 card order. Not verified: the phone media gallery (no dev case
-   with attachments that `test.all` can code). Six seeded TST001 cases from
-   2026-11-08 carry Id10023 without Id10022, so neither web nor phone
-   prefills their date of death (test data, not a parity gap).
+0. iOS Safari (`digitva-te2a`, open until checked on staging with the next
+   web export): the interview no longer resets on screen lock (in
+   `c7e473ab8`); not yet deployed: saved-section count from the draft
+   total, phone tab bar hidden while a field has focus and on `/interview`
+   (Back to collection is now the arrow before the Case ID), `.at()` /
+   `Object.hasOwn` polyfill for iOS 15.0-15.3, web intake page keepalive
+   only for the unload save. The back arrow's Save and leave works on the
+   simulator; the leave dialog opens after a resume with nothing edited
+   (`digitva-y4ly`). Attachment
+   eviction after 7 days in Safari: `digitva-fllj`, unverified.
+   Earlier phone coding checks on 0.3.24 (real phone) still open.
 1. Training (`digitva-9qer`, `digitva-q3iu`): owner supplies
    `app/services/training_corpus/english_v1.txt`; Maestro flows 96–98 need a
    trainee setup role; training media scope; refuse outdated apps (N11);

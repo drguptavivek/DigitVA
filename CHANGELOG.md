@@ -18,6 +18,18 @@ What landed, newest first. Details live in the commits and the linked docs;
 - Collect 0.3.25 (`4926c6ea4`). Web export `expo-web-v2026.11.18.2`
   (`eab2be4e…6946`, checksum verified after download) pinned for the server
   image; the APK pins stay at 0.3.24 until the 0.3.25 builds finish.
+- Staging deployed `c7e473ab8` (owner's go). More iOS Safari fixes
+  (`digitva-te2a`, not yet deployed): the case header's saved-section count
+  is the draft's total, not the sections one save wrote (8 -> 2); the phone
+  tab bar stays hidden while a text field has focus (Safari does not always
+  shrink the visual viewport) and on `/interview`, where Back to collection
+  is now a back arrow before the Case ID; `.at()` and `Object.hasOwn`
+  polyfilled for iOS 15.0-15.3; the Flask intake page sends keepalive only
+  for the unload save (a lasting flag capped every later save at 64 KB and
+  stopped the duplicate check). A `pagehide` save was rejected again for the
+  frozen-request reason above. Filed: `digitva-fllj` (Safari 7-day storage
+  eviction of unsent attachments), `digitva-y4ly` (leave dialog after a
+  resume with nothing edited).
 
 - Releases from `7b7412950`, pinned in `docker-compose.yml` for the server
   image: Collect `android-v0.3.24` (arm64 `cf6bc738…4c3a`), Collect Plus

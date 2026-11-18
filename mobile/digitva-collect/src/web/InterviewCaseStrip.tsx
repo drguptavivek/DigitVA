@@ -1,8 +1,9 @@
-import { StyleSheet, Text, View, type ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
 import type { Prefill } from "../cases";
 import { t, type StringKey } from "../i18n";
 import { fontSize, useTheme } from "../theme";
+import { Chevron } from "./Chevron";
 
 const NBSP = " ";
 const DAY_MS = 86_400_000;
@@ -159,6 +160,8 @@ export interface InterviewCaseStripProps {
   saveStatus?: string | null;
   answers?: Record<string, unknown>;
   showLiveSummary?: boolean;
+  /** Back to collection, as a back arrow before the case ID (saves the vertical space of a button row). */
+  onBack?: () => void;
 }
 
 /**
@@ -175,6 +178,7 @@ export function InterviewCaseStrip({
   saveStatus,
   answers,
   showLiveSummary,
+  onBack,
 }: InterviewCaseStripProps) {
   const theme = useTheme();
   const isLiveMode = Boolean(showLiveSummary || uniqueId || locationLabel || saveStatus || answers);
@@ -196,7 +200,7 @@ export function InterviewCaseStrip({
   }
 
   const metaParts = [uniqueId ? t("interviewCaseId", { id: uniqueId }) : null, locationLabel].filter(Boolean);
-  const hasHeader = Boolean(metaParts.length > 0 || saveStatus);
+  const hasHeader = Boolean(metaParts.length > 0 || saveStatus || onBack);
   const summaryText = formatLiveCaseSummary(prefill, answers).join(" · ");
 
   return (
@@ -209,9 +213,23 @@ export function InterviewCaseStrip({
       <View style={[styles.chip, { backgroundColor: theme.colors.surfaceMuted, borderColor: theme.colors.border }]}>
         {hasHeader ? (
           <View style={styles.headerRow}>
-            <Text testID="interview-case-meta" style={[styles.metaText, { color: theme.colors.text }]}>
-              {metaParts.join(" · ")}
-            </Text>
+            <View style={styles.metaGroup}>
+              {onBack ? (
+                <Pressable
+                  testID="interview-back-to-collection"
+                  accessibilityRole="button"
+                  accessibilityLabel={t("backToCollection")}
+                  hitSlop={10}
+                  onPress={onBack}
+                  style={styles.back}
+                >
+                  <Chevron expanded={false} direction="left" size={22} color={theme.colors.text} />
+                </Pressable>
+              ) : null}
+              <Text testID="interview-case-meta" style={[styles.metaText, { color: theme.colors.text }]}>
+                {metaParts.join(" · ")}
+              </Text>
+            </View>
             {saveStatus ? (
               <Text testID="interview-save-status" style={[styles.saveText, { color: theme.colors.textMuted }]}>
                 {saveStatus}
@@ -248,6 +266,8 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
+  metaGroup: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 },
+  back: { marginLeft: -6, padding: 2, borderRadius: 6 },
   metaText: { fontSize: fontSize.body, lineHeight: 20, fontWeight: "600" },
   saveText: { fontSize: fontSize.body, lineHeight: 20 },
   text: { fontSize: fontSize.body, lineHeight: 20 },

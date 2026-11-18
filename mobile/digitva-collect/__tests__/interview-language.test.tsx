@@ -793,7 +793,9 @@ it("does not create a draft when a served definition resolves after unmount", as
 
 describe("leave guard of an open interview", () => {
   const backButton = (tree: ReturnType<typeof create>) =>
-    tree.root.findAll((node) => String(node.type) === "mock-button" && node.props.label === t("backToCollection"))[0];
+    // The case strip's back arrow, or the plain button when no strip is shown.
+    tree.root.findAll((node) => typeof node.props.onPress === "function" && (node.props.testID === "interview-back-to-collection" ||
+      (String(node.type) === "mock-button" && node.props.label === t("backToCollection"))))[0];
   async function openEdited(edit = true) {
     let tree!: ReturnType<typeof create>;
     await act(async () => { tree = create(<InterviewScreen />); });
@@ -834,7 +836,6 @@ describe("leave guard of an open interview", () => {
     const {tree} = await openEdited(false);
     expect(backButton(tree)).toBeDefined();
     const labels = tree.root.findAll((node) => String(node.type) === "mock-button").map((node) => node.props.label);
-    expect(labels).toContain(t("backToCollection"));
     expect(labels).not.toContain(t("save"));
     await act(async () => tree.unmount());
   });

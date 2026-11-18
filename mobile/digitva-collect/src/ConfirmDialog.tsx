@@ -25,7 +25,8 @@ export function ConfirmDialog({
   title: string;
   message: string;
   confirmLabel: string;
-  cancelLabel?: string;
+  /** null: a notice with one button (confirmLabel), e.g. OK. */
+  cancelLabel?: string | null;
   destructive?: boolean;
   confirmDisabled?: boolean;
   /** Extra content under the message, e.g. a typed-confirmation field. */
@@ -41,7 +42,7 @@ export function ConfirmDialog({
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return undefined;
-    const timer = setTimeout(() => cancelRef.current?.focus?.(), 0);
+    const timer = setTimeout(() => (cancelRef.current ?? confirmRef.current)?.focus?.(), 0);
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -49,7 +50,7 @@ export function ConfirmDialog({
       } else if (event.key === "Tab") {
         event.preventDefault();
         const onCancelButton = document.activeElement === (cancelRef.current as unknown);
-        (onCancelButton ? confirmRef : cancelRef).current?.focus?.();
+        ((onCancelButton ? confirmRef : cancelRef).current ?? confirmRef.current)?.focus?.();
       }
     };
     document.addEventListener("keydown", onKey);
@@ -73,9 +74,11 @@ export function ConfirmDialog({
           <Text style={[s.message, typography.subhead, { color: colors.textMuted }]}>{message}</Text>
           {children}
           <View style={s.actions}>
-            <View ref={cancelRef as never}>
-              <Button kind="secondary" label={cancelLabel} onPress={onCancel} />
-            </View>
+            {cancelLabel === null ? null : (
+              <View ref={cancelRef as never}>
+                <Button kind="secondary" label={cancelLabel} onPress={onCancel} />
+              </View>
+            )}
             <View ref={confirmRef as never}>
               <Button kind={destructive ? "danger" : "primary"} label={confirmLabel} disabled={confirmDisabled} onPress={onConfirm} />
             </View>

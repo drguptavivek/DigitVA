@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ApiError } from "./api";
 import { APP_VERSION } from "./appVersion";
 import { outdatedBrowser } from "./browserSupport";
+import { OutdatedBrowserNotice } from "./OutdatedBrowserNotice";
 import { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
 import { describeError, recordError } from "./errorLog";
 import { Icon, icons, type IconName } from "./Icon";
@@ -76,10 +77,13 @@ export function Screen({
   }
   const widen = wide ? { maxWidth: "100%" as const } : null;
   // With the title in the phone bar, the page keeps only the header action (right-aligned), or no title row at all.
+  // An outdated browser's warning icon sits just left of the screen's own action (the language button).
+  const notice = Platform.OS === "web" && outdatedBrowser() ? <OutdatedBrowserNotice /> : null;
+  const actions = notice ? <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>{notice}{headerAction}</View> : headerAction;
   const titleNode = shell.titleInBar ? (
-    headerAction ? (
+    actions ? (
       <View style={[screenStyles.titleWrap, widen]}>
-        <View style={[screenStyles.titleBar, { justifyContent: "flex-end" }]}>{headerAction}</View>
+        <View style={[screenStyles.titleBar, { justifyContent: "flex-end" }]}>{actions}</View>
       </View>
     ) : null
   ) : (
@@ -88,7 +92,7 @@ export function Screen({
         <Text ref={titleRef} style={[screenStyles.title, { color: theme.colors.text }]} accessibilityRole="header">
           {title}
         </Text>
-        {headerAction}
+        {actions}
       </View>
     </View>
   );
@@ -137,11 +141,6 @@ export function Screen({
           accessibilityRole="alert"
         >
           {t("debugWarning")}
-        </Text>
-      ) : null}
-      {Platform.OS === "web" && outdatedBrowser() ? (
-        <Text style={[screenStyles.debug, { backgroundColor: theme.colors.warning, color: theme.colors.onAccent }]} accessibilityRole="alert">
-          {t("outdatedBrowserWarning")}
         </Text>
       ) : null}
       {!sidebar && !scroll ? titleNode : null}

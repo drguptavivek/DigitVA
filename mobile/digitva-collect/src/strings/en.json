@@ -57,6 +57,7 @@
   "csrfRefreshed": "Your session security token was refreshed. Please try again.",
   "serverValidation": "Check the highlighted fields and try again.",
   "debugWarning": "Debug build: do not collect real interviews.",
+  "outdatedBrowserTitle": "Browser out of date",
   "outdatedBrowserWarning": "This browser is out of date, so some screens may not work properly. Update iOS (Settings › General › Software Update) or Chrome.",
   "enrolTitle": "Enrol this device",
   "enrolHint": "Scan the enrolment QR code from the DigitVA Devices page.",

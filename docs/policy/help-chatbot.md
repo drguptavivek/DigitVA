@@ -3,7 +3,7 @@ title: Help Chatbot and How-Do-I Corpus Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-19
 ---
 
 # Help Chatbot and How-Do-I Corpus Policy
@@ -52,16 +52,17 @@ typo-tolerant title and keyword matches. It does not use a language model.
   This step is not built yet. The existing `redact_quoted` in
   `app/services/ai_analytics_sandbox.py` only strips quoted values from SQL
   errors and does not cover this.
-- The chatbot uses the same provider and model configuration as AI analytics
-  questions (`docs/policy/ai-analytics-questions.md`). It is off when no
-  provider is configured.
+- **No paid model API (owner 2026-11-19).** A question must not spend API
+  tokens. Answers come from a small language model running on the
+  DigitVA server's CPU or on the user's device (an edge model), or from
+  retrieval alone. This replaces the 2026-11-06 decision to reuse the AI
+  analytics provider. The model choice and where it runs are still open.
 
 ## Limits and logging
 
-- Rate limited per user. The monthly cost cap is an admin setting per
-  deployment, with no fixed default amount; until an admin sets it, the
-  chatbot stays off. When the cap is reached, the chatbot is switched off
-  for the rest of the month and points to the help pages.
+- Rate limited per user, so a local model cannot be overloaded. The
+  monthly cost cap (an admin setting) no longer applies: with no paid API
+  there is no per-question cost (2026-11-19).
 - The log keeps the time, the user, the corpus entries cited and whether an
   answer was given. Question text is kept for 30 days, then deleted. It is
   used to find gaps in the corpus.
@@ -106,7 +107,8 @@ typo-tolerant title and keyword matches. It does not use a language model.
 
 ## Owner decisions, 2026-11-06
 
-- Provider: the one configured for AI analytics questions.
-- Cost cap: an admin setting per deployment.
+- Provider: ~~the one configured for AI analytics questions~~ superseded
+  2026-11-19: a CPU or edge small model, no paid API.
+- Cost cap: dropped 2026-11-19 (no paid API).
 - Surfaces: web app only.
 - Question text: kept 30 days, then deleted.

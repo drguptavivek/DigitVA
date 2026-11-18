@@ -268,10 +268,57 @@ async function downloadedDefinition(
   return { kind: "downloaded", value };
 }
 
-/** Copy a verified definition and narrow only the project-specific narration-language choices. */
+/** A project narration language (form-options `narration_languages`: `mas_languages` code and name). */
+export type InterviewLanguage = { code: string; label: string };
+
+/**
+ * Each narration language's own name in its own script, shown as "Hindi (हिन्दी)" on the Interview language
+ * question. ponytail: fixed list of the `mas_languages` codes in use; a new code shows its English name until
+ * added here (or until `mas_languages` carries a native name).
+ */
+const NATIVE_LANGUAGE_NAMES: Readonly<Record<string, string>> = {
+  assamese: "অসমীয়া",
+  bangla: "বাংলা",
+  gujarati: "ગુજરાતી",
+  hindi: "हिन्दी",
+  kannada: "ಕನ್ನಡ",
+  malayalam: "മലയാളം",
+  marathi: "मराठी",
+  odia: "ଓଡ଼ିଆ",
+  punjabi: "ਪੰਜਾਬੀ",
+  tamil: "தமிழ்",
+  telugu: "తెలుగు",
+  urdu: "اردو",
+};
+
+/**
+ * Offer the project's Narration languages setting on the WHO "Interview language" question (`language`), on the
+ * web form and in Collect / Collect Plus (owner decision 2026-11-18, digitva-te2a). The bundled definition lists
+ * only English as `en`, the value every interview so far saved, so `en` stays and the narration list's own
+ * `english` is not added beside it.
+ */
+export function addInterviewLanguages(copy: InstrumentDefinition, languages: readonly InterviewLanguage[] = []): void {
+  const question = copy.questions.find((item) => item.name === "language");
+  if (!question) return;
+  const choices = [...(question.choices ?? [])];
+  const hasEnglish = choices.some((choice) => choice.value === "en");
+  for (const language of languages) {
+    if (!language.code?.trim() || (hasEnglish && language.code === "english")) continue;
+    if (choices.some((choice) => choice.value === language.code)) continue;
+    const english = language.label || language.code;
+    const native = NATIVE_LANGUAGE_NAMES[language.code];
+    // languageChoiceLabel reads the label keyed by the choice's own value as the native name.
+    choices.push({ value: language.code, label: native ? { en: english, [language.code]: native } : { en: english }, sourceRow: 0 });
+  }
+  question.choices = choices;
+  if (question.validation) question.validation.choiceValues = choices.map((choice) => choice.value);
+}
+
+/** Copy a verified definition, narrow the narration-language choices and add the interview languages. */
 export function prepareProjectInstrument(
   definition: VerifiedFormDefinition,
   narrationLanguages: readonly string[],
+  interviewLanguages: readonly InterviewLanguage[] = [],
 ): InstrumentDefinition {
   if (
     !Array.isArray(narrationLanguages) ||
@@ -296,8 +343,8 @@ export function prepareProjectInstrument(
     if (question.validation)
       question.validation.choiceValues = choices.map((choice) => choice.value);
   }
-  // `definition` was compiled and verified before reaching this helper. The
-  // narration narrowing only removes choices, so it cannot invalidate the
-  // already-compiled expression graph.
+  addInterviewLanguages(copy, interviewLanguages);
+  // `definition` was compiled and verified before reaching this helper; the
+  // caller compiles the copy again (compilePreparedProjectInstrument).
   return copy;
 }

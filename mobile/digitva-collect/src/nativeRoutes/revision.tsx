@@ -210,6 +210,7 @@ async function resolveRevisionInstrument(
     request,
     cache,
     narrationLanguageCodes,
+    interviewLanguages: options.narration_languages ?? [],
     bundledLegacyDefinitions: [{
       instrument: bundled,
       instrumentVersion: bundled.version,

@@ -287,7 +287,11 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
   const projectOptions = useMemo(() => projectOptionsOf(intake?.context ?? []), [intake?.context]);
   const projectNames = useMemo(() => new Map(projectOptions.map((option) => [option.value, option.label])), [projectOptions]);
 
-  const directTargets = useMemo(() => directInterviewTargets(intake?.context ?? []), [intake?.context]);
+  // Within the page's Project filter, so the panel does not ask for a project the page already chose.
+  const directTargets = useMemo(
+    () => directInterviewTargets(intake?.context ?? []).filter((target) => !projectFilter || target.projectId === projectFilter),
+    [intake?.context, projectFilter],
+  );
   const [directOpen, setDirectOpen] = useState(false);
 
   /** Drafts and submitted interviews are whole lists (the caller's own, at most 200 each), so these filters are complete. */
@@ -395,6 +399,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
             {directOpen && directTargets.length > 0 ? (
               <DirectInterviewPanel
                 targets={directTargets}
+                projectFixed={Boolean(projectFilter)}
                 onStart={(target) => router.push({ pathname: interviewFormPath as never, params: { projectId: target.projectId, siteId: target.siteId, ...(target.orgUnitId ? { orgUnitId: target.orgUnitId } : {}) } })}
               />
             ) : null}

@@ -793,6 +793,7 @@ export default function Form() {
               request,
               cache,
               narrationLanguageCodes,
+              interviewLanguages: options.narration_languages ?? [],
               bundledLegacyDefinitions: [{
                 instrument: bundledInstrument,
                 instrumentVersion: bundledInstrument.version,
@@ -813,6 +814,7 @@ export default function Form() {
               request,
               cache,
               narrationLanguageCodes,
+              interviewLanguages: options.narration_languages ?? [],
               bundledOriginal: {
                 instrument: bundledInstrument,
                 instrumentVersion: bundledInstrument.version,

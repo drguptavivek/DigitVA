@@ -12,6 +12,7 @@ import {
 
 import { requestedUiLocale, setUiLocale, subscribeUiLanguages, t, uiLocale as resolvedUiLocale } from "./i18n";
 import { syncUiPacks } from "./uiPacks";
+import { stableAccessJson } from "./accessKey";
 import { trainingBootstrap } from "./training";
 import { getUiLocalePreference, setUiLocalePreference } from "./preferences";
 import { abortClientRequests, ApiError, requestClientJson, type ClientBootstrap } from "./client/api";
@@ -91,11 +92,13 @@ const Context = createContext<BrowserAppState | undefined>(undefined);
  * bootstrap object, so a tab resume or refusal reload must keep the old one; requests take the
  * newest token from the API module, not from this snapshot.
  */
-function sameBootstrap(previous: ClientBootstrap | undefined, next: ClientBootstrap): boolean {
+export function sameBootstrap(previous: ClientBootstrap | undefined, next: ClientBootstrap): boolean {
   if (!previous) return false;
   const { csrf: _previousCsrf, ...previousRest } = previous;
   const { csrf: _nextCsrf, ...nextRest } = next;
-  return JSON.stringify(previousRest) === JSON.stringify(nextRest);
+  // Without stableAccessJson every re-read (Safari's pageshow/visibilitychange) differs by server_time and
+  // re-initialises the open interview: the welcome card returns and unsent answers are lost (digitva-te2a).
+  return stableAccessJson(previousRest) === stableAccessJson(nextRest);
 }
 
 export function AppStateProvider({ children }: { children: ReactNode }) {

@@ -3,7 +3,9 @@ import type { InstrumentDefinition, WhoVaDraft } from "@drguptavivek/who-2022-va
 import {
   FormDefinitionError,
   downloadCurrentDefinition,
+  addInterviewLanguages,
   prepareProjectInstrument,
+  type InterviewLanguage,
   type DefinitionIdentity,
   type DefinitionRequest,
   type VerifiedFormDefinition,
@@ -120,6 +122,8 @@ export interface ResolveNewInterviewDefinitionInput {
   request: DefinitionRequest;
   cache: DefinitionCache;
   narrationLanguageCodes: readonly string[];
+  /** The project's questionnaire languages, offered on "Interview language" (ODK parity). */
+  interviewLanguages?: readonly InterviewLanguage[];
   bundledOriginal: BundledDefinitionCompatibility;
   canUseBundledFallback(): Promise<boolean>;
   onServedDefinition(): Promise<void>;
@@ -153,7 +157,7 @@ export async function resolveNewInterviewDefinition(
   if (cached) {
     assertExtensions(cached, options.extensions);
     await input.onServedDefinition();
-    return served(cached, input.narrationLanguageCodes);
+    return served(cached, input.narrationLanguageCodes, undefined, input.interviewLanguages);
   }
 
   let downloaded;
@@ -186,12 +190,12 @@ export async function resolveNewInterviewDefinition(
   assertExtensions(downloaded.value, options.extensions);
   await input.cache.put(downloaded.value);
   await input.onServedDefinition();
-  return served(downloaded.value, input.narrationLanguageCodes);
+  return served(downloaded.value, input.narrationLanguageCodes, undefined, input.interviewLanguages);
 }
 
 async function bundled(input: ResolveNewInterviewDefinitionInput): Promise<ResolvedInstrument> {
   return {
-    instrument: await prepareBundledInstrument(input.bundledOriginal.instrument, input.narrationLanguageCodes),
+    instrument: await prepareBundledInstrument(input.bundledOriginal.instrument, input.narrationLanguageCodes, input.interviewLanguages),
     provenance: "bundled-original",
     pin: null,
   };
@@ -210,6 +214,8 @@ export interface ResolveSavedEnvelopeDefinitionInput {
   request: DefinitionRequest;
   cache: DefinitionCache;
   narrationLanguageCodes: readonly string[];
+  /** The project's questionnaire languages, offered on "Interview language" (ODK parity). */
+  interviewLanguages?: readonly InterviewLanguage[];
   bundledLegacyDefinitions: readonly BundledLegacyDefinition[];
   legacyDefinitionExtensions?: readonly string[];
   /**
@@ -278,7 +284,7 @@ export async function resolveSavedEnvelopeDefinition(
         fallback.instrumentVersion === envelope.instrumentVersion
       ) {
         return {
-          instrument: await prepareBundledInstrument(fallback.instrument, input.narrationLanguageCodes),
+          instrument: await prepareBundledInstrument(fallback.instrument, input.narrationLanguageCodes, input.interviewLanguages),
           provenance: "bundled-original",
           pin: null,
         };
@@ -287,7 +293,7 @@ export async function resolveSavedEnvelopeDefinition(
       throw new PinnedDefinitionError("unknown_saved_definition");
     }
     return {
-      instrument: await prepareBundledInstrument(legacy.instrument, input.narrationLanguageCodes),
+      instrument: await prepareBundledInstrument(legacy.instrument, input.narrationLanguageCodes, input.interviewLanguages),
       provenance: "bundled-original",
       pin: null,
     };
@@ -314,17 +320,18 @@ export async function resolveSavedEnvelopeDefinition(
     value = downloaded.value;
     await input.cache.put(value);
   }
-  return served(value, input.narrationLanguageCodes, pin);
+  return served(value, input.narrationLanguageCodes, pin, input.interviewLanguages);
 }
 
 async function served(
   value: VerifiedFormDefinition,
   narrationLanguageCodes: readonly string[],
   knownPin?: DefinitionPin,
+  interviewLanguages?: readonly InterviewLanguage[],
 ): Promise<ResolvedInstrument> {
   const extensions = readDefinitionExtensions(value);
   return {
-    instrument: await compilePreparedProjectInstrument(value, narrationLanguageCodes),
+    instrument: await compilePreparedProjectInstrument(value, narrationLanguageCodes, interviewLanguages),
     provenance: "served",
     pin: knownPin ?? Object.freeze({
       instrumentVersion: value.identity.composedVersion,
@@ -337,8 +344,9 @@ async function served(
 async function compilePreparedProjectInstrument(
   value: VerifiedFormDefinition,
   narrationLanguageCodes: readonly string[],
+  interviewLanguages?: readonly InterviewLanguage[],
 ): Promise<InstrumentDefinition> {
-  const copy = prepareProjectInstrument(value, narrationLanguageCodes);
+  const copy = prepareProjectInstrument(value, narrationLanguageCodes, interviewLanguages);
   try {
     const whoRuntime = await loadWhoCoreRuntime();
     whoRuntime.compileInstrumentDefinition(copy);
@@ -351,6 +359,7 @@ async function compilePreparedProjectInstrument(
 async function prepareBundledInstrument(
   definition: InstrumentDefinition,
   narrationLanguageCodes: readonly string[],
+  interviewLanguages?: readonly InterviewLanguage[],
 ): Promise<InstrumentDefinition> {
   if (narrationLanguageCodes.some((code) => typeof code !== "string" || !code.trim())) {
     throw new FormDefinitionError("invalid_narration_languages");
@@ -364,6 +373,7 @@ async function prepareBundledInstrument(
     question.choices = choices;
     if (question.validation) question.validation.choiceValues = choices.map((choice) => choice.value);
   }
+  addInterviewLanguages(copy, interviewLanguages);
   try {
     const whoRuntime = await loadWhoCoreRuntime();
     whoRuntime.compileInstrumentDefinition(copy);

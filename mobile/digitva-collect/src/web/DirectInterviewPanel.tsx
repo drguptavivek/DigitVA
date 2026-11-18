@@ -124,7 +124,7 @@ function SelectField({ label, placeholder, options, value, onSelect }: {
  * it. A single choice is picked automatically; Start stays disabled until both
  * are known.
  */
-export function DirectInterviewPanel({ targets, onStart }: { targets: DirectInterviewTarget[]; onStart: (target: DirectInterviewTarget) => void }) {
+export function DirectInterviewPanel({ targets, onStart, projectFixed = false }: { targets: DirectInterviewTarget[]; onStart: (target: DirectInterviewTarget) => void; projectFixed?: boolean }) {
   const s = usePickerStyles();
   const [chosenProject, setChosenProject] = useState<string>();
   const [chosenTarget, setChosenTarget] = useState<string>();
@@ -140,13 +140,16 @@ export function DirectInterviewPanel({ targets, onStart }: { targets: DirectInte
   const target = places.find((place) => place.key === chosenTarget) ?? (places.length === 1 ? places[0] : undefined);
   return (
     <View style={s.panel}>
-      <SelectField
-        label={t("interviewProject")}
-        placeholder={t("chooseProject")}
-        options={projects}
-        value={projectId}
-        onSelect={(next) => { setChosenProject(next); setChosenTarget(undefined); }}
-      />
+      {/* The page's Project filter already chose and names the project: no second picker. */}
+      {!projectFixed ? (
+        <SelectField
+          label={t("interviewProject")}
+          placeholder={t("chooseProject")}
+          options={projects}
+          value={projectId}
+          onSelect={(next) => { setChosenProject(next); setChosenTarget(undefined); }}
+        />
+      ) : null}
       {projectId ? (
         <SelectField
           label={t("interviewPlace")}

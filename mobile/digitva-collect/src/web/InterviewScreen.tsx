@@ -454,6 +454,7 @@ export default function InterviewScreen() {
         request,
         cache: currentDefinitionCache,
         narrationLanguageCodes: narrationLanguageCodes(formOptions),
+        interviewLanguages: formOptions.narration_languages ?? [],
         bundledOriginal: {
           instrument: bundled,
           instrumentVersion: bundled.version,
@@ -550,6 +551,7 @@ export default function InterviewScreen() {
           request,
           cache: currentDefinitionCache,
           narrationLanguageCodes: narrationLanguageCodes(options),
+          interviewLanguages: options.narration_languages ?? [],
           bundledLegacyDefinitions: [],
           bundledOriginal: {
             instrument: bundledFallback,
@@ -762,6 +764,9 @@ export default function InterviewScreen() {
   }
 
   // A best-effort save as the page unloads; the navigation guard owns the browser's leave prompt.
+  // Not on visibilitychange/pagehide: iOS Safari freezes a request started as the screen locks, and the
+  // frozen write blocks the save queue ("Saving…", the leave prompt) until its 30 s timeout (digitva-te2a).
+  // Autosave already writes 600 ms after each change.
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const handleBeforeUnload = () => {

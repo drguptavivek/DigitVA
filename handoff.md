@@ -31,16 +31,10 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Ranked next steps
 
-0. iOS Safari (`digitva-te2a`, open until checked on staging with the next
-   web export): the interview no longer resets on screen lock (in
-   `c7e473ab8`); not yet deployed: saved-section count from the draft
-   total, phone tab bar hidden while a field has focus and on `/interview`
-   (Back to collection is now the arrow before the Case ID), `.at()` /
-   `Object.hasOwn` polyfill for iOS 15.0-15.3, web intake page keepalive
-   only for the unload save. The back arrow's Save and leave works on the
-   simulator; the leave dialog opens after a resume with nothing edited
-   (`digitva-y4ly`). Attachment
-   eviction after 7 days in Safari: `digitva-fllj`, unverified.
+0. Leave dialog after a save with nothing pending (`digitva-y4ly`, P2):
+   every Back to collection asks "not finished saving" on staging too.
+   iPhone 17e wraps "VA Interview" onto two lines in the bottom bar.
+   Attachment eviction after 7 days in Safari: `digitva-fllj`, unverified.
    Earlier phone coding checks on 0.3.24 (real phone) still open.
 1. Training (`digitva-9qer`, `digitva-q3iu`): owner supplies
    `app/services/training_corpus/english_v1.txt`; Maestro flows 96–98 need a

@@ -5,6 +5,20 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-18
 
+- iOS Safari interviews (`7ed274698`, `digitva-te2a`): the web app no longer
+  treats a `/me/access` re-read that differs only by `server_time` as a new
+  session, so a screen lock or app switch no longer re-initialises the open
+  interview ("Before you begin" again, unsent answers dropped). Saving on
+  `visibilitychange`/`pagehide` was rejected: Safari freezes that request and
+  it holds the save queue until its 30 s timeout. Direct VA interview follows
+  the page's Project filter. The WHO "Interview language" question offers the
+  project's Narration languages (native script, `en` kept for English) on the
+  web, Collect and Collect Plus; the ODK form is unchanged (owner: ignore ODK
+  for now).
+- Collect 0.3.25 (`4926c6ea4`). Web export `expo-web-v2026.11.18.2`
+  (`eab2be4e…6946`, checksum verified after download) pinned for the server
+  image; the APK pins stay at 0.3.24 until the 0.3.25 builds finish.
+
 - Releases from `7b7412950`, pinned in `docker-compose.yml` for the server
   image: Collect `android-v0.3.24` (arm64 `cf6bc738…4c3a`), Collect Plus
   `collect-plus-v0.3.24-plus.1` (prerelease, `ad3e6f6c…0def`), web export

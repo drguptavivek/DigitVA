@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-19
 ---
 
 # Expo Client Hosting And Access
@@ -1201,14 +1201,14 @@ the device while unenrolled.
   `src/icd11DorisPreference.ts` decides the default once: plain Collect reads a missing
   preference as enabled and answered (no first-launch gate; an explicit stored off wins),
   Collect Plus reads it as off and unanswered, so `NativeIcd11DorisFirstLaunchGate` asks, rendering only the prompt (children unmounted) until answered.
-- **React ICD-11 picker (digitva-9cll.2, 2026-10-29).** In the Collect Plus
-  build only (`isPlusVariant()`), `IcdPickerModal` renders
-  `src/workspace/doris/picker/IcdPicker.tsx` instead of `IcdPickerFrame`, for
-  online and offline coding. No WebView, iframe or Bootstrap; it uses the DORIS
+- **React ICD-11 picker (digitva-9cll.2, 2026-10-29).** In every variant
+  (Collect, Collect Plus, browser build; 2026-11-19), `IcdPickerModal` renders
+  `src/workspace/doris/picker/IcdPicker.tsx`; `IcdPickerFrame` and
+  `react-native-webview` are gone. No WebView, iframe or Bootstrap; it uses the DORIS
   kit and `theme.ts` tokens (light/dark). It speaks the web page's message
   protocol to `pickerBridge.ts`, so `WorkspaceApi` and the guidance routes are
-  the only data path and the verification rule is unchanged. Plain Collect and
-  the Expo web build keep the shared web page. Only final codes can be used: a
+  the only data path and the verification rule is unchanged. The server's
+  `doris_picker_host.html` remains only for older APKs. Only final codes can be used: a
   category opens its hierarchy and an extension code is marked, with no Use or
   Build (`digitva-9cll.12`). Details:
   [DORIS COD Workflow](doris-cod-workflow.md).

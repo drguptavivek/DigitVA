@@ -4,26 +4,24 @@ import type { JsonValue, WorkspaceIdentity } from "../contracts";
 import { dorisGuidance } from "./guidance";
 
 /**
- * Bridge between the shared ICD-11 picker page (app/static/doris_picker_host.html,
- * shown in an iframe on the browser build and a WebView on native) and the
- * authenticated workspace client. The page only sends `{path, body}` and gets
+ * Bridge between the React ICD-11 picker (picker/IcdPicker.tsx, every app variant) and the
+ * authenticated workspace client. The picker only sends `{path, body}` and gets
  * JSON or `{code, message, status}` back: it never receives a token, a cookie
  * or the case id, and only a code the server verified with selection-check can
- * be handed to the certificate.
+ * be handed to the certificate. (The server's app/static/doris_picker_host.html
+ * speaks the same messages for older APKs; this app no longer loads it.)
  */
 
-/** The shared picker page, served by the DigitVA server next to the web app's own assets. */
-export const PICKER_PAGE_PATH = "/static/doris_picker_host.html";
-
-/**
- * Page URL with the theme and, in high contrast, `contrast=more` only. The search term travels in the init message, never
- * in the URL: it can describe the deceased and URLs land in server logs.
- */
-export function pickerPageUrl(theme: PickerInit["theme"], highContrast?: boolean): string {
-  return `${PICKER_PAGE_PATH}?theme=${theme === "dark" ? "dark" : "light"}${highContrast ? "&contrast=more" : ""}`;
+/** Props of the picker view: what the modal hands it besides the bridge-owned replies. */
+export interface PickerFrameProps {
+  init: PickerInit;
+  /** Certificate revision; the picker drops replies that predate a change. */
+  revision: number;
+  onMessage: (message: unknown, reply: (message: object) => void) => void;
+  onClose?: () => void;
 }
 
-/** What the page needs to show; ids, tokens and the case are never part of it. */
+/** What the picker needs to show; ids, tokens and the case are never part of it. */
 export interface PickerInit {
   title: string;
   /** `#rrggbb` shade of the certificate line being searched. */
@@ -33,9 +31,9 @@ export interface PickerInit {
   query?: string;
   /** Confirming a final cause rather than adding a line condition. */
   finalMode?: boolean;
-  /** App colour mode; the page is also told through `?theme=` so it renders right before init arrives. */
+  /** App colour mode. */
   theme?: "light" | "dark";
-  /** High contrast is on: the page switches to the neutral-grey palette (`?contrast=more`). */
+  /** High contrast is on: the picker switches to the neutral-grey palette. */
   highContrast?: boolean;
 }
 

@@ -26,7 +26,7 @@ jest.mock("@drguptavivek/who-2022-va/native", () => {
 });
 
 const mockFrame: { props: any } = { props: null };
-jest.mock("../src/workspace/doris/IcdPickerFrame", () => ({ IcdPickerFrame: (props: any) => { mockFrame.props = props; return null; } }));
+jest.mock("../src/workspace/doris/picker/IcdPicker", () => ({ IcdPicker: (props: any) => { mockFrame.props = props; return null; } }));
 
 import { ui } from "../src/theme";
 import type { JsonRequester, WorkspaceApi } from "../src/workspace/api";

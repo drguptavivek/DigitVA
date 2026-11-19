@@ -3,7 +3,7 @@ title: DORIS Editor UI Tokens
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-11-19
 ---
 
 # DORIS Editor UI Tokens
@@ -35,7 +35,7 @@ only for remove/delete.
 | Expo primitives | `mobile/digitva-collect/src/workspace/doris/ui/index.tsx` |
 | Expo composites (SearchBox, ChipChoice, IntervalField, Warn) | `mobile/digitva-collect/src/workspace/doris/compact.tsx` |
 | Flask editor and picker | `app/static/css/doris_demo.css` (custom properties scoped to `.doris-clinical-editor`, `#doris-demo-app`, `.doris-search-modal-open`, `.doris-search-backdrop`, `.doris-related-window`) |
-| Picker in the Expo iframe/WebView | `app/static/doris_picker_host.html` (`?theme=dark|light` sets `data-bs-theme`) |
+| Picker in the Expo app (all variants) | `mobile/digitva-collect/src/workspace/doris/picker/IcdPicker.tsx` (`useUi()` tokens). Older APKs still load `app/static/doris_picker_host.html` (`?theme=dark|light` sets `data-bs-theme`) |
 
 Dark mode: Expo follows `useTheme().mode`; Flask follows
 `[data-bs-theme="dark"]` on `<html>` or on the editor element.

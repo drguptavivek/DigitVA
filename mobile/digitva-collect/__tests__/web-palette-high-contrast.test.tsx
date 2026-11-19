@@ -4,7 +4,6 @@ import { Text } from "react-native";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 
 import { uiHighContrast, ui, __setDisplayForTest } from "../src/theme";
-import { pickerPageUrl } from "../src/workspace/doris/pickerBridge";
 import { useWebPalette, webPalette, webPaletteHighContrast, type WebPalette } from "../src/workspace/webPalette";
 
 let seen!: WebPalette;
@@ -34,10 +33,4 @@ it("selected category and DEMO badge match the phone in both modes", () => {
   for (const mode of ["light", "dark"] as const) {
     expect(webPalette[mode]).toMatchObject({ selected: ui[mode].primary, onSelected: ui[mode].primaryForeground, demo: ui[mode].warning, onDemo: ui[mode].warningForeground });
   }
-});
-
-it("the picker page URL adds contrast=more only in high contrast", () => {
-  expect(pickerPageUrl("dark")).toBe("/static/doris_picker_host.html?theme=dark");
-  expect(pickerPageUrl("light", false)).toBe("/static/doris_picker_host.html?theme=light");
-  expect(pickerPageUrl("dark", true)).toBe("/static/doris_picker_host.html?theme=dark&contrast=more");
 });

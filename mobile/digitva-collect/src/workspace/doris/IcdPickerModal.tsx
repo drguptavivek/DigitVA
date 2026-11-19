@@ -2,12 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { Modal, View } from "react-native";
 
 import type { JsonRequester, WorkspaceApi } from "../api";
-import { isPlusVariant } from "../../appVariant";
 import { useTheme } from "../../theme";
 import type { WorkspaceIdentity } from "../contracts";
-import { IcdPickerFrame, type PickerFrameProps } from "./IcdPickerFrame";
 import { IcdPicker } from "./picker/IcdPicker";
-import { createPickerBridge, type PickerChoice, type PickerInit } from "./pickerBridge";
+import { createPickerBridge, type PickerChoice, type PickerFrameProps, type PickerInit } from "./pickerBridge";
 
 export interface IcdPickerModalProps {
   init: PickerInit;
@@ -25,8 +23,8 @@ export interface IcdPickerModalProps {
 }
 
 /**
- * Full-screen host for the ICD-11 picker. The Collect Plus build shows the React picker (same bridge, same messages,
- * so online and offline coding use one path); plain Collect and the browser build keep the shared web page.
+ * Full-screen host for the ICD-11 picker. Every variant (Collect, Collect Plus, the browser build) shows the React
+ * picker over the same bridge; no WebView or web page is involved.
  */
 export function IcdPickerModal(props: IcdPickerModalProps) {
   const latest = useRef(props);
@@ -57,10 +55,8 @@ export function IcdPickerModal(props: IcdPickerModalProps) {
   return (
     <Modal visible transparent animationType="slide" supportedOrientations={["portrait", "landscape"]} onRequestClose={close}>
       <View style={{ flex: 1, backgroundColor: scrim }}>
-        {isPlusVariant()
-          // A rebuilt bridge never answers what the old one owed, so the React picker is told to start over.
-          ? <IcdPicker init={props.init} revision={props.revision} generation={props.requestGeneration ?? 0} onClose={close} onMessage={onMessage} />
-          : <IcdPickerFrame init={props.init} revision={props.revision} onClose={close} onMessage={onMessage} />}
+        {/* A rebuilt bridge never answers what the old one owed, so the picker is told to start over. */}
+        <IcdPicker init={props.init} revision={props.revision} generation={props.requestGeneration ?? 0} onClose={close} onMessage={onMessage} />
       </View>
     </Modal>
   );

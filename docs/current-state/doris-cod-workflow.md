@@ -463,10 +463,10 @@ maps logical route names (`terms`, `codeinfo`, `selection-check`,
 globals, cookies or dataset values. `doris_demo.js` and `doris_clinical.js`
 are ES module hosts loaded with `type="module"`; the clinical host owns the
 HTMX close hook. `doris_interval.js` is a separate module owned by the
-certificate line. The Expo app (browser and native) reuses the same picker
-through `app/static/doris_picker_host.html` and `digitva_icd11_embed.js`,
-shown in an iframe (browser build) or a WebView (native, from the enrolled
-server). That page holds no credentials: each WHO call is a `{path, body}`
+certificate line. The Expo app (every variant: Collect, Collect Plus, browser
+build) uses its own React picker (`picker/IcdPicker.tsx`), with no WebView or
+web page; `app/static/doris_picker_host.html` and `digitva_icd11_embed.js`
+stay on the server only for older APKs. The picker holds no credentials: each WHO call is a `{path, body}`
 message answered by `mobile/digitva-collect/src/workspace/doris/pickerBridge.ts`
 through the authenticated client, and only a code the server verified with
 selection-check reaches the certificate. The shared `renderResults` draws the

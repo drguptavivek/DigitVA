@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type DependencyList } from "react";
 
-import type { PickerFrameProps } from "../IcdPickerFrame";
-import type { PickerReply } from "../pickerBridge";
+import type { PickerFrameProps, PickerReply } from "../pickerBridge";
 import { t } from "../../../i18n";
 import { NON_LEAF_REFUSAL, NOT_FINAL_REFUSAL } from "./expression";
 

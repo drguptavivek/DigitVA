@@ -45,7 +45,7 @@ jest.mock("@drguptavivek/who-2022-va/native", () => {
 });
 
 const mockFrame: { props: any } = { props: null };
-jest.mock("../src/workspace/doris/IcdPickerFrame", () => ({ IcdPickerFrame: (props: any) => { mockFrame.props = props; return null; } }));
+jest.mock("../src/workspace/doris/picker/IcdPicker", () => ({ IcdPicker: (props: any) => { mockFrame.props = props; return null; } }));
 
 import * as viewState from "../src/workspace/viewState";
 import { activateBrowserDraft, clearBrowserDraft, DORIS_DRAFT_KEY, draftContext, readCodDraft, readPendingNote, saveCodDraft, savePendingNote } from "../src/workspace/doris/browserDraft";

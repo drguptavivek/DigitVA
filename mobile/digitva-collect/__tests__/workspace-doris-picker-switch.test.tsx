@@ -7,8 +7,6 @@ import { IcdPickerModal } from "../src/workspace/doris/IcdPickerModal";
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 const mockPlus = { value: false };
 jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlus.value }));
-const mockFrame: { props: any } = { props: null };
-jest.mock("../src/workspace/doris/IcdPickerFrame", () => ({ IcdPickerFrame: (props: any) => { mockFrame.props = props; return null; } }));
 
 const item = { code: "CA40", title: "Pneumonia", uri: "https://who.int/CA40", release: "2025-01", postcoordination: false, primary_stem: null };
 const term = { ...item, matching_text: "Pneumonia", postcoordination_availability: 0, related_maternal: false, related_perinatal: false, has_coding_note: false };
@@ -29,13 +27,10 @@ function mount(check?: () => Promise<unknown>) {
 const flat = (node: unknown): string => (node == null ? "" : typeof node === "string" ? node : Array.isArray(node) ? node.map(flat).join("") : flat((node as { children?: unknown }).children));
 const settle = async () => { for (let i = 0; i < 10; i++) await act(async () => { await Promise.resolve(); await Promise.resolve(); }); };
 
-beforeEach(() => { mockFrame.props = null; });
-
 test("the Collect Plus build shows the React picker, and a choice reaches the modal's owner only after the server verified it", async () => {
   mockPlus.value = true;
   const { api, handlers, tree } = mount();
   await settle();
-  expect(mockFrame.props).toBeNull();
   expect(flat(tree.toJSON())).toContain("CA40 — Pneumonia");
   // Tablets rotate: the modal must allow both orientations on iOS too (Android follows the activity).
   expect(tree.root.findByType(Modal).props.supportedOrientations).toEqual(["portrait", "landscape"]);
@@ -53,14 +48,13 @@ test("the Collect Plus build shows the React picker, and a choice reaches the mo
   expect(handlers.onClose).toHaveBeenCalledTimes(1);
 });
 
-test("plain Collect and the browser build keep the shared web picker page", async () => {
+test("plain Collect and the browser build show the same React picker, with no web page", async () => {
   mockPlus.value = false;
   const { api, tree } = mount();
   await settle();
-  expect(mockFrame.props).not.toBeNull();
-  expect(mockFrame.props.init.title).toBe("Immediate cause");
-  expect(flat(tree.toJSON())).not.toContain("Search a condition or ICD-11 code");
-  expect(api.searchDorisTerms).not.toHaveBeenCalled();
+  expect(flat(tree.toJSON())).toContain("CA40 — Pneumonia");
+  expect(tree.root.findAll((node) => node.type === "iframe" || String(node.type).includes("WebView"))).toHaveLength(0);
+  expect(api.searchDorisTerms).toHaveBeenCalledWith("sid-1", "pneu", { limit: 20 });
 });
 
 test("a rebuilt bridge (the host's request generation moved) cannot leave the React picker waiting for a reply that never comes", async () => {

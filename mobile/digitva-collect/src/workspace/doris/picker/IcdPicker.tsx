@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { DorisCodeInfoReply, DorisTermsReply } from "../../contracts";
 import type { DorisOption } from "../guidance";
-import type { PickerFrameProps } from "../IcdPickerFrame";
+import type { PickerFrameProps } from "../pickerBridge";
 import { AUTO_SEARCH_DELAY_MS, AUTO_SEARCH_MIN_CHARS } from "../compact";
 import { Alert, Button, Input, SectionTitle, font, gap, useUi } from "../ui";
 import { BuildCard, type BuildPreview } from "./BuildCard";

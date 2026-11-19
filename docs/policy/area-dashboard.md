@@ -330,7 +330,9 @@ project in the user's area, over the same scope `/area/` uses (any grant,
 viewing scope):
 
 - **Deaths reported**: cases in the death register, every source, minus
-  confirmed duplicates and cancelled cases.
+  confirmed duplicates and cancelled cases. An interview started directly
+  (no death registered first) still makes a register case and counts here
+  (owner 2026-11-19, `digitva-7amd.17`).
 - **Interviews done**: total VA submissions in scope, as `/area/` shows them.
 - **Coded**: submissions with a final COD.
 - **Interviews %** and **Coded %**: each as a percentage of deaths reported,

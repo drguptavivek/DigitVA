@@ -260,6 +260,7 @@
       Reviewer Cause of Death Ascertainment - Step 2
     </div>
     {# SmartVA is shown in the masked reviewer's Step 2 for ICD-10 and ICD-11 alike (digitva-0n3). #}
+    {% if project_mode != 'masked_doris' %}
     {% if smartva %}{% include "va_form_partials/_smartva_summary.html" %}{% endif %}
     <div class="card bg-light border-0 mb-4">
       <div class="card-body p-3">
@@ -286,9 +287,10 @@
         </div>
       </div>
     </div>
+    {% endif %}
     {% if project_mode == 'masked_doris' %}
     <input type="hidden" id="reviewer-conclusive-cod" name="conclusive_cod">
-    {% with masked_final_form_id='reviewerFinalCodForm', masked_final_cod_input='reviewer-conclusive-cod', va_antecedent_cod=va_reviewer_initial_assess.va_antecedent_cod, pre_conclusive_cod=(va_reviewer_final_assess.va_conclusive_cod if va_reviewer_final_assess else none) %}{% include "va_form_partials/_masked_doris_final_cod.html" %}{% endwith %}
+    {% with masked_final_form_id='reviewerFinalCodForm', masked_final_cod_input='reviewer-conclusive-cod', va_immediate_cod=va_reviewer_initial_assess.va_immediate_cod, va_antecedent_cod=va_reviewer_initial_assess.va_antecedent_cod, va_other_conditions=va_reviewer_initial_assess.va_other_conditions, pre_conclusive_cod=(va_reviewer_final_assess.va_conclusive_cod if va_reviewer_final_assess else none) %}{% include "va_form_partials/_masked_doris_final_cod.html" %}{% endwith %}
     <div class="text-danger small mt-1 d-none" id="reviewer-final-cod-error"></div>
     {% else %}
     <div class="row mb-4">

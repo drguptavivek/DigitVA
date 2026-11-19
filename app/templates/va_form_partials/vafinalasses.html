@@ -61,7 +61,7 @@
       hx-post="{{ url_for('va_form.renderpartial', va_sid=va_sid, va_partial='vafinalasses', action=va_action, actiontype=va_actiontype) }}"
       hx-target="#form-container2" hx-swap="innerHTML">
 
-      {% include "va_form_partials/_smartva_summary.html" %}
+      {% if project_mode != 'masked_doris' %}{% include "va_form_partials/_smartva_summary.html" %}{% endif %}
 
     {{ form.hidden_tag() }}
 
@@ -71,6 +71,7 @@
         Cause of Death Ascertainment - Step 2  
       </div>  
         
+      {% if project_mode != 'masked_doris' %}
       <div class="alert alert-light border mb-4">  
         <div class="d-flex">  
           <div class="me-2">  
@@ -141,6 +142,7 @@
       </div>
       {% endif %}
   
+      {% endif %}
       {% if project_mode == 'masked_doris' %}
         {% include "va_form_partials/_masked_doris_final_cod.html" %}
       {% else %}

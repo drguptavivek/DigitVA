@@ -14,16 +14,35 @@
          data-preset-final="{{ pre_conclusive_cod or '' }}"
          data-csrf="{{ csrf_token() }}">
   <div class="card-header bg-primary-subtle">
-    <h3 class="h5 mb-1">Final underlying cause of death <span class="text-danger">*</span></h3>
-    <p class="small mb-0">Use your Step 1 underlying cause, the SmartVA result, or your own code.</p>
+    <h3 class="h5 mb-1">Final underlying cause <span class="text-danger">*</span></h3>
     <button type="button" class="btn btn-sm btn-outline-secondary mt-2" data-bs-toggle="modal" data-bs-target="#{{ masked_final_form_id|default('finalAssessmentForm') }}-va-definitions" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>
   </div>
   <div class="card-body">
+    {# Collect's order: certificate, DORIS result, assigned causes, SmartVA, previous final, picker. #}
+    {% set _cert = step1_doris_certificate|default(none) %}
+    {% if _cert %}
+    {% set _part1 = _cert.get('Part1') or [] %}
+    {% set _part2 = (_cert.get('Part2') or {}).get('Conditions') or [] %}
+    {% macro _conditions(items, with_interval) %}{% for c in items %}<div class="small text-muted">{{ c.get('Text') or '' }}{% if c.get('Code') %} — {{ c.get('Code') }}{% endif %}{% if with_interval and c.get('Interval') %} ({{ c.get('Interval') }}){% endif %}</div>{% endfor %}{% endmacro %}
+    <div class="card bg-light border-0 mb-3" data-step1-certificate-card><div class="card-body p-3">
+      <h4 class="h6">Your Step 1 certificate</h4>
+      {% for line in _part1 %}<div class="mb-1"><div>Part I, line {{ loop.index }}</div>{{ _conditions(line.get('Conditions') or [], true) }}</div>{% endfor %}
+      {% if _part2 %}<div><div>Part II</div>{{ _conditions(_part2, false) }}</div>{% endif %}
+    </div></div>
+    {% endif %}
     <h4 class="h6">DORIS result from Step 1 (for information)</h4>
     <script type="application/json" data-step1-processing>{{ step1_doris_processing|default(none)|tojson }}</script>
     <script type="application/json" data-step1-certificate>{{ step1_doris_certificate|default(none)|tojson }}</script>
     <div class="border rounded p-3 mb-2 doris-summary" data-doris-summary>{% if not step1_doris_processing %}<p class="small text-muted mb-0">No DORIS result was saved with Step 1.</p>{% endif %}</div>
-    <p class="small mb-3">Your Step 1 underlying cause: <strong>{{ va_antecedent_cod or '-' }}</strong></p>
+    <div class="card bg-light border-0 mb-3" data-step1-assigned-card><div class="card-body p-3">
+      <h4 class="h6">Your Step 1 assigned causes</h4>
+      <div>Immediate cause: {{ va_immediate_cod or '-' }}</div>
+      <div>Step 1 underlying cause: {{ va_antecedent_cod or '-' }}</div>
+      <div>Other conditions: {{ va_other_conditions or '-' }}</div>
+    </div></div>
+    {% if smartva %}{% include "va_form_partials/_smartva_summary.html" %}{% endif %}
+    {% if pre_conclusive_cod %}<p class="small text-muted">Previously saved final: {{ pre_conclusive_cod }}</p>{% endif %}
+    <h4 class="h6">Choose and confirm the final underlying cause</h4>
 
     <div class="d-flex flex-wrap gap-2 mb-3">
       {% if va_antecedent_cod %}

@@ -262,7 +262,7 @@ document.addEventListener("DOMContentLoaded", function () {
     causes.replaceChildren();
     if (card.causes.hidden) {
       causes.appendChild(el("div", "text-muted",
-        "Shown once at least 20 deaths are coded in this area and period (" + card.causes.coded + " so far)."));
+        "Shown once at least 20 deaths are coded in this area and period (" + card.causes.coded + " coded in this period so far; the Final COD tile counts all time)."));
       return;
     }
     var table = el("table", "table table-sm mb-0");

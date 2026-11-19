@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-19
 
+- Narrative dictation tip (`digitva-kkdb` step 1): Id10476 shows "Tip: tap the
+  microphone on your keyboard to dictate (Hindi or English)" in English and
+  Hindi; composed definition `2026081401-56d5cad0da`, served-definition and
+  station fixtures re-signed. Statistics causes tile says its count is this
+  period's, not the all-time Final COD tile (`digitva-7amd.17`). Device checks
+  on release Collect Plus 0.3.25 closed `digitva-9cll.8` (offline DORIS demo)
+  and `digitva-bged` (offline picker and Build, airplane mode).
 - Roster sign-in codes (`digitva-42yo`): a deactivated account gets no code
   from the project roster, admin or not, so the endpoint agrees with the grid
   and person page that never showed the button. `digitva-sjts` closed as

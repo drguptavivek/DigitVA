@@ -3,7 +3,7 @@ title: Area Dashboard Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-08
+last_updated: 2026-11-19
 ---
 
 # Area Dashboard Policy
@@ -248,6 +248,9 @@ of the child rows, which leaves out cases on the selected unit itself), and:
   key on the flag, never on the English label; the Expo screen names the row
   "Other causes" itself and its caption says what the row holds (causes with
   fewer than 5 deaths, causes beyond the top ten, codes the scheme does not map).
+  When the table is hidden the card says how many deaths are coded in the
+  period so far; that count is the period's, by date of death, so it can
+  differ from the live all-time *Final COD* tile, and the text says so.
 
 ### Expo Statistics screen
 

@@ -7682,7 +7682,7 @@ mod tests {
             "show_guidance": false,
             "web_intake_mode": "both",
             "instrument_version": instrument::composed_version(),
-            "definition_sha256": "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d"
+            "definition_sha256": "eb8ac1b5ca65a09c607c5232f0a7296dc21576afa44e9e956ac4d1948b54c109"
         })
     }
 
@@ -8399,7 +8399,7 @@ mod tests {
         import_confirmed(&db, &labelled_fixture_station_config()).unwrap();
         // The server fixture's form policy passed the station's version and SHA-256 check.
         assert_eq!(db.form_options("TST001").unwrap()["definition_sha256"],
-                   "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d");
+                   "eb8ac1b5ca65a09c607c5232f0a7296dc21576afa44e9e956ac4d1948b54c109");
         assert_eq!(db.instrument_translations("WHO_2022_VA", "hi", Some("TST001")).unwrap()["version"], 6);
 
         // Active actor is user 7 acting as death reporter: offered exactly TS01 + its unit.
@@ -8585,7 +8585,7 @@ mod tests {
 
         // The definition's bytes hash to the issued sha; the disabled module is absent.
         let served = db.instrument_definition("WHO_2022_VA", "TST001", None).unwrap();
-        assert_eq!(served.sha256, "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d");
+        assert_eq!(served.sha256, "eb8ac1b5ca65a09c607c5232f0a7296dc21576afa44e9e956ac4d1948b54c109");
         assert_eq!(format!("{:x}", sha2::Sha256::digest(&served.body)), served.sha256);
         let body: Value = serde_json::from_slice(&served.body).unwrap();
         assert_eq!(body["extensions"], json!(["abha", "death_summary", "medical_records", "narration_language"]));
@@ -8639,7 +8639,7 @@ mod tests {
         let typical: Vec<String> = ["abha", "death_summary", "medical_records", "narration_language"].map(String::from).to_vec();
         db.update_station_settings(Some(&typical), None).unwrap();
         let options = db.form_options("1").unwrap();
-        assert_eq!(options["definition_sha256"], "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d");
+        assert_eq!(options["definition_sha256"], "eb8ac1b5ca65a09c607c5232f0a7296dc21576afa44e9e956ac4d1948b54c109");
         assert_ne!(options["definition_sha256"], all_sha);
         let served = db.instrument_definition("WHO_2022_VA", "1", None).unwrap();
         assert_eq!(served.sha256, options["definition_sha256"].as_str().unwrap());
@@ -8666,7 +8666,7 @@ mod tests {
         assert_eq!(enabled, ["abha", "death_summary", "medical_records", "narration_language"]);
         let (status, err) = db.update_station_settings(Some(&[]), None).unwrap_err();
         assert_eq!((status, err["code"].as_str()), (409, Some("policy_locked")));
-        assert_eq!(db.form_options("TST001").unwrap()["definition_sha256"], "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d");
+        assert_eq!(db.form_options("TST001").unwrap()["definition_sha256"], "eb8ac1b5ca65a09c607c5232f0a7296dc21576afa44e9e956ac4d1948b54c109");
         assert_eq!(db.update_station_settings(None, Some("icd10")).unwrap()["coding_mode"], "icd10");
     }
 
@@ -8726,7 +8726,7 @@ mod tests {
         assert!(fresh["envelope"].get("definitionSha256").is_none());
         assert_eq!(fresh["envelope"]["translation_version"], 0);
 
-        let sha = "31f27d17ee24176c26eb81ec219a6b85e5e278dc6ab44483bc288de4be47502d";
+        let sha = "eb8ac1b5ca65a09c607c5232f0a7296dc21576afa44e9e956ac4d1948b54c109";
         let pin = json!({
             "instrumentVersion": instrument::composed_version(),
             "definitionSha256": sha,

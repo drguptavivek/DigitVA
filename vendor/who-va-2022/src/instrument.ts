@@ -52,6 +52,16 @@ export const PLACE_ADDRESS_HINTS: Record<string, { en: string; hi: string }> = {
   }
 };
 
+/**
+ * Owner decision 2026-10-23 (digitva-kkdb step 1): a tip under the typed
+ * narrative that the keyboard's microphone can dictate it. The input itself
+ * stays a plain multiline text field so the microphone is never disabled.
+ */
+export const NARRATIVE_VOICE_HINT = {
+  en: "Tip: tap the microphone on your keyboard to dictate (Hindi or English).",
+  hi: "सुझाव: बोलकर लिखने के लिए अपने कीबोर्ड पर माइक्रोफ़ोन दबाएँ (हिंदी या अंग्रेज़ी)।"
+};
+
 function withPlaceAddressHint(question: InstrumentQuestion): InstrumentQuestion {
   const added = PLACE_ADDRESS_HINTS[question.name]!;
   const en = question.hint.en ? `${added.en} ${question.hint.en}` : added.en;
@@ -241,7 +251,9 @@ export function createWhoVa2022Instrument(
     if (question.name === "Id10476") {
       const alwaysVisibleQuestion = { ...question };
       delete alwaysVisibleQuestion.relevant;
-      return alwaysVisibleQuestion;
+      const en = question.hint.en ? `${NARRATIVE_VOICE_HINT.en} ${question.hint.en}` : NARRATIVE_VOICE_HINT.en;
+      const hi = question.hint.hi ? `${NARRATIVE_VOICE_HINT.hi} ${question.hint.hi}` : NARRATIVE_VOICE_HINT.hi;
+      return { ...alwaysVisibleQuestion, hint: { ...question.hint, en, hi } };
     }
     if (question.name === "Id10476_audio") return { ...question, hint: {} };
     // Owner decision 2026-10-23: new interviews start with Id10051 "yes" (so

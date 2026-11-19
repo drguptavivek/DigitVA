@@ -5426,7 +5426,8 @@
       "dataType": "string",
       "guidance": {},
       "hint": {
-        "en": "[If there's no information available, please enter \"no information available\"]"
+        "en": "Tip: tap the microphone on your keyboard to dictate (Hindi or English). [If there's no information available, please enter \"no information available\"]",
+        "hi": "सुझाव: बोलकर लिखने के लिए अपने कीबोर्ड पर माइक्रोफ़ोन दबाएँ (हिंदी या अंग्रेज़ी)।"
       },
       "label": {
         "en": "(Id10476) Thank you for your information. Now can you please tell me in your own words about the events that led to the death?"
@@ -35609,5 +35610,5 @@
   },
   "sourceFile": "2022whova_xls_form_for_odk_multilingual.xlsx",
   "title": "2022 WHO Verbal Autopsy instrument V2.0",
-  "version": "2026081401-132dfd439e"
+  "version": "2026081401-56d5cad0da"
 }

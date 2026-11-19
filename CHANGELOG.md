@@ -3,6 +3,18 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-20
+
+- Per-identifier rate limits key on an HMAC, so Redis holds no raw email,
+  mobile number or username (`ab8121231`, `digitva-mu7m`); buckets reset
+  once at deploy.
+- The web masked Step 2 card matches the frozen Collect screen: Step 1
+  certificate, assigned causes, SmartVA, previously saved final, Collect's
+  wording (`7d36d6054`, `digitva-trbd`).
+- Four tests no longer fail just after midnight IST (`67b3b798f`).
+- Old-APK audit of `f2333a29e..main`: safe (no migrations, additive
+  responses, no upload/sync change); check the old-APK picker by hand.
+
 ## 2026-11-19
 
 - Collect uses no WebView (`digitva-mb0d`): every variant shows the in-app

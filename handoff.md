@@ -15,13 +15,15 @@ wording, the public DORIS demo rebuilt on the web editor, the web DORIS
 editor matching the frozen Collect screen, Collect with no WebView (in-app
 picker, Selected ICD Codes list, Coding languages screen, in-app "I have a
 code" and "Forgot password"), the 16-character mobile rule and the
-rate-limit log fix. Deploy is the owner's go. Before it, audit the diff
-since `f2333a29e` for old APKs. Known so far, all additive or a refusal with
-existing shapes: `GET /profile/` adds `available_languages`; the device
+rate-limit log fix, plus the 2026-11-20 HMAC limit keys and web masked
+Step 2 parity. Deploy is the owner's go. The old-APK audit (2026-11-20)
+found it safe; check the old-APK ICD picker by hand first (its JS changed).
+Known changes, all additive or a refusal with existing shapes: `GET /profile/` adds `available_languages`; the device
 token may now `PATCH /profile/languages`; new `POST /auth/forgot-password`;
 the sign-in APIs refuse a mobile over 16 characters with 400
 `invalid_request` (apps send 13). The Collect changes need a new CI-built
-APK (`react-native-webview` was removed, a native change).
+APK (`react-native-webview` was removed, a native change): CI run
+44591287344 (publish off, started 2026-11-20) builds it; check it passed.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect
@@ -40,9 +42,7 @@ and maps stay in the browser).
    `app/services/training_corpus/english_v1.txt`; Maestro flows 96-98 need a
    trainee setup role; training media scope; refuse outdated apps (N11);
    hide DEMO01 in graduation; participant roles by session type.
-3. Redis still holds raw identifiers as rate-limit keys (`digitva-mu7m`);
-   masked Step 2 wording vs Collect (`digitva-trbd`); retire the server
-   picker page after the APK rollout (`digitva-dxg1`).
+3. Retire the server picker page after the APK rollout (`digitva-dxg1`).
 4. Ready P1 beads audited 2026-11-19: none secretly done except `rou1`
    (closed). Open with code ready, owner action left: `yacr` (re-count KEM001
    and run the repair), `ddfx` (Aadhaar sweep on staging), `77ti` (count on

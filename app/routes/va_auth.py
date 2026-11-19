@@ -33,6 +33,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.services import mobile_sign_in_service, public_demo_service
 from app.services.pow_captcha_service import issue_challenge, verify_challenge
+from app.utils.limit_keys import keyed_digest
 from app.utils.idle_session import EXPIRED_MESSAGE, IDLE_MESSAGE, stamp_activity, stamp_signed_in
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services import user_account_service as accounts
@@ -224,7 +225,7 @@ def _complete_login(user, *, nudge_if_no_passkey: bool, method: str) -> None:
 
 @va_auth.route("/valogin", methods=["GET", "POST"])
 @limiter.limit("10 per minute", methods=["POST"])
-@limiter.limit("20 per hour", methods=["POST"], key_func=_login_identifier_key_func)
+@limiter.limit("20 per hour", methods=["POST"], key_func=keyed_digest(_login_identifier_key_func))
 def va_login():
     """Step 1: email, mobile number or (public demo) username plus the
     proof-of-work CAPTCHA. A value with ``@`` is an email, a 10-digit number a
@@ -295,7 +296,7 @@ def va_login_captcha_challenge():
 
 @va_auth.route("/valogin/password", methods=["GET", "POST"])
 @limiter.limit("10 per minute", methods=["POST"])
-@limiter.limit("20 per hour", methods=["POST"], key_func=_preauth_email_key_func)
+@limiter.limit("20 per hour", methods=["POST"], key_func=keyed_digest(_preauth_email_key_func))
 def va_login_password():
     """Step 2: the same page (a passkey button plus password) for every
     email, known or unknown -- see docs/policy/authentication-factors.md
@@ -368,7 +369,7 @@ def _password_step_url(next_url):
 
 @va_auth.route("/valogin/passkey/options", methods=["POST"])
 @limiter.limit("10 per minute")
-@limiter.limit("20 per hour", key_func=_preauth_email_key_func)
+@limiter.limit("20 per hour", key_func=keyed_digest(_preauth_email_key_func))
 def va_login_passkey_options():
     """Discoverable-credential options for the passkey sign-in button.
 
@@ -384,7 +385,7 @@ def va_login_passkey_options():
 
 @va_auth.route("/valogin/passkey/verify", methods=["POST"])
 @limiter.limit("10 per minute")
-@limiter.limit("20 per hour", key_func=_preauth_email_key_func)
+@limiter.limit("20 per hour", key_func=keyed_digest(_preauth_email_key_func))
 def va_login_passkey_verify():
     """Verify a passkey assertion and complete sign-in.
 
@@ -562,7 +563,7 @@ def site_maintenance_status():
 @va_auth.route("/valogin/code", methods=["GET", "POST"])
 @limiter.limit("10 per minute", methods=["POST"])
 @limiter.limit("10 per hour", methods=["POST"],
-               key_func=lambda: _login_identifier_key_func("mobile"))
+               key_func=keyed_digest(lambda: _login_identifier_key_func("mobile")))
 def va_login_redeem_code():
     """"I have a code": an email or mobile number plus the one-time code a
     data manager issued (any account, docs/policy/account-onboarding-and-

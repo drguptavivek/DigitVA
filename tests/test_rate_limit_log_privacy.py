@@ -6,6 +6,7 @@ logger keeps the line and drops the key.
 """
 
 import logging
+from unittest import mock
 
 from tests.routes import test_device_api as device_tests
 from tests.test_account_onboarding import OnboardingTestBase, _captured_logs
@@ -86,3 +87,39 @@ class MobileLengthTests(OnboardingTestBase):
                     ok_form = form_class(meta={"csrf": False}, data={field: "+91 98765 43210"})
                     ok_form.validate()
                     self.assertEqual(getattr(ok_form, field).errors, [])
+
+
+class RateLimitKeyPrivacyTests(OnboardingTestBase):
+    """Per-identifier limit keys are Redis keys: they hold an HMAC of the
+    email, mobile number or username, never the value (digitva-mu7m)."""
+
+    def _keys(self):
+        from app import limiter
+        return [str(k) for k in limiter.storage.storage]
+
+    def test_identifier_limit_keys_hold_no_raw_identifier(self):
+        client = device_tests._FreshGClient(self.app, self.app.response_class, use_cookies=True)
+        email, number, username = "mu7m.private@example.com", _number(), "mu7m_private_user"
+        posts = (
+            ("/api/v1/auth/sessions", {"json": {"email": email, "password": "x", "device_id": "d", "device_secret": "s"}}),
+            ("/api/v1/auth/password-enroll", {"json": {"identifier": number, "password": "x"}}),
+            ("/api/v1/auth/sign-in-code/redeem", {"json": {"identifier": number, "code": "ABCD", "accept_terms": True}}),
+            ("/api/v1/auth/forgot-password", {"json": {"identifier": email}}),
+            ("/api/v1/auth/demo-enroll", {"json": {"username": username, "password": "x"}}),
+            ("/vaauth/valogin", {"data": {"email": email}}),
+            ("/vaauth/valogin/code", {"data": {"mobile": number, "code": "ABCD"}}),
+        )
+        # CSRF refuses a bare web POST before the limiter counts it.
+        with mock.patch.dict(self.app.config, WTF_CSRF_ENABLED=False):
+            for i, (url, kwargs) in enumerate(posts):
+                client.post(url, environ_overrides={"REMOTE_ADDR": f"10.88.0.{i + 1}"}, **kwargs)
+        keys = self._keys()
+        # The subject is there: every identifier limit counted, as a digest.
+        for endpoint in ("open_session", "password_enroll", "redeem_sign_in_code", "forgot_password",
+                         "demo_enroll", "va_auth.va_login/", "va_login_redeem_code"):
+            with self.subTest(endpoint=endpoint):
+                self.assertTrue([k for k in keys if "digest:" in k and endpoint in k], keys)
+        canonical = number[-10:]
+        for raw in (email, number, canonical, username):
+            with self.subTest(raw=raw):
+                self.assertFalse([k for k in keys if raw in k])

@@ -14,8 +14,6 @@ names the inputs to fix. Request bodies are capped
 included. Terms and maintenance gates are the app-level ones in app/__init__.py.
 """
 
-import hashlib
-import hmac
 import logging
 from datetime import UTC, datetime
 
@@ -24,6 +22,7 @@ from flask_limiter.util import get_remote_address
 from flask_login import current_user, login_required
 from werkzeug.exceptions import RequestEntityTooLarge
 
+from app.utils.limit_keys import keyed_digest
 from app import csrf, db, limiter
 from app.models import VaProjectMaster
 from app.routes.api.request_helpers import error as _error
@@ -106,13 +105,7 @@ def _mobile_too_long_error(field):
                   fields=[field])
 
 
-def _keyed_digest(key_func):
-    """``key_func``'s bucket under an HMAC of its key: flask-limiter logs the
-    key of every refused request, and some identifiers must never be logged."""
-    def key():
-        secret = current_app.secret_key.encode("utf-8")
-        return "digest:" + hmac.new(secret, key_func().encode("utf-8"), hashlib.sha256).hexdigest()
-    return key
+_keyed_digest = keyed_digest
 
 
 @bp.before_request
@@ -187,7 +180,7 @@ def enroll():
 @bp.post("/sessions")
 @limiter.limit("10 per minute")
 @limiter.limit("10 per minute", key_func=_body_key("device_id"))
-@limiter.limit("20 per hour", key_func=_body_key("email"))
+@limiter.limit("20 per hour", key_func=_keyed_digest(_body_key("email")))
 def open_session():
     """Worker sign-in on an enrolled device (interviewer, coder, coding tester or
     reviewer, ``has_device_access``); the ``email`` field takes an
@@ -227,7 +220,7 @@ def _wrong_code(response) -> bool:
 # tighter per-IP budget against spraying one password across many accounts.
 @limiter.limit("120 per minute")
 @limiter.limit("60 per 10 minutes", deduct_when=_refused_credentials)
-@limiter.limit("20 per hour", key_func=_body_key("identifier"))
+@limiter.limit("20 per hour", key_func=_keyed_digest(_body_key("identifier")))
 def password_enroll():
     """Enrol and sign in with an email/mobile identifier and password.
 
@@ -272,7 +265,7 @@ def password_enroll():
 @limiter.limit("100 per 10 minutes", deduct_when=_wrong_code)
 # Mismatches only, so a stranger cannot keep a trainee locked out with 400s,
 # and a correct code is never refused for someone else's typos.
-@limiter.limit("10 per hour", key_func=_body_key("identifier"), deduct_when=_wrong_code)
+@limiter.limit("10 per hour", key_func=_keyed_digest(_body_key("identifier")), deduct_when=_wrong_code)
 def redeem_sign_in_code():
     """"I have a sign-in code" in the app (docs/policy/mobile-sign-in.md
     section 3): ``{identifier, code, accept_terms}``, the web page's
@@ -375,7 +368,7 @@ def redeem_sign_in_qr():
 
 @bp.post("/demo-enroll")
 @limiter.limit("10 per minute", key_func=public_demo_service.signup_remote_key)
-@limiter.limit("20 per hour", key_func=_body_key("username"))
+@limiter.limit("20 per hour", key_func=_keyed_digest(_body_key("username")))
 def demo_enroll():
     """Enrol the app on the public demo without a QR code (docs/policy/
     public-demo.md section 10): ``{username, password, device_name, platform,

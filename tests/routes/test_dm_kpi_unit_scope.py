@@ -50,7 +50,14 @@ class DmKpiUnitScopeTests(UnitScopeFixture, BaseTestCase):
 
     def _seed_coded(self, sid, unit, finalized_at=None, form_id=None):
         """One coded submission in *unit* with the rows every KPI group reads."""
-        finalized_at = finalized_at or datetime.now(UTC) - timedelta(minutes=30)
+        if finalized_at is None:
+            # Keep the events (up to 20 minutes earlier) inside today's IST
+            # day, which the grid's "today" row uses; just after midnight
+            # "now - 30 minutes" falls on yesterday.
+            ist_midnight = datetime.now(ZoneInfo("Asia/Kolkata")).replace(
+                hour=0, minute=0, second=0, microsecond=0)
+            finalized_at = max(datetime.now(UTC) - timedelta(minutes=30),
+                               ist_midnight.astimezone(UTC) + timedelta(minutes=25))
         self._sub(sid, unit=unit, form_id=form_id)
         submission = db.session.get(VaSubmissions, sid)
         submission.va_odk_reviewstate = "hasIssues"

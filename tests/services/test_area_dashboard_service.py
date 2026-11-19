@@ -7,6 +7,7 @@ app/services/workflow/definition.py. Policy: docs/policy/area-dashboard.md.
 import uuid
 from unittest import mock
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
 from flask_caching.backends.simplecache import SimpleCache
@@ -1379,7 +1380,8 @@ class AreaDistrictWidgetTests(AreaDeathsReportedTests):
 
     def test_medians_over_the_area_and_only_the_users_subtree(self):
         submitted = {
-            sid: db.session.get(VaSubmissions, sid).va_submission_date.date()
+            # The project-clock day the service counts on, not the UTC day.
+            sid: db.session.get(VaSubmissions, sid).va_submission_date.astimezone(ZoneInfo("Asia/Kolkata")).date()
             for sid in ("uuid:area-pa1", "uuid:area-ca1", "uuid:area-cb1")
         }
         self._aged_case(990521, "submitted", self.phc_a1, 3, va_sid="uuid:area-pa1",

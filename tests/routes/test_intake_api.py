@@ -840,7 +840,7 @@ class IntakeApiTests(BaseTestCase):
         before = db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister))
         response = self.client.post(
             "/api/v1/intake/deaths",
-            json=self._death_payload(date_of_death=(date.today() + timedelta(days=1)).isoformat()),
+            json=self._death_payload(date_of_death=(date.today() + timedelta(days=2)).isoformat()),  # future in IST too, even just after IST midnight
             headers=self._csrf_headers(),
         )
         self.assertEqual(response.status_code, 422)

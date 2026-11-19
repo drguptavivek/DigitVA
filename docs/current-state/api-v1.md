@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-17
+last_updated: 2026-11-19
 ---
 
 # API v1 Reference
@@ -501,8 +501,13 @@ narration language regardless of their own languages (blank as
 `unrecorded`; `pending_by_language`, one grouped count; `project_id`
 narrows). `random_ready` now applies the coding gates, like the pick count.
 `PATCH /api/v1/profile/languages {languages: [codes]}` sets the caller's own
-coding languages (non-empty, active codes; cookie session with CSRF; a device
-bearer token gets 403 `cookie_session_required`). Policy:
+coding languages (coders only, else 403 `forbidden`; non-empty, active codes;
+audited as `coding_languages_changed`). A cookie session sends CSRF; since
+2026-11-19 a device bearer token may call it too (`digitva-mb0d.2`: Collect
+edits them in the app), the one profile write added for bearers: coding
+languages are a work filter, not account security. `GET /api/v1/profile/`
+adds `available_languages: [{code, name}]`, the active `mas_languages` rows
+in code order (one query; additive, older clients ignore it). Policy:
 `docs/policy/coding-workflow-state-machine.md`, "Coder coding languages".
 
 ## Coder pick list and history (`GET /api/v1/coding/available|history`, `app/routes/api/coding.py`)

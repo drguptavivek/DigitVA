@@ -1263,6 +1263,11 @@ The lighter package still excludes offline engine assets. Experimental Plus
 ships the engines and their reference data together, with no runtime package
 download. Public WHO software redistribution still needs written clearance.
 
+The queue's ✎ after "Your languages" opens `src/workspace/CodingLanguagesModal.tsx`
+(phone and browser build), not the web `/profile/` page (`digitva-mb0d.2`):
+`GET /api/v1/profile/` `available_languages`, then `PATCH /api/v1/profile/languages`
+(device bearer or cookie with CSRF), and a save reloads the queue.
+
 ## Bundled SmartVA reference (`digitva-hs7e.13`, `.13.1`)
 
 Plus stages the MIT Rust engine through `scripts/build-smartva-android.sh` and

@@ -10,8 +10,12 @@ import uuid
 from datetime import UTC, date, datetime
 from unittest import mock
 
+import sqlalchemy as sa
+
 from app import db, limiter
-from app.models import AuthDevice, VaUsers
+from app.models import AuthDevice, AuthSecurityEvent, VaUserAccessGrants, VaUsers
+from app.models.mas_languages import MasLanguages
+from app.models.va_selectives import VaAccessRoles, VaAccessScopeTypes, VaStatuses
 from app.services import device_auth_service as devices
 from tests.base import BaseTestCase
 from tests.routes import test_device_api as device_tests
@@ -22,6 +26,7 @@ _DEV = device_tests.DeviceApiTests.__dict__
 PROFILE = "/api/v1/profile/"
 TIMEZONE = "/api/v1/profile/timezone"
 PROFILE_NUDGE_DISMISS = "/api/v1/profile/nudge/dismiss"
+LANGUAGES = "/api/v1/profile/languages"
 
 
 class ApiV1CredentialTests(BaseTestCase):
@@ -47,6 +52,15 @@ class ApiV1CredentialTests(BaseTestCase):
         cls.teammate = cls._get_or_make_user("cred.teammate@test.local", PASSWORD)
         cls._grant(cls.interviewer, cls.PROJECT_ID)
         cls._grant(cls.teammate, cls.PROJECT_ID)
+        if db.session.get(MasLanguages, "english") is None:
+            db.session.add(MasLanguages(language_code="english", language_name="English", is_active=True))
+        cls.coder = cls._get_or_make_user("cred.coder@test.local", PASSWORD)
+        cls._grant(cls.coder, cls.PROJECT_ID)
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.coder.user_id, role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project, project_id=cls.PROJECT_ID,
+            notes="credentials test coder grant", grant_status=VaStatuses.active,
+        ))
         db.session.commit()
 
     def setUp(self):
@@ -334,3 +348,52 @@ class ApiV1CredentialTests(BaseTestCase):
         # The cookie user still reaches them (reauth answers, not 403).
         self._login(str(self.interviewer.user_id))
         self.assertNotEqual(self.client.get("/api/v1/profile/passkeys").status_code, 403)
+
+    # ── coding languages (digitva-mb0d.2) ──────────────────────────────────
+    # Collect sets the coder's own languages with its device bearer; account
+    # security stays cookie-only.
+
+    def test_device_bearer_coder_sets_own_languages_and_it_is_audited(self):
+        tokens = self._session(email="cred.coder@test.local")[1]
+        coder = db.session.get(VaUsers, self.coder.user_id)
+        coder.vacode_language = ["hindi"]
+        db.session.commit()
+        response = self._bearer_only_client().patch(
+            f"{LANGUAGES}?training=1", json={"languages": ["english"]}, headers=self._bearer(tokens))
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["languages"], ["english"])
+        db.session.expire_all()
+        self.assertEqual(db.session.get(VaUsers, self.coder.user_id).vacode_language, ["english"])
+        events = db.session.scalars(sa.select(AuthSecurityEvent).where(
+            AuthSecurityEvent.user_id == self.coder.user_id,
+            AuthSecurityEvent.event_type == "coding_languages_changed")).all()
+        self.assertEqual([(e.detail["old"], e.detail["new"]) for e in events], [(["hindi"], ["english"])])
+        # Account security stays cookie-only for the same bearer.
+        refused = self._bearer_only_client().post(
+            "/api/v1/profile/password/generate", json={}, headers=self._bearer(tokens))
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (403, "cookie_session_required"))
+
+    def test_a_cookie_caller_still_needs_csrf(self):
+        self._login(str(self.coder.user_id))
+        refused = self.client.patch(LANGUAGES, json={"languages": ["english"]})
+        self.assertEqual((refused.status_code, refused.get_json()["code"]), (400, "csrf_failed"))
+        ok = self.client.patch(LANGUAGES, json={"languages": ["english"]}, headers=self._csrf_headers())
+        self.assertEqual(ok.status_code, 200, ok.get_data(as_text=True))
+
+    def test_non_coder_bearer_is_forbidden(self):
+        tokens = self._tokens()
+        response = self._bearer_only_client().patch(
+            LANGUAGES, json={"languages": ["english"]}, headers=self._bearer(tokens))
+        self.assertEqual((response.status_code, response.get_json()["code"]), (403, "forbidden"))
+
+    def test_profile_lists_active_languages_only(self):
+        db.session.add(MasLanguages(language_code="zz_retired", language_name="Retired", is_active=False))
+        db.session.commit()
+        # The training queue's transport appends training=1; the profile ignores it.
+        body = self._bearer_only_client().get(f"{PROFILE}?training=1", headers=self._bearer(self._tokens())).get_json()
+        codes = [row["code"] for row in body["available_languages"]]
+        self.assertIn("english", codes)
+        self.assertEqual(codes, sorted(codes))
+        self.assertNotIn("zz_retired", codes)
+        english = next(row for row in body["available_languages"] if row["code"] == "english")
+        self.assertTrue(english["name"])

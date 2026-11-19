@@ -24,10 +24,14 @@ from app.services.webauthn_service import (
 
 bp = Blueprint("profile_api", __name__)
 
-#: Reachable with a device bearer token. Everything else here (password,
-#: reauthentication and passkeys) is account security and needs the browser
-#: session, so a stolen device token can never change it.
-_BEARER_ALLOWED = frozenset({"get_profile", "update_timezone", "update_interviewer_profile", "accept_terms"})
+#: Reachable with a device bearer token. Coding languages are a work filter,
+#: not account security (coding-workflow-state-machine.md, "Coder coding
+#: languages"). Everything else here (password, reauthentication and passkeys)
+#: is account security and needs the browser session, so a stolen device
+#: token can never change it.
+_BEARER_ALLOWED = frozenset({
+    "get_profile", "update_timezone", "update_interviewer_profile", "update_coding_languages", "accept_terms",
+})
 
 
 @bp.before_request
@@ -98,7 +102,10 @@ def _missing_profile_fields(user) -> list[str]:
 @bp.get("/")
 @login_required
 def get_profile():
-    """Return the current user's profile data."""
+    """Return the current user's profile data, with the active coding
+    languages a coder may choose from (``available_languages``, code order)."""
+    from app.routes.api.organization import _active_languages
+
     missing_profile_fields = _missing_profile_fields(current_user)
     return jsonify({
         "user_id": current_user.user_id,
@@ -107,6 +114,7 @@ def get_profile():
         "job_title": current_user.job_title,
         "mobile_only": current_user.is_mobile_only,
         "languages": current_user.vacode_language or [],
+        "available_languages": [{"code": code, "name": name} for code, name in _active_languages().items()],
         "timezone": current_user.timezone,
         "year_of_birth": current_user.year_of_birth,
         "sex": current_user.sex,
@@ -229,7 +237,8 @@ def update_coding_languages():
     "Coder coding languages"): a non-empty list of active language codes, the
     admin user screen's rule. They narrow coding and review lists in every
     project. Coders only (403 otherwise); each change is audited with the old
-    and new codes. Cookie session only for now (CSRF by the app-wide check)."""
+    and new codes. A cookie caller needs CSRF (the app-wide check); the
+    Collect device bearer may call it too, CSRF-exempt like every bearer."""
     from app.models.mas_languages import MasLanguages
     from app.services.authz.predicates import role_flags
 

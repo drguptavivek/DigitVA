@@ -11,7 +11,7 @@ import { useEngineScreen } from "../engineIdle";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { goHome, RedirectHome } from "../goHome";
-import { Linking, Text } from "react-native";
+import { Text } from "react-native";
 
 import { useAppState } from "../AppState";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
@@ -28,6 +28,7 @@ import { DorisPanel } from "../workspace/doris/DorisPanel";
 import { AttachmentMedia } from "../workspace/media/AttachmentMedia.native";
 import { createNativeWorkspaceTransport } from "../workspace/transport.native";
 import { QueueScreen } from "../workspace/QueueScreen";
+import { CodingLanguagesModal } from "../workspace/CodingLanguagesModal";
 import { createNativeCodingHistoryCache } from "../codingHistoryCache.native";
 import type { CodingHistoryCache, CodingHistoryIdentity } from "../codingHistoryCache";
 import { isIcd11DorisEnabled, useIcd11DorisPreference } from "../icd11DorisPreference";
@@ -68,6 +69,9 @@ function Workspace({ mode, vaSid, training = false }: { mode: WorkspaceMode; vaS
   const userId = usePlusUserId(mode, training);
   // Training coding: which queue the list, counts and allocations use (standard set unless the trainee picks own).
   const [trainingQueue, setTrainingQueue] = useState<TrainingQueue>("standard");
+  // The coding languages editor; a save reloads the queue (its "Your languages" line).
+  const [languagesOpen, setLanguagesOpen] = useState(false);
+  const [languagesSaved, setLanguagesSaved] = useState(0);
   const { accounts } = useAppState();
   const account = accounts.find((item) => item.user_id === userId);
   const [historyContext, setHistoryContext] = useState<{ identity: CodingHistoryIdentity; cache: CodingHistoryCache }>();
@@ -185,19 +189,26 @@ function Workspace({ mode, vaSid, training = false }: { mode: WorkspaceMode; vaS
     />;
   }
   if (mode === "view") return <RedirectHome />;
-  return <QueueScreen
+  return <>
+  <QueueScreen
     api={api}
     mode={mode}
     onOpen={(identity) => router.push({ pathname: training ? TRAINING_CODING_CASE_ROUTE : "/workspace", params: { userId, vaSid: identity.vaSid, mode: identity.mode } } as never)}
     onExit={() => goHome(router)}
-    reloadKey={returns}
+    reloadKey={returns + languagesSaved}
     initialView={first(initialHistory) === "1" ? { allProjects: false, showHistory: true, offset: 0 } : undefined}
     {...(training ? { trainingQueue, onTrainingQueue: setTrainingQueue } : {})}
     historyCache={historyContext?.cache}
     historyIdentity={historyContext?.identity}
-    // Coding languages are edited in the web profile for now (PATCH /profile/languages is cookie-only).
-    onEditLanguages={account?.server ? () => void Linking.openURL(new URL("/profile/", account.server!).toString()).catch(() => undefined) : undefined}
-  />;
+    // Coders set their own languages; a trainee's are set at graduation (the server refuses them: 403).
+    onEditLanguages={training ? undefined : () => setLanguagesOpen(true)}
+  />
+  {languagesOpen && request ? <CodingLanguagesModal
+    request={request}
+    onClose={() => setLanguagesOpen(false)}
+    onSaved={() => { setLanguagesOpen(false); setLanguagesSaved((n) => n + 1); }}
+  /> : null}
+  </>;
 }
 
 export function PlusCoding() {

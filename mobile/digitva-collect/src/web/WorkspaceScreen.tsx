@@ -26,6 +26,7 @@ import {
   hasTypedTrainingSession, TRAINING_CODING_CASE_ROUTE, TRAINING_REVIEWING_CASE_ROUTE, TRAINING_ROUTES, takeTrainingRedirect,
 } from "../training";
 import { TrainingShell } from "./TrainingChecklist";
+import { CodingLanguagesModal } from "../workspace/CodingLanguagesModal";
 
 type RouteParams = { vaSid?: string | string[]; mode?: string | string[]; section?: string | string[]; project?: string | string[]; tab?: string | string[]; offset?: string | string[]; training?: string | string[] };
 type SessionCheck = { key: string; bootstrap: NonNullable<ReturnType<typeof useAppState>["bootstrap"]> };
@@ -187,6 +188,9 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   // undefined while loading, null when the call failed.
   const [home, setHome] = useState<HomeSummary | null>();
   const [progressOpen, setProgressOpen] = useState(false);
+  // The coding languages editor; a save reloads the queue (its "Your languages" line).
+  const [languagesOpen, setLanguagesOpen] = useState(false);
+  const [languagesSaved, setLanguagesSaved] = useState(0);
   // Training coding: which queue the list, counts and allocations use (standard set unless the trainee picks own).
   const [trainingQueue, setTrainingQueue] = useState<TrainingQueue>("standard");
   const [caseLookupOpen, setCaseLookupOpen] = useState(false);
@@ -325,13 +329,16 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
     </AttachmentTrainingContext.Provider>;
   }
 
-  if ((mode === "coding" || mode === "reviewing") && api) return <QueueScreen
+  if ((mode === "coding" || mode === "reviewing") && api) return <>
+  <QueueScreen
     api={api}
     mode={mode}
     Shell={trainingRoute ? (mode === "reviewing" ? ReviewTrainingShell : CodingTrainingShell) : WebShell}
     initialView={parseQueueParams(params)}
     {...(trainingRoute && mode === "coding" && hasTypedTrainingSession(activeBootstrap.access) ? { trainingQueue, onTrainingQueue: setTrainingQueue } : {})}
-    onEditLanguages={() => openServerPage(activeBootstrap.user.user_id, "/profile/")}
+    reloadKey={languagesSaved}
+    // Coders set their own languages; a trainee's are set at graduation (the server refuses them: 403).
+    onEditLanguages={requester && !training ? () => setLanguagesOpen(true) : undefined}
     onViewChange={(view) => {
       if (!ownsQueueParams(window.location.search)) return;
       const step = queueUrlStep(window.location.search, view);
@@ -343,7 +350,13 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
       pathname: trainingRoute ? (identity.mode === "reviewing" ? TRAINING_REVIEWING_CASE_ROUTE : TRAINING_CODING_CASE_ROUTE) : "/workspace",
       params: { vaSid: identity.vaSid, mode: identity.mode },
     })}
-  />;
+  />
+  {languagesOpen && requester ? <CodingLanguagesModal
+    request={requester}
+    onClose={() => setLanguagesOpen(false)}
+    onSaved={() => { setLanguagesOpen(false); setLanguagesSaved((n) => n + 1); }}
+  /> : null}
+  </>;
 
   async function openView() {
     const candidate = viewVaSid.trim();

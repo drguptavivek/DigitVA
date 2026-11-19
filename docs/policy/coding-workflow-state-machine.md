@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-15
+last_updated: 2026-11-19
 ---
 
 # Coding Workflow State Machine Policy
@@ -907,8 +907,15 @@ narrowed. Admins and project managers set them (user and project user
 screens); a coder (and only a coder: 403 for anyone without a coder
 grant) may also set their own in their profile
 (`PATCH /api/v1/profile/languages`: a non-empty list of active language
-codes, the admin screen's rule; cookie session with CSRF, not yet a device
-bearer token). Every such change, and the English that a training import
+codes, the admin screen's rule). The browser session (with CSRF) and, since
+2026-11-19, the Collect device bearer token may call it (owner,
+`digitva-mb0d.2`: Collect shows no web page for any screen, so the coder sets
+them in the app). Coding languages are a work filter, not account security:
+a stolen device token could only narrow or widen the device owner's own
+coding and review lists, and every change is audited; passwords, passkeys
+and reauthentication stay cookie-only. `GET /api/v1/profile/` lists the
+active languages (`available_languages: [{code, name}]`, additive) so the app
+can offer them. Every such change, and the English that a training import
 appends to an existing coder, is recorded as a `coding_languages_changed`
 security event holding the old and new codes only. The same list also gates review (the reviewer dashboard and
 reviewer coding match a case's narration language against it exactly), so a

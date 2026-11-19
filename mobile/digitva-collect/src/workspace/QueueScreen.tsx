@@ -271,12 +271,12 @@ export function QueueScreen({
   /** Native only; web leaves this unset. */
   historyCache?: CodingHistoryCache;
   historyIdentity?: CodingHistoryIdentity;
-  /** Native only: a change reloads the page (the route bumps it when the queue regains focus). */
+  /** A change reloads the page (native: the route bumps it when the queue regains focus; both: after a coding languages save). */
   reloadKey?: number;
   /** Training coding only: the queue *api* was made for; the queue buttons report the next one (the route makes a new api). */
   trainingQueue?: TrainingQueue;
   onTrainingQueue?: (queue: TrainingQueue) => void;
-  /** Opens the profile, where the coder edits their coding languages (the ✎ after "Your languages"). */
+  /** Opens the in-app coding languages editor (the ✎ after "Your languages"). */
   onEditLanguages?: () => void;
 }) {
   const ActiveShell = Shell ?? Screen;

@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-19
 
+- Collect uses no WebView (`digitva-mb0d`): every variant shows the in-app
+  ICD-11 picker (`react-native-webview` removed; the server picker page stays
+  for released APKs). Selected ICD Codes is an in-app Table A1 list bundled
+  from the cause-list CSV (`digitva-mb0d.1`). Coding languages are edited in
+  the app; the device token may now set the coder's own languages, and
+  `GET /profile/` adds `available_languages` (`digitva-mb0d.2`, policy:
+  coding-workflow-state-machine.md). Sign-in pages remain (`digitva-mb0d.3`).
 - Required ICD-11 postcoordination stays a picker rule (`digitva-nhzt`,
   owner 2026-11-19): a server refusal of bare stems (`e0c49ae2c`) was
   reverted the same day because DORIS itself returns bare stems and VA

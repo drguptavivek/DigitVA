@@ -56,7 +56,7 @@ import {
 } from "./contracts";
 
 export interface WorkspaceRequestInit {
-  method?: "GET" | "POST" | "PUT" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   json?: unknown;
   /** The route answers a JSON list (the ICD-10 coding search). */
   allowList?: boolean;

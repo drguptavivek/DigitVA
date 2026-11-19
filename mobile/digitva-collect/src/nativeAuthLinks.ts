@@ -1,23 +1,5 @@
-import { acceptedServerOrigin } from "./enrolment";
-
-export const NATIVE_AUTH_PATHS = {
-  signIn: "/vaauth/valogin",
-  redeemCode: "/vaauth/valogin/code",
-  forgotPassword: "/vaauth/forgot-password"
-} as const;
-
-export type NativeAuthPath = (typeof NATIVE_AUTH_PATHS)[keyof typeof NATIVE_AUTH_PATHS];
-
-/**
- * Build a server handoff URL only for a server the enrolment rule accepts
- * (src/enrolment.ts acceptedServerOrigin).
- * No credentials, tokens, or account identifiers are placed in the URL.
- */
-export function nativeAuthUrl(server: string, path: NativeAuthPath, isDev: boolean): string {
-  const origin = acceptedServerOrigin(server, isDev);
-  if (!origin) throw new Error("server_not_allowed");
-  return `${origin}${path}`;
-}
+/** Longest typed mobile number a sign-in screen takes; the server refuses longer (app/routes/api/auth.py MOBILE_MAX_CHARS). */
+export const MOBILE_MAX_CHARS = 16;
 
 /**
  * Turn the India UI's optional +91/91/0 prefix into its ten-digit display value.
@@ -29,6 +11,16 @@ export function mobileDigitsFromInput(value: string): string {
   if (digits.length === 12 && digits.startsWith("91")) return digits.slice(2);
   if (digits.length === 11 && digits.startsWith("0")) return digits.slice(1);
   return digits;
+}
+
+/**
+ * The mobile field after a keystroke or paste: India's country code is fixed (+91 shown beside the field), so it
+ * holds at most 10 digits. A change that would leave more than 10 (an 11th digit, a malformed paste) is refused and
+ * the field keeps its value, rather than cutting digits silently. International numbers can widen this later.
+ */
+export function nextMobileDigits(previous: string, typed: string): string {
+  const digits = mobileDigitsFromInput(typed);
+  return digits.length > 10 ? previous : digits;
 }
 
 /** Return the existing device API identifier form, or undefined for invalid input. */

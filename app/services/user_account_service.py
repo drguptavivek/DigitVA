@@ -436,3 +436,40 @@ def email_new_password(user: VaUsers, *, path: str, actor_user_id=None) -> None:
         # Type only: an SMTP error could echo message content.
         log.warning("password email failed | user_id=%s | %s", user.user_id, type(exc).__name__)
         raise PasswordEmailFailed() from exc
+
+
+#: "Forgot password" answers, one per kind of identifier whether or not an
+#: account matches (account-onboarding-and-passwords.md section 6).
+EMAIL_FORGOT_MESSAGE = (
+    "If that email address is registered, we've sent a password reset link. "
+    "Please check your inbox (and spam folder)."
+)
+MOBILE_FORGOT_MESSAGE = (
+    "If that number belongs to an account with a verified email, we've sent a "
+    "password reset link to that email. Otherwise ask your data manager for a "
+    "new sign-in code, then use \"I have a code\" on the sign-in page."
+)
+
+
+def request_password_reset(typed: str) -> str:
+    """"Forgot password" for the web page and ``POST /api/v1/auth/forgot-password``:
+    find the account by email (with ``@``, lowercased) or canonical mobile
+    number and queue a single-use reset link only to a *verified* email.
+    Changes no password. Returns the message to show, which depends only on
+    the kind of identifier, never on whether an account matched. Never logs
+    the identifier.
+    """
+    from app.services.email_service import send_password_reset_email
+    from app.services.token_service import generate_token
+
+    typed = typed.strip()
+    if "@" in typed:
+        match = VaUsers.email == typed.lower()
+        message = EMAIL_FORGOT_MESSAGE
+    else:
+        match = VaUsers.mobile_login == (canonical_mobile(typed) or "")
+        message = MOBILE_FORGOT_MESSAGE
+    user = db.session.scalar(sa.select(VaUsers).where(match))
+    if user is not None and user.email and user.email_verified:
+        send_password_reset_email(user, generate_token(user.user_id, "password_reset"))
+    return message

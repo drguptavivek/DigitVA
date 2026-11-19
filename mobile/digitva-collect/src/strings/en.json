@@ -128,6 +128,8 @@
   "password": "Password",
   "signIn": "Sign in",
   "forgotPassword": "Forgot password?",
+  "forgotPasswordIntro": "Enter your email or mobile number. If your account has a verified email, we will email you a link to reset your password.",
+  "forgotPasswordSend": "Send reset link",
   "redeemCode": "I have a sign-in code",
   "acceptTerms": "I accept the terms",
   "errSignIn": "The email or password is incorrect.",

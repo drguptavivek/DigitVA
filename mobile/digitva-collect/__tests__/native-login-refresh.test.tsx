@@ -36,6 +36,8 @@ const mockRedirect = jest.fn();
 const mockRecoverSignOut = jest.fn(async (..._args: unknown[]): Promise<void> => undefined);
 const mockVerifyPasswordForDelete = jest.fn(async (..._args: unknown[]): Promise<void> => undefined);
 const mockDeleteProfile = jest.fn(async (..._args: unknown[]): Promise<void> => undefined);
+const mockRedeemSignInCode = jest.fn<Promise<string>, unknown[]>();
+const mockRequestPasswordReset = jest.fn<Promise<string>, unknown[]>();
 const mockUnsentWorkCount = jest.fn<Promise<number | undefined>, []>(async () => 0);
 let mockDeleteGrant = false;
 
@@ -64,6 +66,8 @@ jest.mock("../src/auth", () => ({
   unlockInterviewer: (...args: Parameters<typeof mockUnlockInterviewer>) => mockUnlockInterviewer(...args),
   recoverSignOut: (...args: unknown[]) => mockRecoverSignOut(...args),
   verifyPasswordForDelete: (...args: unknown[]) => mockVerifyPasswordForDelete(...args),
+  redeemSignInCode: (...args: unknown[]) => mockRedeemSignInCode(...args),
+  requestPasswordReset: (...args: unknown[]) => mockRequestPasswordReset(...args),
   hasProfileDeleteGrant: () => mockDeleteGrant,
   deleteProfile: (...args: unknown[]) => mockDeleteProfile(...args),
   WrongAccountError: class WrongAccountError extends Error {},
@@ -110,9 +114,11 @@ jest.mock("../src/api", () => ({
   },
 }));
 jest.mock("../src/nativeAuthLinks", () => ({
+  MOBILE_MAX_CHARS: 16,
   mobileDigitsFromInput: (value: string) => value,
-  nativeAuthUrl: () => "http://localhost:8051/vaauth/sign-in",
-  NATIVE_AUTH_PATHS: { signIn: "sign-in", redeemCode: "redeem-code", forgotPassword: "forgot-password", passkeys: "passkeys" },
+  nextMobileDigits: (_previous: string, value: string) => value,
+  formatSignInCode: (value: string) => value,
+  looksLikeSignInCode: (value: string) => value.length >= 8,
   normalizeMobileIdentifier: (value: string) => value
 }));
 jest.mock("../src/ConfirmDialog", () => ({
@@ -134,16 +140,22 @@ jest.mock("../src/ui", () => {
     PasswordInput: (props: object) => ReactActual.createElement((require("react-native") as typeof import("react-native")).TextInput, { ...props, secureTextEntry: true }),
     Screen: ({ children }: { children: ReactNode }) => ReactActual.createElement("main", null, children),
     errorText: () => "error",
+    Card: ({ children }: { children: ReactNode }) => ReactActual.createElement("section", null, children),
+    ListRow: ({ label, trailing }: { label: string; trailing?: ReactNode }) => ReactActual.createElement("div", { "data-row": label }, trailing),
+    ThemedSwitch: (props: { onValueChange: (value: boolean) => void; value: boolean }) =>
+      ReactActual.createElement("button", { "data-label": "terms-switch", onClick: () => props.onValueChange(!props.value) }),
+    monoFont: "monospace",
     // The petrol notice as a plain text (an alert for error and warning, as the real one), so the message assertions keep reading its words.
     Notice: ({ children, testID, tone }: { children: React.ReactNode; testID?: string; tone?: string }) =>
       (jest.requireActual("react") as typeof import("react")).createElement((require("react-native") as typeof import("react-native")).Text, { accessibilityRole: tone === "error" || tone === "warning" ? "alert" : undefined, testID }, children),
     SegmentedControl: ({ options, onChange, disabled }: { options: Array<{ value: string; label: string }>; onChange: (value: string) => void; disabled?: boolean }) =>
       (jest.requireActual("react") as typeof import("react")).createElement("div", null, options.map((option) =>
         (jest.requireActual("react") as typeof import("react")).createElement("button", { key: option.value, "data-label": option.label, disabled, onClick: () => onChange(option.value) }, option.label))),
-    useUiStyles: () => ({ text: {}, muted: {}, error: {}, input: {}, phoneInputRow: {}, phonePrefix: {}, phoneInput: {}, authLinks: {} })
+    useUiStyles: () => ({ text: {}, muted: {}, error: {}, input: {}, headline: {}, phoneInputRow: {}, phonePrefix: {}, phoneInput: {}, authLinks: {} })
   });
 });
 
+import { Linking } from "react-native";
 import { ApiError } from "../src/api";
 import SignIn from "../src/nativeRoutes/sign-in";
 import Unlock from "../src/nativeRoutes/unlock";
@@ -857,6 +869,83 @@ describe("native login refresh handoff", () => {
       await act(async () => label(tree, "profileDeleteConfirm")[0].props.onClick());
       expect(tree.root.findAll((node) => node.props.children === "profileDeleteRefused").length).toBeGreaterThan(0);
       expect(mockRouter.replace).not.toHaveBeenCalledWith("/");
+      await act(async () => tree.unmount());
+    });
+  });
+  describe("sign-in code and Forgot password in the app (owner 2026-11-19, digitva-mb0d.3)", () => {
+    async function render() {
+      let tree: ReturnType<typeof create>;
+      await act(async () => {
+        tree = create(<SignIn />);
+      });
+      await settle();
+      return tree!;
+    }
+    const click = (tree: ReturnType<typeof create>, key: string) =>
+      act(async () => tree.root.findByProps({ "data-label": key }).props.onClick());
+    let openURL: jest.SpyInstance;
+    beforeEach(() => {
+      mockParams = {};
+      openURL = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    });
+    afterEach(() => {
+      expect(openURL).not.toHaveBeenCalled();
+      openURL.mockRestore();
+    });
+
+    it("\"I have a sign-in code\" redeems in the app, shows the password once, then signs in with it", async () => {
+      mockRedeemSignInCode.mockResolvedValueOnce("maple-otter-candle-4821");
+      const tree = await render();
+      await click(tree, "redeemCode");
+      act(() => input(tree, "email")!.props.onChangeText("worker@example.org"));
+      act(() => input(tree, "signInCodeLabel")!.props.onChangeText("K7PQ-M3XR"));
+      expect(tree.root.findByProps({ "data-label": "signInCodeSubmit" }).props.disabled).toBe(true);
+      await click(tree, "terms-switch");
+      await click(tree, "signInCodeSubmit");
+      expect(mockRedeemSignInCode).toHaveBeenCalledWith("http://localhost:8051", "worker@example.org", "K7PQ-M3XR");
+      expect(JSON.stringify(tree.toJSON())).toContain("maple-otter-candle-4821");
+      expect(mockSignIn).not.toHaveBeenCalled();
+      await click(tree, "signInCodeSaved");
+      expect(mockSignIn).toHaveBeenCalledWith("worker@example.org", "maple-otter-candle-4821", "active", { forPinReset: false });
+      expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u1", refresh: "1" } });
+      await act(async () => tree.unmount());
+    });
+
+    it("a wrong code stays on the code form with the code message", async () => {
+      mockRedeemSignInCode.mockRejectedValueOnce(new ApiError(401, "invalid_code"));
+      const tree = await render();
+      await click(tree, "redeemCode");
+      act(() => input(tree, "email")!.props.onChangeText("worker@example.org"));
+      act(() => input(tree, "signInCodeLabel")!.props.onChangeText("K7PQ-M3XR"));
+      await click(tree, "terms-switch");
+      await click(tree, "signInCodeSubmit");
+      expect(JSON.stringify(tree.toJSON())).toContain("errSignInCodeInvalid");
+      expect(tree.root.findAllByProps({ "data-label": "signInCodeSubmit" })).toHaveLength(1);
+      expect(mockSignIn).not.toHaveBeenCalled();
+      await act(async () => tree.unmount());
+    });
+
+    it("Forgot password posts the identifier and shows the server's answer", async () => {
+      mockRequestPasswordReset.mockResolvedValueOnce("If that number belongs to an account ...");
+      const tree = await render();
+      await click(tree, "forgotPassword");
+      await click(tree, "mobile");
+      act(() => input(tree, "mobile")!.props.onChangeText("9876543210"));
+      await click(tree, "forgotPasswordSend");
+      expect(mockRequestPasswordReset).toHaveBeenCalledWith("http://localhost:8051", "9876543210");
+      expect(JSON.stringify(tree.toJSON())).toContain("If that number belongs to an account ...");
+      expect(mockSignIn).not.toHaveBeenCalled();
+      await act(async () => tree.unmount());
+    });
+
+    it("a rate-limited Forgot password shows the error, not a message", async () => {
+      mockRequestPasswordReset.mockRejectedValueOnce(new ApiError(429, "rate_limited"));
+      const tree = await render();
+      await click(tree, "forgotPassword");
+      act(() => input(tree, "email")!.props.onChangeText("worker@example.org"));
+      await click(tree, "forgotPasswordSend");
+      expect(mockRequestPasswordReset).toHaveBeenCalledWith("http://localhost:8051", "worker@example.org");
+      expect(tree.root.findAll((node) => node.props.accessibilityRole === "alert" && node.props.children === "error").length).toBeGreaterThan(0);
       await act(async () => tree.unmount());
     });
   });

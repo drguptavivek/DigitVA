@@ -689,6 +689,22 @@ export async function redeemSignInCode(server: string, identifier: string, code:
 }
 
 /**
+ * POST /forgot-password ("Forgot password", docs/policy/account-onboarding-and-passwords.md section 6): the server
+ * emails a reset link to the account's verified email, if any, and returns the message to show, the same whether
+ * or not an account matched. Same server rule as redeemSignInCode. Throws ApiError (429 when rate limited).
+ */
+export async function requestPasswordReset(server: string, identifier: string): Promise<string> {
+  const origin = acceptedServerOrigin(server, __DEV__);
+  if (!origin || origin === DEMO_SERVER) throw new EnrolmentError("errServerNotAllowed");
+  const { body } = await requestJson<{ message?: unknown }>(origin, `${AUTH_API}/forgot-password`, {
+    method: "POST",
+    body: { identifier: identifier.trim() },
+  });
+  if (typeof body?.message !== "string" || !body.message) throw new ApiError(200, "malformed_response");
+  return body.message;
+}
+
+/**
  * POST /sign-in-qr/redeem: one scan enrols this phone and opens the QR's user's
  * session, stored as enrolment plus password sign-in store them. The server
  * answers every failure with 404 `sign_in_qr_invalid`. The token is sent once

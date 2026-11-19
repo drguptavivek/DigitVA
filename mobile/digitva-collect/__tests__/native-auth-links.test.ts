@@ -1,16 +1,6 @@
-import {
-  mobileDigitsFromInput,
-  nativeAuthUrl,
-  NATIVE_AUTH_PATHS,
-  normalizeMobileIdentifier
-} from "../src/nativeAuthLinks";
-import { DEFAULT_RELEASE_SERVER } from "../src/enrolment";
+import { mobileDigitsFromInput, nextMobileDigits, normalizeMobileIdentifier } from "../src/nativeAuthLinks";
 
-const releaseOrigin = new URL(
-  process.env.EXPO_PUBLIC_API_BASE_URL || DEFAULT_RELEASE_SERVER
-).origin.toLowerCase();
-
-describe("native sign-in identifier and server links", () => {
+describe("native sign-in identifier", () => {
   it("normalizes India mobile pastes to the API identifier", () => {
     expect(mobileDigitsFromInput("+91 987 654 3210")).toBe("9876543210");
     expect(mobileDigitsFromInput("91-9876543210")).toBe("9876543210");
@@ -20,24 +10,14 @@ describe("native sign-in identifier and server links", () => {
     expect(normalizeMobileIdentifier("98765432101")).toBeUndefined();
   });
 
-  it("only builds handoff links for servers the enrolment rule accepts", () => {
-    expect(nativeAuthUrl("https://digitvav3.causeofdeathindia.com", NATIVE_AUTH_PATHS.signIn, false)).toBe(
-      "https://digitvav3.causeofdeathindia.com/vaauth/valogin"
-    );
-    for (const server of ["https://evilcauseofdeathindia.com", "https://causeofdeathindia.com.evil.io", "http://digitva.causeofdeathindia.com"]) {
-      expect(() => nativeAuthUrl(server, NATIVE_AUTH_PATHS.signIn, false)).toThrow("server_not_allowed");
-    }
-    expect(nativeAuthUrl(`${releaseOrigin}/`, NATIVE_AUTH_PATHS.redeemCode, false)).toBe(
-      `${releaseOrigin}/vaauth/valogin/code`
-    );
-    expect(nativeAuthUrl("http://localhost:8051", NATIVE_AUTH_PATHS.forgotPassword, true)).toBe(
-      "http://localhost:8051/vaauth/forgot-password"
-    );
-    expect(() => nativeAuthUrl("http://localhost:8051", NATIVE_AUTH_PATHS.signIn, false)).toThrow(
-      "server_not_allowed"
-    );
-    expect(() => nativeAuthUrl("https://evil.example", NATIVE_AUTH_PATHS.signIn, true)).toThrow(
-      "server_not_allowed"
-    );
+  it("holds the country code's 10 digits and refuses anything that would exceed them", () => {
+    expect(nextMobileDigits("", "987654321")).toBe("987654321");
+    expect(nextMobileDigits("987654321", "9876543210")).toBe("9876543210");
+    // An 11th digit is refused; the field keeps its value.
+    expect(nextMobileDigits("9876543210", "98765432101")).toBe("9876543210");
+    // A paste with the country code still fits.
+    expect(nextMobileDigits("", "+91 98765 43210")).toBe("9876543210");
+    // A malformed long paste is refused, not cut.
+    expect(nextMobileDigits("98", "  9 8 7 6 5 4 3 2 1 0 1 2 3  ")).toBe("98");
   });
 });

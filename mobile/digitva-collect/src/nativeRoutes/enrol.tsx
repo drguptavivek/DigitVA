@@ -28,10 +28,11 @@ import { deviceFamilyLabel, offlineEnginePlatform } from "../platformFamily";
 import { t } from "../i18n";
 import { useUiLanguages } from "../uiPacks";
 import { MenuChoiceRow } from "../ui/controls";
-import { formatSignInCode, looksLikeSignInCode, mobileDigitsFromInput, normalizeMobileIdentifier } from "../nativeAuthLinks";
+import { MOBILE_MAX_CHARS, nextMobileDigits, formatSignInCode, looksLikeSignInCode, normalizeMobileIdentifier } from "../nativeAuthLinks";
+import { CodeAccepted, SignInCodeForm, signInCodeErrorText } from "../SignInCodeSteps";
 import { Icon, icons } from "../Icon";
 import { radius, spacing, useTheme } from "../theme";
-import { Button, Card, errorText, ListRow, monoFont, Notice, PasswordInput, Screen, SegmentedControl, Separator, TextLink, ThemedSwitch, useUiStyles } from "../ui";
+import { Button, Card, errorText, ListRow, Notice, PasswordInput, Screen, SegmentedControl, Separator, TextLink, useUiStyles } from "../ui";
 
 const APP_VERSION = Constants.expoConfig?.version ?? "0.0.0";
 /** Where an error shows: the QR code (scan, paste, confirm), the login form, the demo button, the code form, Code accepted. */
@@ -197,8 +198,7 @@ export default function Enrol() {
       setCodeFromPassword(false);
       setAccepted({ server: serverAddress, identifier: submittedIdentifier, password: generated });
     } catch (caught) {
-      setError("redeem", caught instanceof ApiError && caught.code === "invalid_code" ? t("errSignInCodeInvalid")
-        : caught instanceof ApiError && caught.status === 404 ? t("errSignInCodeUnsupported") : loginError(caught));
+      setError("redeem", signInCodeErrorText(caught, loginError));
     } finally {
       busyRef.current = false;
       setBusy(false);
@@ -414,8 +414,8 @@ export default function Enrol() {
         <View style={styles.phoneInputRow}>
           <Text style={styles.phonePrefix} accessibilityLabel={t("countryCodeIndia")}>+91</Text>
           <TextInput accessibilityLabel={t("mobile")} style={[styles.input, styles.phoneInput]} autoComplete="tel"
-            keyboardType="phone-pad" editable={!busy} value={identifier}
-            onChangeText={(value) => setIdentifier(mobileDigitsFromInput(value))} />
+            keyboardType="phone-pad" maxLength={MOBILE_MAX_CHARS} editable={!busy} value={identifier}
+            onChangeText={(value) => setIdentifier((previous) => nextMobileDigits(previous, value))} />
         </View>
       ) : (
         <TextInput accessibilityLabel={t("email")} style={styles.input} autoCapitalize="none" autoCorrect={false}
@@ -428,44 +428,18 @@ export default function Enrol() {
   // Code accepted: the generated password once, then "I have saved it" signs in with it.
   if (accepted) {
     return (
-      <Screen title={t("enrolCodeAccepted")}>
-        <Text style={styles.text}>{t("signInCodePasswordIntro")}</Text>
-        <Card>
-          <Text selectable style={[styles.headline, { fontFamily: monoFont, textAlign: "center", paddingVertical: spacing.sm }]}>
-            {accepted.password}
-          </Text>
-        </Card>
-        <Notice tone="warning">{t("signInCodePasswordKeep")}</Notice>
-        <Button label={t("signInCodeSaved")} loading={busy} disabled={busy} onPress={() => void continueWithCode()} />
-        {errorAt("accepted")}
-        <TextLink label={t("cancel")} disabled={busy} onPress={() => { setAccepted(undefined); setView("menu"); setErrorState(undefined); }} />
-      </Screen>
+      <CodeAccepted password={accepted.password} busy={busy} error={errorAt("accepted")} onContinue={() => void continueWithCode()}
+        onCancel={() => { setAccepted(undefined); setView("menu"); setErrorState(undefined); }} />
     );
   }
 
   if (view === "code") {
     return (
-      <Screen title={t("redeemCode")}>
-        {codeFromPassword ? <Notice tone="info">{t("signInCodeFromPassword")}</Notice> : <Text style={styles.muted}>{t("signInCodeIntro")}</Text>}
-        {accountFields}
-        <Text style={styles.muted}>{t("signInCodeLabel")}</Text>
-        <TextInput accessibilityLabel={t("signInCodeLabel")} style={[styles.input, { fontFamily: monoFont }]} autoCapitalize="characters"
-          autoCorrect={false} spellCheck={false} autoComplete="off" placeholder="XXXX-XXXX" editable={!busy} value={signInCode}
-          onChangeText={(value) => setSignInCode(formatSignInCode(value))} />
-        <Text style={styles.muted}>{t("termsConfidential")} {t("termsNoSharing")} {t("termsPurpose")}</Text>
-        <Card grouped>
-          <ListRow label={t("acceptTerms")} trailing={
-            <ThemedSwitch accessibilityLabel={t("acceptTerms")} value={acceptTerms} disabled={busy} onValueChange={setAcceptTerms} />
-          } />
-        </Card>
-        <Button label={t("signInCodeSubmit")} loading={busy}
-          disabled={busy || !identifierReady || !looksLikeSignInCode(signInCode) || !acceptTerms}
-          onPress={() => void submitCode()} />
-        {errorAt("redeem")}
-        <TextLink label={t("cancel")} disabled={busy} onPress={() => {
+      <SignInCodeForm fromPassword={codeFromPassword} identifierFields={accountFields} identifierReady={identifierReady}
+        code={signInCode} onCodeChange={setSignInCode} acceptTerms={acceptTerms} onAcceptTermsChange={setAcceptTerms}
+        busy={busy} error={errorAt("redeem")} onSubmit={() => void submitCode()} onCancel={() => {
           setView("menu"); setSignInCode(""); setAcceptTerms(false); setCodeFromPassword(false); setErrorState(undefined);
         }} />
-      </Screen>
     );
   }
 

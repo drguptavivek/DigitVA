@@ -1162,6 +1162,11 @@ the device while unenrolled.
   after adoption (device-collection-api.md "Standalone push"). Engine error payloads never surface
   or log (status `unavailable`). Screens are platform-split (`​.native`/`.web`
   twins) so the web export never pulls expo-sqlite.
+- **Native sign-in opens no server page (digitva-mb0d.3, 2026-11-19).** On `src/nativeRoutes/sign-in.tsx`, "I have a
+  sign-in code" redeems in the app with the welcome screen's code form and Code accepted step
+  (`src/SignInCodeSteps.tsx`), then signs in through the screen's own submit; "Forgot password" posts
+  `POST /api/v1/auth/forgot-password` (`requestPasswordReset` in `src/auth.ts`) and shows the server's message.
+  The browser build still signs in through the server's web pages; older APKs keep opening those pages.
 - **PIN lockout and reset (digitva-kfi, 2026-11-06).** Native store keys
   (`src/vault.ts`, `src/interviewerDb.ts`): each store's SQLCipher passphrase
   is a data key kept as a PIN-wrapped copy (`store_key_pin_<hash>`, SHA-256

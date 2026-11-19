@@ -43,6 +43,17 @@ everything not said here.
 
 - The first login step takes "Email or mobile number". A value containing
   `@` is an email; anything else is read as a mobile number.
+- A mobile number is at most 16 characters as typed (`+91 98765 43210` is
+  15; owner 2026-11-19). The app's mobile field shows +91 and holds the
+  10 digits after it: an 11th digit or a malformed paste is refused (the
+  field keeps its value), while a paste with `+91` still fits. International
+  numbers may widen this later. The web
+  sign-in, "I have a code" and forgot-password forms and the app's sign-in
+  APIs (`/sessions`, `/password-enroll`, `/sign-in-code/redeem`,
+  `/forgot-password`) refuse a longer value without `@` with "A mobile
+  number has at most 16 characters." (400 `invalid_request` on the API).
+  Only the length is checked, so the refusal says nothing about whether an
+  account exists; public-demo usernames are exempt.
 - Everything else in authentication-factors.md section 1 applies unchanged:
   the same second page for every value (known or not), passkey or password,
   no additional factor, rate limits per IP and per account, and CAPTCHA. The
@@ -388,8 +399,13 @@ that would collect an interviewer's password.
   `http://localhost:8051`.
 - **Before redeeming**, the enrol screen shows the server host and project
   and waits for the user to confirm.
-- The server pages the app opens (code redemption, forgotten password) use
-  the same rule.
+- The native app opens no server page for sign-in (owner 2026-11-19,
+  `digitva-mb0d.3`): "I have a code" on the sign-in screen redeems the code
+  in the app (`POST /api/v1/auth/sign-in-code/redeem`, as the welcome
+  screen does), and "Forgot password" posts the identifier to
+  `POST /api/v1/auth/forgot-password`, which applies
+  account-onboarding-and-passwords.md section 6 exactly as the web page
+  does. Only the emailed reset link opens in a browser.
 - **Changing server is re-enrolling.** Settings shows the enrolled server
   read-only. **Change server / re-enrol** is refused while any signed-in
   interviewer on the phone has unsent work (drafts, registrations, queued

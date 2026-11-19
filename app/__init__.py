@@ -1,4 +1,5 @@
 import gc
+import logging
 import re
 import uuid
 import os
@@ -102,6 +103,21 @@ limiter = Limiter(
     key_func=_rate_limit_key,
     default_limits=["12000 per day", "900 per hour"],
 )
+
+
+class _HideRateLimitKey(logging.Filter):
+    """Flask-Limiter logs each breach with its limit key, and per-identifier
+    limits key on an email or mobile number, which must never reach a log
+    (digitva-4koe). Keep the line, drop the key: the app logs 429s itself
+    with method, path and IP."""
+
+    def filter(self, record):
+        if isinstance(record.msg, str) and record.msg.startswith("ratelimit ") and len(record.args or ()) == 3:
+            record.args = (record.args[0], "key hidden", record.args[2])
+        return True
+
+
+logging.getLogger("flask-limiter").addFilter(_HideRateLimitKey())
 talisman = Talisman()
 cache = Cache()
 

@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-17
+last_updated: 2026-11-19
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -670,6 +670,10 @@ redirected. Typing an identifier never changes a password.
   verified email, we've sent a password reset link to that email. Otherwise
   ask your data manager for a new sign-in code, then use "I have a code" on
   the sign-in page."
+- The lookup and send are `user_account_service.request_password_reset`,
+  shared with the native app's `POST /api/v1/auth/forgot-password`
+  (`{identifier}` → 200 `{message}`, the same two messages; 3/hour per IP
+  and per identifier; `digitva-mb0d.3`, docs/current-state/api-v1.md).
 
 ### 5.2 Reset link: `GET|POST /vaauth/reset-password/<token>`
 
@@ -1290,12 +1294,13 @@ JSON:
 - Never assume `email` is non-null (`user.email` in token responses,
   `email` in `/api/v1/profile/`, user lists). Display the name; a mobile
   number is never shown partially: full to a viewer who may see it, else absent.
-- Never build a native forgot-password, reset or verify screen that calls
-  these endpoints directly. The link pages and `/vaauth/valogin/code` are
-  HTML forms with CSRF and CAPTCHA; open the server page (browser or in-app
-  browser). The one native code-redeem path is
-  `POST /api/v1/auth/sign-in-code/redeem` (section 4.2a); its show-once
-  password lives only on that response and the app screen that shows it.
+- Never build a native reset or verify screen that calls these endpoints
+  directly. The link pages and `/vaauth/valogin/code` are HTML forms with
+  CSRF and CAPTCHA. The native app's only paths are
+  `POST /api/v1/auth/sign-in-code/redeem` (section 4.2a; its show-once
+  password lives only on that response and the app screen that shows it)
+  and `POST /api/v1/auth/forgot-password` (section 5.1); the emailed reset
+  link opens in the browser.
 - Never offer a "set password" or "change password" form; the server has no
   endpoint for it. Use Profile "Generate a new password" or the flows in
   section 5.

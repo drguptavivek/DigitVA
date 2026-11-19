@@ -78,6 +78,7 @@ UNAUTHENTICATED_ENDPOINTS = frozenset({
     "api_v1.auth_api.enroll", "api_v1.auth_api.open_session", "api_v1.auth_api.refresh_session",
     "api_v1.auth_api.demo_enroll", "api_v1.auth_api.redeem_sign_in_qr",
     "api_v1.auth_api.password_enroll", "api_v1.auth_api.redeem_sign_in_code",
+    "api_v1.auth_api.forgot_password",
 })
 ACCESS_TTL = timedelta(minutes=15)
 DEFAULT_REFRESH_TTL_DAYS = 30

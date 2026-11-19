@@ -160,6 +160,10 @@ PUBLIC_ENDPOINTS = {
                                          "five attempts), does not authorize; the generated "
                                          "password then goes through password_enroll; "
                                          "rate-limited per IP and identifier.",
+    "api_v1.auth_api.forgot_password": "App password reset request (account-onboarding-"
+                                     "and-passwords.md section 6); runs with no session, "
+                                     "same answer whether or not an account matches; "
+                                     "rate-limited per IP and identifier.",
     "api_v1.auth_api.refresh_session": "Device session refresh: authenticates (live "
                                      "refresh token, reuse revokes), does not authorize.",
     "api_v1.auth_api.record_profile_deletion": "Phone reports deleting one profile "

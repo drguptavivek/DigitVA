@@ -11,7 +11,16 @@ What landed, newest first. Details live in the commits and the linked docs;
   from the cause-list CSV (`digitva-mb0d.1`). Coding languages are edited in
   the app; the device token may now set the coder's own languages, and
   `GET /profile/` adds `available_languages` (`digitva-mb0d.2`, policy:
-  coding-workflow-state-machine.md). Sign-in pages remain (`digitva-mb0d.3`).
+  coding-workflow-state-machine.md). The native sign-in screen's "I have a
+  code" and "Forgot password" run in the app (`digitva-mb0d.3`): the code
+  step is shared with the welcome screen, and the new
+  `POST /api/v1/auth/forgot-password` shares one function with the web page.
+- Sign-in identifiers (owner 2026-11-19): the app's mobile field holds +91
+  and 10 digits; the app's sign-in APIs and the web sign-in, "I have a code"
+  and forgot-password forms refuse a mobile number over 16 characters. The
+  rate-limit key is normalised before it is cut, and Flask-Limiter's breach
+  log line no longer carries the key (an email or mobile number) on any
+  endpoint (`digitva-4koe`).
 - Required ICD-11 postcoordination stays a picker rule (`digitva-nhzt`,
   owner 2026-11-19): a server refusal of bare stems (`e0c49ae2c`) was
   reverted the same day because DORIS itself returns bare stems and VA

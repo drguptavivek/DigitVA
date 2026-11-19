@@ -1,6 +1,7 @@
+from flask import current_app
 from flask_wtf import FlaskForm
 from wtforms import BooleanField, HiddenField, PasswordField, StringField, SubmitField
-from wtforms.validators import DataRequired, Email, Length
+from wtforms.validators import DataRequired, Email, Length, ValidationError
 
 
 def email_if_at(form, field):
@@ -9,6 +10,23 @@ def email_if_at(form, field):
     section 2: an invalid number gets the same next page as a valid one)."""
     if "@" in (field.data or ""):
         Email(message="Please enter a valid email address.")(form, field)
+
+
+#: A typed mobile number is at most 16 characters ("+91 98765 43210" is 15);
+#: the app's API refuses longer the same way (app/routes/api/auth.py).
+MOBILE_MAX_CHARS = 16
+
+
+def mobile_length_if_no_at(form, field):
+    """A value without ``@`` is a mobile number: refuse one longer than any
+    real number. Only the length is checked, so the answer says nothing about
+    whether an account exists. Public-demo usernames have no ``@`` and are
+    left to their own rules."""
+    value = (field.data or "").strip()
+    if "@" in value or current_app.config.get("PUBLIC_DEMO_ENABLED"):
+        return
+    if len(value) > MOBILE_MAX_CHARS:
+        raise ValidationError(f"A mobile number has at most {MOBILE_MAX_CHARS} characters.")
 
 
 class EmailStepForm(FlaskForm):
@@ -26,6 +44,7 @@ class EmailStepForm(FlaskForm):
         validators=[
             DataRequired(message="Email or mobile number is required."),
             email_if_at,
+            mobile_length_if_no_at,
         ],
     )
     captcha_salt = HiddenField(validators=[DataRequired()])
@@ -53,7 +72,8 @@ class RedeemCodeForm(FlaskForm):
 
     mobile = StringField(
         "Email or mobile number:",
-        validators=[DataRequired(message="Email or mobile number is required."), Length(max=128)],
+        validators=[DataRequired(message="Email or mobile number is required."), Length(max=128),
+                    mobile_length_if_no_at],
     )
     code = StringField(
         "Code:", validators=[DataRequired(message="Code is required."), Length(max=32)]

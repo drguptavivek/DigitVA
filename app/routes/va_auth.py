@@ -36,7 +36,6 @@ from app.services.pow_captcha_service import issue_challenge, verify_challenge
 from app.utils.idle_session import EXPIRED_MESSAGE, IDLE_MESSAGE, stamp_activity, stamp_signed_in
 from app.services.security_event_service import credential_id_prefix, record_security_event
 from app.services import user_account_service as accounts
-from app.services.user_account_service import canonical_mobile
 from app.services.site_maintenance_service import (
     get_active_site_maintenance,
     serialize_site_maintenance,
@@ -64,13 +63,6 @@ INVALID_SIGN_IN_CODE_MESSAGE = (
 MOBILE_RESET_MESSAGE = (
     "If you sign in with a mobile number, ask your data manager for a new "
     "sign-in code, then use \"I have a code\" on the sign-in page."
-)
-#: One answer for every mobile number typed into "Forgot password", whether
-#: it is unknown, mobile-only or has a verified email (policy section 6).
-MOBILE_FORGOT_MESSAGE = (
-    "If that number belongs to an account with a verified email, we've sent a "
-    "password reset link to that email. Otherwise ask your data manager for a "
-    "new sign-in code, then use \"I have a code\" on the sign-in page."
 )
 PASSWORD_EMAILED_MESSAGE = "Your password has been emailed to you."
 _DUMMY_PASSWORD_HASH = generate_password_hash("digitva-timing-equaliser")
@@ -638,20 +630,7 @@ def forgot_password():
         return redirect(current_user.landing_url())
     form = ForgotPasswordForm()
     if form.validate_on_submit():
-        typed = form.email.data.strip()
-        if "@" in typed:
-            match = VaUsers.email == typed.lower()
-            message = (
-                "If that email address is registered, we've sent a password reset link. "
-                "Please check your inbox (and spam folder)."
-            )
-        else:
-            match = VaUsers.mobile_login == (canonical_mobile(typed) or "")
-            message = MOBILE_FORGOT_MESSAGE
-        user = db.session.scalar(sa.select(VaUsers).where(match))
-        if user is not None and user.email and user.email_verified:
-            _send_password_reset(user)
-        flash(message, "info")
+        flash(accounts.request_password_reset(form.email.data), "info")
         return redirect(url_for("va_auth.forgot_password"))
     return render_template("va_frontpages/va_forgot_password.html", form=form)
 
@@ -862,15 +841,6 @@ def _safe_next_url(target):
     if parsed.scheme in ("http", "https") and parsed.netloc == request.host:
         return target
     return None
-
-
-def _send_password_reset(user):
-    """Generate a password-reset token and dispatch the email."""
-    from app.services.token_service import generate_token
-    from app.services.email_service import send_password_reset_email
-
-    token = generate_token(user.user_id, "password_reset")
-    send_password_reset_email(user, token)
 
 
 def _send_email_verification(user):

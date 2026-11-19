@@ -14,10 +14,12 @@ names the inputs to fix. Request bodies are capped
 included. Terms and maintenance gates are the app-level ones in app/__init__.py.
 """
 
+import hashlib
+import hmac
 import logging
 from datetime import UTC, datetime
 
-from flask import Blueprint, abort, g, jsonify, request
+from flask import Blueprint, abort, current_app, g, jsonify, request
 from flask_limiter.util import get_remote_address
 from flask_login import current_user, login_required
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -30,6 +32,7 @@ from app.services import device_auth_service as devices
 from app.services import device_signing_service as signing
 from app.services import email_service, mobile_sign_in_service, public_demo_service
 from app.services import sign_in_qr_service as sign_in_qr
+from app.services import user_account_service as accounts
 from app.services.access_summary_service import build_access_summary
 from app.services.pow_captcha_service import issue_challenge, verify_challenge
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
@@ -79,10 +82,36 @@ def _body_key(name):
             value = _body().get(name)
         except RequestEntityTooLarge:
             value = None
-        text = str(value).strip().lower()[:128] if value else ""
+        # Canonicalise before truncating: a padded number cut at 128 would no
+        # longer parse and would get a fresh bucket per spacing variant.
+        text = str(value).strip().lower()[:512] if value else ""
         if name in {"email", "identifier"} and text and "@" not in text:
             text = canonical_mobile(text) or text
-        return f"device-{name}:{text}"
+        return f"device-{name}:{text[:128]}"
+    return key
+
+
+#: A typed mobile number is at most 16 characters ("+91 98765 43210" is 15);
+#: anything longer is refused before it is read (owner 2026-11-19).
+MOBILE_MAX_CHARS = 16
+
+
+def _mobile_too_long(value) -> bool:
+    """A sign-in identifier without "@" that is longer than a mobile number."""
+    return isinstance(value, str) and "@" not in value and len(value.strip()) > MOBILE_MAX_CHARS
+
+
+def _mobile_too_long_error(field):
+    return _error(f"A mobile number has at most {MOBILE_MAX_CHARS} characters.", "invalid_request", 400,
+                  fields=[field])
+
+
+def _keyed_digest(key_func):
+    """``key_func``'s bucket under an HMAC of its key: flask-limiter logs the
+    key of every refused request, and some identifiers must never be logged."""
+    def key():
+        secret = current_app.secret_key.encode("utf-8")
+        return "digest:" + hmac.new(secret, key_func().encode("utf-8"), hashlib.sha256).hexdigest()
     return key
 
 
@@ -170,6 +199,9 @@ def open_session():
     Optional ``replace_device_id``: at the device cap, the phone to sign out
     (``devices.check_device_slot``; mobile-sign-in.md)."""
     p = _body()
+    # Public-demo usernames have no "@" either; the mobile rule is for real accounts.
+    if not public_demo_service.enabled() and _mobile_too_long(p.get("email")):
+        return _mobile_too_long_error("email")
     issued, user = devices.open_session(
         device_id=p.get("device_id"), device_secret=p.get("device_secret"),
         email=p.get("email"), password=p.get("password"), replace_device_id=p.get("replace_device_id"),
@@ -209,6 +241,8 @@ def password_enroll():
     if public_demo_service.enabled():
         abort(404)
     p = _body()
+    if _mobile_too_long(p.get("identifier")):
+        return _mobile_too_long_error("identifier")
     device, secret, issued, user = devices.enrol_with_password(
         identifier=p.get("identifier"), password=p.get("password"),
         device_name=p.get("device_name"), platform=p.get("platform"),
@@ -255,6 +289,8 @@ def redeem_sign_in_code():
         abort(404)
     p = _body()
     identifier, code = p.get("identifier"), p.get("code")
+    if _mobile_too_long(identifier):
+        return _mobile_too_long_error("identifier")
     bad = [name for name, value, cap in (("identifier", identifier, 128), ("code", code, 32))
            if not isinstance(value, str) or not value.strip() or len(value) > cap]
     if p.get("accept_terms") is not True:
@@ -272,6 +308,27 @@ def redeem_sign_in_code():
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
     return response, 200
+
+
+@bp.post("/forgot-password")
+@limiter.limit("3 per hour")
+@limiter.limit("3 per hour", key_func=_keyed_digest(_body_key("identifier")))
+def forgot_password():
+    """"Forgot password" in the app (account-onboarding-and-passwords.md
+    section 6): ``{identifier}``, an email or mobile number (1..254), else 400
+    ``invalid_request`` before anything is read. The web page's request
+    (``request_password_reset``): a reset link only to a verified email; 200
+    ``{message}``, one per kind of identifier whether or not an account
+    matches. 404 on the public-demo deployment, which has no passwords to reset.
+    """
+    if public_demo_service.enabled():
+        abort(404)
+    identifier = _body().get("identifier")
+    if not isinstance(identifier, str) or not identifier.strip() or len(identifier) > 254:
+        return _error("Enter your email or mobile number.", "invalid_request", 400, fields=["identifier"])
+    if _mobile_too_long(identifier):
+        return _mobile_too_long_error("identifier")
+    return jsonify({"message": accounts.request_password_reset(identifier)}), 200
 
 
 @bp.post("/sign-in-qr/redeem")

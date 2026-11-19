@@ -3,7 +3,7 @@ title: Account Onboarding and Password Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-19
 ---
 
 # Account Onboarding and Password Policy
@@ -250,6 +250,15 @@ another person out.
   welcome screen redeems a code in the app with the same server rules and
   shows the password once there, then signs in with it
   ([mobile-sign-in.md](mobile-sign-in.md) section 3, 2026-11-16).
+- The native sign-in screen does the same for "I have a code", and its
+  "Forgot password" is an in-app form over
+  `POST /api/v1/auth/forgot-password {identifier}` (owner 2026-11-19,
+  `digitva-mb0d.3`): the section 6 rules unchanged. One answer per kind of
+  identifier whether or not an account matches; the link goes to a verified
+  email only; a mobile-only account is told to ask the data manager for a
+  code; 3 requests per hour per IP, as the web page, and per identifier.
+  The reply never says whether an account exists. The emailed link opens
+  in the browser.
 - The native app's interviewer sign-in (field-data-collection.md) uses the
   same identifier and password; device unlock by PIN or biometric is local
   and is not a password. A forgotten password follows section 6 and must

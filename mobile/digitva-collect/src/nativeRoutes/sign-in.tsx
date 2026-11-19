@@ -1,21 +1,25 @@
-/** Interviewer sign-in on this device. */
+/**
+ * Interviewer sign-in on this device. "I have a sign-in code" redeems the code in the app as the welcome screen does
+ * (src/SignInCodeSteps.tsx) and signs in with the generated password through this screen's own submit; "Forgot
+ * password" posts the identifier (POST /auth/forgot-password) and shows the server's answer. Neither opens a server
+ * page (docs/policy/mobile-sign-in.md, owner 2026-11-19).
+ */
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Linking, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { ApiError } from "../api";
 import { useAppState } from "../AppState";
-import { forgetDevice, loadActiveSlot, loadDevice, recoverSignOut, signIn, verifyPasswordForDelete, WrongAccountError, type Slot } from "../auth";
+import {
+  forgetDevice, loadActiveSlot, loadDevice, recoverSignOut, redeemSignInCode, requestPasswordReset, signIn, verifyPasswordForDelete,
+  WrongAccountError, type Slot
+} from "../auth";
 import { normalizeUsername } from "../demoRules";
 import { DeviceLimitChoice, deviceLimitPhones, type LimitPhone } from "../DeviceLimitChoice";
-import { isDemoServer } from "../enrolment";
+import { EnrolmentError, isDemoServer } from "../enrolment";
 import { t } from "../i18n";
-import {
-  mobileDigitsFromInput,
-  nativeAuthUrl,
-  NATIVE_AUTH_PATHS,
-  normalizeMobileIdentifier
-} from "../nativeAuthLinks";
+import { MOBILE_MAX_CHARS, nextMobileDigits, normalizeMobileIdentifier } from "../nativeAuthLinks";
+import { CodeAccepted, SignInCodeForm, signInCodeErrorText } from "../SignInCodeSteps";
 import { Button, errorText, FieldLabel, Notice, PasswordInput, Screen, SegmentedControl, TextField, TextLink, useUiStyles } from "../ui";
 import { spacing } from "../theme";
 import { displayProjectName } from "../projectName";
@@ -40,20 +44,71 @@ export default function SignIn() {
   /** The account's phones after a `409 device_limit`: pick one to sign out and retry this sign-in. */
   const [limitPhones, setLimitPhones] = useState<LimitPhone[]>();
 
-  async function openServerPage(path: (typeof NATIVE_AUTH_PATHS)[keyof typeof NATIVE_AUTH_PATHS]) {
+  /** The sign-in form, the sign-in code form (then Code accepted) or Forgot password. */
+  const [view, setView] = useState<"form" | "code" | "forgot">("form");
+  const [signInCode, setSignInCode] = useState("");
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  /** A redeemed code's generated password, shown once until it signs in or Cancel; kept when that sign-in fails. */
+  const [generated, setGenerated] = useState<string>();
+  /** The server's Forgot password answer. */
+  const [resetMessage, setResetMessage] = useState("");
+
+  const typedIdentifier = () => demo
+    ? normalizeUsername(identifier)
+    : mode === "mobile" ? normalizeMobileIdentifier(identifier) : identifier.trim();
+  const identifierReady = !!identifier.trim() && (demo || mode !== "mobile" || !!normalizeMobileIdentifier(identifier));
+  const requestError = (caught: unknown) => caught instanceof EnrolmentError ? t(caught.key) : errorText(caught);
+  const enrolledServer = async () => (await loadDevice())?.server ?? "";
+  function showForm() {
+    setView("form");
+    setSignInCode("");
+    setAcceptTerms(false);
+    setGenerated(undefined);
+    setResetMessage("");
+    setError("");
+  }
+
+  /** Redeem the code on this device's server; nothing is stored, and the code is kept on a refusal. */
+  async function submitCode() {
+    const submittedIdentifier = typedIdentifier();
+    if (!submittedIdentifier) {
+      setError(t("errMobile"));
+      return;
+    }
+    setBusy(true);
+    setError("");
     try {
-      const device = await loadDevice();
-      if (!device) throw new Error("not_enrolled");
-      await Linking.openURL(nativeAuthUrl(device.server, path, __DEV__));
+      setGenerated(await redeemSignInCode(await enrolledServer(), submittedIdentifier, signInCode));
+      setSignInCode("");
+      setAcceptTerms(false);
     } catch (caught) {
-      setError(caught instanceof Error && caught.message === "server_not_allowed" ? t("errServerNotAllowed") : t("errNetwork"));
+      setError(signInCodeErrorText(caught, requestError));
+    } finally {
+      setBusy(false);
     }
   }
 
-  async function submit(replaceDeviceId?: string) {
-    const submittedIdentifier = demo
-      ? normalizeUsername(identifier)
-      : mode === "mobile" ? normalizeMobileIdentifier(identifier) : identifier.trim();
+  async function submitForgot() {
+    const submittedIdentifier = typedIdentifier();
+    if (!submittedIdentifier) {
+      setError(t("errMobile"));
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setResetMessage("");
+    try {
+      setResetMessage(await requestPasswordReset(await enrolledServer(), submittedIdentifier));
+    } catch (caught) {
+      setError(requestError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** `secret` is the typed password, or a redeemed code's generated one ("I have saved it"). */
+  async function submit(replaceDeviceId?: string, secret = password) {
+    const submittedIdentifier = typedIdentifier();
     if (!submittedIdentifier) {
       setError(t("errMobile"));
       return;
@@ -65,17 +120,17 @@ export default function SignIn() {
     try {
       slot = await loadActiveSlot();
       if (userId && recover === "1") {
-        await recoverSignOut(userId, submittedIdentifier, password);
+        await recoverSignOut(userId, submittedIdentifier, secret);
         await reload();
         router.replace("/");
         return;
       }
       if (userId && deleteProfile === "1") {
-        await verifyPasswordForDelete(userId, submittedIdentifier, password);
+        await verifyPasswordForDelete(userId, submittedIdentifier, secret);
         router.dismissTo({ pathname: "/unlock", params: { userId, delete: "1" } });
         return;
       }
-      const account = await signIn(submittedIdentifier, password, slot, { forPinReset: resetPin === "1" && !!userId, replaceDeviceId });
+      const account = await signIn(submittedIdentifier, secret, slot, { forPinReset: resetPin === "1" && !!userId, replaceDeviceId });
       setLimitPhones(undefined);
       await reload();
       // Forgot PIN: a new PIN only for the account that just signed in (interviewerDb.resetInterviewerPin checks it too).
@@ -106,11 +161,9 @@ export default function SignIn() {
     return <DeviceLimitChoice phones={limitPhones} busy={busy} onPick={(id) => void submit(id)} onCancel={() => setLimitPhones(undefined)} />;
   }
 
-  return (
-    <Screen title={t("signInTitle")}>
-      {/* Which server project this signs into, under the title (design sheet 11). */}
-      {device?.project_id ? <Text style={styles.muted}>{[device.project_id, displayProjectName(device.project_name)].filter(Boolean).join(" · ")}</Text> : null}
-      {returning ? <Text style={styles.text}>{t("signInAgainAs", { name: returning.name })}</Text> : null}
+  // Email | Mobile (or the demo's username) and its field: the sign-in form's, the code form's and Forgot password's.
+  const identifierFields = (
+    <>
       {/* The segmented control names its own choice (Email | Mobile): no "Sign in with" label above it. */}
       {demo ? null : (
         <SegmentedControl
@@ -145,8 +198,9 @@ export default function SignIn() {
             autoCapitalize="none"
             autoComplete="tel"
             keyboardType="phone-pad"
+            maxLength={MOBILE_MAX_CHARS}
             value={identifier}
-            onChangeText={(value) => setIdentifier(mobileDigitsFromInput(value))}
+            onChangeText={(value) => setIdentifier((previous) => nextMobileDigits(previous, value))}
           />
         </View>
       ) : (
@@ -161,21 +215,62 @@ export default function SignIn() {
           onChangeText={setIdentifier}
         />
       )}
+    </>
+  );
+  const errorNotice = error ? <Notice tone="error">{error}</Notice> : null;
+
+  if (generated) {
+    return (
+      <CodeAccepted password={generated} busy={busy} error={errorNotice} onCancel={() => { setPassword(""); showForm(); }} onContinue={() => {
+        // The device-limit retry signs in again with the password field: it holds the generated password.
+        setPassword(generated);
+        void submit(undefined, generated);
+      }} />
+    );
+  }
+
+  if (view === "code") {
+    return (
+      <SignInCodeForm identifierFields={identifierFields} identifierReady={identifierReady} code={signInCode}
+        onCodeChange={setSignInCode} acceptTerms={acceptTerms} onAcceptTermsChange={setAcceptTerms} busy={busy}
+        error={errorNotice} onSubmit={() => void submitCode()} onCancel={showForm} />
+    );
+  }
+
+  if (view === "forgot") {
+    return (
+      <Screen title={t("forgotPassword")}>
+        <Text style={styles.muted}>{t("forgotPasswordIntro")}</Text>
+        {identifierFields}
+        {resetMessage ? <Notice tone="info">{resetMessage}</Notice> : null}
+        {errorNotice}
+        <Button label={t("forgotPasswordSend")} loading={busy} disabled={busy || !identifierReady} onPress={() => void submitForgot()} />
+        <TextLink label={resetMessage ? t("back") : t("cancel")} disabled={busy} onPress={showForm} />
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen title={t("signInTitle")}>
+      {/* Which server project this signs into, under the title (design sheet 11). */}
+      {device?.project_id ? <Text style={styles.muted}>{[device.project_id, displayProjectName(device.project_name)].filter(Boolean).join(" · ")}</Text> : null}
+      {returning ? <Text style={styles.text}>{t("signInAgainAs", { name: returning.name })}</Text> : null}
+      {identifierFields}
       <FieldLabel label={t("password")} />
       <PasswordInput accessibilityLabel={t("password")} autoComplete="current-password" value={password} onChangeText={setPassword} />
-      {error ? <Notice tone="error">{error}</Notice> : null}
+      {errorNotice}
       <Button
         label={t("signIn")}
         loading={busy}
-        disabled={busy || !identifier.trim() || !password || (!demo && mode === "mobile" && !normalizeMobileIdentifier(identifier))}
+        disabled={busy || !identifierReady || !password}
         onPress={() => void submit()}
       />
       {/* Secondary ways in are text links, so Sign in stays the one button on the screen. No Cancel: it only went
           back, and Back (or the back swipe) returns to the screen this came from. */}
       {demo ? null : (
         <View style={{ flexDirection: "row", flexWrap: "wrap", columnGap: spacing.lg, marginTop: spacing.sm }}>
-          <TextLink label={t("redeemCode")} disabled={busy} onPress={() => void openServerPage(NATIVE_AUTH_PATHS.redeemCode)} />
-          <TextLink label={t("forgotPassword")} disabled={busy} onPress={() => void openServerPage(NATIVE_AUTH_PATHS.forgotPassword)} />
+          <TextLink label={t("redeemCode")} disabled={busy} onPress={() => { setError(""); setView("code"); }} />
+          <TextLink label={t("forgotPassword")} disabled={busy} onPress={() => { setError(""); setView("forgot"); }} />
         </View>
       )}
     </Screen>

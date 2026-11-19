@@ -2,7 +2,7 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired
 
-from app.forms.va_login_form import email_if_at
+from app.forms.va_login_form import email_if_at, mobile_length_if_no_at
 
 
 class ForgotPasswordForm(FlaskForm):
@@ -15,6 +15,7 @@ class ForgotPasswordForm(FlaskForm):
         validators=[
             DataRequired(message="Email is required."),
             email_if_at,
+            mobile_length_if_no_at,
         ],
     )
     submit = SubmitField("Send Reset Link")

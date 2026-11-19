@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type DependencyList } from "r
 import type { PickerFrameProps } from "../IcdPickerFrame";
 import type { PickerReply } from "../pickerBridge";
 import { t } from "../../../i18n";
-import { NON_LEAF_REFUSAL, NOT_FINAL_REFUSAL } from "./expression";
+import { NEEDS_AXIS_REFUSAL, NEEDS_CAUSING_REFUSAL, NON_LEAF_REFUSAL, NOT_FINAL_REFUSAL } from "./expression";
 
 /** A failed bridge call: the bridge's `{code, message, status}` reply as an Error. */
 export class PickerError extends Error {
@@ -55,6 +55,10 @@ export function errorMessage(error: unknown): string {
   if (error instanceof PickerError && error.code === "INVALID_SELECTION") {
     const category = NON_LEAF_REFUSAL.exec(error.message);
     if (category) return t("icd11NonLeafCategory", { code: category[1] });
+    const cause = NEEDS_CAUSING_REFUSAL.exec(error.message);
+    if (cause) return t("icd11NeedsCausingCondition", { code: cause[1] });
+    const needs = NEEDS_AXIS_REFUSAL.exec(error.message);
+    if (needs) return t("icd11NeedsAxis", { code: needs[1], axis: needs[2] });
     if (NOT_FINAL_REFUSAL.test(error.message)) return error.message;
   }
   return (error instanceof PickerError && KNOWN_CODES.get(error.code)) || GENERIC;

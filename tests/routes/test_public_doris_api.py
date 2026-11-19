@@ -174,6 +174,39 @@ class TestPublicDorisApi:
             assert tampered.status_code == 422
             assert tampered.get_json()["error"]["message"] == "The selected code does not match its WHO URI."
 
+    def test_selection_check_causing_condition_unknown_flag(self):
+        headers = {"X-CSRFToken": self._csrf()}
+        uri = "http://id.who.int/icd/release/11/2026-01/mms/1"
+        item = {"code": "BD54", "title": "Diabetic foot ulcer", "uri": uri, "release": "2026-01",
+                "postcoordination": True, "leaf": True, "extension": False,
+                "_required_axes": ["hasCausingCondition"]}
+
+        def check(code, **extra):
+            with patch("app.public_doris.routes._codeinfo_item",
+                       side_effect=lambda c: {**item, "code": c, "_required_axes": list(item["_required_axes"])}):
+                return self.client.post(
+                    "/api/v1/doris-demo/selection-check",
+                    json={"schema_version": 1, "code": code, "uri": uri, **extra},
+                    headers=headers,
+                )
+
+        refused = check("BD54")
+        assert refused.status_code == 422
+        assert refused.get_json()["error"]["message"] == (
+            "BD54 needs Has causing condition. Add it through + Build, or choose Causing condition not known."
+        )
+        accepted = check("BD54", causing_condition_unknown=True)
+        assert accepted.status_code == 200
+        assert "_required_axes" not in accepted.get_json()["item"]
+        slash = check("BD54/BA01", causing_condition_unknown=True)
+        assert slash.status_code == 422
+        assert slash.get_json()["error"]["code"] == "INVALID_SELECTION"
+        bad = check("BD54", causing_condition_unknown="yes")
+        assert bad.status_code == 422
+        assert bad.get_json()["error"]["code"] == "INVALID_INPUT"
+        item["_required_axes"] = ["hasSeverity"]
+        assert check("BD54", causing_condition_unknown=True).status_code == 422
+
     def test_selection_check_rejects_extra_keys(self):
         token = self._csrf()
         item = {

@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-17
+last_updated: 2026-11-19
 ---
 
 # DORIS COD Workflow Policy
@@ -145,6 +145,22 @@ its hierarchy, and an extension shows an "Extension" marker. Extension codes
 stay choosable as parts of an expression in the builder. The server's
 selection check holds the rule for older apps and for codes the search did
 not flag.
+
+A stem whose WHO entity marks an axis `requiredPostcoordination` cannot stand
+without that axis (owner decision 2026-11-19, `digitva-nhzt`): the selection
+check refuses it with `422 INVALID_SELECTION`. A required causing condition
+is met by another stem joined with `/`, or by the coder's "Causing condition
+not known" (`digitva-xmpx`): the selection check takes
+`causing_condition_unknown: true` for that choice, and without it refuses the
+bare stem with "1G40 needs Has causing condition. Add it through + Build, or
+choose Causing condition not known." A required manifestation or
+associated-with axis is met by a `/` stem; any other required axis by an
+extension joined to that stem with `&` ("<code> needs <axis>. Add it through
++ Build."). The check reads the axis kind, not which value was added: picking
+the right value stays with the builder. The check lives at selection, like
+the leaf and extension rules; final save does not repeat it. No older APK
+codes today, so the new request field needs no fallback (owner 2026-11-19).
+Collect Plus offline applies the same rule.
 
 Extension axes follow WHO's presentation: required axes come first, each
 axis is its own section in WHO order with WHO's instruction wording, and

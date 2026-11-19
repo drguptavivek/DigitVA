@@ -77,6 +77,8 @@
   "icd11DorisPreferenceTitle": "क्या इस ऐप में ICD-11 / DORIS कोडिंग चालू करें?",
   "icd11DorisPreferenceSection": "ICD-11 / DORIS कोडिंग",
   "icd11NonLeafCategory": "{code} एक श्रेणी है, अंतिम कोड नहीं। इसके अंतर्गत कोई अधिक विशिष्ट कोड चुनें।",
+  "icd11NeedsAxis": "{code} के लिए {axis} आवश्यक है। इसे + Build के माध्यम से जोड़ें।",
+  "icd11NeedsCausingCondition": "{code} के लिए कारण बनने वाली स्थिति आवश्यक है। इसे + Build से जोड़ें, या 'कारण बनने वाली स्थिति ज्ञात नहीं' चुनें।",
   "icd11FilterChildCodes": "चाइल्ड कोड खोजें",
   "icd11DorisPreferenceDescription": "इस ऐप में मामलों की कोडिंग के लिए ICD-11 और DORIS का उपयोग करें।",
   "icd11DorisPreferenceScope": "ऑनलाइन होने पर सर्वर और ऑफ़लाइन होने पर ऐप के ICD-11 और DORIS टूल का उपयोग करता है। परियोजना की अनुमतियाँ फिर भी लागू होती हैं।",

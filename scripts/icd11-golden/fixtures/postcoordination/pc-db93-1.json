@@ -440,6 +440,7 @@
       "http_status": 200
      },
      "request": {
+      "causing_condition_unknown": true,
       "code": "DB93.1",
       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1781315693"
      }
@@ -831,6 +832,7 @@
     "http_status": 200
    },
    "request": {
+    "causing_condition_unknown": true,
     "code": "DB93.1",
     "uri": "http://id.who.int/icd/release/11/2026-01/mms/1781315693"
    }

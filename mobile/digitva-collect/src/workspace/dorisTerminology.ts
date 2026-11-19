@@ -104,7 +104,9 @@ export async function codeinfoItem(who: WhoEngineApi, code: string): Promise<Dor
   const cluster = code.includes("&") || code.includes("/");
   // The first stem only: selectionRefusal checks any further "/" stems.
   const item: DorisCodeInfoItem = { code, title: cluster ? await clusterTitle(who, code, title) : title, uri, release: WHO_RELEASE, postcoordination: false, leaf: !truthy(read.entity.child), extension: code.startsWith("X") };
-  return cluster ? item : { ...item, ...searchContextFromEntity(read.entity) };
+  const result = cluster ? item : { ...item, ...searchContextFromEntity(read.entity) };
+  FIRST_STEM_AXES.set(result, requiredAxisIds(read.entity));
+  return result;
 }
 
 /**
@@ -126,27 +128,50 @@ async function clusterTitle(who: WhoEngineApi, code: string, stemTitle: string):
 }
 
 /**
- * Why a certificate cannot take a codeinfo item, or null (`selection_refusal`): every stem of the expression (the
+ * Why a certificate cannot take a codeinfo item, or null (`selection_refusal`): every stem of the expression (`causingConditionUnknown`, already checked as single-stem by the caller, meets a required hasCausingCondition on the first stem) (the
  * first token, and the first token after each "/") must not be an extension code and must be a leaf. The first stem's
  * answer is on the item; each further "/" stem costs one codeinfo and one entity read (`_stem`). Throws
  * WhoUnavailableError when WHO cannot say, as the server's 503.
  */
-export async function selectionRefusal(who: WhoEngineApi, item: DorisCodeInfoItem): Promise<string | null> {
+export async function selectionRefusal(who: WhoEngineApi, item: DorisCodeInfoItem, causingConditionUnknown = false): Promise<string | null> {
   const parts = item.code.split("/");
   for (const [index, part] of parts.entries()) {
     const stem = part.split("&", 1)[0];
     if (stem.startsWith("X")) return `${stem} is an extension code. It cannot be used alone: add it to a stem through + Build.`;
-    const leaf = index === 0 ? item.leaf === true : await stemIsLeaf(who, stem);
-    if (!leaf) return `${stem} is a category, not a final code. Choose a more specific code under it.`;
+    const entity = index === 0 ? null : await stemEntity(who, stem);
+    if (!(index === 0 ? item.leaf === true : !truthy(entity?.child))) return `${stem} is a category, not a final code. Choose a more specific code under it.`;
+    // ponytail: reads the axis kind, not whether the added value belongs to that axis.
+    for (const axis of index === 0 ? FIRST_STEM_AXES.get(item) ?? [] : requiredAxisIds(entity ?? {})) {
+      const met = CROSS_STEM_AXES.has(axis) ? parts.length > 1 : part.includes("&");
+      if (axis === "hasCausingCondition" && !met) {
+        if (index === 0 && causingConditionUnknown) continue;
+        return `${stem} needs Has causing condition. Add it through + Build, or choose Causing condition not known.`;
+      }
+      if (!met) return `${stem} needs ${axisLabel(axis)}. Add it through + Build.`;
+    }
   }
   return null;
 }
 
-/** `_stem(code)[1]` has no `child`: codeinfo, then the stem entity, which must carry the same code. */
-async function stemIsLeaf(who: WhoEngineApi, code: string): Promise<boolean> {
+/** The first stem's required axis ids, read by `codeinfoItem` from the entity it already fetched (the server's private `_required_axes`); off the item so the JSON shape is unchanged. */
+const FIRST_STEM_AXES = new WeakMap<DorisCodeInfoItem, string[]>();
+const CROSS_STEM_AXES = new Set(["hasCausingCondition", "hasManifestation", "associatedWith"]);
+const axisLabel = (id: string): string => { const spaced = id.replace(/(?<=[a-z])(?=[A-Z])/g, " "); return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase(); };
+
+/** `required_axis_ids`: axis ids WHO marks requiredPostcoordination on a stem entity. */
+export function requiredAxisIds(entity: Record<string, any>): string[] {
+  const scales = entity.postcoordinationScale;
+  if (!Array.isArray(scales)) return [];
+  return scales
+    .filter((scale) => scale && typeof scale.axisName === "string" && (scale.requiredPostcoordination === true || scale.requiredPostcoordination === "true"))
+    .map((scale) => scale.axisName.split("/").pop() as string);
+}
+
+/** `_stem(code)[1]`: codeinfo, then the stem entity, which must carry the same code. */
+async function stemEntity(who: WhoEngineApi, code: string): Promise<Record<string, any>> {
   const info = await who.codeinfo(code);
   if (!info || info.code !== code || typeof info.stemId !== "string") throw new WhoUnavailableError("stem_not_found");
   const read = await who.entity(info.stemId);
   if (read.kind !== "ok" || read.entity.code !== code) throw new WhoUnavailableError("stem_unusable");
-  return !truthy(read.entity.child);
+  return read.entity;
 }

@@ -254,6 +254,33 @@ describe("selectionRefusal", () => {
     await expect(selectionRefusal(api, item("JB64.4/XK8G", true))).resolves.toBe(EXTENSION("XK8G"));
   });
 
+  it("refuses a stem whose required axis is unmet", async () => {
+    const scale = (axis: string, required: boolean | string) => ({ axisName: `http://id.who.int/icd/schema/${axis}`, requiredPostcoordination: required });
+    stems.BD54 = { postcoordinationScale: [scale("hasCausingCondition", "true"), scale("hasSeverity", false)] };
+    stems.MC85 = { child: [], postcoordinationScale: [scale("hasSeverity", true)] };
+    stems.NC70 = { postcoordinationScale: [scale("hasSeverity", false)] };
+    const { api } = client();
+    const first = async (code: string, axes: string[]) => {
+      const entity = { code: code.split(/[&/]/)[0], title: "T", child: [], postcoordinationScale: axes.map((axis) => scale(axis, true)) };
+      const items = await codeinfoItem(who({ codeinfo: async (c) => ({ code: c, stemId: "http://id.who.int/icd/release/11/2026-01/mms/2" }), title: async () => "T", entity: async () => ({ kind: "ok", entity }) }), code);
+      return items as NonNullable<typeof items>;
+    };
+    const cause = await first("BD54", ["hasCausingCondition"]);
+    await expect(selectionRefusal(api, cause)).resolves.toBe("BD54 needs Has causing condition. Add it through + Build, or choose Causing condition not known.");
+    await expect(selectionRefusal(api, cause, true)).resolves.toBeNull();
+    // The flag covers hasCausingCondition only.
+    await expect(selectionRefusal(api, await first("MC85", ["hasSeverity"]), true)).resolves.toBe("MC85 needs Has severity. Add it through + Build.");
+    await expect(selectionRefusal(api, await first("BD54/NC70", ["hasCausingCondition"]))).resolves.toBeNull();
+    const severity = await first("MC85", ["hasSeverity"]);
+    await expect(selectionRefusal(api, severity)).resolves.toBe("MC85 needs Has severity. Add it through + Build.");
+    await expect(selectionRefusal(api, await first("MC85&XS5T", ["hasSeverity"]))).resolves.toBeNull();
+    await expect(selectionRefusal(api, await first("NC70", []))).resolves.toBeNull();
+    // A further stem's axes come from its own entity: BD54 after "/" needs a partner stem, and has one here.
+    await expect(selectionRefusal(api, item("JB64.4/MC85", true))).resolves.toBe("MC85 needs Has severity. Add it through + Build.");
+    await expect(selectionRefusal(api, item("JB64.4/MC85&XS5T", true))).resolves.toBeNull();
+    await expect(selectionRefusal(api, item("JB64.4/BD54", true))).resolves.toBeNull();
+  });
+
   it("is unavailable when WHO cannot read a further stem", async () => {
     const { api } = client();
     await expect(selectionRefusal(api, item("JB64.4/ZZ99", true))).rejects.toBeInstanceOf(WhoUnavailableError);

@@ -123,7 +123,7 @@ export function createDorisDemoApi(editor: OfflineDorisEditor, allowed: () => Pr
       return editor.onTerms(query, options?.limit, options?.subtreeUris);
     },
     async getDorisCodeInfo(_vaSid, code) { await allowed(); return editor.onCodeInfo(code); },
-    async checkDorisSelection(_vaSid, code, uri) { await allowed(); return editor.onSelectionCheck(code, uri); },
+    async checkDorisSelection(_vaSid, code, uri, unknown) { await allowed(); return editor.onSelectionCheck(code, uri, unknown); },
     async processDoris(_vaSid, _role, clientRevision, certificate) {
       await allowed();
       return editor.onProcess(clientRevision, certificate);

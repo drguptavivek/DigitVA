@@ -258,7 +258,10 @@ export function createIcd11Picker(options) {
     var verifying = 'Verifying ' + (item.code || 'selection') + '…';
     if (statusEl) statusEl.textContent = verifying;
     else if (active && active.line === container) setFooterMessage(verifying);
-    return transport.post('selection-check', {schema_version: 1, code: item.code, uri: item.uri}).then(function (data) {
+    var body = {schema_version: 1, code: item.code, uri: item.uri};
+    // "Causing condition not known" meets a required hasCausingCondition axis (digitva-xmpx).
+    if (item.causing_condition_unknown === true) body.causing_condition_unknown = true;
+    return transport.post('selection-check', body).then(function (data) {
       if (currentRevision() !== sentRevision || !container.isConnected) return;
       var verified = data.item || data.selection || data;
       var choice = Object.assign({}, item, verified);

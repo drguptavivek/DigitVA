@@ -77,6 +77,8 @@
   "icd11DorisPreferenceTitle": "Enable ICD-11 / DORIS coding in this app?",
   "icd11DorisPreferenceSection": "ICD-11 / DORIS coding",
   "icd11NonLeafCategory": "{code} is a category, not a final code. Choose a more specific code under it.",
+  "icd11NeedsAxis": "{code} needs {axis}. Add it through + Build.",
+  "icd11NeedsCausingCondition": "{code} needs Has causing condition. Add it through + Build, or choose Causing condition not known.",
   "icd11FilterChildCodes": "Search child codes",
   "icd11DorisPreferenceDescription": "Use ICD-11 and DORIS to code cases in this app.",
   "icd11DorisPreferenceScope": "Uses the server when online and the ICD-11 and DORIS tools in the app when offline. Project permissions still apply.",

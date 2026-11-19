@@ -14,6 +14,7 @@ from app.services.icd11_postcoordination import (
     postcoordination_options,
     related_terms,
     search_terms,
+    required_axis_ids,
     selection_refusal,
     valid_subtree_uris,
 )
@@ -202,6 +203,54 @@ def test_selection_refusal_reads_each_further_cluster_stem():
         assert selection_refusal({"code": "JB64.4/NC72&XK8G", "leaf": True}) == CATEGORY
         assert selection_refusal({"code": "JB64.4/XK8G", "leaf": True}) == EXTENSION
     assert [call.args for call in stem.call_args_list] == [("BD54",), ("NC72",)]
+
+
+def _scale(axis, required):
+    return {"axisName": f"http://id.who.int/icd/schema/{axis}", "requiredPostcoordination": required}
+
+
+NEEDS_CAUSE = (
+    "BD54 needs Has causing condition. Add it through + Build, "
+    "or choose Causing condition not known."
+)
+
+
+def test_selection_refusal_needs_the_required_axis():
+    cause = {"code": "BD54", "leaf": True, "_required_axes": ["hasCausingCondition"]}
+    assert selection_refusal(cause) == NEEDS_CAUSE
+    assert selection_refusal({**cause, "code": "BD54&XK8G"}) == NEEDS_CAUSE
+    entities = {"BD54A": {"code": "BD54A"}}
+    with patch(
+        "app.services.icd11_postcoordination._stem",
+        side_effect=lambda code: ({"code": code}, entities[code]),
+    ):
+        assert selection_refusal({**cause, "code": "BD54/BD54A"}) is None
+    other = {"code": "BD54", "leaf": True, "_required_axes": ["hasSeverity"]}
+    assert selection_refusal(other) == "BD54 needs Has severity. Add it through + Build."
+    assert selection_refusal({**other, "code": "BD54&XS5T"}) is None
+    assert selection_refusal({"code": "BD54", "leaf": True, "_required_axes": []}) is None
+
+
+def test_causing_condition_unknown_meets_only_a_required_causing_condition():
+    cause = {"code": "BD54", "leaf": True, "_required_axes": ["hasCausingCondition"]}
+    assert selection_refusal(cause, True) is None
+    assert selection_refusal({**cause, "code": "BD54&XK8G"}, True) is None
+    other = {"code": "BD54", "leaf": True, "_required_axes": ["hasSeverity"]}
+    assert selection_refusal(other, True) == "BD54 needs Has severity. Add it through + Build."
+    both = {"code": "BD54", "leaf": True, "_required_axes": ["hasCausingCondition", "hasSeverity"]}
+    assert selection_refusal(both, True) == "BD54 needs Has severity. Add it through + Build."
+
+
+def test_selection_refusal_reads_required_axes_of_further_stems():
+    entities = {"BD54": {"code": "BD54", "postcoordinationScale": [
+        _scale("hasCausingCondition", "true"), _scale("hasSeverity", False)]}}
+    with patch(
+        "app.services.icd11_postcoordination._stem",
+        side_effect=lambda code: ({"code": code}, entities[code]),
+    ):
+        assert selection_refusal({"code": "JB64.4/BD54", "leaf": True}) is None
+        assert selection_refusal({"code": "JB64.4/BD54&XS5T", "leaf": True}) is None
+    assert required_axis_ids(entities["BD54"]) == ["hasCausingCondition"]
 
 
 WINDOW = "http://id.who.int/icd/release/11/2026-01/mms/500"

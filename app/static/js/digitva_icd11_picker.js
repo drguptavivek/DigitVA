@@ -284,12 +284,21 @@ export function createIcd11Picker(options) {
     if (!panel) return;
     panel.hidden = false;
     panel.replaceChildren();
-    var heading = document.createElement('h4'); heading.className = 'h6 mb-2'; heading.tabIndex = -1;
+    var heading = document.createElement('h4'); heading.className = 'h6 mb-0'; heading.tabIndex = -1;
     codeTitle(heading, item.code, item.title);
     var body = document.createElement('div'); body.className = 'small'; body.textContent = 'Loading WHO code details…';
     var back = origin ? backToResults(container, origin) : null;
     if (back) panel.appendChild(back);
-    panel.append(heading, body);
+    // Close, and the way to the code's hierarchy (the Expo picker's Details card does the same).
+    var titleRow = document.createElement('div'); titleRow.className = 'd-flex justify-content-between align-items-start gap-2 mb-2';
+    var closeDetails = button('Close', 'btn btn-sm btn-outline-secondary');
+    closeDetails.setAttribute('aria-label', 'Close ' + item.code + ' — ' + (item.title || ''));
+    closeDetails.addEventListener('click', function () { clearDetails(container); });
+    titleRow.append(heading, closeDetails);
+    var hierarchyButton = button('Hierarchy', 'btn btn-sm btn-outline-secondary mt-2');
+    hierarchyButton.setAttribute('aria-label', 'Hierarchy of ' + item.code);
+    hierarchyButton.addEventListener('click', function () { openCategory(container, item.code, hierarchyButton); });
+    panel.append(titleRow, body, hierarchyButton);
     if (origin) reveal(panel, heading);
     var current = Symbol(); panel._request = current;
     transport.post('details', {schema_version: 1, code: item.code}).then(function (data) {
@@ -484,7 +493,7 @@ export function createIcd11Picker(options) {
       originEl = null;
       preserveInputFocus = false;
     }
-    function header(title, description, skipFocus) {
+    function header(title, description, skipFocus, closeLabel) {
       panel.replaceChildren();
       panel.classList.add('doris-build-card');
       var back = originEl ? backToResults(container, originEl) : null;
@@ -503,7 +512,7 @@ export function createIcd11Picker(options) {
         p.className = 'small text-muted mb-0'; p.textContent = description;
         heading.appendChild(p);
       }
-      var closeButton = button('Cancel', 'btn btn-sm btn-outline-secondary');
+      var closeButton = button(closeLabel || 'Cancel', 'btn btn-sm btn-outline-secondary');
       closeButton.addEventListener('click', closePanel);
       row.append(heading, closeButton);
       panel.appendChild(row);
@@ -589,14 +598,17 @@ export function createIcd11Picker(options) {
       return state.causing_unknown && state.axes.some(function (axis) { return axis.id === CAUSING_AXIS && axis.required && selectedFor(axis).length === 0; });
     }
     function requiredSatisfied() { return state.axes.every(function (axis) { return !axis.required || selectedFor(axis).length > 0 || (axis.id === CAUSING_AXIS && state.causing_unknown); }); }
-    function appendOptionList(axis, optionsList, parent) {
+    // A long list shows OPTION_CAP options, then "Show all N" (the Expo Build card does the same); chosen options stay visible.
+    var OPTION_CAP = 8;
+    function appendOptionList(axis, optionsList, parent, listKey) {
       // Selected values that are not root options (preselected composite
       // parts, deeper children) still need a visible, pressable chip.
       var rootCodes = list(optionsList).map(function (raw) { return optionValue(raw).code; });
       var extras = parent.hasAttribute('data-doris-axis-options') ? selectedFor(axis).filter(function (chosen) { return rootCodes.indexOf(chosen.code) === -1; }) : [];
-      list(optionsList).concat(extras).forEach(function (raw) {
+      var usable = list(optionsList).filter(function (raw) { var value = optionValue(raw); return value.code || value.title; });
+      var shown = state.showAll[listKey] ? usable : usable.filter(function (raw, index) { return index < OPTION_CAP || isSelected(axis, optionValue(raw)); });
+      shown.concat(extras).forEach(function (raw) {
         var option = optionValue(raw);
-        if (!option.code && !option.title) return;
         var row = document.createElement('div');
         row.className = 'doris-axis-option d-flex flex-wrap gap-1 align-items-center mb-1';
         if (option.code && option.uri) {
@@ -619,7 +631,7 @@ export function createIcd11Picker(options) {
         if (state.expanded[expansionKey]) {
           var loadedChildren = document.createElement('div');
           loadedChildren.className = 'doris-axis-children ms-3 mt-1';
-          appendOptionList(axis, state.expanded[expansionKey], loadedChildren);
+          appendOptionList(axis, state.expanded[expansionKey], loadedChildren, expansionKey);
           row.appendChild(loadedChildren);
         } else if (option.has_children && option.uri) {
           var expand = button('More choices', 'btn btn-sm btn-link');
@@ -642,6 +654,17 @@ export function createIcd11Picker(options) {
         }
         parent.appendChild(row);
       });
+      if (shown.length < usable.length) {
+        var showAll = button('Show all ' + usable.length, 'btn btn-sm btn-link');
+        showAll.setAttribute('aria-label', 'Show all ' + usable.length + ' options');
+        showAll.addEventListener('click', function () {
+          state.showAll[listKey] = true;
+          var previousScroll = panel.scrollTop;
+          renderPostcoordination();
+          panel.scrollTop = previousScroll;
+        });
+        parent.appendChild(showAll);
+      }
     }
     function markTruncated(message) {
       state.truncated = true;
@@ -750,7 +773,7 @@ export function createIcd11Picker(options) {
         }
         var optionsHost = document.createElement('div');
         optionsHost.setAttribute('data-doris-axis-options', axis.id);
-        appendOptionList(axis, axis.options, optionsHost);
+        appendOptionList(axis, axis.options, optionsHost, axis.id);
         if (list(axis.subtree_uris).length) {
           section.appendChild(mountScopedSearch(axis.subtree_uris, axis.label, function (item) {
             selectOption(axis, {code: item.code, title: item.title, uri: item.uri, has_children: false, block_uri: item.uri});
@@ -850,7 +873,7 @@ export function createIcd11Picker(options) {
       if (rerender && scroller) scroller.scrollTop = scrollTop;
     }
     function renderHierarchy(data) {
-      header('See in hierarchy', 'Explore the selected stem. Choosing a different node requires an explicit confirmation.');
+      header('See in hierarchy', 'Explore the selected stem. Choosing a different node requires an explicit confirmation.', false, 'Close');
       var selected = data.selected || {};
       var path = document.createElement('p'); path.className = 'small mb-2';
       path.textContent = 'Selected: ' + (selected.code || '') + (selected.title ? ' — ' + selected.title : '');
@@ -921,7 +944,7 @@ export function createIcd11Picker(options) {
       var id = ++requestId;
       stateRevision = currentRevision();
       if (!restoreTrigger) restoreTrigger = trigger || null;
-      header('See in hierarchy', 'Loading the WHO hierarchy…');
+      header('See in hierarchy', 'Loading the WHO hierarchy…', false, 'Close');
       transport.post('hierarchy', {schema_version: 1, code: item.code}).then(function (data) {
         if (stale(id)) return;
         renderHierarchy(data);
@@ -934,7 +957,7 @@ export function createIcd11Picker(options) {
       preserveInputFocus = Boolean(preserveFocus);
       originEl = preserveFocus ? null : (trigger || container);
       if (item && item.mode === 'hierarchy') { openHierarchy(item.item, trigger); return; }
-      state = {stem: {code: text(item.code), title: text(item.title), uri: text(item.uri)}, axes: [], selected: {}, expanded: {}, truncated: false, other_postcoordination: null, other_selected: null, causing_unknown: false};
+      state = {stem: {code: text(item.code), title: text(item.title), uri: text(item.uri)}, axes: [], selected: {}, expanded: {}, showAll: {}, truncated: false, other_postcoordination: null, other_selected: null, causing_unknown: false};
       header('Build expression', '');
       transport.post('postcoordination', {schema_version: 1, code: item.code}).then(function (data) {
         if (stale(id)) return;
@@ -1025,11 +1048,11 @@ export function createIcd11Picker(options) {
   // Build / related-term actions for `container`. Shared by every host so the
   // result rows behave identically; the host owns fetching, staleness checks
   // and what `onRequery()` does (re-run the search after a related-term pick).
-  // opts: {input, statusEl, resultList, finalMode, onRequery}
+  // opts: {input, statusEl, resultList, finalMode, onRequery, truncated (WHO cut the list)}
   function renderResults(container, items, opts) {
     var input = opts.input, statusEl = opts.statusEl, resultList = opts.resultList;
     var finalMode = Boolean(opts.finalMode), onRequery = opts.onRequery;
-    statusEl.textContent = items.length ? 'Choose a result.' : 'No matching conditions.';
+    statusEl.textContent = opts.truncated ? 'Showing the first 20 matches. Refine the search to see others.' : items.length ? 'Choose a result.' : 'No matching conditions.';
     var mandatory = [];
     items.forEach(function (item) {
       var row = document.createElement('div'); row.className = 'list-group-item doris-search-result';

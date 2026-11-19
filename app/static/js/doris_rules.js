@@ -179,3 +179,26 @@ export function warnings(cert, ctx) {
   });
   return out;
 }
+
+// Client checks before Process, in the Expo editor's words (DorisPanel.tsx process()). `lines` are the Part I lines'
+// conditions as [{Text, Interval}], blank lines kept; the caller has already refused a blank line between filled ones.
+export function part1Problem(lines) {
+  var sameInterval = lines.every(function (conditions) {
+    return conditions.every(function (condition) { return conditions.every(function (other) { return other.Interval === condition.Interval; }); });
+  });
+  if (!sameInterval) return 'Conditions on the same Part I line must share one interval.';
+  if (!lines.some(function (conditions) { return conditions.length; })) return 'Enter at least one Part I condition.';
+  var first = lines[0] && lines[0][0];
+  if (!first || typeof first.Text !== 'string' || !first.Text.trim()) return 'Enter the immediate cause text in the first Part I line.';
+  return '';
+}
+
+// A refused Process request as one line (DorisPanel.tsx makeSaveError): a 422 with field problems appends
+// "Check: path — message; ...". `data` is the parsed error body {error: {message, fields: [{path, message}]}}.
+export function processErrorText(status, data) {
+  var error = data && data.error;
+  var message = (error && error.message) || 'Processing failed.';
+  if (status !== 422 || !error || !error.message) return message;
+  var fields = (Array.isArray(error.fields) ? error.fields : []).map(function (field) { return String((field && field.path) || '') + ' — ' + String((field && field.message) || ''); });
+  return message + (fields.length ? ' Check: ' + fields.join('; ') : '');
+}

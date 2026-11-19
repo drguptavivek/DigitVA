@@ -90,3 +90,17 @@ assert.equal(R.ageFromDates('2024-02-29', '2028-02-29'), 'P4Y'); assert.equal(R.
 assert.equal(R.ageFromDates('2025-01-31', '2025-02-28'), 'P28D'); assert.equal(R.ageFromDates('2025-01-31', '2025-03-01'), 'P1M');
 assert.equal(R.ageFromDates('2025-03-31', '2025-04-30'), 'P30D');
 console.log('doris_rules dates ok');
+
+// Pre-Process checks and the 422 error line, in the Expo editor's words.
+{
+  const line = (...texts) => texts.map((Text) => ({Text, Interval: 'P1D'}));
+  assert.equal(R.part1Problem([[], [], []]), 'Enter at least one Part I condition.');
+  assert.equal(R.part1Problem([line(' '), []]), 'Enter the immediate cause text in the first Part I line.');
+  assert.equal(R.part1Problem([[{Text: 'a', Interval: 'P1D'}, {Text: 'b', Interval: 'P2D'}]]), 'Conditions on the same Part I line must share one interval.');
+  assert.equal(R.part1Problem([line('Sepsis', 'Fever'), line('Malaria')]), '');
+  assert.equal(R.processErrorText(422, {error: {message: 'Check the certificate.', fields: [{path: 'Part1.0', message: 'bad'}, {path: 'Sex', message: 'odd'}]}}), 'Check the certificate. Check: Part1.0 — bad; Sex — odd');
+  assert.equal(R.processErrorText(422, {error: {message: 'Check the certificate.', fields: []}}), 'Check the certificate.');
+  assert.equal(R.processErrorText(500, {error: {message: 'Boom', fields: [{path: 'x', message: 'y'}]}}), 'Boom');
+  assert.equal(R.processErrorText(400, {}), 'Processing failed.');
+  console.log('doris_rules process checks ok');
+}

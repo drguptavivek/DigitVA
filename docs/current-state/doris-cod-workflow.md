@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-19
 ---
 
 # DORIS COD Workflow
@@ -536,14 +536,17 @@ Results open as a short summary built by `app/static/js/doris_result_summary.js`
 for both editors, laid out as on the Expo screen: "DORIS: completed", then
 "Underlying cause: CODE title" with each manifestation as "+ CODE title
 (manifestation)" (or the bare code and its certificate or WHO title when the
-server sent no computed parts), the full code as a monospace chip only when it
-differs from the first code, and a collapsed "Details" with the "/" and "&"
-explanation, stem and URI. DORIS warnings and CoDEdit report sentences form one
-"Check before you decide" list, or "No problems found". A rejected run says
-"DORIS rejected the certificate." and shows WHO's reason; a run that did not run
-(unavailable) says so in place of the code. Engine status, readable reports, the
-CoDEdit issue IDs and the Help rule trace sit in a collapsed "Technical details"
-section at the bottom, after Step 2. Both editors are two steps.
+server sent no computed parts), then the full code as a monospace chip, as the
+Collect DORIS screen shows it (web, public demo and Collect alike since
+2026-11-19, `digitva-knh9`). The result card is titled "DORIS and CoDEdit"
+with "DORIS: {status}" and "CoDEdit: {status}". DORIS warnings and CoDEdit
+report sentences form one "Check before you decide" list, or "No problems
+found". A rejected run says "DORIS rejected the certificate result." and shows
+WHO's reason; on the web a run that did not run (unavailable) says so in place
+of the code. A collapsed "Details" holds the "/" and "&" explanation, the
+computed stem and URI and the DORIS, CoDEdit and tabular reports; there is no
+separate "Technical details" block. The public demo renders the same web
+editor partial with the demo endpoints. Both editors are two steps.
 "Step 1: DORIS" holds the certificate in the WHO DORIS screen's wording and
 order, in the web editor and the Expo app alike: "Administrative Data" (sex,
 date of birth, date of death, estimated age and age unit, as in WHO's DORIS workspace), "Frame A: Medical

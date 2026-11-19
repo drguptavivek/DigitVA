@@ -22,7 +22,7 @@
  * Native: React Native WebView postMessage out, and the app calls
  * window.__digitvaEmbedReceive(message) in.
  */
-import { createIcd11Picker } from './digitva_icd11_picker.js?v=5';
+import { createIcd11Picker } from './digitva_icd11_picker.js?v=6';
 
 var native = typeof window.ReactNativeWebView === 'object' && window.ReactNativeWebView;
 var root = document.getElementById('doris-embed');
@@ -116,7 +116,8 @@ function reset() {
 
 input.addEventListener('input', function () {
   picker.clearSelection(line); picker.clearDetails(line); clearTimeout(timer);
-  if (input.value.trim().length >= 2) timer = setTimeout(search, 250);
+  // Same as Collect Plus and the web editor: search by itself at 3 characters after 500 ms; Enter and Search still go at 2.
+  if (input.value.trim().length >= 3) timer = setTimeout(search, 500);
   else { searchToken += 1; resultList.replaceChildren(); picker.closePostcoordination(line); }
 });
 input.addEventListener('keydown', function (event) {

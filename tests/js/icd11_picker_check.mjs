@@ -169,3 +169,50 @@ console.log('causing-unknown and age tag checks passed');
   pk.close();
 }
 console.log('final-code checks passed');
+
+// Expo-picker parity: the truncated-list line, Details Close and Hierarchy, Close on the hierarchy card, "Show all N" on a long axis.
+{
+  const wait = () => new Promise((r) => setTimeout(r, 0));
+  const options = Array.from({length: 12}, (_, i) => ({code: 'XS' + (i + 1), title: 'Opt ' + (i + 1), uri: 'u' + (i + 1)}));
+  const posts = [];
+  const post = (path, body) => {
+    posts.push([path, body.code]);
+    if (path === 'postcoordination') return Promise.resolve({stem: {code: 'FB32', title: 'Infarction', uri: 'u'}, axes: [{id: 'a', label: 'Severity', required: true, options}]});
+    if (path === 'hierarchy') return Promise.resolve({selected: {code: 'FB32', title: 'Infarction', uri: 'u'}, ancestors: [], siblings: [], children: [], related_maternal: [], related_perinatal: []});
+    return Promise.resolve({definition: 'A definition'});
+  };
+  const root = document.createElement('div');
+  root.innerHTML = '<input><div data-doris-search-status></div><div data-doris-search-results></div><div data-doris-details-panel hidden></div><div data-doris-guided-panel></div>';
+  document.body.appendChild(root);
+  const pk = createIcd11Picker({mount: document.body, transport: {post}, onSelect() {}});
+  const status = root.querySelector('[data-doris-search-status]');
+  const render = (truncated, items) => pk.renderResults(root, items, {input: root.querySelector('input'), statusEl: status, resultList: root.querySelector('[data-doris-search-results]'), onRequery() {}, truncated});
+  render(true, [{code: 'FB32', title: 'Infarction', uri: 'u'}]);
+  assert.equal(status.textContent, 'Showing the first 20 matches. Refine the search to see others.');
+  render(false, [{code: 'FB32', title: 'Infarction', uri: 'u'}]);
+  assert.equal(status.textContent, 'Choose a result.');
+  render(false, []);
+  assert.equal(status.textContent, 'No matching conditions.');
+
+  pk.showDetails(root, {code: 'FB32', title: 'Infarction', uri: 'u'});
+  const panel = root.querySelector('[data-doris-details-panel]');
+  const named = (node, label) => [...node.querySelectorAll('button')].find((b) => b.textContent === label);
+  assert.ok(named(panel, 'Close') && named(panel, 'Hierarchy'));
+  named(panel, 'Hierarchy').click();
+  await wait();
+  assert.deepEqual(posts.filter(([path]) => path === 'hierarchy'), [['hierarchy', 'FB32']]);
+  const card = root.querySelector('[data-doris-guided-panel-content]');
+  assert.ok(named(card, 'Close') && !named(card, 'Cancel'), 'hierarchy card closes with Close');
+  named(panel, 'Close').click();
+  assert.equal(panel.hidden, true);
+
+  pk.openPostcoordination(root, {code: 'FB32', title: 'Infarction', uri: 'u'}, null, true);
+  await wait();
+  const shown = () => root.querySelectorAll('[data-doris-option-axis]').length;
+  assert.equal(shown(), 8);
+  assert.ok(named(root, 'Cancel'), 'build card keeps Cancel');
+  named(root, 'Show all 12').click();
+  assert.equal(shown(), 12);
+  assert.equal(named(root, 'Show all 12'), undefined);
+}
+console.log('icd11_picker parity ok');

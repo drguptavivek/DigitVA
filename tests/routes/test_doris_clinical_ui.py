@@ -91,7 +91,9 @@ class DorisClinicalTemplateContractTests(unittest.TestCase):
         self.assertLess(partial.index("Step 1: DORIS"), partial.index("Step 2: Final underlying cause of death"))
         self.assertLess(partial.index("Step 2: Final underlying cause of death"), partial.index("data-doris-final-panel"))
         self.assertLess(partial.index("data-doris-final-panel"), partial.index("data-doris-final-use"))
-        self.assertLess(partial.index("data-doris-final-choice"), partial.index("data-doris-technical"))
+        # The engine reports live under the result summary's Details (as on the Expo screen), not a separate block.
+        self.assertNotIn("data-doris-technical", partial)
+        self.assertNotIn("Technical details", partial)
         self.assertLess(partial.index("data-doris-part2"), partial.index("data-doris-maternal"))
         self.assertLess(partial.index("data-doris-maternal"), partial.index("data-doris-process"))
         self.assertIn("data-doris-maternal", partial)
@@ -419,6 +421,30 @@ class DorisIcd11WiringContractTests(unittest.TestCase):
         self.assertIn("attachAutoSearch(input, search)", final)
         self.assertNotIn("list-group-item d-flex", final)
         self.assertNotIn("picker.showDetails", final)
+
+    def test_editor_wording_matches_the_expo_doris_screen(self):
+        partial = self._read("app/templates/va_form_partials/_doris_certificate_editor.html")
+        script = self._read("app/static/js/doris_clinical.js")
+        summary = self._read("app/static/js/doris_result_summary.js")
+        self.assertIn(">Process current certificate<", partial)
+        self.assertIn("Pregnancy follow-up answers are excluded from processing unless pregnancy is Yes.", partial)
+        self.assertIn("Review both results, then independently confirm the final underlying cause.", script)
+        self.assertIn("(condition.Code ? condition.Code + ' \u2014 ' : '') + condition.Text", script)
+        self.assertNotIn("Uncoded \u2014", script)
+        # First Part I line cannot be removed; Part II offers "Remove Part II" only while it has conditions; 8 conditions per line.
+        self.assertIn("[data-doris-remove]').disabled = index === 0", script)
+        self.assertIn("if (state.lines.indexOf(line) === 0) return;", script)
+        self.assertIn("textContent = 'Remove Part II'", script)
+        self.assertIn("if (line.part2) line.element.querySelector('[data-doris-remove]').hidden = !line.conditions.length", script)
+        self.assertIn("var MAX_CONDITIONS = 8;", script)
+        self.assertIn("[data-doris-search-group]').hidden = line.conditions.length >= MAX_CONDITIONS", script)
+        # The line modal searches on the shared 3 characters / 500 ms rule, with no 250 ms timer of its own.
+        self.assertNotIn("}, 250)", script)
+        self.assertIn("if (!modalOpen) openSearch(); search(line, false);", script)
+        self.assertIn("Rules.part1Problem(", script)
+        self.assertIn("Rules.processErrorText(result.status, result.data)", script)
+        for text in ("DORIS rejected the certificate result.", "'DORIS: '", "'CoDEdit: '", "'DORIS and CoDEdit'", "Computed stem: ", "Computed URI: "):
+            self.assertIn(text, summary)
 
     def test_warning_catalogue_is_generated_and_read_by_both_runtimes(self):
         summary = self._read("app/static/js/doris_result_summary.js")

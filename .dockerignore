@@ -53,3 +53,9 @@ mobile/**
 !mobile/digitva-collect/dist/assets/node_modules/**
 .env.*
 !.env.demo.example
+# Local release and APK builds (gigabytes); CI builds from a clean checkout
+# without them, so only local images change.
+build/
+mobile/digitva-collect/android/app/build/
+mobile/digitva-collect/android/build/
+mobile/digitva-collect/android/.gradle/

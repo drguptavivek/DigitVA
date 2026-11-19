@@ -1,6 +1,6 @@
 // Run: node tests/js/doris_result_summary_check.mjs (no test runner; throws on failure).
 globalThis.document = { createElement: t => ({ tag: t, children: [], className: '', textContent: '', append(...c){this.children.push(...c)}, appendChild(c){this.children.push(c)}, addEventListener(){} }), createTextNode: t => ({ textContent: t }) };
-const { renderSummary } = await import(new URL('../../app/static/js/doris_result_summary.js', import.meta.url));
+const { renderSummary, useDorisLabel, collapseBlankLines } = await import(new URL('../../app/static/js/doris_result_summary.js', import.meta.url));
 const box = { children: [], replaceChildren(){ this.children = []; }, appendChild(c){ this.children.push(c); } };
 const report = "SP3: PA60 is selected as the tentative starting point (TSP).\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA60.\n\n\nFull report:\nM4: Adding the main injury - NC72.Z - as postcoordination for the current TUC - PA60.";
 renderSummary(box, {doris: {status: 'completed', result: {code: 'PA60/NC72.Z', stemCode: 'PA60', report, warning: "M4 may have been applied.\nM1: Manual check is needed.\n"}}, codedit: {status: 'completed', result: {}}}, {}, null);
@@ -34,20 +34,34 @@ if (!details || details.children[0].textContent !== 'Details') throw new Error('
 const detailText = details.children.map(c => c.textContent).join('\n');
 if (!detailText.includes('joins the stem code') || !detailText.includes('Computed stem: 5A14') || !detailText.includes('Computed URI: http://x/1')) throw new Error('details incomplete: ' + detailText);
 
-// One code: its line alone, no duplicate chip.
+// One code: its line, then the full-code badge (as the Expo screen shows it).
 const box5 = { children: [], replaceChildren(){ this.children = []; }, appendChild(c){ this.children.push(c); } };
 renderSummary(box5, {ucod_parts: [{code: 'PA60', title: 'Some injury', role: 'stem'}], doris: {status: 'completed', result: {code: 'PA60', stemCode: 'PA60', report: '', warning: ''}}, codedit: {status: 'completed', result: {}}}, {}, null);
 const single = box5.children.find(c => c.className.includes('doris-summary-cluster')).children.map(c => c.textContent);
-if (single.length !== 1 || single[0] !== 'Underlying cause: PA60 Some injury') throw new Error('single code: ' + single.join(' | '));
+if (single.length !== 2 || single[0] !== 'Underlying cause: PA60 Some injury' || single[1] !== 'PA60') throw new Error('single code: ' + single.join(' | '));
 
 // A rejected run says DORIS rejected the certificate and shows WHO's reason; it does not say "did not run".
 const box6 = { children: [], replaceChildren(){ this.children = []; }, appendChild(c){ this.children.push(c); } };
 renderSummary(box6, {doris: {status: 'rejected', result: {reject: true, code: null, error: 'Stem PA60 is not a valid starting point.'}}, codedit: {status: 'completed', result: {}}}, {}, null);
 const rejected = box6.children.map(c => c.textContent);
-if (!rejected.includes('DORIS rejected the certificate.') || !rejected.includes('Stem PA60 is not a valid starting point.')) throw new Error('rejection not shown: ' + rejected.join(' | '));
+if (!rejected.includes('DORIS rejected the certificate result.') || !rejected.includes('Stem PA60 is not a valid starting point.')) throw new Error('rejection not shown: ' + rejected.join(' | '));
 if (rejected.some(text => text.includes('did not run'))) throw new Error('rejection reported as did not run');
 
 // An engine that did not run keeps the "did not run" wording.
 const box7 = { children: [], replaceChildren(){ this.children = []; }, appendChild(c){ this.children.push(c); } };
 renderSummary(box7, {doris: {status: 'unavailable', result: null}, codedit: {status: 'completed', result: {}}}, {}, null);
 if (!box7.children.some(c => c.textContent === 'DORIS did not run (unavailable). Choose the underlying cause without it.')) throw new Error('unavailable wording');
+
+// Status lines, as the Expo result card words them; Details holds the three reports.
+const box8 = { children: [], replaceChildren(){ this.children = []; }, appendChild(c){ this.children.push(c); } };
+renderSummary(box8, {doris: {status: 'completed', result: {code: 'PA60', stemCode: 'PA60', uri: 'http://x/2', report: 'a\r\n\n\n\nb  ', warning: ''}}, codedit: {status: 'completed', result: {report: '', tabularReport: '0,K,BER-CE-1;x'}}}, {}, null);
+const texts8 = box8.children.map(c => c.textContent);
+if (!texts8.includes('DORIS: completed') || !texts8.includes('CoDEdit: completed')) throw new Error('status lines: ' + texts8.join(' | '));
+const pre8 = box8.children.find(c => c.tag === 'details').children.filter(c => c.tag === 'pre').map(c => c.textContent);
+if (pre8.length !== 2 || pre8[0] !== 'a\n\nb' || pre8[1] !== '0,K,BER-CE-1;x') throw new Error('reports: ' + JSON.stringify(pre8));
+if (collapseBlankLines(undefined) !== '' || collapseBlankLines('x\r\n\r\n\r\ny') !== 'x\n\ny') throw new Error('collapseBlankLines');
+
+// "Use DORIS result: CODE — title": the code alone until the title is known.
+if (useDorisLabel('5A14', 'Diabetes') !== 'Use DORIS result: 5A14 — Diabetes') throw new Error('label with title');
+if (useDorisLabel('5A14', '') !== 'Use DORIS result: 5A14' || useDorisLabel('5A14') !== 'Use DORIS result: 5A14') throw new Error('label without title');
+console.log('doris_result_summary ok');

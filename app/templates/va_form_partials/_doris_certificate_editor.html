@@ -71,6 +71,7 @@
       <div class="col-sm-4" data-doris-field="MaternalDeath.WasPregnant"><label class="form-label small">For women, was the deceased pregnant?</label><select class="form-select" data-doris-pregnant>{{ _yes_no_unknown }}</select></div>
       <div class="col-sm-4" data-doris-maternal-followup data-doris-field="MaternalDeath.TimeFromPregnancy"><label class="form-label small">If yes please specify the time from pregnancy</label><select class="form-select" data-doris-pregnancy-time disabled><option value="">Not stated</option><option value="0">At death</option><option value="1">Within 42 days</option><option value="2">43 days to 1 year</option><option value="3">1 year or more</option><option value="9">Unknown</option></select></div>
       <div class="col-sm-4" data-doris-maternal-followup><label class="form-label small">Did the pregnancy contribute to the death?</label><select class="form-select" data-doris-pregnancy-contribute disabled>{{ _yes_no_unknown }}</select></div>
+      <p class="col-12 small text-muted mb-0" data-doris-pregnancy-note hidden>Pregnancy follow-up answers are excluded from processing unless pregnancy is Yes.</p>
     </div></div>
     <div class="border rounded p-3 mb-3"><h5 class="h6">Surgery</h5><div class="row g-2">
       <div class="col-12" data-doris-field="Surgery.WasPerformed"><label class="form-label small">Was surgery performed within the last 4 weeks?</label><select class="form-select" data-doris-surgery-performed data-doris-extra>{{ _yes_no_unknown }}</select></div>
@@ -84,7 +85,7 @@
     <p class="small text-muted">*fields are not mandatory</p>
 
     <div class="d-flex flex-wrap align-items-center gap-2 mt-4">
-      <button type="button" class="btn btn-primary" data-doris-process>Process with DORIS and CoDEdit</button>
+      <button type="button" class="btn btn-primary" data-doris-process>Process current certificate</button>
       <span class="small fw-semibold" role="status" aria-live="polite" data-doris-status></span>
     </div>
     <hr class="doris-actions-separator" aria-hidden="true">
@@ -110,19 +111,13 @@
       </div>
     </div>
     </div></section>
-    <details class="doris-technical" data-doris-technical hidden><summary>Technical details</summary>
-    <div class="row g-3 mt-1">
-      <div class="col-lg-6"><div class="border rounded p-3 h-100"><h5 class="h6">DORIS</h5><p data-doris-engine-status></p><dl class="row mb-2" data-doris-computed></dl><div data-doris-messages></div><details><summary>Report</summary><pre class="small text-wrap" data-doris-report></pre></details></div></div>
-      <div class="col-lg-6"><div class="border rounded p-3 h-100"><h5 class="h6">CoDEdit</h5><p data-codedit-engine-status></p><p data-codedit-issues></p><details><summary>Report</summary><pre class="small text-wrap" data-codedit-report></pre></details></div></div>
-    </div>
-    </details>
   </div>
 
   <template data-doris-line-template>
     <div class="border rounded p-3 mb-2" data-doris-line>
       <div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><div class="d-flex align-items-center gap-2"><span class="badge text-bg-secondary" data-doris-line-letter></span><strong data-doris-line-title></strong></div><div class="d-flex align-items-center gap-3"><div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary" data-doris-up aria-label="Move line up">↑</button><button type="button" class="btn btn-outline-secondary" data-doris-down aria-label="Move line down">↓</button></div><button type="button" class="btn btn-sm btn-outline-danger" data-doris-remove>Remove</button></div></div>
       <div class="d-flex flex-wrap gap-2 mb-2" data-doris-chips aria-live="polite"></div>
-      <div class="input-group"><input class="form-control" maxlength="80" autocomplete="off" placeholder="Search a condition or ICD-11 code" data-doris-search><button type="button" class="btn btn-outline-secondary" data-doris-search-button>Search</button><button type="button" class="btn btn-outline-secondary" data-doris-add-uncoded>Add uncoded text</button></div>
+      <div class="input-group" data-doris-search-group><input class="form-control" maxlength="80" autocomplete="off" placeholder="Search a condition or ICD-11 code" data-doris-search><button type="button" class="btn btn-outline-secondary" data-doris-search-button>Search</button><button type="button" class="btn btn-outline-secondary" data-doris-add-uncoded>Add uncoded text</button></div>
       <div class="doris-search-workspace"><div class="doris-search-list-wrap"><p class="small text-muted mb-0 mt-1" role="status" data-doris-search-status></p><div class="list-group mt-1" data-doris-search-results></div></div><div class="doris-search-side"><div class="doris-code-details" data-doris-details-panel hidden></div><div data-doris-guided-panel></div></div></div>
       <div class="doris-interval" data-doris-interval-control hidden>
         <label class="form-label small mb-0 doris-onset-label">Onset to death</label>
@@ -144,4 +139,4 @@
   {% if not doris_demo %}{% with modal_id=_doris_id ~ '-va-definitions' %}{% include "va_form_partials/_va_definitions_modal.html" %}{% endwith %}{% endif %}
   {% include "va_form_partials/_icd11_notice.html" %}
 </section>
-<script type="module" src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-18"></script>
+<script type="module" src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-20"></script>

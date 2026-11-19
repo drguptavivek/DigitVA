@@ -1,7 +1,7 @@
 // Plain-language summary of one DORIS + CoDEdit run for the medical
 // officer: the suggested underlying cause, anything that needs a manual
 // check, and whether the certificate check found problems. The raw codes,
-// URIs, reports and rule trace stay in the host's "Technical details".
+// URIs and reports sit under its "Details" (as on the Expo screen).
 'use strict';
 
 import { codeditMessages } from './codedit_messages.js';
@@ -57,15 +57,15 @@ var UCOD_ROLE_NOTE = {stem: '', extension: ' (extension)', postcoordinated: ' (m
 export var UCOD_CLUSTER_EXPLANATION = 'A "/" joins the stem code DORIS chose as the underlying cause to the code(s) it attached to it as manifestations or details; "&" adds an extension code to a stem.';
 
 // The computed UCOD as titled codes (server-resolved ucod_parts), one line each:
-// "Underlying cause: CODE title", then "+ CODE title (manifestation)". The full code
-// is a chip only when it adds something beyond the first line (same layout as the Expo screen).
+// "Underlying cause: CODE title", then "+ CODE title (manifestation)", then the full code as a chip
+// (same layout as the Expo screen).
 function appendUcodCluster(container, parts, dr) {
   var cluster = el('div', 'doris-summary-cluster mb-2');
   parts.forEach(function (part, index) {
     var label = part.title ? part.code + ' ' + part.title : part.code;
     cluster.appendChild(el('div', '', index === 0 ? 'Underlying cause: ' + label : '+ ' + label + (UCOD_ROLE_NOTE[part.role] || '')));
   });
-  if (dr.code && dr.code !== parts[0].code) cluster.appendChild(el('span', 'doris-summary-code', dr.code));
+  if (typeof dr.code === 'string') cluster.appendChild(el('span', 'doris-summary-code', dr.code));
   container.appendChild(cluster);
 }
 
@@ -81,15 +81,24 @@ function appendBareCode(container, dr, certificate, lookupTitle) {
   }
 }
 
-// Collapsed "Details": the "/" and "&" explanation, stem and URI.
-function appendCodeDetails(container, parts, dr) {
+// Report text ready to show: CRLF to LF, trailing spaces dropped, a run of blank lines collapsed to one
+// (collapseBlankLines in the Expo resultSummary.ts). '' when there is nothing, so no empty box is drawn.
+export function collapseBlankLines(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\r\n?/g, '\n').replace(/[ \t]+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// Collapsed "Details": the "/" and "&" explanation, stem, URI and the DORIS, CoDEdit and tabular reports.
+function appendCodeDetails(container, parts, dr, cr) {
   var many = Array.isArray(parts) && parts.length > 1;
-  if (!many && !dr.stemCode && !dr.uri) return;
+  var reports = [dr.report, cr.report, cr.tabularReport].map(collapseBlankLines).filter(Boolean);
+  if (!many && typeof dr.stemCode !== 'string' && typeof dr.uri !== 'string' && !reports.length) return;
   var details = el('details', 'small text-muted mb-2');
   details.appendChild(el('summary', '', 'Details'));
   if (many) details.appendChild(el('div', '', UCOD_CLUSTER_EXPLANATION));
-  if (dr.stemCode) details.appendChild(el('div', '', 'Computed stem: ' + dr.stemCode));
-  if (dr.uri) details.appendChild(el('div', '', 'Computed URI: ' + dr.uri));
+  if (typeof dr.stemCode === 'string') details.appendChild(el('div', '', 'Computed stem: ' + dr.stemCode));
+  if (typeof dr.uri === 'string') details.appendChild(el('div', '', 'Computed URI: ' + dr.uri));
+  reports.forEach(function (report) { details.appendChild(el('pre', 'small text-wrap border rounded p-2 mt-2 mb-0', report)); });
   container.appendChild(details);
 }
 
@@ -100,19 +109,18 @@ export function renderSummary(container, processing, certificate, lookupTitle) {
   var dr = doris.result || {}; var cr = codedit.result || {};
   container.replaceChildren();
 
-  // WHO's reason is shown in full, as the Expo screen does; the rest of the rule trace stays in Technical details.
-  if (doris.status === 'rejected') {
-    container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS rejected the certificate.'));
-    if (dr.error) container.appendChild(el('div', 'alert alert-danger py-2 mb-2', dr.error));
-  } else if (doris.status !== 'completed') {
+  // WHO's reason is shown in full, as the Expo screen does.
+  container.appendChild(el('h5', 'h6 mb-2', 'DORIS and CoDEdit'));
+  container.appendChild(el('p', 'small mb-1', 'DORIS: ' + (doris.status || 'not processed')));
+  if (typeof dr.error === 'string' && dr.error) container.appendChild(el('div', 'alert alert-danger py-2 mb-2', dr.error));
+  if (dr.reject === true || doris.status === 'rejected') container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS rejected the certificate result.'));
+  if (doris.status !== 'completed' && doris.status !== 'rejected') {
     container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS did not run (' + String(doris.status || 'unavailable').replaceAll('_', ' ') + '). Choose the underlying cause without it.'));
-  } else if (dr.reject || !dr.code) {
-    container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS could not select an underlying cause from this certificate.' + (dr.error ? ' ' + dr.error : '')));
-  } else {
-    container.appendChild(el('p', 'small text-muted mb-1', 'DORIS: completed'));
+  } else if (doris.status === 'completed' && (dr.reject || !dr.code)) {
+    container.appendChild(el('div', 'alert alert-danger py-2 mb-2', 'DORIS could not select an underlying cause from this certificate.'));
+  } else if (doris.status === 'completed') {
     if (Array.isArray(processing.ucod_parts) && processing.ucod_parts.length) appendUcodCluster(container, processing.ucod_parts, dr);
     else appendBareCode(container, dr, certificate, lookupTitle);
-    appendCodeDetails(container, processing.ucod_parts, dr);
   }
 
   (processing.who_notes || []).forEach(function (note) { container.appendChild(el('p', 'small text-muted mb-1', note)); });
@@ -156,6 +164,9 @@ export function renderSummary(container, processing, certificate, lookupTitle) {
   } else if (doris.status === 'completed') {
     container.appendChild(el('p', 'small text-success mb-0', 'No problems found in the certificate.'));
   }
+  appendCodeDetails(container, processing.ucod_parts, dr, cr);
+  container.appendChild(el('hr', 'my-2'));
+  container.appendChild(el('p', 'small mb-0', 'CoDEdit: ' + (codedit.status || 'not processed')));
 }
 
 // The code Step 2's "Use DORIS result" should enter, or '' if none.
@@ -172,4 +183,10 @@ export function usableDorisCode(processing, resolves) {
     if (!dr.stemCode || dr.stemCode === dr.code) return '';
     return resolves(dr.stemCode).then(function (stemOk) { return stemOk ? dr.stemCode : ''; });
   });
+}
+
+// The Step 2 button's label: "Use DORIS result: CODE — title"; the code alone until its title is known
+// (DorisPanel.tsx dorisQuickChoices).
+export function useDorisLabel(code, title) {
+  return 'Use DORIS result: ' + code + (title ? ' — ' + title : '');
 }

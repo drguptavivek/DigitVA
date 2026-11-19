@@ -12,6 +12,14 @@ What landed, newest first. Details live in the commits and the linked docs;
   cause. Rationale in docs/policy/icd11-code-selection-principles.md §4.
   Public DORIS demo rebuilt on the coder's web DORIS editor
   (`_doris_certificate_editor.html`), so the two cannot drift (`digitva-knh9`).
+- Web DORIS editor (and so the demo) matches the frozen Collect DORIS screen
+  (`digitva-knh9`): Use DORIS result shows code and title, line search at 3
+  characters after 500 ms (also in standard Collect's picker page), pregnancy
+  note, first Part I line fixed, Remove Part II, 8 conditions per line,
+  Collect's pre-Process checks and 422 field lines, Collect's result card and
+  Details (no separate Technical details), picker Close, Hierarchy, "Show all
+  N" and the 20-match note. `.dockerignore` drops local APK build folders
+  that had filled Docker's disk. `digitva-mb0d` filed: no WebView in Collect.
   Rou1 audit: of 22 ready P1 beads only `digitva-rou1` was done (closed).
 - Narrative dictation tip (`digitva-kkdb` step 1): Id10476 shows "Tip: tap the
   microphone on your keyboard to dictate (Hindi or English)" in English and

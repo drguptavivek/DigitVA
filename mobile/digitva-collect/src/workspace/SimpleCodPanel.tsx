@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CardInput } from "./CardInput";
 import { useScrollIntoView } from "./scrollTarget";
-import { Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { getRandomValues } from "expo-crypto";
 import { WhoVaQuestionControls } from "../whoControls";
 import type { InstrumentQuestion } from "@drguptavivek/who-2022-va";
@@ -14,6 +14,7 @@ import { Button, errorText, useUiStyles } from "../ui";
 import type { WorkspaceApi } from "./api";
 import type { IcdSearchItem, VaDefinition, VaDefinitionListItem, WorkspaceAssessment, WorkspacePayload } from "./contracts";
 import { definitionPlainText } from "./doris/CodeDetailsSheet";
+import causeList from "../../assets/who-2022-va-cause-list.json";
 
 type FieldName = "immediate_cod" | "antecedent_cod" | "conclusive_cod";
 type Codes = Record<FieldName, string>;
@@ -26,7 +27,6 @@ const ICD_BROWSERS = {
   icd10: { url: "https://icd.who.int/browse10/2019/en", label: "ICD-10 Browser" },
   icd11: { url: "https://icd.who.int/browse/2026-01/mms/en", label: "ICD-11 Browser" },
 } as const;
-const SELECTED_CODES_PATH = "/static/WHO_2022_VA_CODES.pdf";
 const MIN_QUERY = 2;
 const touchRow = { minHeight: controls.minTouchTarget, justifyContent: "center" as const, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 };
 const box = { padding: 12, borderRadius: 8, gap: 4 };
@@ -36,7 +36,6 @@ export function SimpleCodPanel({
   workspace,
   identity,
   api,
-  serverOrigin,
   onSaved,
   onAllocationLost,
   onDone,
@@ -47,8 +46,6 @@ export function SimpleCodPanel({
   smartva?: ReactNode;
   identity: { vaSid: string; mode: "coding" | "reviewing" };
   api: WorkspaceApi;
-  /** The server for the Selected ICD Codes PDF on a phone; the browser resolves the path against its own origin. */
-  serverOrigin?: string;
   onSaved: (blockedMessage?: string) => Promise<void>;
   onAllocationLost: () => void;
   onDone: () => void;
@@ -79,6 +76,7 @@ export function SimpleCodPanel({
   const [notCodeableOther, setNotCodeableOther] = useState("");
   const [screen, setScreen] = useState<"assessment" | "not_codeable">("assessment");
   const [definitionsOpen, setDefinitionsOpen] = useState(false);
+  const [selectedCodesOpen, setSelectedCodesOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const initialSource = useRef(source);
@@ -178,7 +176,7 @@ export function SimpleCodPanel({
       api={api}
       identity={identity}
       classification={classification}
-      serverOrigin={serverOrigin}
+      onShowSelectedCodes={() => setSelectedCodesOpen(true)}
       onShowDefinitions={api.listVaDefinitions ? () => setDefinitionsOpen(true) : undefined}
       onAllocationLost={onAllocationLost}
       onChange={(value) => setCodes((old) => ({ ...old, [name]: value }))}
@@ -247,6 +245,7 @@ export function SimpleCodPanel({
         {identity.mode === "coding" ? <Button kind="danger" label="Not Codeable" disabled={busy} onPress={() => { setError(""); setScreen("not_codeable"); }} /> : null}
       </View>
       {classification === "icd11" ? <Text testID="icd11-citation" style={styles.muted}>{t("icd11Citation")}</Text> : null}
+      {selectedCodesOpen ? <SelectedIcdCodesModal onClose={() => setSelectedCodesOpen(false)} /> : null}
       {definitionsOpen ? <VaDefinitionsModal api={api} onClose={() => setDefinitionsOpen(false)} /> : null}
     </View>
     </>
@@ -358,16 +357,14 @@ function RequiredLabel({ label }: { label: string }) {
   return <Text style={styles.fieldLabel}>{label}<Text style={styles.error}> *</Text></Text>;
 }
 
-/** WHO browser, the Selected ICD Codes PDF and the VA definitions list, beside each cause field as in Flask. */
-function ReferenceLinks({ classification, serverOrigin, onShowDefinitions }: { classification: Classification; serverOrigin?: string; onShowDefinitions?: () => void }) {
+/** WHO browser, the in-app Selected ICD Codes table and the VA definitions list, beside each cause field as in Flask. */
+function ReferenceLinks({ classification, onShowSelectedCodes, onShowDefinitions }: { classification: Classification; onShowSelectedCodes: () => void; onShowDefinitions?: () => void }) {
   const styles = useUiStyles();
   const browser = ICD_BROWSERS[classification];
-  // The PDF is a public static file, so the phone's system browser opens it without the app's session.
-  const pdf = serverOrigin ? `${serverOrigin.replace(/\/+$/, "")}${SELECTED_CODES_PATH}` : Platform.OS === "web" ? SELECTED_CODES_PATH : null;
   return (
     <View style={styles.row}>
       <Button kind="secondary" size="sm" label={browser.label} onPress={() => void Linking.openURL(browser.url).catch(() => undefined)} />
-      {pdf ? <Button kind="secondary" size="sm" label="Selected ICD Codes" onPress={() => void Linking.openURL(pdf).catch(() => undefined)} /> : null}
+      <Button kind="secondary" size="sm" label="Selected ICD Codes" onPress={onShowSelectedCodes} />
       {onShowDefinitions ? <Button kind="secondary" size="sm" label="VA Definitions" onPress={onShowDefinitions} /> : null}
     </View>
   );
@@ -382,7 +379,7 @@ function IcdCodeField({
   api,
   identity,
   classification,
-  serverOrigin,
+  onShowSelectedCodes,
   onShowDefinitions,
   onAllocationLost,
   onChange,
@@ -396,7 +393,7 @@ function IcdCodeField({
   api: WorkspaceApi;
   identity: { vaSid: string; mode: "coding" | "reviewing" };
   classification: Classification;
-  serverOrigin?: string;
+  onShowSelectedCodes: () => void;
   onShowDefinitions?: () => void;
   onAllocationLost: () => void;
   onChange(value: string): void;
@@ -461,7 +458,7 @@ function IcdCodeField({
   return (
     <View style={{ gap: 4 }}>
       <RequiredLabel label={label} />
-      <ReferenceLinks classification={classification} serverOrigin={serverOrigin} onShowDefinitions={onShowDefinitions} />
+      <ReferenceLinks classification={classification} onShowSelectedCodes={onShowSelectedCodes} onShowDefinitions={onShowDefinitions} />
       {hint ? <Text style={styles.muted}>{hint}</Text> : null}
       <View ref={searchBox} collapsable={false} />
       <CardInput
@@ -553,6 +550,44 @@ function VaDefinitionNote({ api, code, classification, fieldLabel }: { api: Work
       {text ? <Text style={styles.text}>{text}</Text> : null}
       <Text style={styles.muted}>{t("digitvaAddition")}</Text>
     </View>
+  );
+}
+
+type CauseListRow = { group: string; va_code: string; title: string; icd10: string; icd11: string; footnote: string; note: string };
+
+/** WHO Table A1 from the bundled CSV asset (works offline): filtered by VA code, title or either ICD code, grouped as in the CSV. */
+function SelectedIcdCodesModal({ onClose }: { onClose: () => void }) {
+  const styles = useUiStyles();
+  const [filter, setFilter] = useState("");
+  const rows: CauseListRow[] = causeList.rows;
+  const needle = filter.trim().toLowerCase().split(/\s+/).join(" ");
+  const shown = rows.filter((row) => !needle || `${row.va_code} ${row.title} ${row.icd10} ${row.icd11} ${row.footnote}`.toLowerCase().includes(needle));
+  return (
+    <Modal visible transparent={false} animationType="slide" onRequestClose={onClose}>
+      <View style={styles.safe}>
+        <View testID="selected-icd-codes-header" style={[styles.body, { gap: 8 }]}>
+          <Text accessibilityRole="header" style={styles.headline}>Table A1. WHO target list of causes of death for VA with correspondence for ICD-11 and ICD-10 codes</Text>
+          <CardInput accessibilityLabel="Filter ICD codes" placeholder="Filter by VA cause, code or ICD code" value={filter} onChangeText={setFilter} />
+          <Text style={styles.muted}>{`${shown.length} of ${rows.length}`}</Text>
+          <Button kind="secondary" label="Close" accessibilityLabel="Close" style={{ minHeight: controls.minTouchTarget }} onPress={onClose} />
+        </View>
+        <ScrollView testID="selected-icd-codes-list" contentContainerStyle={[styles.body, { gap: 8 }]}>
+          {shown.map((row, index) => (
+            <View key={row.va_code} style={{ gap: 8 }}>
+              {row.group && row.group !== shown[index - 1]?.group ? <Text style={styles.fieldLabel}>{row.group}</Text> : null}
+              <View style={[styles.secondary, box]}>
+                <Text style={styles.fieldLabel}>{`${row.va_code} ${row.title}`}</Text>
+                <Text style={styles.text}>{`ICD-10: ${row.icd10 || (row.footnote ? "see the note below" : "none listed")}`}</Text>
+                <Text style={styles.text}>{`ICD-11: ${row.icd11}`}</Text>
+                {row.footnote ? <Text style={styles.muted}>{row.footnote}</Text> : null}
+                {row.note ? <Text style={styles.muted}>{row.note}</Text> : null}
+              </View>
+            </View>
+          ))}
+          <Text style={styles.muted}>Source: WHO, Cause of death assignment by physicians from verbal autopsy data, Annex 1.</Text>
+        </ScrollView>
+      </View>
+    </Modal>
   );
 }
 

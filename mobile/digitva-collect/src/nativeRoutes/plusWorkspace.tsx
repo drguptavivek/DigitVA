@@ -167,7 +167,6 @@ function Workspace({ mode, vaSid, training = false }: { mode: WorkspaceMode; vaS
     return <CaseWorkspaceScreen
       identity={identity}
       api={api}
-      serverOrigin={account.server ?? undefined}
       icd11DorisEnabled={icd11Preference.enabled}
       onIcd11DorisOpenSettings={() => router.dismissTo({ pathname: "/settings", params: { userId } })}
       assertIcd11DorisEnabled={async () => {

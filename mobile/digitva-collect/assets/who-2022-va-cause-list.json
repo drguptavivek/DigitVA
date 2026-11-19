@@ -1,0 +1,592 @@
+{
+ "schema": 1,
+ "source": "docs/icd-causegrp-mappings/ICD-to-VA-Buckets/who_2022_va_cause_list_icd10_icd11.csv",
+ "content_sha256": "89fe31a5ba562e5e2d17209951125ea9a7083e6cb7789b705874217339fc7f8c",
+ "rows": [
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.01",
+   "title": "Sepsis",
+   "icd10": "A40-A41",
+   "icd11": "1G40-1G41",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.02",
+   "title": "Acute respiratory infection, including pneumonia",
+   "icd10": "J00-J22; J85",
+   "icd11": "CA00-CA07.1; CA40-CA43; CA45; CA4Z; 1E30-1E32",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.03",
+   "title": "HIV/AIDS related death",
+   "icd10": "B20-B24",
+   "icd11": "1C60-1C62",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.04",
+   "title": "Diarrheal diseases",
+   "icd10": "A00-A09",
+   "icd11": "1A00-1A40.Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.05",
+   "title": "Malaria",
+   "icd10": "B50-B54",
+   "icd11": "1F40-1F4Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.06",
+   "title": "Measles",
+   "icd10": "B05",
+   "icd11": "1F03",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.07",
+   "title": "Meningitis and encephalitis",
+   "icd10": "A39; G00-G05",
+   "icd11": "1B53-1B54; 1C1C; 1C80-1C8F; 1D00-1D02; 8B41",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.08",
+   "title": "Tetanus",
+   "icd10": "A33-A35",
+   "icd11": "1C13-1C14",
+   "footnote": "Excludes: Neonatal tetanus VAs-10.05",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.09",
+   "title": "Pulmonary tuberculosis",
+   "icd10": "A15-A16",
+   "icd11": "1B10",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.10",
+   "title": "Pertussis",
+   "icd10": "A37",
+   "icd11": "1C12",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.11",
+   "title": "Haemorrhagic fever",
+   "icd10": "A92-A96, A98-A99",
+   "icd11": "1D40-1D4Z; 1D6Z; 1D60-1D6Z",
+   "footnote": "Excludes: Dengue VAs-01.12",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.12",
+   "title": "Dengue fever",
+   "icd10": "A97",
+   "icd11": "1D20-1D2Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.13",
+   "title": "Coronavirus disease (COVID-19)",
+   "icd10": "U07.1; U07.2",
+   "icd11": "RA01.0; RA01.1",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-01 Infectious and parasitic diseases",
+   "va_code": "VAs-01.99",
+   "title": "Unspecified infectious disease",
+   "icd10": "A17-A19; A20-A32; A36; A38; A42-A89; B00-B04; B06-B19; B25-B49; B55-B99",
+   "icd11": "1A60-1A9Z; 1B11-1B51; 1B5Y-1B9Z; 1C10-1C11.Y; 1C16-1C1B; 1C1D-1C62; 1C8Y-1C8Z; 1D03-1D0Z; 1D80-1E1Z; 1E50-1E91.Z; 1F00-1F02; 1F04-1F2Z; 1F50-1G2Z; 1G60-1H0Z; AA00-AA0Z; AA3Y-AA3Z; DB90; EA00-EA6Y; EE12; EG61; FA90-FA91; FB30; GA00-GA02; GA05; GA07; GB02; GC08",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "Non-communicable diseases",
+   "va_code": "VAs-98",
+   "title": "Other and unspecified non-communicable disease",
+   "icd10": "D65-D89; E00-E07; E15-E35; E50-E90; F00-F99; G06-G09; G10-G37; G43-G47; G50-G99; H00-H95; J30-J39; J47-J84; J86-J99; K00-K31; K35-K38; K40-K69; K70-K93 L00-L99; M00-M99; N00-N16; N20-N99",
+   "icd11": "3A60; 3B10-3C0Z; 4A00-4B4Z; DB96; 5A00-5A0Z; 5A40-5B3Z; 5B55-5C3Z; 5C50-5C51; 5C52.Y-5C52-Z; 5C55; 5C56.0-5C56.3; 5C58; 5C5A; 5C61.6; 5C64; 5C70-5C77; 5C80-5D46; 6A20-6A8Z; 6B00-6E8Z; 7A00-7A6Z; 7A80-7A81; 7A83-7B2Z; 8A00-8A4Z; 8A80-8A8Z; 8B24; 8B40; 8B42-8D8Z; 8E00-8E2Z; 8E40-8E7Z; 9A01-9E1Z; AA10-AA1Z; AA40-AC0Z; CA08-CA0Z; CA24-CA2Z; CA60-CB7Z; DA00-DB7Z; DB91-DB92; DB96-DE2Z; EA80-EB9Y; EC90-ED00; ED02-ED9Y; EE01-EE11; EE13-EE20; EE40-EG60; EG62-EG9Z; EH40-EL50; EL60-EM0Z; FA00-FA8Z; FA92-FB1Z; FB31-FC0Z; GA03-GA04; GA06; GA0Z-GB01; GB03-GB5Z; GB70-GB80; GB8Y; GB90-GC07; GC0Y-GC8Z; HA00-HA8Z; MB43; MB50-MB5Z; MC10-MC20; MC2Y-MC6Y; ME82; ME84-ME85; ME93; MF3A; MF54; MF56; MF80-MF8Z",
+   "footnote": "",
+   "note": "This group covers all non-communicable conditions that could not be assigned to another category in this section. There is a separate category for cases where the cause of death is unknown."
+  },
+  {
+   "group": "VAs-02 Neoplasms",
+   "va_code": "VAs-02.01",
+   "title": "Oral neoplasms",
+   "icd10": "C00-C06",
+   "icd11": "2B60-2B66",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-02 Neoplasms",
+   "va_code": "VAs-02.02",
+   "title": "Digestive neoplasms",
+   "icd10": "C15-C26",
+   "icd11": "2B56.3; 2B70-2B72; 2B80-2B81; 2B90-2B9Y; 2C00-2C1Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-02 Neoplasms",
+   "va_code": "VAs-02.03",
+   "title": "Respiratory neoplasms",
+   "icd10": "C30-C39",
+   "icd11": "2C20-2C2Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-02 Neoplasms",
+   "va_code": "VAs-02.04",
+   "title": "Breast neoplasms",
+   "icd10": "C50",
+   "icd11": "2C60-2C6Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-02 Neoplasms",
+   "va_code": "VAs-02.05",
+   "title": "Female reproductive neoplasms",
+   "icd10": "C51-C58",
+   "icd11": "2C70-2C7Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-02 Neoplasms",
+   "va_code": "VAs-02.06",
+   "title": "Male reproductive neoplasms",
+   "icd10": "C60-C63",
+   "icd11": "2C80-2C8Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-02 Neoplasms",
+   "va_code": "VAs-02.99",
+   "title": "Other and unspecified neoplasms",
+   "icd10": "C07-C14; C40-C49; C64-D48; C91-C95",
+   "icd11": "2A00-2A0Z; 2A20-2A90; 2B00-2B56.2; 2B56.Y-2B5Z; 2B67-2B6Y; 2C30-2C5Z; 2C90-2E6Z; 2E80-2F9Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-03 Nutritional and endocrine disorders",
+   "va_code": "VAs-03.01",
+   "title": "Severe anaemia",
+   "icd10": "D50-D64",
+   "icd11": "3A00-3A4.Z; 3A61-3A9Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-03 Nutritional and endocrine disorders",
+   "va_code": "VAs-03.02",
+   "title": "Severe malnutrition",
+   "icd10": "E40-E46",
+   "icd11": "5B50-5B54; 5B71-5B7Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-03 Nutritional and endocrine disorders",
+   "va_code": "VAs-03.03",
+   "title": "Diabetes mellitus",
+   "icd10": "E10-E14",
+   "icd11": "5A10-5A14",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-04 Diseases of the circulatory system",
+   "va_code": "VAs-04.01",
+   "title": "Acute cardiac disease",
+   "icd10": "I11.0; I20-I26; I46.1; I46.9; I50.1",
+   "icd11": "BA01; BA40-BA6Z; BB00; BD11; MC82",
+   "footnote": "Includes: Ischaemic heart disease; Pulmonary embolism; Sudden cardiac death; Cardiac arrest, unspecified; Left ventricular failure; and Hypertensive heart disease with heart failure",
+   "note": ""
+  },
+  {
+   "group": "VAs-04 Diseases of the circulatory system",
+   "va_code": "VAs-04.02",
+   "title": "Stroke",
+   "icd10": "I60-I69",
+   "icd11": "8B00-8B23; 8B25-8B2Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-04 Diseases of the circulatory system",
+   "va_code": "VAs-04.03",
+   "title": "Sickle cell with crisis",
+   "icd10": "D57",
+   "icd11": "3A51",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-04 Diseases of the circulatory system",
+   "va_code": "VAs-04.99",
+   "title": "Other and unspecified cardiac disease",
+   "icd10": "I00-I10; I11.9-I15; I27-I46.0; I47-I50.0; I50.9-I52; I70-I99",
+   "icd11": "BA00; BA02-BA2Z; BA50-BA5Z; BA81-BA8Z; BB01-BC91; BC9Y-BC9Z; BD10; BD12-BE2Z; 1B40-1B42",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-05 Respiratory disorders",
+   "va_code": "VAs-05.01",
+   "title": "Chronic obstructive pulmonary disease (COPD)",
+   "icd10": "J40-J44",
+   "icd11": "CA20-CA22",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-05 Respiratory disorders",
+   "va_code": "VAs-05.02",
+   "title": "Asthma",
+   "icd10": "J45-J46",
+   "icd11": "CA23",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-06 Gastrointestinal disorders",
+   "va_code": "VAs-06.01",
+   "title": "Acute abdomen",
+   "icd10": "R10",
+   "icd11": "MD81",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-06 Gastrointestinal disorders",
+   "va_code": "VAs-06.02",
+   "title": "Liver cirrhosis",
+   "icd10": "K70.2; K70.3; K71.7; K74",
+   "icd11": "DB93; DB94.2; DB94.3, DB95.5",
+   "footnote": "Includes Alcoholic fibrosis/ cirrhosis; Toxic liver cirrhosis; Fibrosis and cirrhosis of liver, excluding alcoholic and toxic, but including ‘unspecified liver cirrhosis’",
+   "note": ""
+  },
+  {
+   "group": "VAs-07 Renal disorders",
+   "va_code": "VAs-07.01",
+   "title": "Renal failure",
+   "icd10": "N17-N19",
+   "icd11": "GB60-GB6Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-08 Mental and nervous system disorders",
+   "va_code": "VAs-08.01",
+   "title": "Epilepsy",
+   "icd10": "G40-G41",
+   "icd11": "8A60-8A6Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-09 Pregnancy-, childbirth- and puerperium-related disorders",
+   "va_code": "VAs-09.01",
+   "title": "Ectopic pregnancy",
+   "icd10": "O00",
+   "icd11": "JA01",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-09 Pregnancy-, childbirth- and puerperium-related disorders",
+   "va_code": "VAs-09.02",
+   "title": "Abortion-related death",
+   "icd10": "O03-O08",
+   "icd11": "JA00; JA05-JA0Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-09 Pregnancy-, childbirth- and puerperium-related disorders",
+   "va_code": "VAs-09.03",
+   "title": "Pregnancy-induced hypertension",
+   "icd10": "O10-O16",
+   "icd11": "JA20-JA2Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-09 Pregnancy-, childbirth- and puerperium-related disorders",
+   "va_code": "VAs-09.04",
+   "title": "Obstetric haemorrhage",
+   "icd10": "O46; O67; O72",
+   "icd11": "JA40-JA4Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-09 Pregnancy-, childbirth- and puerperium-related disorders",
+   "va_code": "VAs-09.05",
+   "title": "Obstructed labour",
+   "icd10": "O63-O66",
+   "icd11": "JB03-JB06",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-09 Pregnancy-, childbirth- and puerperium-related disorders",
+   "va_code": "VAs-09.06",
+   "title": "Pregnancy-related sepsis",
+   "icd10": "O75.3; O85",
+   "icd11": "JB0D.2; JB40",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-09 Pregnancy-, childbirth- and puerperium-related disorders",
+   "va_code": "VAs-09.07",
+   "title": "Anaemia of pregnancy",
+   "icd10": "O99.0",
+   "icd11": "JB64.0",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-09 Pregnancy-, childbirth- and puerperium-related disorders",
+   "va_code": "VAs-09.0",
+   "title": "Ruptured uterus",
+   "icd10": "O71.0-O71.1",
+   "icd11": "JB0A.0; JB0A.1",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-09 Pregnancy-, childbirth- and puerperium-related disorders",
+   "va_code": "VAs-09.99",
+   "title": "Other and unspecified maternal cause",
+   "icd10": "O01-O02; O20-O45; O47-O62; O68-O70; O71.3-O71.9; O73-O84; O86-O99",
+   "icd11": "JA02-JA04; JA60-JA6Z; JA80-JA8Z; JB00-JB02; JB07-JB09; JB0A.2-JB0D.1; JB0D.3-JB0Z; JB20-JB2Z; JB41-JB4Z; JB60-JB63; JB64.1-JB6Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-10 Neonatal causes of death",
+   "va_code": "VAs-10.01",
+   "title": "Prematurity or low birth weight",
+   "icd10": "P05; P07",
+   "icd11": "KA20-KA21",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-10 Neonatal causes of death",
+   "va_code": "VAs-10.02",
+   "title": "Birth asphyxia",
+   "icd10": "P20-P22",
+   "icd11": "KB20-KB23; KD30.0; KD30.1",
+   "footnote": "Includes: Hypoxia and respiratory distress",
+   "note": ""
+  },
+  {
+   "group": "VAs-10 Neonatal causes of death",
+   "va_code": "VAs-10.03",
+   "title": "Neonatal pneumonia",
+   "icd10": "P23-P24",
+   "icd11": "KB24; KB26",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-10 Neonatal causes of death",
+   "va_code": "VAs-10.04",
+   "title": "Neonatal sepsis",
+   "icd10": "P36",
+   "icd11": "KA60",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-10 Neonatal causes of death",
+   "va_code": "VAs-10.05",
+   "title": "Neonatal tetanus",
+   "icd10": "A33",
+   "icd11": "1C15",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-10 Neonatal causes of death",
+   "va_code": "VAs-10.06",
+   "title": "Congenital malformation",
+   "icd10": "Q00-Q99",
+   "icd11": "9A00; EC10-EC7Y; GB81-GB82; GB8Z; LA00-LD9Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-10 Neonatal causes of death",
+   "va_code": "VAs-10.99",
+   "title": "Other and unspecified perinatal cause of death",
+   "icd10": "P00-P04; P08-P15; P25-P35; P37-P94; P96; R95",
+   "icd11": "EH10-EH3Y; KA00-KA0Z; KA22-KA4Z; KA61-KA8Z; KB00-KB0Z; KB25; KB27-KB8Z; KC00-KC9Z; KD10-KD1Z; KD30.2-KD5Z; MH11",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-11 Stillbirths",
+   "va_code": "VAs-11.01",
+   "title": "Fresh stillbirth",
+   "icd10": "P95",
+   "icd11": "KD3B.1",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-11 Stillbirths",
+   "va_code": "VAs-11.02",
+   "title": "Macerated stillbirth",
+   "icd10": "P95",
+   "icd11": "KD3B.0",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.01",
+   "title": "Road traffic accident",
+   "icd10": "",
+   "icd11": "PA00-PA5Z",
+   "footnote": "Distinction on the codes between VAs-12.01 and VAs 12.02 is on the basis whether the death was a road traffic accident. V01.1;V02.1;V03.1;V04.1;V05.1;V06.1; V09.2;V09.3; V10.4-V10.9; V11.4-V11.9; V12.4-V12.9; V13.4-V13.9; V14.4-V14.9; V15.4-V15.9; V16.4-V16.9; V17.4-V17.9; V18.4-V18.9; V19.4- V19.9; V20.4-V20.9; V21.4-V21.9; V22.4-V22.9; V23.4-V23.9; V24.4-V24.9; V25.4-V25.9; V26.4-V26.9; V27.4-V27.9; V28.4-V28.9; V29.4-V29.9; V30.5-V30.9; V31.5-V31.9; V32.5-V32.9; V33.5-V33.9; V34.5- V34.9; V35.5-V35.9; V36.5-V36.9; V37.5-V37.9; V38.5-V38.9; V39.4-V39.9; V40.5-V40.9; V41.5-V41.9; V42.5-V42.9; V43.5-V43.9; V44.5-V44.9; V45.5-V45.9; V46.5-V46.9; V47.5-V47.9; V48.5-V48.9; V49.4- V49.9; V50.5-V50.9; V51.5-V51.9; V52.5-V52.9; V53.5-V53.9; V54.5-V54.9; V55.5-V55.9; V56.5-V56.9; V57.5-V57.9; V58.5-V58.9; V59.4-V59.9; V60.5-V60.9; V61.5-V61.9; V62.5-V62.9; V63.5-V63.9; V64.5- V64.9; V65.5-V65.9; V66.5-V66.9; V67.5-V67.9; V68.5-V68.9; V69.4-V69.9; V70.5-V70.9; V71.5-V71.9; V72.5-V72.9; V73.5-V73.9; V74.5-V74.9; V75.5-V75.9; V76.5-V76.9; V77.5-V77.9; V78.5-V78.9; V79.4- V79.9; V80.0-V80.9;V81.1-V81.9; V82.1-V82.9; V83.0-V83.3; V84.0-V84.3; V85.0-V85.3; V86.0-V86.3; V87.0-V87.9; V89.2-V89.3; Y85.0; V90-V99; Y85.9",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.02",
+   "title": "Other transport accident",
+   "icd10": "",
+   "icd11": "PA00-PA5Z",
+   "footnote": "Distinction on the codes between VAs-12.01 and VAs 12.02 is on the basis whether the death was a road traffic accident. V01.1;V02.1;V03.1;V04.1;V05.1;V06.1; V09.2;V09.3; V10.4-V10.9; V11.4-V11.9; V12.4-V12.9; V13.4-V13.9; V14.4-V14.9; V15.4-V15.9; V16.4-V16.9; V17.4-V17.9; V18.4-V18.9; V19.4- V19.9; V20.4-V20.9; V21.4-V21.9; V22.4-V22.9; V23.4-V23.9; V24.4-V24.9; V25.4-V25.9; V26.4-V26.9; V27.4-V27.9; V28.4-V28.9; V29.4-V29.9; V30.5-V30.9; V31.5-V31.9; V32.5-V32.9; V33.5-V33.9; V34.5- V34.9; V35.5-V35.9; V36.5-V36.9; V37.5-V37.9; V38.5-V38.9; V39.4-V39.9; V40.5-V40.9; V41.5-V41.9; V42.5-V42.9; V43.5-V43.9; V44.5-V44.9; V45.5-V45.9; V46.5-V46.9; V47.5-V47.9; V48.5-V48.9; V49.4- V49.9; V50.5-V50.9; V51.5-V51.9; V52.5-V52.9; V53.5-V53.9; V54.5-V54.9; V55.5-V55.9; V56.5-V56.9; V57.5-V57.9; V58.5-V58.9; V59.4-V59.9; V60.5-V60.9; V61.5-V61.9; V62.5-V62.9; V63.5-V63.9; V64.5- V64.9; V65.5-V65.9; V66.5-V66.9; V67.5-V67.9; V68.5-V68.9; V69.4-V69.9; V70.5-V70.9; V71.5-V71.9; V72.5-V72.9; V73.5-V73.9; V74.5-V74.9; V75.5-V75.9; V76.5-V76.9; V77.5-V77.9; V78.5-V78.9; V79.4- V79.9; V80.0-V80.9;V81.1-V81.9; V82.1-V82.9; V83.0-V83.3; V84.0-V84.3; V85.0-V85.3; V86.0-V86.3; V87.0-V87.9; V89.2-V89.3; Y85.0; V90-V99; Y85.9",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.03",
+   "title": "Accidental fall",
+   "icd10": "W00-W19",
+   "icd11": "PA60-PA6Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.04",
+   "title": "Accidental drowning and submersion",
+   "icd10": "W65-W74",
+   "icd11": "PA90-PA9Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.05",
+   "title": "Accidental exposure to smoke, fire and flames",
+   "icd10": "X00-X19",
+   "icd11": "PB10-PB15; PB1Y-PB1Z; PB55",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.06",
+   "title": "Contact with venomous animals and plants",
+   "icd10": "X20-X29",
+   "icd11": "PA78; PA79",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.07",
+   "title": "Accidental poisoning and exposure to noxious substance",
+   "icd10": "X40-X49",
+   "icd11": "PB20-PB36",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.08",
+   "title": "Intentional self-harm",
+   "icd10": "X60-X84; Y87.0",
+   "icd11": "PB80-PD3Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.09",
+   "title": "Assault",
+   "icd10": "X85-Y09; Y87.1",
+   "icd11": "PD50-PF2Z; PJ20-PJ2Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.10",
+   "title": "Exposure to force of nature",
+   "icd10": "X30-X39",
+   "icd11": "PJ00-PJ0Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-12 External causes of death",
+   "va_code": "VAs-12.99",
+   "title": "Other and unspecified external cause of death",
+   "icd10": "S00-T99; W20-W64; W75-W99; X10-X19; X50-X59; Y10-Y84; Y86; Y87.2; Y88-Y89",
+   "icd11": "EL51-EL54; NA00-NF2Z; PA70-PA77; PA7Y-PA8Z; PB00-PB0Z; PB16; PB50-PB54; PB56-PB6Z; PF40-PH8Z; PJ20-PJ2Z; PJ40-PL2Z",
+   "footnote": "",
+   "note": ""
+  },
+  {
+   "group": "VAs-99 Unknown and ill-defined cause of death",
+   "va_code": "VAs-99",
+   "title": "Unknown and ill-defined cause of death",
+   "icd10": "R00-R09; R11-R94; R96-R99",
+   "icd11": "MA00-MB42; MB44-MB4D; MB60-MB9Y; MC21; MC80-MD80; MD82-ME81; ME83; ME86-ME92; ME9Y-MF39; MF3Y-MF53; MF55; MF57-MF7Z; MF90-MH10; MH12-MH2Y",
+   "footnote": "",
+   "note": ""
+  }
+ ]
+}

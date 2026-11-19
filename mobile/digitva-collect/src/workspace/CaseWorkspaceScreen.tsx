@@ -43,7 +43,6 @@ export function CaseWorkspaceScreen({
   onIcd11DorisOpenSettings,
   assertIcd11DorisEnabled,
   refreshKey,
-  serverOrigin,
   viewAction,
 }: {
   identity: WorkspaceIdentity;
@@ -67,8 +66,6 @@ export function CaseWorkspaceScreen({
    * workspace reloads keeping the open section, whichever it is. Omitted by server-backed callers.
    */
   refreshKey?: string;
-  /** The server a phone links to for static references (the Selected ICD Codes PDF); web callers omit it. */
-  serverOrigin?: string;
   /** Native offline summary: a button (Revise) shown above the read-only COD reference in view mode. */
   viewAction?: ReactNode;
 }) {
@@ -458,7 +455,7 @@ export function CaseWorkspaceScreen({
       {workspace.case.project_mode.endsWith("_doris") ? (
         renderDoris ? renderDoris(workspace, reloadAfterCodSave, scopedCallbacks.finish, guardedApi) : <Text style={styles.muted}>DORIS coding editor is not available.</Text>
       ) : (
-        <SimpleCodPanel workspace={workspace} smartva={workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={guardedApi} serverOrigin={serverOrigin} onSaved={reloadAfterCodSave} onAllocationLost={scopedCallbacks.loseAllocation} onDone={scopedCallbacks.finish} />
+        <SimpleCodPanel workspace={workspace} smartva={workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null} identity={{ vaSid: identity.vaSid, mode: identity.mode }} api={guardedApi} onSaved={reloadAfterCodSave} onAllocationLost={scopedCallbacks.loseAllocation} onDone={scopedCallbacks.finish} />
       )}
     </View>
   ) : null;

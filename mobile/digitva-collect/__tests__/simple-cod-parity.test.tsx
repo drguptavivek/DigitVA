@@ -65,10 +65,10 @@ function apiFor(overrides: Partial<WorkspaceApi> = {}) {
   } as unknown as WorkspaceApi;
 }
 
-function render(api: WorkspaceApi, payload = workspace(), extra: { onDone?: () => void; serverOrigin?: string; mode?: "coding" | "reviewing" } = {}) {
+function render(api: WorkspaceApi, payload = workspace(), extra: { onDone?: () => void; mode?: "coding" | "reviewing" } = {}) {
   let tree!: ReactTestRenderer;
   act(() => {
-    tree = create(<SimpleCodPanel workspace={payload} identity={{ vaSid: "sid-1", mode: extra.mode ?? "coding" }} api={api} serverOrigin={extra.serverOrigin} onSaved={async () => undefined} onAllocationLost={jest.fn()} onDone={extra.onDone ?? jest.fn()} />);
+    tree = create(<SimpleCodPanel workspace={payload} identity={{ vaSid: "sid-1", mode: extra.mode ?? "coding" }} api={api} onSaved={async () => undefined} onAllocationLost={jest.fn()} onDone={extra.onDone ?? jest.fn()} />);
   });
   return tree;
 }
@@ -362,14 +362,13 @@ it("shows the coder's Step 1 causes and a previous final above the Step 2 field"
   await act(async () => tree.unmount());
 });
 
-it("opens the WHO browser, the Selected ICD Codes PDF on the server, and the VA definitions list", async () => {
+it("opens the WHO browser and the VA definitions list; Selected ICD Codes is in-app, not the PDF", async () => {
   const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
   const api = apiFor();
-  const tree = render(api, workspace(), { serverOrigin: "https://digitva.example/" });
+  const tree = render(api, workspace());
   await act(async () => control(tree, "ICD-10 Browser").props.onPress());
-  await act(async () => control(tree, "Selected ICD Codes").props.onPress());
-  expect(open).toHaveBeenNthCalledWith(1, "https://icd.who.int/browse10/2019/en");
-  expect(open).toHaveBeenNthCalledWith(2, "https://digitva.example/static/WHO_2022_VA_CODES.pdf");
+  expect(open).toHaveBeenCalledTimes(1);
+  expect(open).toHaveBeenCalledWith("https://icd.who.int/browse10/2019/en");
   await act(async () => {
     control(tree, "VA Definitions").props.onPress();
     await flush();
@@ -381,6 +380,33 @@ it("opens the WHO browser, the Selected ICD Codes PDF on the server, and the VA 
   expect(text(tree)).toContain("VAs-01.03 Pulmonary tuberculosis");
   await act(async () => control(tree, "Close").props.onPress());
   expect(text(tree)).not.toContain("VA Codes, Titles and Definitions");
+  open.mockRestore();
+  await act(async () => tree.unmount());
+});
+
+it("opens Selected ICD Codes as an in-app table, filters it by ICD-11 code and title, and closes", async () => {
+  const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+  const tree = render(apiFor());
+  await act(async () => control(tree, "Selected ICD Codes").props.onPress());
+  expect(open).not.toHaveBeenCalled();
+  expect(text(tree)).toContain("Table A1. WHO target list of causes of death for VA with correspondence for ICD-11 and ICD-10 codes");
+  expect(text(tree)).toContain("VAs-01.01 Sepsis");
+  expect(text(tree)).toContain("ICD-10: A40-A41");
+  expect(text(tree)).toContain("ICD-11: 1G40-1G41");
+  expect(text(tree)).toContain("Source: WHO, Cause of death assignment by physicians from verbal autopsy data, Annex 1.");
+  await act(async () => control(tree, "Filter ICD codes").props.onChangeText("1G40"));
+  expect(text(tree)).toContain("VAs-01.01 Sepsis");
+  expect(text(tree)).not.toContain("VAs-01.08 Tetanus");
+  await act(async () => control(tree, "Filter ICD codes").props.onChangeText("tetanus"));
+  expect(text(tree)).toContain("VAs-01.08 Tetanus");
+  expect(text(tree)).not.toContain("VAs-01.01 Sepsis");
+  // Road traffic codes live only in WHO's footnote f, which the filter searches too.
+  await act(async () => control(tree, "Filter ICD codes").props.onChangeText("V01.1"));
+  expect(text(tree)).toContain("VAs-12.01");
+  expect(text(tree)).toContain("ICD-10: see the note below");
+  expect(text(tree)).toContain("Distinction on the codes between VAs-12.01 and VAs 12.02");
+  await act(async () => control(tree, "Close").props.onPress());
+  expect(text(tree)).not.toContain("Table A1.");
   open.mockRestore();
   await act(async () => tree.unmount());
 });

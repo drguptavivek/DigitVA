@@ -31,8 +31,7 @@ any change to one is re-checked against `frozen/` and refrozen.
 
 ## Ranked next steps
 
-0. Attachment eviction after 7 days in Safari: `digitva-fllj`, unverified.
-   Earlier phone coding checks on 0.3.24 (real phone) still open.
+0. Earlier phone coding checks on 0.3.24 (real phone) still open.
 1. Training (`digitva-9qer`, `digitva-q3iu`): owner supplies
    `app/services/training_corpus/english_v1.txt`; Maestro flows 96–98 need a
    trainee setup role; training media scope; refuse outdated apps (N11);

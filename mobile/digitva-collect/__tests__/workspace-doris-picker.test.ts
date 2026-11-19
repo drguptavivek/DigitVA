@@ -133,17 +133,6 @@ describe("picker transport bridge", () => {
     expect(handlers.onSelect).not.toHaveBeenCalled();
   });
 
-  it("passes causing_condition_unknown to selection-check only when it is true", async () => {
-    const { api, send } = setup();
-    const uri = "https://who.int/CA40";
-    await send({ t: "req", id: 1, path: "selection-check", body: { code: "CA40", uri, causing_condition_unknown: true } });
-    expect(api.checkDorisSelection).toHaveBeenLastCalledWith("sid-1", "CA40", uri, true);
-    await send({ t: "req", id: 2, path: "selection-check", body: { code: "CA40", uri, causing_condition_unknown: false } });
-    expect(api.checkDorisSelection).toHaveBeenLastCalledWith("sid-1", "CA40", uri);
-    await send({ t: "req", id: 3, path: "selection-check", body: { code: "CA40", uri, causing_condition_unknown: "yes" } });
-    expect(api.checkDorisSelection).toHaveBeenCalledTimes(2);
-  });
-
   it("hands the server's verified title and uri to the certificate", async () => {
     const { handlers, send } = setup();
     await send({ t: "req", id: 1, path: "selection-check", body: { code: "CA40", uri: "https://who.int/CA40" } });

@@ -36,6 +36,7 @@ def create_public_doris_app(config: dict | None = None) -> Flask:
         not in {"0", "false", "no"},
         WTF_CSRF_HEADERS=["X-CSRFToken"],
         MAX_CONTENT_LENGTH=128 * 1024,
+        STATIC_ASSET_VERSION=os.environ.get("STATIC_ASSET_VERSION", "1"),
         ICD11_API_BASE_URL=os.environ.get("ICD11_API_BASE_URL", "http://icd_api_service"),
         ICD11_API_TIMEOUT_SECONDS=5,
         DORIS_PROCESS_DEADLINE_SECONDS=12,

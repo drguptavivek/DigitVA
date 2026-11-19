@@ -337,7 +337,6 @@
     "http_status": 200
    },
    "request": {
-    "causing_condition_unknown": true,
     "code": "9B71.00",
     "uri": "http://id.who.int/icd/release/11/2026-01/mms/417759842"
    }

@@ -16,11 +16,13 @@
          data-details-url="{{ doris_details_url|default('/api/v1/doris-clinical/details/' ~ va_sid, true) }}"
          data-today="{{ current_user_today|default('', true) }}"
          data-csrf="{{ csrf_token() }}"
-         data-final-cod-input="{{ doris_final_cod_input }}">
+         data-final-cod-input="{{ doris_final_cod_input }}"{% if doris_demo %}
+         data-doris-demo{% endif %}>
   <div class="card-header bg-primary-subtle">
     <h3 class="h5 mb-1">Medical Certificate of Cause of Death</h3>
     <p class="small mb-0">DORIS and CoDEdit provide guidance. You must independently confirm the final underlying cause.</p>
-    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" data-bs-toggle="modal" data-bs-target="#{{ _doris_id }}-va-definitions" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>
+    {#- doris_demo: the public demo has no case or sign-in, so the VA definitions API behind this panel is not served. -#}
+    {% if not doris_demo %}<button type="button" class="btn btn-sm btn-outline-secondary mt-2" data-bs-toggle="modal" data-bs-target="#{{ _doris_id }}-va-definitions" title="VA codes, titles and definitions"><i class="fas fa-list-check me-1"></i>VA Definitions</button>{% endif %}
   </div>
   <div class="card-body">
     <script type="application/json" data-doris-initial>{{ (doris_initial_certificate or {})|tojson }}</script>
@@ -139,7 +141,7 @@
   <input type="hidden" name="codedit_result" data-codedit-result>
   <input type="hidden" name="doris_process_token" data-doris-token>
   <input type="hidden" name="doris_result_digest" data-doris-digest>
-  {% with modal_id=_doris_id ~ '-va-definitions' %}{% include "va_form_partials/_va_definitions_modal.html" %}{% endwith %}
+  {% if not doris_demo %}{% with modal_id=_doris_id ~ '-va-definitions' %}{% include "va_form_partials/_va_definitions_modal.html" %}{% endwith %}{% endif %}
   {% include "va_form_partials/_icd11_notice.html" %}
 </section>
-<script type="module" src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-17"></script>
+<script type="module" src="{{ url_for('static', filename='js/doris_clinical.js') }}?v={{ config.STATIC_ASSET_VERSION|urlencode }}-18"></script>

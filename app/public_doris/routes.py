@@ -6,6 +6,7 @@ import html
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import BoundedSemaphore
 
@@ -15,17 +16,13 @@ from flask_wtf.csrf import generate_csrf
 from app.public_doris import csrf, limiter
 from app.services.doris_certificate import DorisCertificateError, expected_expression_uri
 from app.services.doris_processing import process_certificate
-from app.services.icd_coding_value import (
-    InvalidCausingConditionFlag,
-    check_causing_condition_unknown,
-)
+from app.services.icd11_licence import ICD11_CITATION
 from app.services.icd11_postcoordination import (
     PostcoordinationError,
     guidance_request,
     search_context_from_entity,
     search_terms,
     repeated_part,
-    required_axis_ids,
     selection_refusal,
     valid_subtree_uris,
 )
@@ -114,8 +111,6 @@ def _codeinfo_item(code: str) -> dict | None:
         # The first stem only: selection_refusal checks any further "/" stems.
         "leaf": not entity.get("child"),
         "extension": code.startswith("X"),
-        # Private: for selection_refusal; popped before the item is returned.
-        "_required_axes": required_axis_ids(entity),
     }
     if "&" not in code and "/" not in code:
         item.update(search_context_from_entity(entity))
@@ -129,7 +124,12 @@ def health():
 
 @bp.get("/help/doris-demo")
 def demo():
-    return render_template("public_doris_demo.html", csrf_token=generate_csrf)
+    return render_template(
+        "public_doris_demo.html",
+        csrf_token=generate_csrf,
+        current_user_today=datetime.now(timezone.utc).date().isoformat(),
+        icd11_citation=ICD11_CITATION,
+    )
 
 
 @bp.get("/api/v1/doris-demo/config")
@@ -209,7 +209,6 @@ def codeinfo():
         return _error("WHO_UNAVAILABLE", "ICD-11 terminology is unavailable.", 503)
     if item is None:
         return _error("CODE_NOT_FOUND", "Select a valid ICD-11 code.", 422)
-    item.pop("_required_axes", None)
     return jsonify(schema_version=1, item=item)
 
 
@@ -221,7 +220,7 @@ def selection_check():
     uri = payload.get("uri") if payload else None
     if (
         payload is None
-        or not {"schema_version", "code", "uri"} <= set(payload) <= {"schema_version", "code", "uri", "causing_condition_unknown"}
+        or set(payload) != {"schema_version", "code", "uri"}
         or payload.get("schema_version") != 1
         or not isinstance(code, str)
         or not isinstance(uri, str)
@@ -231,14 +230,6 @@ def selection_check():
         or len(uri.strip()) > 2048
     ):
         return _error("INVALID_INPUT", "The selected ICD-11 code is invalid.", 422)
-    flag = payload.get("causing_condition_unknown", False)
-    if not isinstance(flag, bool):
-        return _error("INVALID_INPUT", "The selected ICD-11 code is invalid.", 422)
-    if flag:
-        try:
-            check_causing_condition_unknown(code.strip())
-        except InvalidCausingConditionFlag as exc:
-            return _error("INVALID_SELECTION", str(exc), 422)
     repeated = repeated_part(code.strip())
     if repeated:
         return _error(
@@ -250,12 +241,11 @@ def selection_check():
         item = _codeinfo_item(code.strip())
         if item is None or item["uri"] != uri.strip():
             return _error("INVALID_SELECTION", "The selected code does not match its WHO URI.", 422)
-        refusal = selection_refusal(item, flag)
+        refusal = selection_refusal(item)
     except (WhoIcdApiUnavailable, ValueError):
         return _error("WHO_UNAVAILABLE", "ICD-11 terminology is unavailable.", 503)
     if refusal:
         return _error("INVALID_SELECTION", refusal, 422)
-    item.pop("_required_axes", None)
     return jsonify(schema_version=1, item=item)
 
 
@@ -322,6 +312,8 @@ def process():
     payload = _json_object()
     if payload is None:
         return _error("MALFORMED_JSON", "A JSON request is required.", 400)
+    # The shared editor also sends its role; the demo has none and the processor takes only these keys.
+    payload.pop("role", None)
     if not _capacity.acquire(blocking=False):
         return _error("PROCESS_BUSY", "All training processors are busy. Try again shortly.", 429)
     try:

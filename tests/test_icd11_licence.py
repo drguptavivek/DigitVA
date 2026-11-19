@@ -30,5 +30,5 @@ class Icd11LicenceTests(BaseTestCase):
         self.assertEqual(html, DIGITVA_ADDITION_LABEL)
 
     def test_public_doris_demo_template_includes_the_notice(self):
-        page = Path(self.app.root_path, "templates/help/pages/doris-demo.html").read_text(encoding="utf-8")
+        page = Path(self.app.root_path, "templates/va_form_partials/_doris_certificate_editor.html").read_text(encoding="utf-8")
         self.assertIn("va_form_partials/_icd11_notice.html", page)

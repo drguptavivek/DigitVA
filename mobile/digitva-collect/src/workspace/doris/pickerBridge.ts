@@ -126,8 +126,7 @@ export function createPickerBridge(options: PickerBridgeOptions) {
       case "selection-check": {
         const code = str(body, "code", MAX_CODE);
         const sent = options.revision();
-        if (body.causing_condition_unknown !== undefined && typeof body.causing_condition_unknown !== "boolean") throw new ApiError(400, "invalid_picker_request");
-        const reply = await api.checkDorisSelection(identity.vaSid, code, str(body, "uri", MAX_URI), ...(body.causing_condition_unknown === true ? [true as const] : []));
+        const reply = await api.checkDorisSelection(identity.vaSid, code, str(body, "uri", MAX_URI));
         const choice = { code: reply.item.code, title: reply.item.title, uri: reply.item.uri };
         if (active() && sent === options.revision()) verified.set(`${choice.code}\n${choice.uri}`, { choice, revision: sent });
         return reply as unknown as JsonValue;

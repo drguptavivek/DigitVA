@@ -103,7 +103,7 @@ export interface WorkspaceApi {
   getVaDefinitionForIcd(code: string, classification?: "icd10" | "icd11"): Promise<VaDefinition | null>;
   /** Every active VA cause definition, for the coder "VA Definitions" list. Absent where no server is reachable. */
   listVaDefinitions?(): Promise<VaDefinitionListItem[]>;
-  checkDorisSelection(vaSid: string, code: string, uri: string, causingConditionUnknown?: boolean): Promise<DorisCodeInfoReply>;
+  checkDorisSelection(vaSid: string, code: string, uri: string): Promise<DorisCodeInfoReply>;
   processDoris(vaSid: string, role: "coder" | "reviewer", clientRevision: number, certificate: JsonObject): Promise<DorisProcessReply>;
   getWorkflowEvents(vaSid: string, options?: { limit?: number; cursor?: string }): Promise<WorkflowEvents>;
 }
@@ -264,8 +264,8 @@ export function createWorkspaceApi(request: JsonRequester, options: { training?:
       catch (error) { if (error instanceof ApiError && error.status === 404) return null; throw error; }
     },
     async listVaDefinitions() { return parsed(await get("/va-definitions"), parseVaDefinitionList); },
-    async checkDorisSelection(vaSid, code, uri, causingConditionUnknown) {
-      try { return parsed(await post(`/doris-clinical/selection-check/${id(vaSid)}`, { schema_version: 1, code, uri, ...(causingConditionUnknown ? { causing_condition_unknown: true } : {}) }), parseDorisCodeInfo); }
+    async checkDorisSelection(vaSid, code, uri) {
+      try { return parsed(await post(`/doris-clinical/selection-check/${id(vaSid)}`, { schema_version: 1, code, uri }), parseDorisCodeInfo); }
       catch (error) { return normalizeDorisError(error); }
     },
     async processDoris(vaSid, role, clientRevision, certificate) {

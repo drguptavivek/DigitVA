@@ -179,7 +179,7 @@ def _axes(entity: dict) -> tuple[list[dict], bool]:
         axis_id = name.rsplit("/", 1)[-1]
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]{0,63}", axis_id):
             raise WhoIcdApiUnavailable("WHO postcoordination axis was invalid")
-        label = _axis_label(axis_id)
+        label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", axis_id).capitalize()
         # A root can be an uncoded leaf, e.g. a "window" entity such as
         # FB80.B's "Neoplasms of the musculoskeletal system": nothing to pick.
         options = [
@@ -523,28 +523,7 @@ def search_context_from_entity(entity: dict) -> dict:
     }
 
 
-_CROSS_STEM_AXES = {"hasCausingCondition", "hasManifestation", "associatedWith"}
-
-
-def _axis_label(axis_id: str) -> str:
-    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", axis_id).capitalize()
-
-
-def required_axis_ids(entity: dict) -> list[str]:
-    """Axis ids WHO marks ``requiredPostcoordination`` on a stem entity."""
-    scales = entity.get("postcoordinationScale")
-    if not isinstance(scales, list):
-        return []
-    return [
-        scale["axisName"].rsplit("/", 1)[-1]
-        for scale in scales
-        if isinstance(scale, dict)
-        and isinstance(scale.get("axisName"), str)
-        and scale.get("requiredPostcoordination") in (True, "true")
-    ]
-
-
-def selection_refusal(item: dict, causing_condition_unknown: bool = False) -> str | None:
+def selection_refusal(item: dict) -> str | None:
     """Why a certificate cannot take ``item`` (a codeinfo item), or None.
 
     WHO's DORIS and CoDEdit accept only final MMS codes: every stem of the
@@ -553,42 +532,20 @@ def selection_refusal(item: dict, causing_condition_unknown: bool = False) -> st
     a leaf. The first stem's leaf answer is ``item["leaf"]``, read from the
     entity ``_codeinfo_item`` already fetched; each further "/" stem costs
     one codeinfo and one entity read (``_stem``).
-
-    A stem with a required postcoordination axis left unmet is refused too.
-    The first stem's required axis ids ride on ``item["_required_axes"]``
-    (private: callers pop it before returning the item). The coder's
-    "Causing condition not known" (``causing_condition_unknown``, validated
-    by the caller as single-stem) meets a required ``hasCausingCondition`` on
-    the first stem only (``digitva-xmpx``).
     """
-    parts = item["code"].split("/")
-    for index, part in enumerate(parts):
+    for index, part in enumerate(item["code"].split("/")):
         stem = part.split("&", 1)[0]
         if stem.startswith("X"):
             return (
                 f"{stem} is an extension code. It cannot be used alone: "
                 "add it to a stem through + Build."
             )
-        entity = None if index == 0 else _stem(stem)[1]
-        leaf = item["leaf"] if index == 0 else not entity.get("child")
+        leaf = item["leaf"] if index == 0 else not _stem(stem)[1].get("child")
         if not leaf:
             return (
                 f"{stem} is a category, not a final code. "
                 "Choose a more specific code under it."
             )
-        axes = item.get("_required_axes", []) if index == 0 else required_axis_ids(entity)
-        # ponytail: reads the axis kind, not whether the added value belongs to that axis.
-        for axis in axes:
-            met = len(parts) > 1 if axis in _CROSS_STEM_AXES else "&" in part
-            if axis == "hasCausingCondition" and index == 0 and causing_condition_unknown:
-                met = True
-            if not met and axis == "hasCausingCondition":
-                return (
-                    f"{stem} needs Has causing condition. Add it through + Build, "
-                    "or choose Causing condition not known."
-                )
-            if not met:
-                return f"{stem} needs {_axis_label(axis)}. Add it through + Build."
     return None
 
 

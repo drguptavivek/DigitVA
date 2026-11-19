@@ -22,40 +22,41 @@ class HelpDorisDemoRouteTests(BaseTestCase):
         self.assertNotIn('href="/help/doris-demo"', direct)
         self.assertIn('href="/help/doris-demo"', ingress)
 
-    def test_demo_exposes_bounded_accessible_editor_controls(self):
+    def test_demo_page_renders_the_shared_coder_editor_with_demo_urls(self):
+        from app.public_doris import create_public_doris_app
+
+        app = create_public_doris_app(
+            {"TESTING": True, "SECRET_KEY": "demo-render", "SESSION_COOKIE_SECURE": False}
+        )
+        page = app.test_client().get(self.URL).get_data(as_text=True)
+
+        self.assertIn("data-doris-editor", page)
+        self.assertIn('data-process-url="/api/v1/doris-demo/process"', page)
+        self.assertIn('data-terms-url="/api/v1/doris-demo/terms"', page)
+        self.assertIn('data-selection-url="/api/v1/doris-demo/selection-check"', page)
+        self.assertIn('data-final-cod-input="doris-demo-final-cod"', page)
+        self.assertIn('id="doris-demo-final-cod"', page)
+        for label in ("Date of birth", "Manner of death", "Was surgery performed within the last 4 weeks?",
+                      "Was an autopsy requested?", "For women, was the deceased pregnant?",
+                      "Frame A: Medical data"):
+            self.assertIn(label, page)
+        self.assertIn("js/doris_clinical.js", page)
+        self.assertIn("Synthetic example", page)
+        self.assertIn("Start blank", page)
+        self.assertIn("data-icd11-citation", page)
+        # The VA definitions API is not served publicly, so the panel is left out.
+        self.assertNotIn("VA Definitions", page)
+        self.assertNotIn("va-def-root", page)
+
+    def test_demo_has_none_of_its_old_own_markup(self):
         body = (Path(__file__).resolve().parents[2] / "app/templates/help/pages/doris-demo.html").read_text(encoding="utf-8")
 
-        self.assertIn('id="doris-add-line"', body)
-        self.assertIn('id="doris-part2-line"', body)
-        self.assertIn('id="doris-fetal-section"', body)
-        self.assertIn('id="doris-summary"', body)
-        self.assertIn('id="doris-final-section"', body)
-        self.assertLess(body.index("Step 1: DORIS"), body.index("Step 2: Final underlying cause of death"))
-        self.assertLess(body.index('id="doris-step2-heading"'), body.index('id="doris-final-use"'))
-        self.assertLess(body.index('id="doris-final-line"'), body.index('id="doris-technical"'))
-        # DORIS order: pregnancy context, then Process, then result and final UCOD.
-        self.assertLess(body.index('id="doris-maternal-section"'), body.index('id="doris-process"'))
-        self.assertLess(body.index('id="doris-process"'), body.index('id="doris-final-section"'))
-        self.assertIn('id="doris-maternal-section"', body)
-        self.assertIn('role="status" aria-live="polite"', body)
-        self.assertIn("Add as uncoded text", body)
-        self.assertIn("data-who-api-url", body)
-        self.assertIn("data-postcoordination-url", body)
-        self.assertIn("data-postcoordination-options-url", body)
-        self.assertIn("data-hierarchy-url", body)
-        self.assertIn("data-doris-guided-panel", body)
-        self.assertIn("data-interval-value", body)
-        self.assertIn("data-interval-unit", body)
-        self.assertIn("WHO Coding Tool", body)
-
-    def test_demo_loads_the_picker_host_as_a_module_and_not_the_retired_files(self):
-        body = (Path(__file__).resolve().parents[2] / "app/templates/help/pages/doris-demo.html").read_text(encoding="utf-8")
-
-        self.assertIn('<script type="module" src="', body)
+        for gone in ("doris-rule-table", "mermaid", "doris-ect-panel", "doris-raw-tabular",
+                     "doris-line-template", "doris-fetal-section", "data-certificate-input",
+                     "Versioned DORIS rule trace", "icd11ect"):
+            self.assertNotIn(gone, body)
+        self.assertIn('{% include "va_form_partials/_doris_certificate_editor.html" %}', body)
         self.assertIn("js/doris_demo.js", body)
-        self.assertNotIn("doris_search_modal.js", body)
-        self.assertNotIn("doris_postcoordination.js", body)
-        self.assertNotIn("doris_interval.js", body)
 
     def test_icd11_help_links_to_demo(self):
         direct = self.client.get("/help/icd11-codes").get_data(as_text=True)
@@ -69,90 +70,23 @@ class HelpDorisDemoRouteTests(BaseTestCase):
 
 class DorisDemoStaticContractTests(BaseTestCase):
     @staticmethod
-    def _script():
-        root = Path(__file__).resolve().parents[2]
-        return (root / "app/static/js/doris_demo.js").read_text(encoding="utf-8")
+    def _read(path):
+        return (Path(__file__).resolve().parents[2] / path).read_text(encoding="utf-8")
 
-    @staticmethod
-    def _picker():
-        root = Path(__file__).resolve().parents[2]
-        return (root / "app/static/js/digitva_icd11_picker.js").read_text(encoding="utf-8")
+    def test_demo_script_is_only_the_example_loader(self):
+        script = self._read("app/static/js/doris_demo.js")
 
-    def test_json_posts_include_csrf_and_same_origin_credentials(self):
-        script = self._script()
+        self.assertIn("editor._dorisReload(", script)
+        for gone in ("mermaid", "ECT", "process", "Rules."):
+            self.assertNotIn(gone, script)
 
-        self.assertIn("'X-CSRFToken': app.dataset.csrf", script)
-        self.assertIn("credentials: 'same-origin'", script)
+    def test_shared_editor_reloads_and_tolerates_a_tokenless_demo_reply(self):
+        script = self._read("app/static/js/doris_clinical.js")
 
-    def test_any_certificate_edit_invalidates_results(self):
-        script = self._script()
-
-        self.assertIn("function changed(message)", script)
-        self.assertIn("clearResults();", script)
-        self.assertIn("if (revision !== expectedRevision", script)
-
-    def test_search_and_selection_ignore_stale_or_removed_line_responses(self):
-        script = self._script()
-
-        self.assertGreaterEqual(script.count("var sentRevision = revision"), 2)
-        self.assertIn("sentRevision !== revision || !line.isConnected", script)
-        self.assertIn("sentRevision === revision && line.isConnected", script)
-
-    def test_rule_views_keep_raw_fallback_and_strict_mermaid(self):
-        script = self._script()
-
-        self.assertIn("securityLevel: 'strict'", script)
-        self.assertIn("No parseable rule rows were returned", script)
-        self.assertIn("doris-raw-tabular", script)
-
-    def test_search_results_offer_guided_expression_and_hierarchy(self):
-        script = self._script()
-        picker = self._picker()
-
-        self.assertIn("+ Build", picker)
-        self.assertIn("See in hierarchy", picker)
-        self.assertIn("postcoordinationOptions", script)
-        # The demo renders search rows through the shared picker, so the guided-expression check lives there.
-        self.assertIn("isCompleteExpression", picker)
-
-    def test_blank_certificate_has_three_lines_and_omits_empty_rows(self):
-        script = self._script()
-
-        self.assertIn("{Conditions: []}, {Conditions: []}, {Conditions: []}", script)
-        self.assertIn("filter(function (line) { return line._conditions.length; })", script)
-        self.assertIn("blank lines cannot separate causes", script)
-
-    def test_interval_controls_are_lossless_and_validate_before_processing(self):
-        script = self._script()
-
-        self.assertIn("mountInterval(", script)
-        self.assertIn("intervalError()", script)
-        self.assertIn("invalidInterval.message", script)
-        interval = (Path(__file__).resolve().parents[2] / "app/static/js/doris_interval.js").read_text(encoding="utf-8")
-        self.assertIn("representable: false", interval)
-        self.assertIn("selected === 'MI' ? 'M'", interval)
-        self.assertIn("value === 'P' || value === 'PT'", interval)
-
-    def test_host_never_reads_or_verifies_selections_itself(self):
-        script = self._script()
-
-        # Selection-check is the picker's job now; the host only reacts to
-        # onSelect once the picker has already verified the choice.
-        self.assertNotIn("dataset.selectionUrl", script)
-        self.assertIn("function handleSelect(choice, line)", script)
-
-    def test_demo_shows_and_sends_sections_by_the_coding_editor_rules(self):
-        script = self._script()
-        body = (Path(__file__).resolve().parents[2] / "app/templates/help/pages/doris-demo.html").read_text(encoding="utf-8")
-
-        self.assertIn("import * as Rules from './doris_rules.js", script)
-        self.assertIn("Rules.visibility(raw)", script)
-        self.assertIn("return Rules.dropHidden(rawCertificate());", script)
-        for rule in ("fetal", "within24", "maternal", "pregnancyFollowup"):
-            self.assertIn(f'data-doris-rule="{rule}"', body)
-        self.assertIn('data-doris-na="fetal"', body)
-        self.assertIn('data-doris-na="maternal"', body)
-        self.assertNotIn("pregnant !== 9", script)
+        self.assertIn("editor._dorisReload = function (certificate)", script)
+        self.assertIn("pristine.cloneNode(true)", script)
+        self.assertIn("(!result.data.process_token && !editor.hasAttribute('data-doris-demo'))", script)
+        self.assertIn("state.savedOnly = !processing.process_token && !demo", script)
 
 
 class Icd11PickerModuleContractTests(BaseTestCase):

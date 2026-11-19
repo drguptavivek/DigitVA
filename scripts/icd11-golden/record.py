@@ -188,20 +188,18 @@ class Server:
             return self._unavailable()
         if item is None:
             return _err("CODE_NOT_FOUND", "Select a valid ICD-11 code.", 422)
-        item.pop("_required_axes", None)  # private, as the route pops it
         return _ok({"schema_version": 1, "item": item})
 
-    def selection_check(self, code, uri, causing_condition_unknown=False):
+    def selection_check(self, code, uri):
         try:
             item = self.route._codeinfo_item(code.strip())
             if item is None or item["uri"] != uri.strip():
                 return _err("INVALID_SELECTION", "The selected code does not match its WHO URI.", 422)
-            refusal = self.pc.selection_refusal(item, causing_condition_unknown)
+            refusal = self.pc.selection_refusal(item)
         except (self.who.WhoIcdApiUnavailable, ValueError):
             return self._unavailable()
         if refusal:
             return _err("INVALID_SELECTION", refusal, 422)
-        item.pop("_required_axes", None)  # private, as the route pops it
         return _ok({"schema_version": 1, "item": item})
 
     def guidance(self, operation):
@@ -255,28 +253,11 @@ def _guidance_ops(rec, server, code, ops):
     ops.append(_run(rec, "details", {"code": code}, lambda: server.guidance(lambda: pc.code_details(code))))
 
 
-def _causing_unknown(rec, server, code):
-    """True for a single-stem code (a bare stem or the builder's `STEM&EXT` output) whose WHO entity requires hasCausingCondition: the coder's
-    "Causing condition not known" path (digitva-xmpx), which sends the flag with the stem."""
-    if "/" in code:
-        return False
-    with rec.paused():
-        try:
-            item = server.route._codeinfo_item(code.strip())
-        except (server.who.WhoIcdApiUnavailable, ValueError, AttributeError):
-            return False
-    return bool(item) and "hasCausingCondition" in item.get("_required_axes", [])
-
-
 def _codeinfo_ops(rec, server, code, ops):
     ops.append(_run(rec, "codeinfo", {"code": code}, lambda: server.codeinfo(code)))
     with rec.operation() as calls:
         uri = server.expected_expression_uri(code, server.release) or PLACEHOLDER_URI
-    request = {"code": code, "uri": uri}
-    unknown = _causing_unknown(rec, server, code)
-    if unknown:
-        request["causing_condition_unknown"] = True
-    ops.append(_run(rec, "selection-check", request, lambda: server.selection_check(code, uri, unknown)))
+    ops.append(_run(rec, "selection-check", {"code": code, "uri": uri}, lambda: server.selection_check(code, uri)))
     ops[-1]["calls"] = calls + ops[-1]["calls"]  # computing the URI is part of the check
     return uri
 

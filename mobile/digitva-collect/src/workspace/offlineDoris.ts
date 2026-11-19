@@ -68,7 +68,7 @@ export interface OfflineDorisEditor {
   onProcess: (clientRevision: number, certificate: JsonObject) => Promise<DorisProcessReply>;
   onTerms: (query: string, limit?: number, subtreeUris?: string[]) => Promise<DorisTermsReply>;
   onCodeInfo: (code: string) => Promise<DorisCodeInfoReply>;
-  onSelectionCheck: (code: string, uri: string, causingConditionUnknown?: boolean) => Promise<DorisCodeInfoReply>;
+  onSelectionCheck: (code: string, uri: string) => Promise<DorisCodeInfoReply>;
   /** The picker's guidance routes (postcoordination, options, hierarchy, related, details): `body` is the JSON the route takes. */
   onGuidance: (endpoint: GuidanceEndpoint, body: unknown) => Promise<GuidanceReply>;
   /** The stem that drives the VA cause of an expression: WHO's causing condition for a `/` cluster, else its first stem. */
@@ -255,15 +255,11 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
       }, (error) => personalData(error, "The code request is invalid."));
     },
 
-    async onSelectionCheck(requested, requestedUri, causingConditionUnknown) {
+    async onSelectionCheck(requested, requestedUri) {
       const code = typeof requested === "string" ? requested.trim() : "";
       const uri = typeof requestedUri === "string" ? requestedUri.trim() : "";
       if (!code || codePointLength(code) > MAX_CODE_CHARS || !uri || codePointLength(uri) > MAX_URI_CHARS) {
         throw dorisError(422, "INVALID_INPUT", "The selected ICD-11 code is invalid.");
-      }
-      // check_causing_condition_unknown: the flag belongs on a single stem.
-      if (causingConditionUnknown === true && code.includes("/")) {
-        throw dorisError(422, "INVALID_SELECTION", "Causing condition not known applies to a single ICD-11 stem code only.");
       }
       return guarded(async () => {
         assertNoPiiInText(code, "code");
@@ -272,7 +268,7 @@ export function createOfflineDorisEditor(engine: OfflineEngine, store: OfflineCo
         // The URI must be the one WHO reports for that code: a picker hint that no longer matches (stale draft, re-shipped data) is refused.
         if (!item || item.uri !== uri) throw dorisError(422, "INVALID_SELECTION", "The selected code does not match its WHO URI.");
         // An extension code alone, or a category with children: DORIS and CoDEdit would object only after processing.
-        const refusal = await selectionRefusal(who, item, causingConditionUnknown === true);
+        const refusal = await selectionRefusal(who, item);
         if (refusal) throw dorisError(422, "INVALID_SELECTION", refusal);
         confirmedUris.set(item.code, item.uri);
         return { schema_version: 1 as const, item };

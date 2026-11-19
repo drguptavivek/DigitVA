@@ -5,13 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-19
 
-- ICD-11 selection check refuses a stem whose WHO entity marks an axis
-  required and left unmet (`digitva-nhzt`, owner 2026-11-19), online, public
-  demo and Collect Plus offline. A bare causing-condition stem passes only
-  with the coder's "Causing condition not known" (`causing_condition_unknown`
-  now sent to selection-check by the web and Collect pickers; `digitva-xmpx`).
-  Golden recorder sends the flag for such stems; 12 postcoordination fixtures
-  re-recorded, replies unchanged. Policy: docs/policy/doris-cod-workflow.md.
+- Required ICD-11 postcoordination stays a picker rule (`digitva-nhzt`,
+  owner 2026-11-19): a server refusal of bare stems (`e0c49ae2c`) was
+  reverted the same day because DORIS itself returns bare stems and VA
+  mapping by first stem makes the causing condition irrelevant to the VA
+  cause. Rationale in docs/policy/icd11-code-selection-principles.md §4.
+  Public DORIS demo rebuilt on the coder's web DORIS editor
+  (`_doris_certificate_editor.html`), so the two cannot drift (`digitva-knh9`).
   Rou1 audit: of 22 ready P1 beads only `digitva-rou1` was done (closed).
 - Narrative dictation tip (`digitva-kkdb` step 1): Id10476 shows "Tip: tap the
   microphone on your keyboard to dictate (Hindi or English)" in English and

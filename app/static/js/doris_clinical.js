@@ -61,6 +61,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=6';
   function mount(editor) {
     if (mounted.has(editor)) return;
     mounted.add(editor);
+    var pristine = editor.cloneNode(true);
     var state = {revision: 0, processingRevision: 0, searchRequest: 0, processing: null, lines: [], part2: null};
     editor._dorisState = state;
     // Referenced by the module-level htmx:beforeSwap handler below, which
@@ -293,7 +294,9 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=6';
     function renderProcessing(processing, requireReconfirm) {
       state.processing = processing;
       state.processingRevision += 1;
-      state.savedOnly = !processing.process_token; if (!state.savedOnly) hideContinue();
+      // The public demo saves nothing, so its replies carry no process token.
+      var demo = editor.hasAttribute('data-doris-demo');
+      state.savedOnly = !processing.process_token && !demo; if (!state.savedOnly) hideContinue();
       var doris = processing.doris || {}; var codedit = processing.codedit || {}; var dr = doris.result || {}; var cr = codedit.result || {};
       renderSummary(query(editor, '[data-doris-summary]'), processing, processing.certificate || certificate(), editor.dataset.codeinfoUrl ? function (code) {
         return post(editor, editor.dataset.codeinfoUrl, {schema_version: 1, code: code}).then(function (result) { return result.data && result.data.item ? result.data.item.title : ''; });
@@ -332,7 +335,7 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=6';
       post(editor, editor.dataset.processUrl, payload).then(function (result) {
         if (sent !== state.revision) return;
         if (!result.ok) throw new Error((result.data.error && result.data.error.message) || 'Processing failed.');
-        if (!result.data || !result.data.certificate || !result.data.doris || !result.data.codedit || !result.data.process_token || !result.data.result_digest) {
+        if (!result.data || !result.data.certificate || !result.data.doris || !result.data.codedit || (!result.data.process_token && !editor.hasAttribute('data-doris-demo')) || !result.data.result_digest) {
           throw new Error('The server returned an incomplete processing response.');
         }
         renderProcessing(result.data, false);
@@ -422,6 +425,12 @@ import { renderSummary, usableDorisCode } from './doris_result_summary.js?v=6';
     });
     finalBox.addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); autoFinal.mark(); search(null, true); } });
     var form = document.getElementById(editor.dataset.formId); var save = form && form.querySelector('[type="submit"]'); if (save) save.disabled = true;
+    // Public demo: replace this editor with a fresh one filled from `certificate` ({} = blank).
+    editor._dorisReload = function (certificate) {
+      var fresh = pristine.cloneNode(true);
+      fresh.querySelector('[data-doris-initial]').textContent = JSON.stringify(certificate || {});
+      picker.close(); editor.replaceWith(fresh); boot(fresh.parentNode);
+    };
     editor._installFreshDorisResults = function (processing) { renderProcessing(processing, true); };
     // After a save refused for another reason, the server sends back the
     // processed result and final choice; its token is re-checked at save.

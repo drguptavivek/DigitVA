@@ -35,7 +35,7 @@ export interface DorisEditorProps extends WorkspaceExtensionProps {
   onProcess: (clientRevision: number, certificate: JsonObject) => Promise<DorisProcessReply>;
   onTerms: (query: string, limit?: number, subtreeUris?: string[]) => Promise<DorisTermsReply>;
   onCodeInfo: (code: string) => Promise<DorisCodeInfoReply>;
-  onSelectionCheck: (code: string, uri: string, causingConditionUnknown?: boolean) => Promise<DorisCodeInfoReply>;
+  onSelectionCheck: (code: string, uri: string) => Promise<DorisCodeInfoReply>;
 }
 
 export interface WorkspaceMediaProps extends WorkspaceExtensionProps {

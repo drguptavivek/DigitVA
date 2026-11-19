@@ -3,7 +3,7 @@ title: ICD-11 Code Selection Principles
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-11-19
 ---
 
 # ICD-11 Code Selection Principles
@@ -119,7 +119,22 @@ a finding, not a rule.
   satisfied (DORIS UI contract; WHO web trace 2026-09-26).
   WHO is softer than the current behaviour: RG 2.7.2.1 and RG 2.21.4
   describe reporting the code alone when the aetiology is unknown, which is
-  common in verbal autopsy. The picker does not offer that path.
+  common in verbal autopsy. The picker offers that path as "Causing
+  condition not known" (`digitva-xmpx`).
+- **Where it is enforced (owner decision 2026-11-19, `digitva-nhzt`).** The
+  pickers (web, Collect online and offline) enforce required axes. The
+  server's selection check does not: it refuses an extension code alone and
+  a category, and accepts a bare stem whose required axis is left empty.
+  Quick picks (Use DORIS result, the Step 1 underlying cause, the SmartVA
+  result) are accepted as returned.
+- **Rationale.** This is verbal autopsy: the final COD is reduced to a VA
+  cause by its first stem, so a stem with or without its causing condition
+  lands on the same VA cause, and a server refusal changes no VA result.
+  DORIS itself returns bare stems: on a certificate with postpartum
+  haemorrhage on line A and uterine atony on line B, its underlying cause is
+  `JA43.Z` alone. A refusal at the server blocked "Use DORIS result" and the
+  other quick picks, and needed the "not known" choice sent with every
+  selection check. It was built and reverted the same day (2026-11-19).
 - **Source.** RG 2.7.2.1, 2.10, 2.21.4; MMS release 2026-01 (axis flag);
   `docs/kb/doris-web-behavior-and-api-trace.md`;
   `docs/kb/doris-certificate-ui-contract.md`.

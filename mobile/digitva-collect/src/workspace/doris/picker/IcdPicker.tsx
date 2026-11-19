@@ -262,7 +262,7 @@ export function IcdPicker({ init, revision, generation, onMessage, onClose }: Pi
     setVerifying(true);
     setFooter({ text: `Verifying ${selection.code}…` });
     try {
-      const verified = ((await post("selection-check", { code: selection.code, uri: selection.uri, ...(selection.causingUnknown ? { causing_condition_unknown: true } : {}) })) as DorisCodeInfoReply).item;
+      const verified = ((await post("selection-check", { code: selection.code, uri: selection.uri })) as DorisCodeInfoReply).item;
       if (!alive.current) return;
       if (!verified.code || !verified.uri) throw new Notice("The server did not return a verified code and URI.");
       // Last line of defence: whatever staged it, WHO's own flag for the verified code decides. The builder's own

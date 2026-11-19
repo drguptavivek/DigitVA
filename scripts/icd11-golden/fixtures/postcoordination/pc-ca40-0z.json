@@ -401,7 +401,6 @@
       "http_status": 200
      },
      "request": {
-      "causing_condition_unknown": true,
       "code": "CA40.0Z&XK9J",
       "uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified & http://id.who.int/icd/release/11/2026-01/mms/627678743"
      }
@@ -1098,7 +1097,6 @@
     "http_status": 200
    },
    "request": {
-    "causing_condition_unknown": true,
     "code": "CA40.0Z",
     "uri": "http://id.who.int/icd/release/11/2026-01/mms/1323682030/unspecified"
    }

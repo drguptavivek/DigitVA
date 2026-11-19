@@ -146,21 +146,16 @@ stay choosable as parts of an expression in the builder. The server's
 selection check holds the rule for older apps and for codes the search did
 not flag.
 
-A stem whose WHO entity marks an axis `requiredPostcoordination` cannot stand
-without that axis (owner decision 2026-11-19, `digitva-nhzt`): the selection
-check refuses it with `422 INVALID_SELECTION`. A required causing condition
-is met by another stem joined with `/`, or by the coder's "Causing condition
-not known" (`digitva-xmpx`): the selection check takes
-`causing_condition_unknown: true` for that choice, and without it refuses the
-bare stem with "1G40 needs Has causing condition. Add it through + Build, or
-choose Causing condition not known." A required manifestation or
-associated-with axis is met by a `/` stem; any other required axis by an
-extension joined to that stem with `&` ("<code> needs <axis>. Add it through
-+ Build."). The check reads the axis kind, not which value was added: picking
-the right value stays with the builder. The check lives at selection, like
-the leaf and extension rules; final save does not repeat it. No older APK
-codes today, so the new request field needs no fallback (owner 2026-11-19).
-Collect Plus offline applies the same rule.
+Required postcoordination is enforced by the pickers only (owner decision
+2026-11-19, `digitva-nhzt`). The builder adds a stem whose WHO entity marks
+an axis `requiredPostcoordination` only once that axis is filled or, for a
+causing condition, the coder chooses "Causing condition not known"
+(`digitva-xmpx`). The selection check accepts a bare stem, so "Use DORIS
+result", the Step 1 underlying cause and the SmartVA result are taken as
+returned. Rationale: the final COD is reduced to a VA cause by its first
+stem, so the causing condition changes no VA result, and DORIS itself returns
+bare stems (`JA43.Z` with uterine atony on another line). Details:
+docs/policy/icd11-code-selection-principles.md, section 4.
 
 Extension axes follow WHO's presentation: required axes come first, each
 axis is its own section in WHO order with WHO's instruction wording, and

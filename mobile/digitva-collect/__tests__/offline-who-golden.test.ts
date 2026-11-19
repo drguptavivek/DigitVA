@@ -197,7 +197,7 @@ describe("postcoordination golden set: codeinfo and selection-check", () => {
       const editor = editorFor(engine);
       const reply = operation.name === "codeinfo"
         ? await answer(() => editor.onCodeInfo(operation.request.code as string))
-        : await answer(() => editor.onSelectionCheck(operation.request.code as string, operation.request.uri as string, operation.request.causing_condition_unknown === true));
+        : await answer(() => editor.onSelectionCheck(operation.request.code as string, operation.request.uri as string));
       expect({ operation: operation.name, request: operation.request, ...reply }).toEqual({
         operation: operation.name, request: operation.request, ...operation.reply,
       });

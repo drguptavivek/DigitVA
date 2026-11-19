@@ -56,10 +56,6 @@ export function notFinal(item: PickerItem): { kind: "extension" | "category"; st
 export const NOT_FINAL_REFUSAL = /^[A-Z0-9][A-Z0-9.]{0,15} is (an extension code\. It cannot be used alone: add it to a stem through \+ Build|a category, not a final code\. Choose a more specific code under it)\.$/;
 /** The selection check's refusal of a category with children (digitva-dn15), naming the category in group 1: the picker opens its children to choose from. */
 export const NON_LEAF_REFUSAL = /^([A-Z0-9][A-Z0-9.]{0,15}) is a category, not a final code\. Choose a more specific code under it\.$/;
-/** The refusal of a stem with a required causing condition left unmet, naming the stem in group 1 (message: icd11NeedsCausingCondition). */
-export const NEEDS_CAUSING_REFUSAL = /^([A-Z0-9][A-Z0-9.]{0,15}) needs Has causing condition\. Add it through \+ Build, or choose Causing condition not known\.$/;
-/** The refusal of a stem with another required axis left unmet, naming the stem in group 1 and the axis label in group 2. */
-export const NEEDS_AXIS_REFUSAL = /^([A-Z0-9][A-Z0-9.]{0,15}) needs ([A-Z][a-z ]{0,63})\. Add it through \+ Build\.$/;
 /** A search box value with a digit and no space is a code (codeinfo), anything else is text. */
 export const looksCode = (value: string): boolean => /\d/.test(value) && !/\s/.test(value);
 

@@ -68,7 +68,6 @@
     "http_status": 200
    },
    "request": {
-    "causing_condition_unknown": true,
     "code": "5A24",
     "uri": "http://id.who.int/icd/release/11/2026-01/mms/1156295616"
    }

@@ -701,7 +701,6 @@
     "http_status": 200
    },
    "request": {
-    "causing_condition_unknown": true,
     "code": "GB61.Z",
     "uri": "http://id.who.int/icd/release/11/2026-01/mms/412389819/unspecified"
    }

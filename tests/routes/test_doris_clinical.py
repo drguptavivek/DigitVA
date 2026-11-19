@@ -394,53 +394,6 @@ class TestDorisProcessProof(BaseTestCase):
                 {"code": "INVALID_SELECTION", "message": message},
             )
 
-    def test_selection_check_causing_condition_unknown_flag(self):
-        item = {
-            "code": "BD54", "title": "Diabetic foot ulcer", "uri": _URI, "release": "2026-01",
-            "postcoordination": True, "leaf": True, "extension": False,
-            "_required_axes": ["hasCausingCondition"],
-        }
-        needs = (
-            "BD54 needs Has causing condition. Add it through + Build, "
-            "or choose Causing condition not known."
-        )
-
-        def check(code, **extra):
-            with self.app.test_request_context(
-                json={"schema_version": 1, "code": code, "uri": _URI, **extra}
-            ), patch(
-                "app.routes.api.doris_clinical._require_terminology_context",
-                return_value=(SimpleNamespace(), None),
-            ), patch(
-                "app.routes.api.doris_clinical._codeinfo_item",
-                side_effect=lambda c: {**item, "code": c, "_required_axes": list(item["_required_axes"])},
-            ):
-                return clinical_selection_check.__wrapped__("SID-1")
-
-        response, status = check("BD54")
-        self.assertEqual((status, response.get_json()["error"]["message"]), (422, needs))
-        response, status = check("BD54", causing_condition_unknown=False)
-        self.assertEqual(status, 422)
-        response = check("BD54", causing_condition_unknown=True)
-        self.assertEqual(response.get_json()["item"]["code"], "BD54")
-        self.assertNotIn("_required_axes", response.get_json()["item"])
-        response, status = check("BD54/BA01", causing_condition_unknown=True)
-        self.assertEqual(status, 422)
-        self.assertEqual(
-            response.get_json()["error"],
-            {
-                "code": "INVALID_SELECTION",
-                "message": "Causing condition not known applies to a single ICD-11 stem code only.",
-            },
-        )
-        response, status = check("BD54", causing_condition_unknown="yes")
-        self.assertEqual(status, 422)
-        self.assertEqual(response.get_json()["error"]["code"], "INVALID_INPUT")
-        item["_required_axes"] = ["hasSeverity"]
-        response, status = check("BD54", causing_condition_unknown=True)
-        self.assertEqual(status, 422)
-        self.assertIn("Has severity", response.get_json()["error"]["message"])
-
     def test_selection_check_refuses_a_repeated_part_before_asking_who(self):
         for code in ("BD1Z/BA01/BD1Z", "BD1Z&XK9J&XK9J"):
             with self.app.test_request_context(

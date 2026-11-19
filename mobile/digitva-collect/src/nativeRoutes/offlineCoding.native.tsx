@@ -308,7 +308,7 @@ function offlineWorkspaceApi(
       return editor.current.onTerms(query, options?.limit, options?.subtreeUris);
     },
     async getDorisCodeInfo(_vaSid, code) { await assertAllowed(); return editor.current.onCodeInfo(code); },
-    async checkDorisSelection(_vaSid, code, uri, unknown) { await assertAllowed(); return editor.current.onSelectionCheck(code, uri, unknown); },
+    async checkDorisSelection(_vaSid, code, uri) { await assertAllowed(); return editor.current.onSelectionCheck(code, uri); },
     async getVaDefinitionForIcd(code) {
       await assertAllowed();
       const expression = extractIcd11CodeExpression(code);

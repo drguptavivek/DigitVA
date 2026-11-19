@@ -210,19 +210,6 @@ describe("onSelectionCheck", () => {
     await expect(refusal(editor.onSelectionCheck("ZZ99.9", BA41))).resolves.toMatchObject({ code: "INVALID_SELECTION" });
   });
 
-  it("takes causing_condition_unknown for a required causing condition on a single stem only", async () => {
-    const required = { postcoordinationScale: [{ axisName: "http://id.who.int/icd/schema/hasCausingCondition", requiredPostcoordination: true }] };
-    const editor = createOfflineDorisEditor(fakeEngine({
-      ...knownWho,
-      entity: async (id: string) => ok({ title: { "@value": `Title ${id}` }, ...(id === "1334938734" ? required : {}) }),
-    }).engine, memoryStore());
-    const needs = "BA41.Z needs Has causing condition. Add it through + Build, or choose Causing condition not known.";
-    await expect(refusal(editor.onSelectionCheck("BA41.Z", BA41))).resolves.toMatchObject({ code: "INVALID_SELECTION", message: needs });
-    await expect(editor.onSelectionCheck("BA41.Z", BA41, true)).resolves.toMatchObject({ item: { code: "BA41.Z" } });
-    const single = "Causing condition not known applies to a single ICD-11 stem code only.";
-    await expect(refusal(editor.onSelectionCheck("BA41.Z/BA41.Z", BA41, true))).resolves.toMatchObject({ code: "INVALID_SELECTION", message: single });
-  });
-
   it("refuses an extension code alone and a category with children (422 INVALID_SELECTION, the server's words)", async () => {
     const editor = createOfflineDorisEditor(fakeEngine({
       ...knownWho,

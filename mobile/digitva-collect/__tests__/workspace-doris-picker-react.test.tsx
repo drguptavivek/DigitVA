@@ -880,8 +880,6 @@ describe("builder", () => {
     expect(control(h, "Use complete expression").props.disabled).toBe(false);
     await press(h, "Use complete expression");
     await press(h, "Use the selected code");
-    // The not-known choice reaches selection-check, which would refuse the bare stem without it.
-    expect(h.api.checkDorisSelection).toHaveBeenCalledWith("sid-1", "BD54", "https://who.int/BD54", true);
     expect(h.handlers.onSelect).toHaveBeenCalledWith(expect.objectContaining({ code: "BD54", causingConditionUnknown: true }));
     // Picking a causing condition afterwards switches "not known" off; pressing it again toggles it off.
     const g = mount({ env: env() });

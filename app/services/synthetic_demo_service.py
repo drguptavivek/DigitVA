@@ -67,6 +67,7 @@ DELETE_TABLES = (
     "va_consent_records",
     "va_death_register",
     "va_final_cod_authority",
+    "va_coder_feedback_notes",
     "va_submission_notifications",
     "va_submission_upstream_changes",
     "va_coding_episodes",

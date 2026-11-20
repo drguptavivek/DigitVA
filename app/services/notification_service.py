@@ -37,6 +37,8 @@ OTHER_DRAFT_STARTED = "other_draft_started"
 CASE_SUBMITTED_BY_OTHER = "case_submitted_by_other"
 CASE_REOPENED = "case_reopened"
 INTERVIEW_CHOSEN = "interview_chosen"
+#: A mentor left a feedback note on one of the coder's cases (docs/policy/mentor-view.md).
+MENTOR_FEEDBACK = "mentor_feedback"
 #: The recipient's grants changed: the app re-reads /me/access now instead of
 #: on its 15-minute refresh. Account-wide, so it carries ``NO_PROJECT``
 #: (written by ``authz.grant_cache``, digitva-0rpi).

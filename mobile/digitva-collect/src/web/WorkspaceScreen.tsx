@@ -26,6 +26,7 @@ import {
   hasTypedTrainingSession, TRAINING_CODING_CASE_ROUTE, TRAINING_REVIEWING_CASE_ROUTE, TRAINING_ROUTES, takeTrainingRedirect,
 } from "../training";
 import { TrainingShell } from "./TrainingChecklist";
+import { MentorFeedbackPanel } from "./MentorViewScreen";
 import { CodingLanguagesModal } from "../workspace/CodingLanguagesModal";
 
 type RouteParams = { vaSid?: string | string[]; mode?: string | string[]; section?: string | string[]; project?: string | string[]; tab?: string | string[]; offset?: string | string[]; training?: string | string[] };
@@ -485,6 +486,7 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   return <WebShell title={t("workspaceTitle")}>
     <ContextualHelpBanner screen="home" />
     <Text style={styles.headline}>{t("homeWelcomeTitle", { name: activeBootstrap.user.name })}</Text>
+    {roles.includes("coder") ? <MentorFeedbackPanel csrf={activeBootstrap.csrf} /> : null}
 
     {!hasRolesOrProjects ? (
       <View style={styles.card}>

@@ -3,13 +3,13 @@ title: Mentor View Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-20
 ---
 
 # Mentor View Policy
 
 Bead `digitva-oux5` (native client: `digitva-3vj8`). Owner decisions of
-2026-10-24, confirmed. Nothing here is built yet. Design notes:
+2026-10-24, confirmed. Web API and Expo web screen built 2026-11-20; where the build differs from the text below, "As built" at the end wins. Design notes:
 `.tasks/2026-10-24-expo-dashboards-dm-mentor-district.md`, "Mentor view".
 The existing Mentoring Institution screen (`/app/mentoring`,
 `mobile/digitva-collect/src/web/MentoringScreen.tsx`) is a different feature:
@@ -69,13 +69,16 @@ of these holds, and only for that district:
 
 Further rules:
 
-- **Staff must also pass `should_redact_pii`.** A mentor whose only grant is
-  plain `collaborator` is redacted by design
-  (`docs/policy/organization-model.md:586-590`;
-  `app/services/viewer_pii_service.py:49-59`). The view needs names, so such a
-  user is refused with 403 and a message that a different grant is needed. A
-  mentor with `collaborator_pii`, `coder` or `reviewer` passes. Data manager
-  and `site_pi` always pass (`viewer_pii_service.py:49-59`). Open question 1.
+- **Names follow `should_redact_pii`** for the district's project
+  (`app/services/viewer_pii_service.py`). A redacted viewer still gets the
+  table, with coders as "Coder N" (numbered in user-id order, never by name)
+  and no last-active date; it may still open a coder's coded cases (case id,
+  date, cause, review outcome only) and write notes (owner 2026-11-20). Under the three-tier
+  rule (`ResolvedGrants.is_pii_grant`) a mentoring-institute member is
+  redacted on a tree project unless they hold a `data_manager` grant, so a
+  mentor with `collaborator_pii`, `coder` or `reviewer` is redacted too; owner
+  decision pending on whether to widen this for mentors. District data
+  managers and In-charges are not redacted.
 - **Coders never see other coders.** A user whose only relevant role is
   `coder` (or `coding_tester`) gets 403. A coder who is also, say, a mentor
   staff member is judged on the other path.
@@ -161,17 +164,19 @@ coder COD, never the initial COD or a draft recode
   (`docs/policy/final-cod-authority.md:63-68`: reviewer is not an
   accept/reject overlay).
 - **Recode**: a `va_coding_episodes` row with `episode_type = 'recode'` and
-  `started_by` the coder (`app/models/va_coding_episodes.py:12-50`), started in
-  the period. Only the original coder may recode, any number of times, within the project's
-  recode window (`docs/policy/coding-workflow-state-machine.md:885-905`).
-  Abandoned episodes count as recodes started. Open question 4.
+  `started_by` the coder (`app/models/va_coding_episodes.py:12-50`),
+  `episode_status = 'completed'`, with `completed_at` in the period (owner
+  decision 4; active and abandoned episodes do not count). Only the original
+  coder may recode, any number of times, within the project's recode window
+  (`docs/policy/coding-workflow-state-machine.md:885-905`).
 - **Not codeable** by a data manager (`not_codeable_by_data_manager`) is not a
   coder outcome and is excluded
   (`docs/policy/coding-workflow-state-machine.md:299`, "data-manager triage
   does not masquerade as coder activity", `:20`).
-- **Last active**: latest of the coder's final-assessment, not-codeable and
-  recode-start timestamps in the district. There is no login timestamp on the
-  user to use. Open question 3.
+- **Last active**: the date of `va_users.last_signed_in_at`, stamped on web
+  sign-in and device session opening (`VaUsers.mark_signed_in`), shown only
+  when names are. Owner decision 3 also asked for a stamp on authenticated
+  use; not built.
 
 ## Feedback notes (v1)
 
@@ -180,13 +185,14 @@ coder COD, never the initial COD or a draft recode
   "Do not enter names, places, phone numbers or anything that identifies the
   person who died or the family". The server cannot detect PII, so the
   warning is the control; notes are not exported by default.
-- **Append-only.** A note is never edited. The author may retract it: soft
-  delete (`retracted_at`, `retracted_by`), the text stays in the table for
-  audit but is no longer returned to anyone but admins. Nobody else may
-  retract. Data manager and admin retraction of others' notes: open question 6.
-- **The coder sees** notes on their own case (in the existing case view for
-  the coder) and a "Feedback from mentors" list on the Home/coding screen
-  (`GET /api/v1/feedback/mine`), newest first, with unread count. The coder may mark
+- **Append-only.** A note is never edited. The author, an admin, or a data
+  manager / In-charge whose org_unit grant covers the district may retract it
+  (owner decision 6): soft delete (`retracted_at`, `retracted_by`), the text
+  stays in the table for audit and is returned by no API. Anyone else gets 404.
+- **The coder sees** notes on their own cases in a "Feedback from mentors" list
+  on Home (`GET /api/v1/mentor/feedback/mine`, `sid` narrows to one case;
+  showing them inside the coder's case view is not built), newest first, with
+  unread count. The coder may mark
   a note read (one-way). The coder sees the author's name and institute or
   role. Nobody else's notes are visible to a coder.
 - A note can only target a case where the author passes the drill-down test
@@ -237,7 +243,7 @@ Blueprint under `/api/v1/mentor` (registered beside `area`,
 | `GET /coders/<coder_id>/cases?district=&period=&after=` | Drill-down, paged (at most 100 rows). Audited. |
 | `POST /cases/<sid>/notes` | Create a note. JSON `{body}`. |
 | `POST /notes/<note_id>/retract` | Author retracts. |
-| `GET /feedback/mine`, `POST /feedback/<note_id>/read` | The coder's list and read mark; own rows only. |
+| `GET /feedback/mine?sid=&after=`, `POST /feedback/<note_id>/read` | The coder's list and read mark; own rows only. |
 
 Reads are `GET` with `login_required`, errors via `api_error`. State changes
 (`POST`) require `X-CSRFToken` in the header, JSON included
@@ -292,7 +298,8 @@ and 9 are the recommended defaults, pending owner review of this draft.
 
 1. **Plain `collaborator` mentors** get the view with coder names hidden:
    coders are labelled "Coder 1", "Coder 2" (stable within one response, never
-   a user id), and there is no drill-down to cases. Mentors with
+   a user id); they may still open a coder's cases and write notes (owner
+   2026-11-20). Mentors with
    `collaborator_pii` or a coder/reviewer grant see names and the drill-down.
 2. **Mentor name on the coder's side:** shown (author name and institute).
 3. **"Last active"** is a real last-seen time: add login tracking (a
@@ -310,3 +317,43 @@ and 9 are the recommended defaults, pending owner review of this draft.
    over the cases the viewer may VIEW, so the list never shows fewer than the
    count.
 9. **Cross-project institutes:** one picker per project and district pair.
+
+## As built (2026-11-20)
+
+Code: `app/services/mentor_view_service.py`, `app/routes/api/mentor.py`,
+`app/models/va_coder_feedback_notes.py` (migration `e3b7c9d1f5a2`), Expo
+`mobile/digitva-collect/src/web/MentorViewScreen.tsx` (`/mentor-view`, web only).
+API contract: `docs/current-state/api-v1.md`, "Mentor view".
+
+1. **Districts.** A district is a unit at the project's `district` level, or at
+   depth 1 when the project has none (the rule mentoring institutes attach by).
+   The DM and In-charge paths read org_unit-scope grants only, at or above
+   the district (`Grant.covers_unit`); a project-scope `data_manager` or
+   `project_pi` does not open the view, and a grant below the district does not
+   either. The training project never appears.
+2. **Names follow `should_redact_pii` and nothing else.** Under the current
+   three-tier rule (`ResolvedGrants.is_pii_grant`) a mentoring-institute member
+   sees PII on a tree project only through a `data_manager` grant, so a mentor
+   with `coder`, `reviewer` or `collaborator_pii` is redacted too, not only
+   plain `collaborator` (owner decision 1 assumed otherwise). Redacted viewers
+   get "Coder N" rows and no last-active date; they can drill down and write
+   notes. Owner 2026-11-20: keep this stricter name gate (names need a district
+   data_manager grant), but notes do not need names.
+3. **Coders listed**: active users with an active `coder` grant at a unit in
+   or above the district, mentoring-institute members excepted, at most 500.
+4. **Counts** are ANDed with `scope_filter(viewer, VIEW)`, the district
+   subtree, live-in-ODK and the confirmed-duplicate rule (decision 8).
+   Recodes count completed episodes by `completed_at` (decision 4).
+   "Ready for them" counts `ready_for_coding` cases under the coder's own coder
+   grant units; coding-scope level, gates, language and the random-allocation
+   pool are not applied (an upper bound).
+5. **Last active** is `va_users.last_signed_in_at` (stamped at sign-in) as a
+   date. Decision 3's stamp on authenticated use is not built.
+6. **Notes** carry `author_basis` (`mentor`, `data_manager`, `site_pi`, `admin`)
+   and `institute_id` besides the columns above, so the coder sees the author's
+   institute or role. Retraction by someone not allowed answers 404, as does a
+   second retraction. The coder reads notes through
+   `GET /api/v1/mentor/feedback/mine` (all routes are under `/api/v1/mentor`),
+   filtered by `sid` for one case; the Expo web Home shows "Feedback from
+   mentors" with read marks. Showing notes inside the coder's case view is not
+   built.

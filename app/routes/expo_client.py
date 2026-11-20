@@ -38,6 +38,7 @@ _SPA_ROUTE_ROOTS = frozenset(
         "data",
         "demo",
         "doris-demo",
+        "mentor-view",
         "enrol",
         "engine-check",
         "form",

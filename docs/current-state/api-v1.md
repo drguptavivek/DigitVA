@@ -812,6 +812,36 @@ Concurrent first saves can insert two rows (no unique constraint; the web has
 the same limit); reads take the latest by `note_updated_at`. Upgrade: a partial
 unique index on `(note_by, note_vasubmission)` where active.
 
+## Mentor view (`/api/v1/mentor`, `app/routes/api/mentor.py`, `mentor_view_service`)
+
+Policy `docs/policy/mentor-view.md` (digitva-oux5). Cookie session only
+(`browser_session_only`: a bearer gets `cookie_session_required`). No district
+at all is 403 (a coder-only user, a project-scope data manager); a district,
+coder, case or note out of reach is 404. POSTs need `X-CSRFToken`.
+
+- `GET /districts`: `{districts: [{district_id, code, name, project_id, project_name}]}`.
+- `GET /coders?district=&period=` (`30d|90d|12m|all`, default `all`; other 400):
+  `{district, period, names_visible, coders: [{label, ready, coded, reviewed_agreed,
+  reviewed_changed, not_codeable, recodes, last_active, coder_id?}], truncated}`. Rows
+  by name, at most 500. When `names_visible` is false the label is `Coder N`
+  and there is no `last_active`; `coder_id` is always present.
+- `GET /coders/<coder_id>/cases?district=&period=&after=`: when names are
+  hidden, `coder.name` is the `Coder N` pseudonym. `{district, coder, period, cases: [{va_sid, coded_at, final_cod,
+  review_outcome (not_reviewed|agreed|changed), notes: [note]}], next}`, 100 per
+  page, keyset cursor `next` (pass back URL-encoded as `after`; malformed 400).
+  Audited as `action=mentor_case_list_opened` in grants.log.
+- `POST /cases/<va_sid>/notes` `{body}` (1 to 2000 chars, else 400; 30 per hour):
+  201 with the note. The case's active final coder is the recipient; writes a
+  `va_submissions_auditlog` row (`mentor_note_created`) and a `mentor_feedback`
+  notification (ids only).
+- `POST /notes/<note_id>/retract`: author, admin, or district data manager /
+  In-charge; anyone else 404. Audited `mentor_note_retracted`.
+- `GET /feedback/mine?sid=&after=`: the caller's own live notes, 50 per page,
+  `{notes, unread_count, next}`. `POST /feedback/<note_id>/read`: own notes only (else 404).
+
+A note: `{note_id, va_sid, body, created_at, read, author_name, author_basis
+(mentor|data_manager|site_pi|admin), institute_name, mine, can_retract}`.
+
 ## Users (`/api/v1/users`, `app/routes/api/users.py`, `user_directory_service`)
 
 `digitva-75wn`; the web app's Users page (`/users`). Browser session only

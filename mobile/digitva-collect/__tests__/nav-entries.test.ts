@@ -27,12 +27,12 @@ const BEFORE: Array<[string, Fixture, string[]]> = [
   ["death reporter (register only)", { roles: ["death_reporter"], caps: { registerDeath: true } }, ["/death-registration"]],
   ["death reporter (my list only)", { roles: ["death_reporter"], caps: { registeredDeaths: true } }, ["/death-registration"]],
   ["interview supervisor", { roles: ["interview_supervisor"], caps: { supervision: true } }, ["/death-registration", "/statistics"]],
-  ["data manager", { roles: ["data_manager"], caps: { supervision: true } }, ["/death-registration", "/statistics", "/data", "/users"]],
-  ["mentor member", { mentor: { member: true } }, ["/mentoring"]],
-  ["mentor institute admin", { mentor: { admin_of: ["I1"] } }, ["/mentoring"]],
-  ["mentoring capability", { caps: { mentoring: true } }, ["/mentoring"]],
-  ["platform admin", { is_admin: true }, ["/admin/", "/users", "/statistics", "/data"]],
-  ["admin role", { roles: ["admin"] }, ["/admin/", "/users", "/statistics", "/data"]],
+  ["data manager", { roles: ["data_manager"], caps: { supervision: true } }, ["/death-registration", "/statistics", "/data", "/users", "/mentor-view"]],
+  ["mentor member", { mentor: { member: true } }, ["/mentoring", "/mentor-view"]],
+  ["mentor institute admin", { mentor: { admin_of: ["I1"] } }, ["/mentoring", "/mentor-view"]],
+  ["mentoring capability", { caps: { mentoring: true } }, ["/mentoring", "/mentor-view"]],
+  ["platform admin", { is_admin: true }, ["/admin/", "/users", "/statistics", "/data", "/mentor-view"]],
+  ["admin role", { roles: ["admin"] }, ["/admin/", "/users", "/statistics", "/data", "/mentor-view"]],
   ["project PI", { roles: ["project_pi"] }, ["/users", "/statistics"]],
   ["no role", {}, []],
 ];
@@ -72,7 +72,7 @@ test("order: the owner's primary items, then More in the owner's order", () => {
   });
   const { primary, more } = navEntries(all);
   expect(primary.map((entry) => entry.labelKey)).toEqual(["home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics"]);
-  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navUsers", "navSettings", "navWebsite", "navData", "navMentoring", "homeAdminConsole"]);
+  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navUsers", "navSettings", "navWebsite", "navData", "navMentoring", "navMentorView", "homeAdminConsole"]);
 });
 
 test("Deaths opens the deaths list for a user who interviews or reports deaths", () => {

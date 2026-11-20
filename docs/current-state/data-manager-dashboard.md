@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-20
 ---
 
 # Data Manager Dashboard
@@ -591,3 +591,12 @@ Template and client-side behavior:
 Background sync tasks:
 
 - [sync_tasks.py](../../app/tasks/sync_tasks.py)
+
+## Mentor view (per-coder progress)
+
+A district data manager or In-charge (org_unit-scope grant at or above the
+district) also has the Mentor view: per-coder counts for one district, a
+read-only drill-down to one coder's coded cases and feedback notes. It is a
+separate surface with its own gate and audit, not a panel of this dashboard:
+`docs/policy/mentor-view.md`, API `docs/current-state/api-v1.md` "Mentor view",
+screen `/mentor-view` (`docs/current-state/expo-client.md`).

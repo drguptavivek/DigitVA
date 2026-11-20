@@ -72,6 +72,7 @@ from app.models.mas_va_cause_definitions import MasVaCauseDefinition
 from app.models.va_allocations import VaAllocations
 from app.models.va_bundle_ingest import MapBundleRecord, VaBundleIngest, VaBundlePendingCoding
 from app.models.va_cod_bucket_scheme_snapshots import VaCodBucketSchemeSnapshot
+from app.models.va_coder_feedback_notes import VaCoderFeedbackNote
 from app.models.va_coder_review import VaCoderReview
 from app.models.va_coding_episodes import VaCodingEpisode
 from app.models.va_consent import (
@@ -196,6 +197,7 @@ __all__ = [
     "VaAllocation",
     "VaAllocations",
     "VaCodBucketSchemeSnapshot",
+    "VaCoderFeedbackNote",
     "VaCoderReview",
     "VaDataManagerReview",
     "VaSmartvaFormRun",

@@ -357,6 +357,16 @@ project, the units above with their people, the people at the user's own
 unit, and the units below, which open in place. People are shown by name and
 cadre only.
 
+Mentor view (`/mentor-view`, web only, `src/web/MentorViewScreen.tsx`) is the
+per-coder table of one district over `GET /api/v1/mentor/*` (policy
+`docs/policy/mentor-view.md`): district and period chips, one card per coder,
+and, when the server returns `names_visible`, a drill-down to the coder's
+coded cases with the read-only case link (`/coding/area/<sid>`) and feedback
+notes (add with the no-PII warning, retract when `can_retract`). More menu:
+mentoring staff, data managers (In-charge included) and admin; the server
+re-derives every district and refuses the rest. Coders see their notes on Home
+in "Feedback from mentors" (`MentorFeedbackPanel`) and mark them read.
+
 Statistics (`/statistics`, `src/web/StatisticsScreen.tsx`, pieces in
 `src/web/stats/`, client `src/area/api.ts`) is the oversight dashboard over
 `GET /api/v1/area/{projects,summary,staff}` and `GET /api/v1/cases` (policy

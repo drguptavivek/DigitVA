@@ -27,6 +27,7 @@ from app.routes.api import (  # noqa: E402, F401
     intake,
     intake_consent,
     me,
+    mentor,
     nqa,
     organization,
     people_roles,
@@ -77,6 +78,7 @@ api_v1.register_blueprint(instruments.bp, url_prefix="/instruments")
 api_v1.register_blueprint(intake.bp, url_prefix="/intake")
 api_v1.register_blueprint(intake_consent.bp, url_prefix="/intake")
 api_v1.register_blueprint(me.bp, url_prefix="/me")
+api_v1.register_blueprint(mentor.bp, url_prefix="/mentor")
 api_v1.register_blueprint(nqa.bp, url_prefix="/va")
 api_v1.register_blueprint(organization.bp, url_prefix="/organization")
 api_v1.register_blueprint(identifier_types.bp, url_prefix="/projects")

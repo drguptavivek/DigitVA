@@ -1751,6 +1751,7 @@
   "statsSomeFailed": "{count} projects could not be loaded.",
   "statsNoProjects": "You have no project area yet. Statistics appear once you hold a role on a project.",
   "navData": "Data management",
+  "navMentorView": "Mentor view",
   "dataTitle": "Data management",
   "dataNoAccess": "This page is for data managers and viewers of a project's data.",
   "dataCardsLabel": "Counts for the current filters",

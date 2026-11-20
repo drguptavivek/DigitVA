@@ -78,6 +78,10 @@ export function navEntries(bootstrap: NavBootstrap): { primary: NavEntry[]; more
   );
   if (dataAccess(bootstrap).allowed) more.push({ key: "/data", labelKey: "navData", route: "/data" });
   if (screens.includes("/mentoring")) more.push({ key: "/mentoring", labelKey: "navMentoring", route: "/mentoring" });
+  // Mentor view: mentoring staff, data managers (In-charge included) and admin; the server re-derives the districts.
+  if (screens.includes("/mentoring") || bootstrap.access?.is_admin || roles.includes("admin") || roles.includes("data_manager")) {
+    more.push({ key: "/mentor-view", labelKey: "navMentorView", route: "/mentor-view" });
+  }
   if (bootstrap.access?.is_admin || roles.includes("admin")) more.push({ key: "/admin/", labelKey: "homeAdminConsole", serverPath: "/admin/" });
   return { primary, more };
 }

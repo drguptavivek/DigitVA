@@ -38,7 +38,7 @@ class VaCodingEpisode(db.Model):
         sa.String(32), nullable=False, index=True
     )
     started_by: so.Mapped[uuid.UUID] = so.mapped_column(
-        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False, index=True
     )
     base_final_assessment_id: so.Mapped[Optional[uuid.UUID]] = so.mapped_column(
         sa.Uuid(as_uuid=True),

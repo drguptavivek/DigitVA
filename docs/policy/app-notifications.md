@@ -3,7 +3,7 @@ title: App Notifications Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-20
 ---
 
 # App Notifications Policy
@@ -44,6 +44,7 @@ changes by polling a Flask endpoint, not through a third-party push service.
 | `case_submitted_by_other` | a complete submission closes a case | every other interviewer still holding an open draft on it |
 | `case_reopened` | a supervisor reopens a terminal case | the case's starter and open draft holders (not the supervisor) |
 | `interview_chosen` | a supervisor, data manager or admin chooses between two complete interviews of a case ([Web Intake Policy](web-intake.md), "Supervisors") | the interviewer whose interview was chosen (with `va_sid`) and the one whose interview it replaced (without), neither when they made the choice |
+| `mentor_feedback` | a mentor, district data manager, In-charge or admin writes a feedback note on a coded case ([Mentor View Policy](mentor-view.md)) | the case's active final coder (with `va_sid`); never the note text or author |
 | `access_changed` | a grant of the person is created, reactivated, revoked or moved (role, scope, project, site, unit, cadre, status), or their mentor-institute membership turns on or off | that person, once per transaction |
 
 ### Access changed (digitva-0rpi, owner decision 2026-11-16)

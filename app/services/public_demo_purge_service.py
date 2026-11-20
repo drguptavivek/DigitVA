@@ -119,6 +119,7 @@ PLAN: tuple[tuple[str, str], ...] = (
     ("va_bundle_pending_coding", "va_sid IN :sids OR death_id IN :deaths OR actor_user_id = :u"),
     ("va_smartva_run_outputs",
      "va_smartva_run_id IN (SELECT va_smartva_run_id FROM va_smartva_runs WHERE va_sid IN :sids)"),
+    ("va_coder_feedback_notes", "va_sid IN :sids OR coder_user_id = :u OR author_user_id = :u"),
     ("va_smartva_results", "va_sid IN :sids"),
     ("va_smartva_runs", "va_sid IN :sids"),
     ("va_submission_attachments", "va_sid IN :sids"),

@@ -121,8 +121,7 @@ th { background: lightgray; font-weight: bold; }
 </table>
 <div class="frame">Coding</div>
 <table>
-  <tr><th>Date coded</th><td>${when(c.coded_at)}</td><th>Review</th><td>${esc(c.outcome)}</td></tr>
-  <tr><th>Coded by</th><td>${dash(c.coded_by)}</td><th>Reviewed by</th><td>${dash(c.reviewed_by)}</td></tr>
+  <tr><th>Date coded</th><td>${when(c.coded_at)}</td><th>Coded by</th><td>${dash(c.coded_by)}</td></tr>
 </table>
 <div class="foot">Cause of death assigned through verbal autopsy. Not a legal death certificate.<br>
 Project: ${esc(c.project_name)} &middot; Generated ${when(c.generated_at)}</div>

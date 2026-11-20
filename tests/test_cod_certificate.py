@@ -129,8 +129,10 @@ class CodCertificateTests(BaseTestCase):
         self.assertEqual(reply.status_code, 200)
         body = reply.get_data(as_text=True)
         for text in ("Septic shock", "1G41", "3 days", "Pneumonia", "2 weeks", "Diabetes", "1B10 Tuberculosis",
-                     "not reviewed", "Not a legal death certificate", "Certificate project", "Download PDF"):
+                     "Not a legal death certificate", "Certificate project", "Download PDF"):
             self.assertIn(text, body)
+        # Owner 2026-11-20: no review rows on the certificate.
+        self.assertNotIn("Reviewed by", body)
         self.assertIn("no-store", reply.headers["Cache-Control"])
         audit = db.session.scalars(sa.select(VaSubmissionsAuditlog).where(
             VaSubmissionsAuditlog.va_sid == sid, VaSubmissionsAuditlog.va_audit_action == "cod_certificate_viewed")).all()
@@ -141,7 +143,6 @@ class CodCertificateTests(BaseTestCase):
         body = self._get(self.pii_viewer, sid).get_data(as_text=True)
         self.assertIn("CA40.Z Pneumonia", body)
         self.assertIn("Lung infection", body)
-        self.assertIn("reviewer changed the cause", body)
         self.assertNotIn("Septic shock", body)
         self.assertNotIn("1B10 Tuberculosis", body)
 

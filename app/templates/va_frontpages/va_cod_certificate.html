@@ -61,8 +61,7 @@
 
   <div class="frame">Coding</div>
   <table>
-    <tr><th>Date coded</th><td>{{ c.coded_at|user_timezone('%d-%b-%Y %H:%M:%S') }}</td><th>Review</th><td>{{ c.outcome }}</td></tr>
-    <tr><th>Coded by</th><td>{{ c.coded_by or "—" }}</td><th>Reviewed by</th><td>{{ c.reviewed_by or "—" }}</td></tr>
+    <tr><th>Date coded</th><td>{{ c.coded_at|user_timezone('%d-%b-%Y %H:%M:%S') }}</td><th>Coded by</th><td>{{ c.coded_by or "—" }}</td></tr>
   </table>
 
   <div class="foot">

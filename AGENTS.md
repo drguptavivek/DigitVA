@@ -29,8 +29,8 @@ Model tiers (Claude / Codex): Opus / Sol, Sonnet / Terra, Haiku / Luna.
   test database, so runs do not terminate each other's connections: each
   concurrent agent gets its own `minerva_test_<name>`, dropped when its
   work is committed. Writers run only targeted tests; the main session runs
-  one full suite on the combined result before each commit, never two full
-  runs at once.
+  one full suite on the combined result before each push (not each commit:
+  batch commits under one run), never two full runs at once.
 - Launch independent agents in the same turn (reviewer and test runner in
   parallel). Never have two agents editing the same files at once.
 - The main session makes small fix-ups itself; anything larger goes back to

@@ -2,12 +2,11 @@
 
 ## Start here
 
-Staging runs `f2333a29e` (deployed 2026-11-18 on the owner's go; backup
-verified by the script; rollback:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 560dafe5e27385a1823906481db07e46d0e47145`).
-It carries web `expo-web-v2026.11.18.4`, Collect `android-v0.3.25` and Collect
-Plus `collect-plus-v0.3.25-plus.1`. The Play AAB (run 44257815327) awaits the
-owner's Play upload.
+Staging runs `c622782` (deployed 2026-11-20 on the owner's go; backup
+verified; migrations at head `f4c2a8e6b1d9`; rollback:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh f2333a29e8b35c330f1463e2228bff36a2304947`).
+It bakes web `expo-web-v2026.11.20.1`. Collect 0.3.26 (`f01f7ed`, version
+bump only) APK and AAB builds are on CI; device check before the Play upload.
 
 `main` is ahead of staging with the 2026-11-19 work (CHANGELOG.md): bottom bar
 labels, roster codes for active accounts only, the dictation tip, Statistics

@@ -30,13 +30,13 @@
   <div class="sub">Coding result of a verbal autopsy, in the layout of the WHO form</div>
 
   <table>
-    <tr><th>Case id</th><td>{{ c.case_id }}</td><th>Age</th><td>{{ c.age }}</td><th>Sex</th><td>{{ c.sex }}</td></tr>
+    <tr><th>Case id</th><td style="white-space:nowrap">{{ c.case_id }}</td><th>Age</th><td>{{ c.age }}</td><th>Sex</th><td>{{ c.sex }}</td></tr>
     <tr><th>Date of death</th><td>{{ c.date_of_death|cert_date }}</td>
         <th>Place of death</th><td colspan="3">{{ c.place_of_death or "—" }}</td></tr>
     <tr><th>Deceased</th><td colspan="2">{{ c.deceased_name or "—" }}</td>
         <th>Respondent</th><td colspan="2">{{ c.respondent or "—" }}</td></tr>
     <tr><th>Address</th><td colspan="3">{{ c.address or "—" }}</td>
-        <th>Identifier</th><td>{{ c.real_id or "—" }}</td></tr>
+        <th>Identifier</th><td style="white-space:nowrap">{{ c.real_id or "—" }}</td></tr>
   </table>
 
   <div class="frame">Frame A. Medical data: part 1 and part 2</div>

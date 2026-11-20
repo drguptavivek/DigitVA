@@ -106,10 +106,10 @@ th { background: lightgray; font-weight: bold; }
 <h1>International Form of Medical Certificate of Cause of Death</h1>
 <div class="sub">Coding result of a verbal autopsy, in the layout of the WHO form</div>
 <table>
-  <tr><th>Case id</th><td>${dash(c.case_id)}</td><th>Age</th><td>${dash(c.age)}</td><th>Sex</th><td>${dash(c.sex)}</td></tr>
+  <tr><th>Case id</th><td style="white-space:nowrap">${dash(c.case_id)}</td><th>Age</th><td>${dash(c.age)}</td><th>Sex</th><td>${dash(c.sex)}</td></tr>
   <tr><th>Date of death</th><td>${esc(formatDate(c.date_of_death))}</td><th>Place of death</th><td colspan="3">${dash(c.place_of_death)}</td></tr>
   <tr><th>Deceased</th><td colspan="2">${dash(c.deceased_name)}</td><th>Respondent</th><td colspan="2">${dash(c.respondent)}</td></tr>
-  <tr><th>Address</th><td colspan="3">${dash(c.address)}</td><th>Identifier</th><td>${dash(c.real_id)}</td></tr>
+  <tr><th>Address</th><td colspan="3">${dash(c.address)}</td><th>Identifier</th><td style="white-space:nowrap">${dash(c.real_id)}</td></tr>
 </table>
 <div class="frame">Frame A. Medical data: part 1 and part 2</div>
 <table>

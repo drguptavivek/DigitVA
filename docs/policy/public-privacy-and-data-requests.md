@@ -249,6 +249,8 @@ The web app keeps display settings (language, theme, open help panels,
 table columns, last page visited) and unsent web-intake work in the
 browser's own storage on that device; none of it is sent to third parties.
 There are no analytics, advertising or tracking cookies and no third-party
-embeds. Adding any of those needs a consent banner first and a change to
+embeds; the website sends no usage diagnostics (the phone apps' optional
+diagnostics go only to the DigitVA server, section 2 sources). Adding any of
+those needs a consent banner first and a change to
 this section. The privacy page's "Cookies and browser storage" section
 states this to the public.

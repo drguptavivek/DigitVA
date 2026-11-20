@@ -104,7 +104,7 @@ th { background: lightgray; font-weight: bold; }
 .foot { margin-top: 14px; border-top: 1px solid black; padding-top: 6px; font-size: 9pt; }
 </style></head><body>
 <h1>International Form of Medical Certificate of Cause of Death</h1>
-<div class="sub">Coding result of a verbal autopsy, in the layout of the WHO form</div>
+<div class="sub">Coding result of a verbal autopsy</div>
 <table>
   <tr><th>Case id</th><td style="white-space:nowrap">${dash(c.case_id)}</td><th>Age</th><td>${dash(c.age)}</td><th>Sex</th><td>${dash(c.sex)}</td></tr>
   <tr><th>Date of death</th><td>${esc(formatDate(c.date_of_death))}</td><th>Place of death</th><td colspan="3">${dash(c.place_of_death)}</td></tr>

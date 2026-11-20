@@ -3,7 +3,7 @@ title: Privacy Policy, Contact Us, and Consent and Data Requests Pages
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-11-20
 ---
 
 # Privacy policy, contact us, and consent and data requests pages
@@ -233,3 +233,22 @@ only), oldest first in batches of up to 100, with a **Mark handled** action;
 marking is audited. Handling requests makes room for the next pending ones. **Deletion itself stays manual for now**: the team confirms with
 the person, then deactivates or removes the account by the existing admin
 tools, and marks the request handled.
+
+## 9. Cookies and browser storage (2026-11-20)
+
+The website sets only strictly necessary cookies, so it shows no consent
+banner (GDPR / ePrivacy exemption for cookies needed to provide the
+service the user asked for):
+
+- `session`: the sign-in session (server-side session id; `HttpOnly`,
+  `Secure`, `SameSite=Lax`). It also carries the CSRF token that protects
+  forms. Signs out after 30 minutes without activity.
+- `digitva_doris_public_session`: the same, for the public DORIS demo.
+
+The web app keeps display settings (language, theme, open help panels,
+table columns, last page visited) and unsent web-intake work in the
+browser's own storage on that device; none of it is sent to third parties.
+There are no analytics, advertising or tracking cookies and no third-party
+embeds. Adding any of those needs a consent banner first and a change to
+this section. The privacy page's "Cookies and browser storage" section
+states this to the public.

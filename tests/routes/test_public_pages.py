@@ -4,7 +4,7 @@ from unittest.mock import patch
 from tests.base import BaseTestCase
 
 PAGES = {
-    "/privacy": ["Privacy policy", "What we collect", "Consent", "If the informant says no", "Sharing", "How long we keep it", "Storage and security", "Device permissions"],
+    "/privacy": ["Privacy policy", "What we collect", "Consent", "If the informant says no", "Sharing", "How long we keep it", "Storage and security", "Device permissions", "Cookies and browser storage", "no analytics, advertising or tracking cookies"],
     "/contact": ["Contact", "Operated by"],
     "/data-requests": ["Withdraw or change your consent", "Request deletion of your account and data", "What is deleted", "What is kept"],
 }

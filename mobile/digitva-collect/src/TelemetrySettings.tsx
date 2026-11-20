@@ -11,7 +11,7 @@ import { Button, ListRow, Notice, ThemedSwitch } from "./ui";
  * footer explains it). It only changes aggregate performance diagnostics, never field data or sync.
  */
 export function TelemetrySettings() {
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;

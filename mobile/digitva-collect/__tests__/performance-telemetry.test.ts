@@ -35,6 +35,7 @@ import {
   __seedTelemetryDayForTest,
   __telemetryStateForTest,
   flushPerformanceTelemetry,
+  getPerformanceTelemetryChoice,
   getPerformanceTelemetryEnabled,
   recordCrashMetric,
   recordErrorMetric,
@@ -123,7 +124,68 @@ test("fails closed when the preference store cannot be read, then allows a retry
   await flushPerformanceTelemetry("user", send);
   expect(send).not.toHaveBeenCalled();
   mockGetError = false;
+  mockSecure.set("performance_telemetry_enabled", "true");
   expect(await getPerformanceTelemetryEnabled()).toBe(true);
+});
+
+describe("opt-in choice", () => {
+  const unaskedStart = () => __resetPerformanceTelemetryForTest(true);
+
+  test("unasked is off and records and persists nothing", async () => {
+    unaskedStart();
+    expect(await getPerformanceTelemetryChoice()).toBe("unasked");
+    recordLaunch();
+    recordErrorMetric();
+    recordForegroundDuration(5_000);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(__telemetryStateForTest()).toEqual({ daily: {}, batches: [] });
+    expect(mockSecure.has("performance_telemetry_daily")).toBe(false);
+    const send = jest.fn();
+    await flushPerformanceTelemetry("user", send);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  test("a counter recorded before the answer is not sent after a later yes", async () => {
+    unaskedStart();
+    recordLaunch();
+    await getPerformanceTelemetryChoice();
+    await setPerformanceTelemetryEnabled(true);
+    expect(__telemetryStateForTest().daily).toEqual({});
+  });
+
+  test("yes turns collection on, stores true and records", async () => {
+    unaskedStart();
+    await getPerformanceTelemetryChoice();
+    await setPerformanceTelemetryEnabled(true);
+    expect(mockSecure.get("performance_telemetry_enabled")).toBe("true");
+    expect(await getPerformanceTelemetryChoice()).toBe("on");
+    recordLaunch();
+    const day = new Date().toISOString().slice(0, 10);
+    expect(__telemetryStateForTest().daily[day].launches).toBe(1);
+  });
+
+  test("not now stores false and is never unasked again", async () => {
+    unaskedStart();
+    await setPerformanceTelemetryEnabled(false);
+    expect(mockSecure.get("performance_telemetry_enabled")).toBe("false");
+    unaskedStart();
+    expect(await getPerformanceTelemetryChoice()).toBe("off");
+  });
+
+  test("stored true and false are respected", async () => {
+    mockSecure.set("performance_telemetry_enabled", "true");
+    unaskedStart();
+    expect(await getPerformanceTelemetryChoice()).toBe("on");
+    mockSecure.set("performance_telemetry_enabled", "false");
+    unaskedStart();
+    expect(await getPerformanceTelemetryChoice()).toBe("off");
+  });
+
+  test("an unreadable store is off, not unasked", async () => {
+    unaskedStart();
+    mockGetError = true;
+    expect(await getPerformanceTelemetryChoice()).toBe("off");
+  });
 });
 
 test("merges a same-day stored cell field by field", async () => {

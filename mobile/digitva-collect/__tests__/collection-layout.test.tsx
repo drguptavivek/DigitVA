@@ -49,6 +49,7 @@ jest.mock("../src/NativeTermsGate", () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
 jest.mock("../src/theme", () => ({ useTheme: () => ({ mode: "light", colors: { background: "#e8edf0" } }) }));
+jest.mock("../src/TelemetryPrompt", () => ({ TelemetryPrompt: () => null }));
 jest.mock("../src/auth", () => ({
   refreshAccessSummary: jest.fn(async () => undefined),
   signOut: jest.fn(async () => undefined),

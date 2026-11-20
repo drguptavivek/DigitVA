@@ -61,7 +61,9 @@ const monotonicNow = (): number => {
   return Date.now();
 };
 
-let enabled = true;
+let enabled = false;
+/** True while the stored preference is missing: the user has not been asked yet (collection stays off). */
+let unasked = false;
 let enabledLoaded = false;
 let enabledRead: Promise<boolean> | undefined;
 let preferenceGeneration = 0;
@@ -135,7 +137,7 @@ async function readJson<T>(key: string): Promise<T | undefined> {
   }
 }
 
-/** Preference reads are security-sensitive: missing means default-on, but an unavailable/corrupt value fails closed. */
+/** Preference reads are security-sensitive: missing means off and not yet asked (opt-in), and an unavailable/corrupt value also fails closed. */
 async function readTelemetryPreference(): Promise<{ ok: true; value?: boolean } | { ok: false }> {
   try {
     const raw = await SecureStore.getItemAsync(ENABLED_KEY, OPTIONS);
@@ -338,7 +340,8 @@ export async function getPerformanceTelemetryEnabled(): Promise<boolean> {
   enabledRead = (async () => {
     const preference = await readTelemetryPreference();
     if (generation === preferenceGeneration) {
-      enabled = preference.ok && preference.value !== false;
+      enabled = preference.ok && preference.value === true;
+      unasked = preference.ok && preference.value === undefined;
       // A failed read remains retryable; callers still receive false while this process is fail-closed.
       enabledLoaded = preference.ok;
       if (!enabled) {
@@ -360,8 +363,15 @@ export async function getPerformanceTelemetryEnabled(): Promise<boolean> {
   return enabledRead;
 }
 
+/** "unasked" until the user answers the one-time start-up prompt; a failed preference read counts as "off" (fail closed, no prompt). */
+export async function getPerformanceTelemetryChoice(): Promise<"on" | "off" | "unasked"> {
+  if (await getPerformanceTelemetryEnabled()) return "on";
+  return unasked ? "unasked" : "off";
+}
+
 export async function setPerformanceTelemetryEnabled(next: boolean): Promise<void> {
   preferenceGeneration += 1;
+  unasked = false;
   enabled = false;
   enabledLoaded = true;
   enabledRead = undefined;
@@ -422,7 +432,8 @@ export async function __seedTelemetryDayForTest(day: string, metrics: Metrics = 
 export function __resetPerformanceTelemetryForTest(readPreference = false): void {
   if (persistTimer !== undefined) clearTimeout(persistTimer);
   persistTimer = undefined;
-  enabled = true;
+  enabled = !readPreference;
+  unasked = false;
   enabledLoaded = !readPreference;
   enabledRead = undefined;
   preferenceGeneration += 1;

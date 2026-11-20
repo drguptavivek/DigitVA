@@ -3,7 +3,7 @@ title: App Performance Telemetry and Internal Workflow Timelines
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-28
+last_updated: 2026-11-20
 ---
 
 # App performance telemetry and workflow timelines
@@ -35,7 +35,13 @@ case authorization, and never enters the performance telemetry payload.
 
 ## Minimal first-party performance collection
 
-Enabled by owner request. Settings provides a visible off switch; turning it
+Opt-in (owner 2026-11-20, GDPR / ePrivacy Art. 5(3)): collection starts
+off. On native launch, while no choice is stored, the app asks once ("Turn
+on" / "Not now"); either answer is stored and the question is not asked
+again. Nothing is counted or kept before a yes. Installs that never chose
+(previously default-on) are asked once and stay off until they agree; an
+explicit stored on or off is kept. Web never collects and never asks.
+Settings switches it on or off at any time; turning it
 off clears pending local performance batches and stops future collection and
 upload. Already aggregated cells cannot be subtracted. Collection does not
 block startup, form saves, coding or synchronization.

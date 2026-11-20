@@ -23,6 +23,7 @@ import { LockWarning } from "../src/nativeShell/LockWarning";
 import { ModeBanner } from "../src/nativeShell/ModeBanner";
 import NativeIcd11DorisFirstLaunchGate from "../src/NativeIcd11DorisFirstLaunchGate";
 import { useDemoDocumentTitle } from "../src/DemoBadge";
+import { TelemetryPrompt } from "../src/TelemetryPrompt";
 import { installPerformanceTelemetryLifecycle } from "../src/performanceTelemetry";
 
 // The debug build's warning toast ("Open debugger to view warnings") covers the bottom strip of every screen and
@@ -84,6 +85,7 @@ function ActivityRoot() {
         />
       </NativeTermsGate>
       <ShellTabs />
+      {ready ? <TelemetryPrompt /> : null}
     </View>
   );
 }

@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-19
+last_updated: 2026-11-20
 ---
 
 # Sign-in by Mobile Number
@@ -376,6 +376,31 @@ them. Coders and other roles get no such email.
   within the 24 hours. Enrolment alone gives no data: every session still
   needs the person's password. An admin can revoke any device on the
   Devices page, which ends its sessions.
+- **Revoking from the Users page (owner 2026-10-22, `digitva-342x`).** The
+  Status view lists the person's codes and signed-in devices. Whoever may
+  issue a code for that person (admin, project PI, data manager in scope,
+  same scope check: an active device-role grant in the code's or device's
+  project inside the viewer's scope, else 404) may
+  - **revoke a code** that is still valid (issued by show or email): it
+    stops working at once. A used, expired or already revoked code is
+    refused 409 `code_used`, `code_expired` or `code_revoked`. A code can
+    only be reached through the person it was issued for. Audited as
+    `device_enrolment_code_revoked` (actor, person, project, code id).
+  - **revoke a device** the person has signed in on, optionally as lost or
+    stolen (`compromised`, as on the Devices page). It is
+    `device_auth_service.revoke_device`: every session on the device ends,
+    so a shared phone signs out everyone on it. Audited as `device_revoked`
+    (actor, `reason` `users_page`, `compromised`). The phone's unsent work
+    follows `digitva-tnr6`: kept, read-only. That device-wide revoke is for
+    an admin, or when every other live session on the phone belongs to
+    someone the viewer fully sees (the same rule as decommissioning a
+    device). Otherwise the phone is shared with people outside the viewer's
+    scope: only this person's sessions end (audited `device_decommissioned`,
+    actor and person, `reason` `users_page`), the phone stays enrolled for
+    the others, and `compromised` is refused 409 `device_shared` (ask an
+    admin). The Status device list shows only devices whose project is in
+    the viewer's scope.
+  The app asks for confirmation before either revoke.
 
 ## 7. Enrolment server (digitva-k4jt)
 

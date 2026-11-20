@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { ApiError } from "../api";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { t, type StringKey } from "../i18n";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
 import {
-  getSignInQrs, getUserStatus, issueSignInQr, revokeSignInQr,
+  getSignInQrs, getUserStatus, issueSignInQr, revokeEnrolmentCode, revokeSignInQr, revokeUserDevice,
   type DirectoryUser, type SignInQrItem, type SignInQrShown, type UserStatus,
 } from "../users/api";
 import type { JsonRequester } from "../workspace/api";
@@ -76,22 +77,64 @@ const QR_STATUS: Record<string, StringKey> = {
 };
 const MOBILE_STATUS: Record<string, StringKey> = { enrolled: "usersEnrolled", revoked: "usersEnrolRevoked", none: "usersEnrolNone" };
 
+/** The revoke awaiting the viewer's confirmation (digitva-342x). */
+type RevokeAsk = { name: string; titleKey: StringKey; bodyKey: StringKey; confirmKey: StringKey } & (
+  { kind: "code"; id: string } | { kind: "device"; id: string; compromised: boolean }
+);
+const REVOKE_ERRORS: Record<string, StringKey> = {
+  code_used: "usersRevokeErrCodeUsed", code_expired: "usersRevokeErrCodeExpired", code_revoked: "usersRevokeErrCodeRevoked", not_found: "usersRevokeErrNotFound", device_shared: "usersRevokeErrDeviceShared",
+};
+
 /** The account facts of one user (GET /users/<id>/status), loaded on mount; the Details view's left column. */
 export function UserStatusPanel({ request, user }: { request: JsonRequester; user: Pick<DirectoryUser, "user_id" | "name"> }) {
   const styles = useUiStyles();
+  const s = useDialogStyles();
   const [status, setStatus] = useState<UserStatus>();
   const [error, setError] = useState("");
+  const [reload, setReload] = useState(0);
+  const [note, setNote] = useState("");
+  const [ask, setAsk] = useState<RevokeAsk>();
   useEffect(() => {
     let active = true;
     getUserStatus(request, user.user_id)
       .then((body) => { if (active) setStatus(body); })
       .catch((caught) => { if (active) setError(browserErrorText(caught)); });
     return () => { active = false; };
-  }, [request, user.user_id]);
+  }, [request, user.user_id, reload]);
+
+  // The confirmed revoke (digitva-342x); the list is read again either way, as a refusal means it changed.
+  async function revoke() {
+    if (!ask) return;
+    const done = ask;
+    setAsk(undefined);
+    setError("");
+    setNote("");
+    try {
+      let shared = false;
+      if (done.kind === "code") await revokeEnrolmentCode(request, user.user_id, done.id);
+      else shared = (await revokeUserDevice(request, user.user_id, done.id, done.compromised)).shared;
+      setNote(t(done.kind === "code" ? "usersRevokedCode" : shared ? "usersRevokedDeviceShared" : "usersRevokedDevice"));
+    } catch (caught) {
+      const key = caught instanceof ApiError && caught.code ? REVOKE_ERRORS[caught.code] : undefined;
+      setError(key ? t(key) : browserErrorText(caught));
+    }
+    setReload((n) => n + 1);
+  }
 
   return (
     <>
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
+      {note ? <Text style={styles.text} accessibilityRole="alert">{note}</Text> : null}
+      {ask ? (
+        <ConfirmDialog
+          title={t(ask.titleKey, { device: ask.name })}
+          message={t(ask.bodyKey)}
+          confirmLabel={t(ask.confirmKey)}
+          destructive
+          onConfirm={() => void revoke()}
+          onCancel={() => setAsk(undefined)}
+        />
+      ) : null}
       {!status && !error ? <Text style={styles.muted}>{t("loading")}</Text> : null}
       {status ? (
         <View testID="user-status" style={{ gap: spacing.xs }}>
@@ -127,15 +170,34 @@ export function UserStatusPanel({ request, user }: { request: JsonRequester; use
           </Section>
           <Section title={t("usersStCodes")}>
             {status.enrolment_codes.length ? status.enrolment_codes.map((code, index) => (
-              <Text key={index} style={styles.text} testID="status-code-row">
-                {t("usersStCodeRow", {
-                  status: t(CODE_STATUS[code.status] ?? "usersStCodeUnknown"),
-                  generated: when(code.generated_at),
-                  project: code.project_id ?? "-",
-                  expires: when(code.expires_at),
-                })}
-              </Text>
+              <View key={index} style={s.actions}>
+                <Text style={styles.text} testID="status-code-row">
+                  {t("usersStCodeRow", {
+                    status: t(CODE_STATUS[code.status] ?? "usersStCodeUnknown"),
+                    generated: when(code.generated_at),
+                    project: code.project_id ?? "-",
+                    expires: when(code.expires_at),
+                  })}
+                </Text>
+                {code.status === "valid" && code.code_id ? (
+                  <Button size="sm" kind="danger" label={t("usersRevokeCode")} accessibilityLabel={t("usersRevokeCode")}
+                    onPress={() => setAsk({ kind: "code", id: code.code_id as string, name: "", titleKey: "usersRevokeCodeTitle", bodyKey: "usersRevokeCodeBody", confirmKey: "usersRevokeCode" })} />
+                ) : null}
+              </View>
             )) : <Text style={styles.muted}>{t("usersStCodesNone")}</Text>}
+          </Section>
+          <Section title={t("usersStDevices")}>
+            {status.devices.length ? status.devices.map((device) => (
+              <View key={device.device_id} style={s.actions}>
+                <Text style={styles.text} testID="status-device-row">
+                  {t("usersStDeviceRow", { name: device.name, platform: device.platform ?? "-", when: when(device.last_seen_at) })}
+                </Text>
+                <Button size="sm" kind="danger" label={t("usersRevokeDevice")} accessibilityLabel={`${t("usersRevokeDevice")}: ${device.name}`}
+                  onPress={() => setAsk({ kind: "device", id: device.device_id, name: device.name, compromised: false, titleKey: "usersRevokeDeviceTitle", bodyKey: "usersRevokeDeviceBody", confirmKey: "usersRevokeDevice" })} />
+                <Button size="sm" kind="danger" label={t("usersRevokeDeviceLost")} accessibilityLabel={`${t("usersRevokeDeviceLost")}: ${device.name}`}
+                  onPress={() => setAsk({ kind: "device", id: device.device_id, name: device.name, compromised: true, titleKey: "usersRevokeDeviceLostTitle", bodyKey: "usersRevokeDeviceLostBody", confirmKey: "usersRevokeDevice" })} />
+              </View>
+            )) : <Text style={styles.muted}>{t("usersStDevicesNone")}</Text>}
           </Section>
           <Section title={t("usersStMobile")}>
             <Text style={styles.text}>

@@ -152,8 +152,9 @@ export interface UserStatus {
   terms_accepted: boolean;
   terms_accepted_at: string | null;
   passkeys: { count: number; last_used_at: string | null };
-  enrolment_codes: { generated_at: string | null; project_id: string | null; status: "valid" | "used" | "expired" | "revoked" | "unknown"; expires_at: string | null }[];
+  enrolment_codes: { code_id: string | null; generated_at: string | null; project_id: string | null; status: "valid" | "used" | "expired" | "revoked" | "unknown"; expires_at: string | null }[];
   mobile: UserEnrolment;
+  devices: { device_id: string; name: string; platform: string | null; last_seen_at: string | null; shared?: boolean }[];
   sign_in_qrs: SignInQrItem[];
   training: { session_code: string; session_name: string | null; session_status: string | null; role: string | null; coder_slot: string | number | null; onboarded: boolean; onboarded_at: string | null }[];
 }
@@ -188,6 +189,17 @@ export async function getSignInQrs(request: JsonRequester, userId: string): Prom
 /** delivery "show" returns the code once; "email" returns only the expiry. */
 export async function issueSignInQr(request: JsonRequester, userId: string, delivery: "show" | "email"): Promise<SignInQrShown & { emailed?: boolean }> {
   return (await request(`${USERS_API}/${encodeURIComponent(userId)}/sign-in-qr`, { method: "POST", json: { delivery } })) as SignInQrShown & { emailed?: boolean };
+}
+
+/** Void an unused, unexpired code issued for the user (digitva-342x); 409 code_used / code_expired / code_revoked otherwise. */
+export async function revokeEnrolmentCode(request: JsonRequester, userId: string, codeId: string): Promise<void> {
+  await request(`${USERS_API}/${encodeURIComponent(userId)}/enrolment-codes/${encodeURIComponent(codeId)}/revoke`, { method: "POST", json: {} });
+}
+
+/** Revoke a device the user signed in on; compromised = lost or stolen (digitva-342x). */
+export async function revokeUserDevice(request: JsonRequester, userId: string, deviceId: string, compromised: boolean): Promise<{ shared: boolean }> {
+  const body = await request(`${USERS_API}/${encodeURIComponent(userId)}/devices/${encodeURIComponent(deviceId)}/revoke`, { method: "POST", json: { compromised } }) as { shared?: boolean } | undefined;
+  return { shared: body?.shared === true };
 }
 
 export async function revokeSignInQr(request: JsonRequester, userId: string): Promise<boolean> {

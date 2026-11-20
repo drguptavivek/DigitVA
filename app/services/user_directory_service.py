@@ -50,6 +50,7 @@ from app.services.authz import (
     writer_grants,
 )
 from app.services.org_grant_service import active_project_condition
+from app.services.security_event_service import record_security_event
 from app.services.totp_service import provisioning_qr_png
 from app.services.user_home_service import get_user_activity_summary
 
@@ -610,6 +611,7 @@ def user_status(viewer, user_id: str) -> dict:
     } if any(code_ids) else {}
     codes = [
         {
+            "code_id": str(cid) if cid in rows else None,
             "generated_at": _iso(at),
             "project_id": (detail or {}).get("project_id"),
             "status": _code_state(rows[cid], now) if cid in rows else "unknown",
@@ -651,6 +653,7 @@ def user_status(viewer, user_id: str) -> dict:
         "passkeys": {"count": int(passkeys), "last_used_at": _iso(passkey_used)},
         "enrolment_codes": codes,
         "mobile": _enrolment_by_user([uid], now).get(uid, _NOT_ENROLLED),
+        "devices": _manageable_devices(viewer, uid, devices.list_account_devices(uid)),
         "sign_in_qrs": qrs,
         "training": training,
     }
@@ -715,3 +718,123 @@ def issue_enrolment_code(viewer, user_id: str, body: Mapping) -> dict:
         "expires_at": _iso(row.expires_at),
         "max_uses": row.max_uses,
     }
+
+
+# ---------------------------------------------------------------------------
+# Revoking (digitva-342x): same viewers and scope as issuing a code
+# ---------------------------------------------------------------------------
+
+def _covers_device_role(scope: _Scope, user: VaUsers, project_id: str) -> None:
+    """The issue-code scope check: the viewer manages an active device-role
+    grant of *user* in *project_id*. Else 404, as for a missing account."""
+    if not db.session.scalar(sa.select(_visible_exists(scope, user.user_id, project_id=project_id,
+                                                       roles=NATIVE_DEVICE_ROLES))):
+        raise _not_found()
+
+
+def _other_device_users(device_ids, user_id) -> dict[uuid.UUID, set[uuid.UUID]]:
+    """One query: per device, the other users holding a non-revoked session."""
+    found: dict[uuid.UUID, set[uuid.UUID]] = {}
+    for did, uid in db.session.execute(
+        sa.select(AuthDeviceSession.device_id, AuthDeviceSession.user_id).distinct().where(
+            AuthDeviceSession.device_id.in_(list(device_ids)),
+            AuthDeviceSession.user_id != user_id,
+            AuthDeviceSession.revoked_at.is_(None),
+        )
+    ):
+        found.setdefault(did, set()).add(uid)
+    return found
+
+
+def _fully_visible(viewer, scope: _Scope, user_id: uuid.UUID, cache: dict) -> bool:
+    """The decommission path's rule (``_device_management_user``), memoised."""
+    if scope.is_admin:
+        return True
+    if user_id not in cache:
+        try:
+            _device_management_user(viewer, str(user_id))
+            cache[user_id] = True
+        except UserDirectoryError:
+            cache[user_id] = False
+    return cache[user_id]
+
+
+def _manageable_devices(viewer, user_id: uuid.UUID, listed: list[dict]) -> list[dict]:
+    """The viewer's view of *listed* (the user's live devices): only those whose
+    project is in scope. ``shared`` marks a phone that also holds a live session
+    of someone the viewer does not fully see (a device-wide revoke is refused)."""
+    if not listed:
+        return listed
+    scope = _Scope(viewer)
+    ids = [uuid.UUID(d["device_id"]) for d in listed]
+    projects = dict(db.session.execute(
+        sa.select(AuthDevice.device_id, AuthDevice.project_id).where(AuthDevice.device_id.in_(ids))).all())
+    others, cache, out = _other_device_users(ids, user_id), {}, []
+    for entry, did in zip(listed, ids):
+        if not scope.is_admin and not db.session.scalar(sa.select(_visible_exists(
+                scope, user_id, project_id=projects[did], roles=NATIVE_DEVICE_ROLES))):
+            continue
+        out.append({**entry, "shared": not all(
+            _fully_visible(viewer, scope, other, cache) for other in others.get(did, ()))})
+    return out
+
+
+def revoke_enrolment_code(viewer, user_id: str, code_id: uuid.UUID) -> None:
+    """Void a code issued for *user_id* that nobody has used up or let expire.
+    404 when the code was not issued for this user (its creation event names
+    the user) or the project is out of the viewer's scope; 409 ``code_used``,
+    ``code_expired`` or ``code_revoked`` otherwise. Audited; commits."""
+    scope = _Scope(viewer)
+    user = _visible_user(scope, user_id)
+    row = db.session.get(AuthDeviceEnrolmentCode, code_id, with_for_update=True)
+    issued = row is not None and db.session.scalar(sa.select(sa.exists().where(
+        AuthSecurityEvent.event_type == "device_enrolment_code_created",
+        AuthSecurityEvent.user_id == user.user_id,
+        AuthSecurityEvent.detail["code_id"].as_string() == str(code_id),
+    )))
+    if not issued:
+        raise _not_found()
+    _covers_device_role(scope, user, row.project_id)
+    state = _code_state(row, datetime.now(UTC))
+    if state != "valid":
+        raise UserDirectoryError(f"This code is already {state}.", 409, f"code_{state}")
+    row.revoked_at = datetime.now(UTC)
+    record_security_event(
+        user_id=user.user_id, actor_user_id=viewer.user_id, event_type="device_enrolment_code_revoked",
+        detail={"project_id": row.project_id, "code_id": str(row.id)},
+    )
+    db.session.commit()
+
+
+def revoke_user_device(viewer, user_id: str, device_id: uuid.UUID, compromised: bool) -> dict:
+    """Revoke a device *user_id* has signed in on. 404 when the user never used
+    it or its project is out of the viewer's scope. Idempotent. Commits.
+
+    Device-wide (``revoke_device``: every session ends; *compromised* marks a
+    lost or stolen phone) only for an admin, or when every other live session
+    on it belongs to someone the viewer fully sees. Otherwise the phone is
+    shared with people out of scope: only the target's sessions end
+    (``decommission_account_device``, audited with actor and target) and
+    *compromised* is refused, 409 ``device_shared``.
+    Returns ``{revoked, sessions_ended, shared}``."""
+    scope = _Scope(viewer)
+    user = _visible_user(scope, user_id)
+    device = db.session.get(AuthDevice, device_id, with_for_update=True)
+    used = device is not None and db.session.scalar(sa.select(sa.exists().where(
+        AuthDeviceSession.device_id == device_id, AuthDeviceSession.user_id == user.user_id)))
+    if not used:
+        raise _not_found()
+    _covers_device_role(scope, user, device.project_id)
+    cache: dict = {}
+    shared = not all(_fully_visible(viewer, scope, other, cache)
+                     for other in _other_device_users([device_id], user.user_id).get(device_id, ()))
+    if not shared:
+        ended = devices.revoke_device(device, actor=viewer, compromised=compromised, reason="users_page")
+    elif compromised:
+        raise UserDirectoryError(
+            "This phone is also used by people outside your scope. Ask an admin to mark it lost or stolen.",
+            409, "device_shared")
+    else:
+        ended = devices.decommission_account_device(user.user_id, device_id, viewer, reason="users_page")
+    db.session.commit()
+    return {"revoked": not shared, "sessions_ended": ended, "shared": shared}

@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-19
+last_updated: 2026-11-20
 ---
 
 # API v1 Reference
@@ -883,6 +883,27 @@ projects, a data manager the holders of an active grant in their subtree.
   email's 24-hour code); no email 400 `no_email`, a failed send 502
   `email_failed`. Both audit `device_enrolment_code_created` with the
   issued-for user (mobile-sign-in.md section 6).
+- `POST /users/<user_id>/enrolment-codes/<code_id>/revoke` (30/min, CSRF;
+  admin, project PI, data manager; digitva-342x): voids a valid code issued
+  for that user. 200 `{revoked: true}`; 404 `not_found` (user or project out
+  of scope, or the code was not issued for this user); 409 `code_used`,
+  `code_expired` or `code_revoked`. Audits `device_enrolment_code_revoked`.
+- `POST /users/<user_id>/devices/<device_id>/revoke` (30/min, CSRF; same
+  viewers and scope): body `compromised` (boolean, default false; else 400
+  `invalid_request`). `device_auth_service.revoke_device`: 200 `{revoked:
+  true, sessions_ended, compromised}`, idempotent; 404 `not_found` when the
+  user never signed in on it or its project is out of scope. Audits
+  `device_revoked` with `reason` `users_page`. Device-wide only for an admin
+  or when every other live session on the phone is of someone the viewer
+  fully sees; else only this user's sessions end (`device_decommissioned`,
+  reason `users_page`) and the body is `{revoked: false, sessions_ended,
+  compromised: false, shared: true}`; with `compromised: true`, 409
+  `device_shared`.
+- `GET /users/<user_id>/status` also returns `code_id` on each
+  `enrolment_codes` row (null when unknown) and `devices` `[{device_id, name,
+  platform, app_version, enrolled_at, last_seen_at, current, shared}]`, the
+  person's live device pairs whose project is in the viewer's scope (`shared`:
+  also used by someone the viewer does not fully see).
 
 - `POST /users/<user_id>/sign-in-qr` (10/min, CSRF): body `delivery` `show`
   (default) | `email`. 201 `{code, qr_payload, qr_png, expires_at}` (show,

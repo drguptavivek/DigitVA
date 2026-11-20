@@ -92,7 +92,8 @@ const STATUS = {
   verification_email_sent_at: "2026-09-01T08:05:00Z", password_emailed_at: "2026-09-03T08:00:00Z",
   terms_accepted: true, terms_accepted_at: "2026-09-04T08:00:00Z",
   passkeys: { count: 2, last_used_at: "2026-10-01T08:00:00Z" },
-  enrolment_codes: [{ generated_at: "2026-10-02T08:00:00Z", project_id: "P1", status: "used", expires_at: "2026-10-03T08:00:00Z", code: "LEAK-CODE" }],
+  enrolment_codes: [{ code_id: "c-used", generated_at: "2026-10-02T08:00:00Z", project_id: "P1", status: "used", expires_at: "2026-10-03T08:00:00Z", code: "LEAK-CODE" }],
+  devices: [{ device_id: "d1", name: "Tab 1", platform: "android", last_seen_at: "2026-10-21T10:00:00Z" }],
   mobile: { status: "enrolled", devices: 1, revoked_devices: 1, last_seen_at: "2026-10-21T10:00:00Z" },
   sign_in_qrs: [{ status: "pending", issued_at: "2026-10-22T08:00:00Z", expires_at: "2026-10-22T14:00:00Z", redeemed_at: null, token: "LEAK-TOKEN" }],
   training: [{ session_code: "TS1", session_name: "Training One", session_status: "open", role: "coder", coder_slot: 2, onboarded: true, onboarded_at: "2026-10-05T08:00:00Z" }],
@@ -100,7 +101,7 @@ const STATUS = {
 const EMPTY_STATUS = {
   ...STATUS, active: false, created_at: null, email_verified: false, email_verified_at: null, password_set: false,
   verification_email_sent_at: null, password_emailed_at: null, terms_accepted: false, terms_accepted_at: null,
-  passkeys: { count: 0, last_used_at: null }, enrolment_codes: [], mobile: { status: "none", devices: 0, revoked_devices: 0, last_seen_at: null },
+  passkeys: { count: 0, last_used_at: null }, enrolment_codes: [], devices: [], mobile: { status: "none", devices: 0, revoked_devices: 0, last_seen_at: null },
   sign_in_qrs: [], training: [],
 };
 const FUTURE = () => new Date(Date.now() + 6 * 3600 * 1000).toISOString();
@@ -516,5 +517,76 @@ describe("UsersScreen", () => {
     await press(tree, "Create a sign-in QR for Asha Devi");
     expect(text(tree)).toContain("cannot manage this person's sign-in QR");
     expect(hasButton(tree, "Show on screen")).toBe(false);
+  });
+
+  describe("revoking (digitva-342x)", () => {
+    const VALID = { code_id: "c1", generated_at: "2026-10-22T08:00:00Z", project_id: "P1", status: "valid", expires_at: "2026-10-22T09:00:00Z" };
+    const confirm = async (tree: ReactTestRenderer, label: string) => {
+      const [target] = tree.root.findAll((n) => typeof n.props.onPress === "function" && n.props.label === label);
+      await act(async () => { target.props.onPress(); });
+      await settle();
+    };
+    const posts = () => mockRequest.mock.calls.filter(([, init]) => init?.method === "POST");
+
+    beforeEach(() => {
+      statusBody = { ...STATUS, enrolment_codes: [VALID, ...STATUS.enrolment_codes] };
+    });
+
+    it("offers Revoke code only on a valid code, asks first, then sends the revoke", async () => {
+      const tree = await render();
+      await press(tree, "Show the status of Asha Devi");
+      // One button for the valid code, none for the used one (a button matches as composite and host node alike).
+      expect(pressable(tree, "Revoke code").length).toBe(pressable(tree, "Revoke device: Tab 1").length);
+      await press(tree, "Revoke code");
+      expect(text(tree)).toContain("Revoke this enrolment code?");
+      expect(posts()).toHaveLength(0);
+      await confirm(tree, "Cancel");
+      expect(posts()).toHaveLength(0);
+      await press(tree, "Revoke code");
+      await confirm(tree, "Revoke code");
+      expect(mockRequest).toHaveBeenCalledWith("/api/v1/users/u1/enrolment-codes/c1/revoke", { method: "POST", json: {} });
+      expect(text(tree)).toContain("Code revoked.");
+    });
+
+    it("revokes a device, or as lost or stolen, after the confirm dialog", async () => {
+      const tree = await render();
+      await press(tree, "Show the status of Asha Devi");
+      await press(tree, "Revoke device: Tab 1");
+      expect(text(tree)).toContain("Revoke Tab 1?");
+      await confirm(tree, "Revoke device");
+      expect(posts().at(-1)).toEqual(["/api/v1/users/u1/devices/d1/revoke", { method: "POST", json: { compromised: false } }]);
+      await press(tree, "Lost or stolen: Tab 1");
+      expect(text(tree)).toContain("Revoke Tab 1 as lost or stolen?");
+      await confirm(tree, "Revoke device");
+      expect(posts().at(-1)).toEqual(["/api/v1/users/u1/devices/d1/revoke", { method: "POST", json: { compromised: true } }]);
+      expect(text(tree)).toContain("Device revoked.");
+    });
+
+    it("says the phone is shared, or that only this person was signed out", async () => {
+      mockRequest.mockImplementation((path: string, init?: { method?: string }) => (
+        init?.method === "POST" && String(path).includes("/revoke") ? Promise.reject(new ApiError(409, "device_shared")) : route(path, init)));
+      let tree = await render();
+      await press(tree, "Show the status of Asha Devi");
+      await press(tree, "Lost or stolen: Tab 1");
+      await confirm(tree, "Revoke device");
+      expect(text(tree)).toContain("also used by people outside your scope");
+      mockRequest.mockImplementation((path: string, init?: { method?: string }) => (
+        init?.method === "POST" && String(path).includes("/revoke") ? Promise.resolve({ revoked: false, sessions_ended: 1, compromised: false, shared: true }) : route(path, init)));
+      tree = await render();
+      await press(tree, "Show the status of Asha Devi");
+      await press(tree, "Revoke device: Tab 1");
+      await confirm(tree, "Revoke device");
+      expect(text(tree)).toContain("Signed this person out of the phone; others using it were not affected.");
+    });
+
+    it("says clearly when the code was used meanwhile", async () => {
+      mockRequest.mockImplementation((path: string, init?: { method?: string }) => (
+        init?.method === "POST" && String(path).includes("/revoke") ? Promise.reject(new ApiError(409, "code_used")) : route(path, init)));
+      const tree = await render();
+      await press(tree, "Show the status of Asha Devi");
+      await press(tree, "Revoke code");
+      await confirm(tree, "Revoke code");
+      expect(text(tree)).toContain("This code has already been used, so it cannot be revoked.");
+    });
   });
 });

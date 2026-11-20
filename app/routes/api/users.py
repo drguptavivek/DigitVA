@@ -137,6 +137,46 @@ def issue_enrolment_code(user_id):
     return _no_store(body, 201)
 
 
+@bp.post("/<user_id>/enrolment-codes/<uuid:code_id>/revoke")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("30 per minute")
+def revoke_enrolment_code(user_id, code_id):
+    """Void an unused, unexpired code issued for this user: ``{revoked: true}``.
+    409 ``code_used`` / ``code_expired`` / ``code_revoked`` otherwise."""
+    try:
+        service.revoke_enrolment_code(current_user, user_id, code_id)
+    except service.UserDirectoryError as exc:
+        return _refused(exc)
+    log.info("users enrolment-code revoke | by=%s | user=%s | code=%s", current_user.user_id, user_id, code_id)
+    return _no_store({"revoked": True})
+
+
+@bp.post("/<user_id>/devices/<uuid:device_id>/revoke")
+@role_required("admin", "project_pi", "data_manager")
+@limiter.limit("30 per minute")
+def revoke_user_device(user_id, device_id):
+    """Revoke a device the user has signed in on. Body: ``compromised``
+    (boolean, default false; lost or stolen). Ends every session on it; the
+    phone keeps its unsent work read-only (digitva-tnr6). A phone also used by
+    someone the viewer does not fully see (and the viewer not an admin) only
+    loses this user's sessions (``shared: true``); with ``compromised``, 409
+    ``device_shared``."""
+    compromised = parse_body().get("compromised", False)
+    if not isinstance(compromised, bool):
+        return error("compromised must be true or false.", "invalid_request", 400)
+    try:
+        result = service.revoke_user_device(current_user, user_id, device_id, compromised)
+    except service.UserDirectoryError as exc:
+        return _refused(exc)
+    log.info("users device revoke | by=%s | user=%s | device=%s | compromised=%s",
+             current_user.user_id, user_id, device_id, compromised)
+    body = {"revoked": result["revoked"], "sessions_ended": result["sessions_ended"],
+            "compromised": compromised and result["revoked"]}
+    if result["shared"]:
+        body["shared"] = True
+    return _no_store(body)
+
+
 def _qr_user_id(user_id):
     try:
         return uuid.UUID(user_id)

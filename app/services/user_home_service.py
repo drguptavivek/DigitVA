@@ -95,6 +95,7 @@ def get_user_activity_summary(user, *, project_ids=None) -> dict:
         VaDeathRegister.registered_by == user_id,
         VaDeathRegister.source == "register",
         VaDeathRegister.status.notin_(("duplicate", "cancelled")),
+        VaDeathRegister.consent_withdrawn_at.is_(None),
     )
 
     # 2. Web/device intake drafts submitted or in progress ("draft") by this user.
@@ -120,7 +121,8 @@ def get_user_activity_summary(user, *, project_ids=None) -> dict:
             VaWebIntakeDraft.status.in_(("submitted", "draft")),
             sa.or_(
                 VaWebIntakeDraft.death_id.is_(None),
-                draft_case.status.notin_(("duplicate", "cancelled")),
+                sa.and_(draft_case.status.notin_(("duplicate", "cancelled")),
+                        draft_case.consent_withdrawn_at.is_(None)),
             ),
             sa.or_(
                 VaWebIntakeDraft.va_sid.is_(None),
@@ -244,6 +246,7 @@ def _death_reporter_block(user) -> dict:
             VaDeathRegister.registered_by == user.user_id,
             VaDeathRegister.source == "register",
             VaDeathRegister.status.notin_(("duplicate", "cancelled")),
+            VaDeathRegister.consent_withdrawn_at.is_(None),
             *training_scope.conditions(VaDeathRegister.project_id),
         )
     ).one()

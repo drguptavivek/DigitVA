@@ -63,6 +63,7 @@ from app.services.demo_project_service import (
     get_demo_expiry_for_submission,
     is_demo_training_submission,
 )
+from app.services.duplicate_exclusion import is_withdrawn
 from app.services.final_cod_authority_service import (
     complete_recode_episode,
     get_active_recode_episode,
@@ -480,6 +481,10 @@ def _push_refusal(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDra
     2026-11-05, digitva-ssg7.7): an older APK's adopted Path C record must not
     self-code where the project forbids it."""
     if draft.va_sid is None or draft.status != "submitted":
+        return "not_available"
+    # A consent-withdrawn case takes no coding; the refusal is a receipt as
+    # for any other case no longer available (docs/policy/consent-withdrawal.md).
+    if is_withdrawn(draft.va_sid):
         return "not_available"
     if not project.self_coding_enabled:
         return "self_coding_required"

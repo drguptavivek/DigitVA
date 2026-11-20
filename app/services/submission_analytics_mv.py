@@ -1424,6 +1424,7 @@ def death_date_conditions(va_sid_expr, death_from, death_to) -> list:
             sa.select(1).where(
                 VaDeathRegister.va_sid == va_sid_expr,
                 VaDeathRegister.status.not_in(("duplicate", "cancelled")),
+                VaDeathRegister.consent_withdrawn_at.is_(None),
                 *terms,
             )
         )

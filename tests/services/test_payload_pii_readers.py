@@ -354,7 +354,7 @@ class NoteRedactionRoutingTests(SplitReaderBase):
         view = intake.supervised_case_detail
         while hasattr(view, "__wrapped__"):
             view = view.__wrapped__
-        death = SimpleNamespace(va_sid=sub.va_sid, project_id=None)
+        death = SimpleNamespace(va_sid=sub.va_sid, project_id=None, consent_withdrawn_at=None)
         for redact in (False, True):
             with (
                 self.app.test_request_context("/"),

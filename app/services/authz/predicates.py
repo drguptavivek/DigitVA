@@ -45,6 +45,13 @@ from app.services.authz.actions import (
 from app.services.authz.consulted import mark_consulted
 from app.services.authz.grants import Grant, ResolvedGrants, resolve_grants
 from app.services.authz.supervision import supervising_grant
+from app.services.duplicate_exclusion import is_withdrawn, not_withdrawn_submission_condition
+
+#: Actions the consent-withdrawal seal leaves to the workflow: a coder or
+#: reviewer acting on a withdrawn case keeps the existing 409 ``conflict``
+#: with WITHDRAWN_MESSAGE (pools and starts already exclude it), so older
+#: apps see the refusal they show today. Every other per-case action is sealed.
+_UNSEALED = frozenset({Action.CODE, Action.RECODE, Action.REVIEW})
 
 _R = VaAccessRoles
 _P = VaAccessScopeTypes.project
@@ -494,6 +501,10 @@ def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None)
         predicate = sa.or_(*clauses) if clauses else sa.false()
         if action is Action.CODE and clauses:
             predicate = sa.and_(predicate, VaSubmissions.va_sid.not_in(own_collected_sids(user, g)))
+    if not g.is_admin and action not in _UNSEALED:
+        # A consent-withdrawn case is sealed: admin only
+        # (docs/policy/consent-withdrawal.md section 4).
+        predicate = sa.and_(predicate, not_withdrawn_submission_condition(VaSubmissions.va_sid))
     own = _own_cases(user)
     return predicate if own is None else sa.and_(predicate, own)
 
@@ -576,7 +587,8 @@ def _can_submission(user, g: ResolvedGrants, action: Action, va_sid) -> Decision
         .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaSubmissions.org_unit_id)
         .where(VaSubmissions.va_sid == va_sid)
     ).first()
-    if row is None:
+    if row is None or (not g.is_admin and action not in _UNSEALED and is_withdrawn(va_sid)):
+        # A sealed case answers as a missing one: its id is not confirmed.
         return _deny(Reason.NOT_FOUND)
     return _deny(_submission_reason(g, action, row))
 

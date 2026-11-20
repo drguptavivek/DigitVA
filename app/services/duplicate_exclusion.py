@@ -22,6 +22,14 @@ too. A release or a gate save that covers it clears the hold and it comes
 back everywhere, as a reopened duplicate does. ODK submissions have no draft
 and are never held.
 
+The same predicate also keeps out a case whose respondent withdrew consent
+(``va_death_register.consent_withdrawn_at`` set; docs/policy/consent-withdrawal.md):
+read in the same ``va_death_register`` subquery, so every reader above,
+the interviewer's own counts included, drops it at once. An admin undo
+clears the column and the case comes back as a reopened duplicate does.
+Case-level readers that filter ``va_death_register.status`` directly AND
+``not_withdrawn_case_condition`` beside their duplicate filter.
+
 This module imports no service: readers everywhere (models, services, tasks,
 routes) import it, so it must not be able to close an import cycle.
 """
@@ -41,6 +49,13 @@ DUPLICATE_MESSAGE = (
 )
 
 
+#: What a coding or reviewing action on a withdrawn case answers.
+WITHDRAWN_MESSAGE = (
+    "The respondent withdrew consent for this case, so it is not available "
+    "for coding or review."
+)
+
+
 #: ``collection_hold`` values that keep an interview out (``released`` and NULL do not).
 EXCLUDED_HOLDS = ("held", "rejected")
 
@@ -53,7 +68,7 @@ HELD_MESSAGE = (
 
 def not_confirmed_duplicate_condition(va_sid_expr):
     """SQL predicate: *va_sid_expr* is not the submission of a confirmed
-    duplicate, nor a DigitVA interview held or rejected outside its
+    duplicate or of a consent-withdrawn case, nor a DigitVA interview held or rejected outside its
     collection period.
 
     Two correlated ``NOT EXISTS``, against ``va_death_register`` and
@@ -80,15 +95,50 @@ def not_confirmed_duplicate_condition(va_sid_expr):
 
 def not_duplicate_condition(va_sid_expr):
     """SQL predicate: *va_sid_expr* is not the submission of a confirmed
-    duplicate. For the interviewer's own counts, where a held or rejected
-    interview must stay visible to its author."""
+    duplicate, nor of a case whose consent was withdrawn. For the
+    interviewer's own counts, where a held or rejected interview must stay
+    visible to its author."""
     from app.models import VaDeathRegister
 
     return sa.not_(
         sa.exists(
             sa.select(1).where(
                 VaDeathRegister.va_sid == va_sid_expr,
-                VaDeathRegister.status == DUPLICATE_CASE_STATUS,
+                sa.or_(
+                    VaDeathRegister.status == DUPLICATE_CASE_STATUS,
+                    VaDeathRegister.consent_withdrawn_at.is_not(None),
+                ),
+            )
+        )
+    )
+
+
+def not_withdrawn_case_condition(case=None):
+    """SQL predicate on a ``VaDeathRegister`` entity (or alias, possibly
+    outer-joined): its respondent has not withdrawn consent. For case-level
+    readers that filter the register's ``status`` themselves."""
+    if case is None:
+        from app.models import VaDeathRegister as case
+    return case.consent_withdrawn_at.is_(None)
+
+
+def not_withdrawn_submission_condition(va_sid_expr):
+    """SQL predicate: *va_sid_expr* is not the submission of a case whose
+    consent was withdrawn. Confirmed duplicates pass: the authz seal
+    (``authz.predicates.scope_filter``) leaves their behaviour unchanged.
+
+    One correlated ``NOT EXISTS`` on ``va_death_register`` (served by
+    ``ix_va_death_register_va_sid``); aliased so a caller selecting from the
+    register itself does not auto-correlate this subquery to its own row.
+    """
+    from app.models import VaDeathRegister
+
+    sealed = aliased(VaDeathRegister, name="sealed_case")
+    return sa.not_(
+        sa.exists(
+            sa.select(1).where(
+                sealed.va_sid == va_sid_expr,
+                sealed.consent_withdrawn_at.is_not(None),
             )
         )
     )
@@ -119,8 +169,20 @@ def is_held(va_sid: str) -> bool:
     )))
 
 
+def is_withdrawn(va_sid: str) -> bool:
+    """Whether *va_sid* is the submission of a case whose consent was withdrawn."""
+    from app import db
+    from app.models import VaDeathRegister
+
+    return db.session.scalar(sa.select(sa.exists().where(
+        VaDeathRegister.va_sid == va_sid, VaDeathRegister.consent_withdrawn_at.is_not(None),
+    )))
+
+
 def excluded_message(va_sid: str) -> str:
-    """The refusal for an excluded *va_sid*: held, else duplicate."""
+    """The refusal for an excluded *va_sid*: withdrawn, held, else duplicate."""
+    if is_withdrawn(va_sid):
+        return WITHDRAWN_MESSAGE
     return HELD_MESSAGE if is_held(va_sid) else DUPLICATE_MESSAGE
 
 

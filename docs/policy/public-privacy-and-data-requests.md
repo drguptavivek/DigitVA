@@ -197,6 +197,14 @@ a send was attempted, so the form does not reveal anything about an address.
 and the topic code. The event log line records the event, the topic and a
 keyed hash of the sender's address; never the name, address or message.
 
+## 7a. Consent withdrawal on a case (2026-11-20)
+
+`/data-requests` says that a recorded withdrawal stops all use of the case at
+once (no coding, review, statistics, exports or research datasets), that only
+an administrator can open it afterwards, and that the record is kept sealed
+unless erasure is also asked for. How staff record it:
+[consent-withdrawal.md](consent-withdrawal.md) (`digitva-4gu7`).
+
 ## 8. Deleting an account from the app or the website
 
 Owner decision 2026-10-27 (`digitva-et16`). Google Play requires an in-app

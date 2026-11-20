@@ -144,6 +144,7 @@ from app.services.death_identifier_service import (
     identifier_payloads,
     identifier_values_visible,
 )
+from app.services.duplicate_exclusion import not_withdrawn_case_condition
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.viewer_pii_service import PiiScope, pii_scope
 from app.services.visit_note import has_visit_note_condition
@@ -877,8 +878,9 @@ def _base_scope(preset: str, reach: _Reach):
 def _row_conditions(user: VaUsers, reach: _Reach, preset: str, f: CaseFilters, status) -> list:
     """Scope and every filter of a listing, the one list the page and the
     export (``export_summary``) both apply."""
-    conditions = [_base_scope(preset, reach), *_filter_conditions(user, reach, preset, f),
-                  *_status_conditions(preset, f, status)]
+    # A consent-withdrawn case is sealed: it lists nowhere (consent-withdrawal.md).
+    conditions = [_base_scope(preset, reach), not_withdrawn_case_condition(),
+                  *_filter_conditions(user, reach, preset, f), *_status_conditions(preset, f, status)]
     attention = _attention_condition(preset, f)
     if attention is not None:
         conditions.append(attention)

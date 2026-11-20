@@ -68,7 +68,7 @@ function Icon({ name, size = 18 }: { name: string; size?: number }) {
 /** Bottom-bar and sheet icon per navEntries key. */
 const ENTRY_ICONS: Record<string, string> = {
   "/": "home", "/death-registration": "register", "/collection": "collection", "/coding": "coding", "/reviewing": "reviewing", "/statistics": "area", "/training": "training",
-  "/organization": "organization", "/users": "users", "/settings": "settings", website: "website", "/data": "data", "/mentoring": "mentoring", "/mentor-view": "users", "/admin/": "admin",
+  "/organization": "organization", "/users": "users", "/settings": "settings", website: "website", "/data": "data", "/mentoring": "mentoring", "/mentor-view": "users", "/withdrawn-cases": "admin", "/admin/": "admin",
 };
 
 /**

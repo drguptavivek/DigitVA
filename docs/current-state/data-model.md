@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-20
 ---
 
 # Current Data Model
@@ -1007,6 +1007,20 @@ once by an admin, `consent_service.approve_notice_version`, migration
 `d4a7c9e2f5b1`). Unique (`project_id`, `version`, `language`). The text,
 purposes and fields are never updated: a change is a new version; only the
 approval is set later.
+
+### `va_consent_withdrawals` (digitva-4gu7)
+
+A respondent's consent withdrawal recorded by staff on a submitted case
+([consent-withdrawal.md](../policy/consent-withdrawal.md)): `withdrawal_id`,
+`death_id` (FK `va_death_register`), `requested_by` (person text, <=200),
+`requested_on` (date), `channel` (check: `contact_form`, `phone`,
+`in_person`, `email`, `other`), `contact_reference` (<=100), `note`
+(<=2000), `recorded_by`, `recorded_at`, and the admin undo `undone_by`,
+`undone_at`, `undo_reason`. Partial unique index
+`uq_va_consent_withdrawals_active_death` (`death_id` where `undone_at IS
+NULL`): one active withdrawal per case. `va_death_register.consent_withdrawn_at`
+mirrors the active row; `app/services/duplicate_exclusion.py` reads it so
+every reader drops the case. Migration `f4c2a8e6b1d9`.
 
 ### `va_consent_records` and `va_consent_record_purposes`
 

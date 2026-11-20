@@ -82,7 +82,7 @@ from app.services.coding_release_service import (
     release_coding_for_changed_payload,
     reopen_coding_after_revision,
 )
-from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS, EXCLUDED_HOLDS
+from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS, EXCLUDED_HOLDS, is_withdrawn
 from app.services.register_duplicate_service import DUPLICATE_CANDIDATES_MAX
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import (
@@ -978,6 +978,9 @@ def get_death(user: VaUsers, death_id: object, *, entries: list[dict] | None = N
     # start registers its own): docs/policy/public-demo.md section 3.
     if user.is_public_demo and death.registered_by != user.user_id:
         raise WebIntakeError("Death entry not found.", 404)
+    # A consent-withdrawn case is sealed: admin only (docs/policy/consent-withdrawal.md).
+    if death.consent_withdrawn_at is not None and not user.is_admin():
+        raise WebIntakeError("Death entry not found.", 404)
     # "Details pending" is its starter's (and supervisors') only (owner,
     # 2026-09-30, item 11); for anyone else it does not exist.
     if (
@@ -1772,7 +1775,7 @@ def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: ob
             death = cases.lock_case(death)
         if death.status == "submitted":
             raise WebIntakeError("A questionnaire has already been submitted for this death.", 409)
-        if death.status in ("duplicate", "cancelled"):
+        if death.status in ("duplicate", "cancelled") or death.consent_withdrawn_at is not None:
             raise WebIntakeError("This case is closed.", 409)
         existing = db.session.scalar(
             sa.select(VaWebIntakeDraft).where(
@@ -1856,6 +1859,12 @@ def list_drafts(user: VaUsers, *, status: str = "draft") -> list[VaWebIntakeDraf
     )
     if status:
         stmt = stmt.where(VaWebIntakeDraft.status == status)
+    if not user.is_admin():
+        # A consent-withdrawn case is sealed: admin only (docs/policy/consent-withdrawal.md).
+        stmt = stmt.where(~sa.exists().where(
+            VaDeathRegister.death_id == VaWebIntakeDraft.death_id,
+            VaDeathRegister.consent_withdrawn_at.is_not(None),
+        ))
     return list(db.session.scalars(stmt.order_by(VaWebIntakeDraft.updated_at.desc()).limit(200)).all())
 
 
@@ -1869,6 +1878,11 @@ def get_draft(user: VaUsers, draft_id: object, *, require_open: bool = False) ->
     except ValueError:
         draft = None
     if draft is None or draft.user_id != user.user_id or not training_scope.keeps_project(draft.project_id):
+        raise WebIntakeError("Draft not found.", 404)
+    # A consent-withdrawn case is sealed: admin only (docs/policy/consent-withdrawal.md).
+    if draft.death_id is not None and not user.is_admin() and db.session.scalar(
+        sa.select(VaDeathRegister.consent_withdrawn_at).where(VaDeathRegister.death_id == draft.death_id)
+    ) is not None:
         raise WebIntakeError("Draft not found.", 404)
     if require_open and draft.status != "draft":
         raise WebIntakeError("This draft is no longer editable.", 409)
@@ -3118,7 +3132,10 @@ def may_read_submitted_answers(user: VaUsers, va_sid: str) -> bool:
     the interviewer whose draft became it (``find_own_submission``) or a
     supervisor of its case (``is_interview_supervisor_for``). The read-only
     workspace view's intake gate and the case detail's ``can_view_answers``;
-    coding access (``Action.VIEW``) is decided separately. Two indexed reads."""
+    coding access (``Action.VIEW``) is decided separately. A consent-withdrawn
+    case is sealed: admin only. At most three indexed reads."""
+    if not user.is_admin() and is_withdrawn(va_sid):
+        return False
     if find_own_submission(user, va_sid) is not None:
         return True
     death = db.session.scalar(sa.select(VaDeathRegister).where(VaDeathRegister.va_sid == va_sid).limit(1))
@@ -3159,7 +3176,7 @@ def case_submission_view(user: VaUsers, death: VaDeathRegister, my_submission: b
         **({"draft_id": str(draft.draft_id)} if mine else {}),
     }
     view["can_view_answers"] = True
-    if mine and death.status not in ("duplicate", "cancelled"):
+    if mine and death.status not in ("duplicate", "cancelled") and death.consent_withdrawn_at is None:
         # Mirrors revise_submission's lock check.
         state = get_submission_workflow_state(death.va_sid)
         submission = db.session.get(VaSubmissions, death.va_sid)
@@ -3302,7 +3319,8 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     raw = {**data, **locked_answers, "interview_outcome": outcome}
     if death is not None:
         refusal = None
-        if death.status in ("duplicate", "cancelled"):
+        # A consent-withdrawn case is closed to every interview change too.
+        if death.status in ("duplicate", "cancelled") or death.consent_withdrawn_at is not None:
             refusal = WebIntakeError("This case is closed.", 409, "case_closed")
         elif completing:
             if death.status == "submitted" and death.va_sid != va_sid:
@@ -4678,6 +4696,7 @@ def _worklist_select(user: VaUsers):
             sa.and_(
                 VaSubmissionWorkflow.workflow_state == WORKFLOW_READY_FOR_CODING,
                 VaDeathRegister.status != DUPLICATE_CASE_STATUS,
+                VaDeathRegister.consent_withdrawn_at.is_(None),
             ).label("ready_for_coding"),
             other_started_by.label("other_draft_started_by"),
         )
@@ -4750,7 +4769,8 @@ def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None
         return {"cases": [], "counts": {}, "next_cursor": None, "possible_duplicates": {}, "reporter_only": set(),
                 "coding_status": {}}
     scope = scopes[0] if len(scopes) == 1 else sa.or_(*scopes)
-    base = [scope]
+    # A consent-withdrawn case is sealed (docs/policy/consent-withdrawal.md).
+    base = [scope, VaDeathRegister.consent_withdrawn_at.is_(None)]
     if project_id is not None:
         base.append(VaDeathRegister.project_id == project_id)
     if mine:
@@ -5017,6 +5037,9 @@ def get_supervised_case(user: VaUsers, death_id: object) -> VaDeathRegister:
         user.is_admin() or cases.is_interview_supervisor_for(user, death)
     ):
         raise WebIntakeError("Case not found.", 404)
+    # A consent-withdrawn case is sealed: admin only (docs/policy/consent-withdrawal.md).
+    if death.consent_withdrawn_at is not None and not user.is_admin():
+        raise WebIntakeError("Case not found.", 404)
     return death
 
 
@@ -5097,7 +5120,8 @@ def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, fla
     if sort not in SUPERVISION_SORTS:
         raise WebIntakeError(f"Unknown sort {sort!r}.")
     limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
-    scope = sa.and_(cases.supervised_case_condition(user), *training_scope.conditions(VaDeathRegister.project_id))
+    scope = sa.and_(cases.supervised_case_condition(user), VaDeathRegister.consent_withdrawn_at.is_(None),
+                    *training_scope.conditions(VaDeathRegister.project_id))
     counts = dict(
         db.session.execute(
             sa.select(VaDeathRegister.status, sa.func.count()).where(scope).group_by(VaDeathRegister.status)
@@ -5408,6 +5432,8 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     row["registered_by_name"] = registered_by_name if named else None
     row["started_by_name"] = started_by_name if named else None
     row["duplicate_of_death_id"] = str(death.duplicate_of_death_id) if death.duplicate_of_death_id else None
+    # Only an admin reaches a withdrawn case here (get_supervised_case).
+    row["consent_withdrawn"] = death.consent_withdrawn_at is not None
     return row
 
 

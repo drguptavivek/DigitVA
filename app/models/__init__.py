@@ -81,6 +81,7 @@ from app.models.va_consent import (
     MasProjectConsentSettings,
     VaConsentRecord,
     VaConsentRecordPurpose,
+    VaConsentWithdrawal,
 )
 from app.models.va_daily_kpi_aggregates import VaDailyKpiAggregates
 from app.models.va_data_manager_review import VaDataManagerReview
@@ -158,6 +159,7 @@ __all__ = [
     "MasProjectConsentSettings",
     "VaConsentRecord",
     "VaConsentRecordPurpose",
+    "VaConsentWithdrawal",
     "MapDeathIdentifier",
     "MapIdentifierAudit",
     "MapPayloadVersionPii",

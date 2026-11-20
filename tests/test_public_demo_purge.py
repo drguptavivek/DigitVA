@@ -314,7 +314,7 @@ class PurgeBase(PublicDemoBase):
                 "map_mentor_institute_user", "map_training_participants", "map_project_members",
                 "auth_mobile_codes",
                 "auth_recovery_codes", "auth_totp", "auth_webauthn_credentials",
-                "auth_account_deletion_requests"}
+                "auth_account_deletion_requests", "va_coder_feedback_notes", "va_consent_withdrawals"}
 
 
 class PurgeTests(PurgeBase):

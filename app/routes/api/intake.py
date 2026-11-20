@@ -45,6 +45,7 @@ from app.routes.api.request_helpers import (
 from app.services import attachment_service, collection_gate, register_pii_accessor, training_scope
 from app.services import case_transition_service as case_svc
 from app.services import consent_service as consent_svc
+from app.services import consent_withdrawal_service as withdrawal_svc
 from app.services import death_identifier_service as identifiers_svc
 from app.services import death_identifier_write as identifier_write_svc
 from app.services import device_auth_service as devices
@@ -1497,6 +1498,11 @@ def _supervised_body(*row) -> dict:
     body = intake_svc.serialize_supervised_row(current_user, *row)
     body["identifiers"] = identifiers_svc.identifier_payloads(current_user, [row[0]])[row[0].death_id]
     body["can_edit_identifiers"] = intake_svc.can_edit_identifiers(current_user, [row[0]])[row[0].death_id]
+    body["can_record_consent_withdrawal"] = withdrawal_svc.can_record(current_user, row[0])
+    # The withdrawal's details (who asked: person text) only on the sealed,
+    # admin-only case; a data manager never reaches a withdrawn case here.
+    if row[0].consent_withdrawn_at is not None:
+        body["consent_withdrawal"] = withdrawal_svc.serialize(withdrawal_svc.active_withdrawal(row[0]))
     return body
 
 
@@ -1512,6 +1518,7 @@ def _supervised_rows(rows) -> list[dict]:
     """The supervision list's rows, the page's ``identifiers`` loaded once."""
     identifiers = identifiers_svc.identifier_payloads(current_user, [row[0] for row in rows])
     editable = intake_svc.can_edit_identifiers(current_user, [row[0] for row in rows])
+    recordable = withdrawal_svc.recordable_ids(current_user, [row[0].death_id for row in rows])
     # Names open only where the caller sees PII (``serialize_supervised_row``).
     pii = pii_scope(current_user)
     names = register_pii_accessor.open_register_pii(
@@ -1519,7 +1526,8 @@ def _supervised_rows(rows) -> list[dict]:
     )
     return [dict(intake_svc.serialize_supervised_row(current_user, *row, register=names.get(row[0].death_id)),
                  identifiers=identifiers[row[0].death_id],
-                 can_edit_identifiers=editable[row[0].death_id])
+                 can_edit_identifiers=editable[row[0].death_id],
+                 can_record_consent_withdrawal=row[0].death_id in recordable)
             for row in rows]
 
 
@@ -1587,13 +1595,16 @@ def supervised_case_detail(death_id):
     (``visit_note_for_viewer``), or null. 404 outside the caller's reach."""
     training_scope.resolve("interview")
     death = intake_svc.get_supervised_case(current_user, death_id)
+    withdrawal_svc.record_admin_view(current_user, death)
     redact_pii = should_redact_pii(current_user, project_id=death.project_id)
     note = visit_notes_for([death.va_sid] if death.va_sid else [], redact_pii=redact_pii).get(death.va_sid)
-    return jsonify({
+    reply = {
         "case": _supervised_body(*intake_svc.supervised_case_row(death)),
         "candidates": intake_svc.list_candidates(death, redact_names=redact_pii),
         "visit_note": visit_note_for_viewer(note, redact_pii=redact_pii),
-    })
+    }
+    db.session.commit()  # the admin view's audit row, if any
+    return jsonify(reply)
 
 
 # The only keys a supervisor's duplicate candidate carries: no informant name,
@@ -1695,6 +1706,40 @@ def mark_duplicate(death_id):
         raise intake_svc.WebIntakeError("Name the case this one duplicates.")
     kept = intake_svc.get_supervised_case(current_user, p["duplicate_of"])
     case_svc.flag_case(death, actor=current_user, kind="duplicate", reason=_reason(p), duplicate_of=kept)
+    db.session.commit()
+    return _supervisor_reply(death)
+
+
+@bp.post("/supervision/cases/<death_id>/consent-withdrawal")
+@role_required("data_manager", "site_pi", "project_pi", "admin")
+def record_consent_withdrawal(death_id):
+    """Record a respondent's consent withdrawal on a submitted case
+    (docs/policy/consent-withdrawal.md). An admin, or a data manager,
+    In-charge or project PI whose grant covers the case (404 otherwise).
+    Body: ``requested_by`` (<=200), ``requested_on`` (YYYY-MM-DD, not
+    future), ``channel`` (contact_form, phone, in_person, email, other),
+    optional ``contact_reference`` (<=100) and ``note`` (<=2000). The case
+    then leaves every coding, review, count and export path, and is sealed
+    (admin only); an active allocation is released. 200 ``{"case": row}``
+    for an admin, ``{"consent_withdrawn": true}`` otherwise (the case is no
+    longer theirs to read); 409 not submitted or already withdrawn; 422
+    ``invalid_request``."""
+    death = withdrawal_svc.get_case(current_user, death_id)
+    withdrawal_svc.record(current_user, death, parse_body())
+    db.session.commit()
+    if not current_user.is_admin():
+        return jsonify({"consent_withdrawn": True})
+    return _supervisor_reply(death)
+
+
+@bp.post("/supervision/cases/<death_id>/consent-withdrawal/undo")
+@role_required("admin")
+def undo_consent_withdrawal(death_id):
+    """Admin only: undo a mistaken consent withdrawal. Body: ``reason``
+    (required, <=200). The case comes back everywhere. 409 when none is
+    recorded."""
+    death = withdrawal_svc.get_case(current_user, death_id)
+    withdrawal_svc.undo(current_user, death, parse_body().get("reason"))
     db.session.commit()
     return _supervisor_reply(death)
 

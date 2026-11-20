@@ -213,6 +213,12 @@ class VaDeathRegister(db.Model):
     started_by_user_id: so.Mapped[uuid.UUID | None] = so.mapped_column(
         sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=True
     )
+    # Set while a respondent's consent withdrawal is recorded on the case
+    # (va_consent_withdrawals holds who, when, how; cleared by an admin undo).
+    # The case then leaves every reader through app/services/duplicate_exclusion.py.
+    consent_withdrawn_at: so.Mapped[datetime | None] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
     # An interviewer's duplicate or cancel flag, waiting for a supervisor.
     pending_flag: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
     # The kept case this one is (flagged or confirmed as) a duplicate of.

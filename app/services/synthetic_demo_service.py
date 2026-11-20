@@ -65,6 +65,7 @@ DELETE_TABLES = (
     "map_bundle_records",
     "va_consent_record_purposes",
     "va_consent_records",
+    "va_consent_withdrawals",
     "va_death_register",
     "va_final_cod_authority",
     "va_coder_feedback_notes",

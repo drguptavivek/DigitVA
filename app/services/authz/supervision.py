@@ -42,6 +42,7 @@ _SUPERVISING_ROLES = (*sorted(SUPERVISING_ROLES, key=lambda r: r.value), VaAcces
 # Every data-manager power, as ResolvedGrants.is_dm_grant: data_manager,
 # the In-charge and project_pi on a tree project.
 _DM_SHAPED_ROLES = (VaAccessRoles.data_manager, VaAccessRoles.site_pi, VaAccessRoles.project_pi)
+DM_SHAPED_ROLES = _DM_SHAPED_ROLES
 
 
 def _covering_grants(

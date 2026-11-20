@@ -8,7 +8,7 @@ who recorded it. Records are never updated (a database trigger refuses it);
 a correction is a new record naming ``supersedes_consent_id``.
 """
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import sqlalchemy as sa
 import sqlalchemy.orm as so
@@ -190,6 +190,55 @@ class VaConsentRecordPurpose(db.Model):
     granted: so.Mapped[bool] = so.mapped_column(sa.Boolean, nullable=False)
 
     record: so.Mapped[VaConsentRecord] = so.relationship(back_populates="purposes")
+
+
+#: How a respondent asked to withdraw consent (docs/policy/consent-withdrawal.md).
+WITHDRAWAL_CHANNELS = ("contact_form", "phone", "in_person", "email", "other")
+
+
+class VaConsentWithdrawal(db.Model):
+    """A respondent's consent withdrawal recorded on a submitted case
+    (DPDP s6(4)/(6); docs/policy/consent-withdrawal.md). Not a
+    ``va_consent_records`` event: that row needs a notice version and the
+    interview's mode and carries no informant text, while this one is
+    entered later by staff. ``requested_by`` (e.g. "informant's son") is
+    the only person text; it is never logged or put in an audit reason.
+    At most one active (not undone) row per case; an admin undo fills the
+    ``undone_*`` columns and keeps the row. ``VaDeathRegister.consent_withdrawn_at``
+    mirrors the active row so every reader excludes the case cheaply."""
+
+    __tablename__ = "va_consent_withdrawals"
+    __table_args__ = (
+        sa.Index("uq_va_consent_withdrawals_active_death", "death_id", unique=True,
+                 postgresql_where=sa.text("undone_at IS NULL")),
+        sa.CheckConstraint(f"channel IN {_in(WITHDRAWAL_CHANNELS)}", name="channel"),
+    )
+
+    withdrawal_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    death_id: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_death_register.death_id"), nullable=False
+    )
+    requested_by: so.Mapped[str] = so.mapped_column(sa.String(200), nullable=False)
+    requested_on: so.Mapped[date] = so.mapped_column(sa.Date, nullable=False)
+    channel: so.Mapped[str] = so.mapped_column(sa.String(16), nullable=False)
+    #: Contact-form messages are not stored (they live in the mailbox), so
+    #: this is a short free-text pointer such as the message date, never the
+    #: sender's address.
+    contact_reference: so.Mapped[str | None] = so.mapped_column(sa.String(100), nullable=True)
+    note: so.Mapped[str | None] = so.mapped_column(sa.String(2000), nullable=True)
+    recorded_by: so.Mapped[uuid.UUID] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=False
+    )
+    recorded_at: so.Mapped[datetime] = so.mapped_column(
+        sa.DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+    undone_by: so.Mapped[uuid.UUID | None] = so.mapped_column(
+        sa.Uuid(as_uuid=True), sa.ForeignKey("va_users.user_id"), nullable=True
+    )
+    undone_at: so.Mapped[datetime | None] = so.mapped_column(sa.DateTime(timezone=True), nullable=True)
+    undo_reason: so.Mapped[str | None] = so.mapped_column(sa.String(200), nullable=True)
 
 
 class MapConsentAudit(db.Model):

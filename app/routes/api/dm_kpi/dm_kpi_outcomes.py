@@ -59,6 +59,7 @@ from app.services.duplicate_exclusion import (
     DUPLICATE_CASE_STATUS,
     not_confirmed_duplicate_condition,
     not_confirmed_duplicate_sql,
+    not_withdrawn_case_condition,
 )
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql, submission_is_in_odk
 from app.services.submission_analytics_mv import COD_SNAPSHOT_MV_NAME
@@ -422,6 +423,7 @@ def _register_counts(scope: DmScope, project_ids: list[str], *, by_sex: bool) ->
     ).select_from(VaDeathRegister)).where(
         VaDeathRegister.project_id.in_(project_ids),
         VaDeathRegister.status.not_in([DUPLICATE_CASE_STATUS, CANCELLED_CASE_STATUS]),
+        not_withdrawn_case_condition(),
         scope_clause(scope, "va_death_register", "va_death_register"),
     )
     if by_sex:

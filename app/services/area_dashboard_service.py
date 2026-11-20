@@ -75,6 +75,7 @@ from app.services.cod_bucket_mapping_service import (
 from app.services.duplicate_exclusion import (
     DUPLICATE_CASE_STATUS,
     not_confirmed_duplicate_condition,
+    not_withdrawn_case_condition,
 )
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.submission_analytics_mv import (
@@ -410,6 +411,7 @@ def _reported_deaths(project_id: str):
     return sa.and_(
         VaDeathRegister.project_id == project_id,
         VaDeathRegister.status.not_in([DUPLICATE_CASE_STATUS, CANCELLED_CASE_STATUS]),
+        not_withdrawn_case_condition(),
     )
 
 
@@ -866,6 +868,7 @@ def _medians(in_area) -> dict:
             sa.and_(
                 case_row.va_sid == core.c.va_sid,
                 case_row.status.not_in([DUPLICATE_CASE_STATUS, CANCELLED_CASE_STATUS]),
+                not_withdrawn_case_condition(case_row),
             ),
         )
         .outerjoin(
@@ -1360,6 +1363,7 @@ def _scope_totals(scope: AreaScope) -> tuple[int, int, int]:
                 sa.select(sa.func.count(VaDeathRegister.death_id)).where(
                     VaDeathRegister.project_id == project_id,
                     VaDeathRegister.status.notin_(("duplicate", "cancelled")),
+                    not_withdrawn_case_condition(),
                 )
             )
             or 0
@@ -1505,8 +1509,11 @@ def _staff_area(scope: AreaScope, unit_id, site_id: str | None):
 
 
 def _case_not_duplicate(case=VaDeathRegister):
-    """*case* (outer-joined or not) is not a confirmed duplicate."""
-    return sa.or_(case.status.is_(None), case.status != DUPLICATE_CASE_STATUS)
+    """*case* (outer-joined or not) is not a confirmed duplicate nor withdrawn."""
+    return sa.or_(
+        case.status.is_(None),
+        sa.and_(case.status != DUPLICATE_CASE_STATUS, not_withdrawn_case_condition(case)),
+    )
 
 
 def _interviewer_rows(in_area) -> tuple[list[dict], bool]:
@@ -1521,7 +1528,7 @@ def _interviewer_rows(in_area) -> tuple[list[dict], bool]:
     case_area = in_area(
         VaDeathRegister.project_id, VaDeathRegister.site_id, VaDeathRegister.org_unit_id
     )
-    case_where = [case_area, VaDeathRegister.status != DUPLICATE_CASE_STATUS]
+    case_where = [case_area, VaDeathRegister.status != DUPLICATE_CASE_STATUS, not_withdrawn_case_condition()]
     attributions = sa.union_all(
         sa.select(
             VaDeathRegister.registered_by.label("user_id"), sa.literal("registered").label("kind")

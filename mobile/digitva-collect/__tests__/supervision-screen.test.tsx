@@ -31,6 +31,16 @@ jest.mock("@drguptavivek/who-2022-va/native", () => {
   return { WhoVaQuestionControls: { SingleChoice, MultipleChoice: () => null } };
 });
 
+jest.mock("../src/ConfirmDialog", () => ({
+  // A stand-in: the confirm and cancel buttons only (the real dialog is a Modal).
+  ConfirmDialog: ({ confirmLabel, onConfirm, onCancel }: { confirmLabel: string; onConfirm: () => void; onCancel: () => void }) => (
+    <div data-dialog="confirm">
+      <button data-label={`dialog:${confirmLabel}`} onClick={onConfirm} />
+      <button data-label="dialog:cancel" onClick={onCancel} />
+    </div>
+  ),
+}));
+
 import { SupervisionPanel } from "../src/web/SupervisionPanel";
 import { ApiError } from "../src/api";
 
@@ -461,6 +471,57 @@ describe("SupervisionPanel", () => {
     expect(JSON.stringify(scoped.toJSON())).toContain(en.supervisionNoDecision);
     await press(scoped, `${en.supervisionTileOverdue} (2)`);
     expect(JSON.stringify(scoped.toJSON())).toContain(en.supervisionNoCasesHere);
+  });
+
+  it("records a consent withdrawal on a submitted case only after the confirmation", async () => {
+    fakeApi({ list: () => page([caseRow({ state: "submitted", can_record_consent_withdrawal: true })]), reply: { consent_withdrawn: true } });
+    const tree = await render();
+
+    await press(tree, en.supervisionRecordWithdrawal, 0);
+    const submitButton = () => buttons(tree, en.supervisionRecordWithdrawal)[1];
+    expect(submitButton().props.disabled).toBe(true);
+    const input = (label: string) => tree.root.findAll((node) => node.props.accessibilityLabel === label && typeof node.props.onChangeText === "function")[0];
+    act(() => {
+      input(en.supervisionWithdrawalRequestedBy).props.onChangeText("  informant's son ");
+      input(en.supervisionWithdrawalRequestedOn).props.onChangeText("2026-11-19");
+      input(en.supervisionWithdrawalNote).props.onChangeText("Phoned the office");
+    });
+    await pick(tree, "supervision-withdrawal-channel", "phone");
+    expect(submitButton().props.disabled).toBe(false);
+
+    await press(tree, en.supervisionRecordWithdrawal, 1);
+    expect(mockRequest.mock.calls.some((call) => call[1]?.method === "POST")).toBe(false);
+    await press(tree, `dialog:${en.supervisionRecordWithdrawal}`);
+
+    const post = mockRequest.mock.calls.find((call) => call[1]?.method === "POST");
+    expect(post?.[0]).toBe("/api/v1/intake/supervision/cases/D1/consent-withdrawal");
+    expect(post?.[1]).toEqual({
+      method: "POST",
+      json: { requested_by: "informant's son", requested_on: "2026-11-19", channel: "phone", contact_reference: undefined, note: "Phoned the office" },
+    });
+  });
+
+  it("offers the withdrawal only where the server says the caller may record it", async () => {
+    fakeApi({ list: () => page([caseRow({ state: "submitted", can_record_consent_withdrawal: false }), caseRow({ death_id: "D2", state: "registered", can_record_consent_withdrawal: true })]) });
+    const tree = await render();
+    expect(buttons(tree, en.supervisionReopen).length).toBeGreaterThan(0);
+    expect(buttons(tree, en.supervisionRecordWithdrawal)).toHaveLength(0);
+  });
+
+  it("shows the withdrawn banner and lets the admin undo with a reason", async () => {
+    fakeApi({ list: () => page([caseRow({ state: "submitted", consent_withdrawn: true })]) });
+    const tree = await render();
+
+    expect(JSON.stringify(tree.toJSON())).toContain(en.supervisionWithdrawnBanner);
+    expect(buttons(tree, en.supervisionMarkDuplicate)).toHaveLength(0);
+    await press(tree, en.supervisionWithdrawalUndo, 0);
+    expect(buttons(tree, en.supervisionWithdrawalUndo)[0].props.disabled).toBe(true);
+    typeReason(tree, " wrong case ");
+    await press(tree, en.supervisionWithdrawalUndo, 0);
+
+    const post = mockRequest.mock.calls.find((call) => call[1]?.method === "POST");
+    expect(post?.[0]).toBe("/api/v1/intake/supervision/cases/D1/consent-withdrawal/undo");
+    expect(post?.[1]).toEqual({ method: "POST", json: { reason: "wrong case" } });
   });
 
   it("shows the forbidden text and calls nothing without a supervisor role", async () => {

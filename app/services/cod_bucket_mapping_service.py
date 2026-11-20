@@ -4936,7 +4936,10 @@ def _cod_bucket_resolved_rows(scheme: MasCodBucketScheme, *, va_sids=None):
             sa.func.min(VaDeathRegister.date_of_death)
             .filter(VaDeathRegister.status.not_in((DUPLICATE_CASE_STATUS, "cancelled")))
             .label("date_of_death"),
-            sa.func.bool_or(VaDeathRegister.status == DUPLICATE_CASE_STATUS).label("is_duplicate"),
+            sa.func.bool_or(sa.or_(
+                VaDeathRegister.status == DUPLICATE_CASE_STATUS,
+                VaDeathRegister.consent_withdrawn_at.is_not(None),
+            )).label("is_duplicate"),
         )
         .where(VaDeathRegister.va_sid.is_not(None))
         .group_by(VaDeathRegister.va_sid)

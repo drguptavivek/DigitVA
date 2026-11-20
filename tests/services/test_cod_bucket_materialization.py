@@ -271,11 +271,12 @@ class CodBucketMaterializationTests(BaseTestCase):
             va_finassess_updatedat=submitted_at,
         ))
 
-    def _case(self, sid, number, *, status, date_of_death):
+    def _case(self, sid, number, *, status, date_of_death, consent_withdrawn_at=None):
         db.session.add(VaDeathRegister(
             project_id=PROJECT_ID, site_id=SITE_A, death_number=number, unique_id=f"CODMAT-{number}",
             deceased_name="Test Case", deceased_sex="male", date_of_death=date_of_death,
             registered_by=self.base_coder_user.user_id, status=status, va_sid=sid,
+            consent_withdrawn_at=consent_withdrawn_at,
         ))
 
     def _seed_submissions(self):
@@ -294,6 +295,9 @@ class CodBucketMaterializationTests(BaseTestCase):
         self._submission("uuid:cm-neonate", "I21 Acute MI", days=10)
         self._submission("uuid:cm-duplicate", "I21 Acute MI", years=52)
         self._case("uuid:cm-duplicate", 997001, status="duplicate", date_of_death=old.date())
+        self._submission("uuid:cm-withdrawn", "I21 Acute MI", years=52)
+        self._case("uuid:cm-withdrawn", 997003, status="submitted", date_of_death=old.date(),
+                   consent_withdrawn_at=self.now)
         self._submission("uuid:cm-missing", "I21 Acute MI", years=52, sync_issue_code=MISSING_IN_ODK)
         self._submission("uuid:cm-site-b-unit", "I21 Acute MI", years=52, form_id=FORM_B,
                          org_unit_id=self.unit_id)
@@ -427,6 +431,7 @@ class CodBucketMaterializationTests(BaseTestCase):
         self.assertNotIn("uuid:cm-gap", {sid for sid, _ in rows})
         self.assertIsNone(node[("uuid:cm-neonate", "neonate")])
         self.assertFalse(rows[("uuid:cm-duplicate", adult)].is_reportable)
+        self.assertFalse(rows[("uuid:cm-withdrawn", adult)].is_reportable)
         self.assertFalse(rows[("uuid:cm-missing", adult)].is_reportable)
         self.assertTrue(rows[("uuid:cm-i21", adult)].is_reportable)
         dated = rows[("uuid:cm-dated", adult)]

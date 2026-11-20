@@ -31,8 +31,8 @@ const BEFORE: Array<[string, Fixture, string[]]> = [
   ["mentor member", { mentor: { member: true } }, ["/mentoring", "/mentor-view"]],
   ["mentor institute admin", { mentor: { admin_of: ["I1"] } }, ["/mentoring", "/mentor-view"]],
   ["mentoring capability", { caps: { mentoring: true } }, ["/mentoring", "/mentor-view"]],
-  ["platform admin", { is_admin: true }, ["/admin/", "/users", "/statistics", "/data", "/mentor-view"]],
-  ["admin role", { roles: ["admin"] }, ["/admin/", "/users", "/statistics", "/data", "/mentor-view"]],
+  ["platform admin", { is_admin: true }, ["/admin/", "/withdrawn-cases", "/users", "/statistics", "/data", "/mentor-view"]],
+  ["admin role", { roles: ["admin"] }, ["/admin/", "/withdrawn-cases", "/users", "/statistics", "/data", "/mentor-view"]],
   ["project PI", { roles: ["project_pi"] }, ["/users", "/statistics"]],
   ["no role", {}, []],
 ];
@@ -72,7 +72,7 @@ test("order: the owner's primary items, then More in the owner's order", () => {
   });
   const { primary, more } = navEntries(all);
   expect(primary.map((entry) => entry.labelKey)).toEqual(["home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics"]);
-  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navUsers", "navSettings", "navWebsite", "navData", "navMentoring", "navMentorView", "homeAdminConsole"]);
+  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navUsers", "navSettings", "navWebsite", "navData", "navMentoring", "navMentorView", "navWithdrawnCases", "homeAdminConsole"]);
 });
 
 test("Deaths opens the deaths list for a user who interviews or reports deaths", () => {

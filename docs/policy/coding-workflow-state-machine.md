@@ -41,6 +41,11 @@ a supervisor holding a `data_manager` grant ([Web Intake Policy](web-intake.md),
 
 Decisions 10 and 14 of `.tasks/2026-09-28-interviewer-worklist.md`.
 
+The same predicate also excludes a case whose respondent withdrew consent
+(`va_death_register.consent_withdrawn_at`; [consent-withdrawal.md](consent-withdrawal.md)):
+its submission leaves every reader below in the same way, and an admin undo
+brings it back as a reopen does.
+
 - **One predicate.** Every reader of coding state excludes a submission whose
   web case is a confirmed duplicate through
   `app/services/duplicate_exclusion.py`: `not_confirmed_duplicate_condition`

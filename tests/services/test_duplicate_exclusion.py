@@ -61,6 +61,9 @@ class ConfirmedDuplicateExclusionTests(BaseTestCase):
     PROJECT_ID = "DUPX01"
     SITE_ID = "DX01"
     FORM_ID = "DUPX01DX0101"
+    #: What a named action on the excluded case answers (a subclass reruns
+    #: every reader test for consent withdrawal: test_consent_withdrawal.py).
+    REFUSAL_MESSAGE = DUPLICATE_MESSAGE
 
     @classmethod
     def setUpClass(cls):
@@ -252,7 +255,7 @@ class ConfirmedDuplicateExclusionTests(BaseTestCase):
         with self.assertRaises(AllocationError) as refused:
             admin_override_to_recode(self.dana, case.va_sid)
         self.assertEqual((str(refused.exception), refused.exception.status_code),
-                         (DUPLICATE_MESSAGE, 409))
+                         (self.REFUSAL_MESSAGE, 409))
 
     # ── allocation revocation and finalized duplicates ─────────────────────
 

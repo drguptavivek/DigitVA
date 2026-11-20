@@ -82,6 +82,7 @@ export function navEntries(bootstrap: NavBootstrap): { primary: NavEntry[]; more
   if (screens.includes("/mentoring") || bootstrap.access?.is_admin || roles.includes("admin") || roles.includes("data_manager")) {
     more.push({ key: "/mentor-view", labelKey: "navMentorView", route: "/mentor-view" });
   }
+  if (bootstrap.access?.is_admin || roles.includes("admin")) more.push({ key: "/withdrawn-cases", labelKey: "navWithdrawnCases", route: "/withdrawn-cases" });
   if (bootstrap.access?.is_admin || roles.includes("admin")) more.push({ key: "/admin/", labelKey: "homeAdminConsole", serverPath: "/admin/" });
   return { primary, more };
 }
@@ -107,7 +108,7 @@ export function activeTab(pathname: string, params: NavParams = {}): string | un
   }
   // The interview form and a case's details are reached from VA Interview.
   if (["/worklist", "/interview", "/case", "/form"].includes(pathname)) return "/collection";
-  return ["/coding", "/reviewing", "/collection", "/death-registration", "/mentoring", "/statistics", "/data", "/organization", "/users", "/settings"]
+  return ["/coding", "/reviewing", "/collection", "/death-registration", "/mentoring", "/statistics", "/data", "/organization", "/users", "/settings", "/withdrawn-cases"]
     .find((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 

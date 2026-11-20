@@ -135,6 +135,7 @@ PLAN: tuple[tuple[str, str], ...] = (
     ("va_consent_record_purposes",
      "consent_id IN (SELECT consent_id FROM va_consent_records WHERE death_id IN :deaths)"),
     ("va_consent_records", "death_id IN :deaths"),
+    ("va_consent_withdrawals", "death_id IN :deaths OR recorded_by = :u OR undone_by = :u"),
     ("va_web_intake_attachments", "draft_id IN :drafts"),
     ("va_web_intake_draft_sections", "draft_id IN :drafts"),
     ("va_web_intake_drafts", "draft_id IN :drafts"),

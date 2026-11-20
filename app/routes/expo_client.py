@@ -66,6 +66,7 @@ _SPA_ROUTE_ROOTS = frozenset(
         "training",
         "unlock",
         "users",
+        "withdrawn-cases",
         "worklist",
         "workspace",
         "open-source-licenses",

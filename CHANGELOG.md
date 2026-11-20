@@ -28,6 +28,9 @@ What landed, newest first. Details live in the commits and the linked docs;
   figures at `/api/v1/public/totals.json` (`e108e7205`).
 - Mentor view, web: per-coder progress, read-only case list, notes to coders;
   migration `e3b7c9d1f5a2` (`10b495f9a`, `digitva-oux5`).
+- DPDP consent withdrawal: record on a case, excluded everywhere, sealed
+  in authz for non-admins, admin Withdrawn cases page and undo; migration
+  `f4c2a8e6b1d9` (`digitva-4gu7`). Erasure not built.
 - State machine diagrams from code (`1eabae74b`,
   docs/current-state/state-machines.md). One full suite per push
   (`f8a4e42a1`).

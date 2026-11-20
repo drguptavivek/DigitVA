@@ -42,11 +42,9 @@ and maps stay in the browser).
 
 ## Ranked next steps
 
-0. In flight: DPDP consent withdrawal (`digitva-4gu7`, owner design 1(a):
-   mark withdrawn, exclude via the shared duplicate-exclusion rule, data
-   sealed admin-only, erasure separate; admin/PI/in-scope DM record it).
-   Note: the consent parser accepts only granted/refused today
-   (docs/current-state/state-machines.md). Follow-ups: phone SA panel
+0. Consent withdrawal landed (`digitva-4gu7`); erasure of a withdrawn case
+   is not built (owner to decide). Migrations since staging:
+   `e3b7c9d1f5a2`, `f4c2a8e6b1d9`. Follow-ups: phone SA panel
    (`digitva-088j`), native mentor view (`digitva-3vj8`). Do not retire the
    server picker page before 2027-01-20 (`digitva-dxg1`).
 1. Device check of today's Collect changes on a CI-built APK

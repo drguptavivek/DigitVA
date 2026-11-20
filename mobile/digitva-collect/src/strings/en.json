@@ -2248,5 +2248,6 @@
   "withdrawnCasesRow": "{unique_id} · {project} · asked {requested_on} · recorded {recorded_at} · {channel} · by {recorded_by}",
   "withdrawnCasesUndone": "Undone",
   "withdrawnCasesOpen": "Open case",
-  "supervisionWithdrawalDetail": "Asked by {who} on {date} ({channel})"
+  "supervisionWithdrawalDetail": "Asked by {who} on {date} ({channel})",
+  "certificateButton": "Certificate (PDF)"
 }

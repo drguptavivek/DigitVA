@@ -69,6 +69,7 @@ from app.services.coder_cod_service import (
     other_conditions_choices,
     require_coding_session,
 )
+from app.services.cod_certificate_service import is_coded_tree_case
 from app.services.coder_workflow_service import get_active_coding_allocation
 from app.services.coding_service import _count_attachments_per_category
 from app.services.demo_project_service import is_demo_training_project
@@ -743,6 +744,9 @@ def workspace(va_sid):
             "social_autopsy_enabled": not view and social_autopsy_enabled(case.project, case.va_action),
             # False for an intake-only view: its workflow events stay READ_EVENTS's.
             "history_available": not case.intake_only,
+            # A coded org-project case in a read-only view has a printable
+            # certificate (/coding/area/<sid>/certificate); the page re-checks.
+            "certificate_available": bool(view and not case.intake_only and is_coded_tree_case(va_sid, case.project_id)),
         },
         "categories": [
             {

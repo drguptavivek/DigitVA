@@ -7,6 +7,7 @@ import { Button, Screen, errorText, useUiStyles } from "../ui";
 import { useTheme } from "../theme";
 import { Chevron } from "../web/Chevron";
 import { CategoryPanel } from "./CategoryPanel";
+import { CertificateButton } from "./CertificateButton";
 import { SmartVaReference } from "./SmartVaReference";
 import { PrivateNotePanel } from "./PrivateNotePanel";
 import { QualityPanels } from "./QualityPanels";
@@ -638,7 +639,12 @@ function CaseReference({ workspace }: { workspace: WorkspacePayload }) {
 }
 
 function AllocatedCodReference({ workspace }: { workspace: WorkspacePayload }) {
-  return <CodArtifacts title="Allocated Causes of Death" artifacts={referenceArtifacts(workspace)} empty="No cause-of-death assessments have been recorded for this submission yet." />;
+  return (
+    <>
+      <CodArtifacts title="Allocated Causes of Death" artifacts={referenceArtifacts(workspace)} empty="No cause-of-death assessments have been recorded for this submission yet." />
+      <CertificateButton workspace={workspace} />
+    </>
+  );
 }
 
 /**

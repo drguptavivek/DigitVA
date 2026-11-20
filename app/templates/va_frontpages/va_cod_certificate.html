@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Cause of death certificate {{ c.case_id }}</title>
+  <style>
+    @page { size: A4; margin: 14mm; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #000; background: #fff; margin: 0; }
+    .sheet { max-width: 182mm; margin: 0 auto; padding: 12px; }
+    h1 { font-size: 15pt; margin: 0 0 2px; text-align: center; }
+    .sub { text-align: center; font-size: 9pt; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    th, td { border: 1px solid #000; padding: 4px 6px; vertical-align: top; text-align: left; }
+    th { background: #eee; font-weight: bold; }
+    .frame { font-weight: bold; margin: 10px 0 4px; }
+    .blank { height: 1.6em; }
+    .small { font-size: 9pt; }
+    .foot { margin-top: 14px; border-top: 1px solid #000; padding-top: 6px; font-size: 9pt; }
+    .actions { text-align: right; margin-bottom: 8px; }
+    button { font-size: 11pt; padding: 6px 14px; }
+    @media print { .actions { display: none; } .sheet { padding: 0; max-width: none; } }
+  </style>
+</head>
+<body>
+<div class="sheet">
+  <div class="actions"><button type="button" onclick="window.print()">Download PDF</button></div>
+  <h1>International Form of Medical Certificate of Cause of Death</h1>
+  <div class="sub">Coding result of a verbal autopsy, in the layout of the WHO form</div>
+
+  <table>
+    <tr><th>Case id</th><td>{{ c.case_id }}</td><th>Age</th><td>{{ c.age }}</td><th>Sex</th><td>{{ c.sex }}</td></tr>
+    <tr><th>Date of death</th><td>{{ c.date_of_death or "—" }}</td>
+        <th>Place of death</th><td colspan="3">{{ c.place_of_death or "—" }}</td></tr>
+    <tr><th>Deceased</th><td colspan="2">{{ c.deceased_name or "—" }}</td>
+        <th>Respondent</th><td colspan="2">{{ c.respondent or "—" }}</td></tr>
+    <tr><th>Address</th><td colspan="3">{{ c.address or "—" }}</td>
+        <th>Identifier</th><td>{{ c.real_id or "—" }}</td></tr>
+  </table>
+
+  <div class="frame">Frame A. Medical data: part 1 and part 2</div>
+  <table>
+    <tr><th style="width:62%">1. Report disease or condition directly leading to death on line (a)</th>
+        <th>Approximate interval from onset to death</th></tr>
+    {% for line in c.part1 %}
+    <tr>
+      <td><strong>({{ "abcde"[loop.index0] }})</strong>
+        {% if loop.index0 %}<span class="small">due to (or as a consequence of)</span>{% endif %}
+        {% for cond in line.conditions %}<div>{{ cond.text }}{% if cond.code %} <span class="small">[{{ cond.code }}]</span>{% endif %}</div>{% endfor %}
+        {% if not line.conditions %}<div class="blank"></div>{% endif %}</td>
+      <td>{{ line.interval }}</td>
+    </tr>
+    {% endfor %}
+    <tr><th colspan="2">2. Other significant conditions contributing to the death</th></tr>
+    <tr><td colspan="2">
+      {% for cond in c.part2 %}<div>{{ cond.text }}{% if cond.code %} <span class="small">[{{ cond.code }}]</span>{% endif %}</div>{% endfor %}
+      {% if not c.part2 %}<div class="blank"></div>{% endif %}</td></tr>
+    <tr><th>Underlying cause of death</th><td colspan="1">{{ c.underlying_cause }}</td></tr>
+  </table>
+
+  <div class="frame">Coding</div>
+  <table>
+    <tr><th>Date coded</th><td>{{ c.coded_at|user_timezone }}</td><th>Review</th><td>{{ c.outcome }}</td></tr>
+    <tr><th>Coded by</th><td>{{ c.coded_by or "—" }}</td><th>Reviewed by</th><td>{{ c.reviewed_by or "—" }}</td></tr>
+  </table>
+
+  <div class="foot">
+    Cause of death assigned through verbal autopsy. Not a legal death certificate.<br>
+    Project: {{ c.project_name }} &middot; Generated {{ c.generated_at|user_timezone }}
+  </div>
+</div>
+</body>
+</html>

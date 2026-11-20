@@ -633,6 +633,16 @@ reviewer with `Action.REVIEW` and their own active reviewing allocation
 (`reviewer_coding_service.require_reviewing_session`). Admin demo coding is
 not served.
 
+Certificate (`docs/policy/cod-certificate-export.md`): a `mode=view` body has
+`case.certificate_available` (true when the case is coded and its project is an
+organization-tree project; false otherwise, and absent on older servers). It
+only gates the web "Certificate (PDF)" button, which opens the Flask page
+`GET /coding/area/<sid>/certificate` (`routes/coding.py:cod_certificate`,
+`services/cod_certificate_service.py`): `Action.VIEW`, 404 for every
+unavailable case, redaction by `should_redact_pii`, one
+`cod_certificate_viewed` audit row per view, PDF through the browser's print
+dialog. The Collect native app does not offer it (follow-up).
+
 `mode=view` (`digitva-xl43.8`) is the read-only opening of a case, the web's
 `/coding/area/<sid>`: authorized by `Action.VIEW` (`authz.require`), not by an
 allocation, for coder, coding_tester, reviewer, collaborator,

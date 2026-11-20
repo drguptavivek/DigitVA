@@ -1,10 +1,11 @@
 import dataclasses
+import uuid
 
 import sqlalchemy as sa
 from app import db
-from app.models import VaSubmissions, VaSubmissionWorkflow, VaAllocations, VaAllocation, VaStatuses, VaForms, VaAccessRoles
+from app.models import VaSubmissions, VaSubmissionsAuditlog, VaSubmissionWorkflow, VaAllocations, VaAllocation, VaStatuses, VaForms, VaAccessRoles
 from flask_login import current_user
-from flask import Blueprint, render_template, url_for, redirect, request
+from flask import Blueprint, abort, make_response, render_template, url_for, redirect, request
 from app.decorators import role_required
 from app.utils import (
     va_permission_abortwithflash,
@@ -19,6 +20,7 @@ from app.services.coder_dashboard_service import (
 from app.services.authz import (
     Action,
     AuthzError,
+    effective_roles,
     coding_gate_waivers,
     require,
     resolve_grants,
@@ -27,6 +29,7 @@ from app.services.authz import (
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.coding_service import render_va_coding_page
+from app.services.cod_certificate_service import certificate_context
 from app.services.coder_workflow_service import (
     AllocationError,
     AllocationResult,
@@ -432,3 +435,36 @@ def area_view_submission(va_sid):
     else:
         back_role = "viewer"
     return render_va_coding_page(submission, "vaarea", "vaview", back_role)
+
+
+@coding.get("/area/<va_sid>/certificate")
+@role_required("coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin")
+def cod_certificate(va_sid):
+    """Printable WHO-form certificate of a coded organization-project case.
+
+    VIEW alone, as the read-only case view. Every refusal, scope included, is
+    the same 404 so the page does not say why (docs/policy/cod-certificate-export.md).
+    The PDF is the browser's print dialog; each view is audited, ids only.
+    """
+    try:
+        require(current_user, Action.VIEW, va_sid)
+    except AuthzError:
+        abort(404)
+    context = certificate_context(current_user, va_sid)
+    if context is None:
+        abort(404)
+    roles = sorted(effective_roles(current_user))
+    db.session.add(VaSubmissionsAuditlog(
+        va_sid=va_sid,
+        va_audit_byrole=roles[0] if roles else "viewer",
+        va_audit_by=current_user.user_id,
+        va_audit_operation="r",
+        va_audit_action="cod_certificate_viewed",
+        va_audit_entityid=uuid.uuid4(),
+    ))
+    db.session.commit()
+    response = make_response(render_template("va_frontpages/va_cod_certificate.html", c=context))
+    # Personal data on a shared browser is never cached.
+    response.cache_control.private = True
+    response.cache_control.no_store = True
+    return response

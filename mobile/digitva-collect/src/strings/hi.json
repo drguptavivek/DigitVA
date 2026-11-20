@@ -2248,5 +2248,6 @@
   "withdrawnCasesRow": "{unique_id} · {project} · अनुरोध {requested_on} · दर्ज {recorded_at} · {channel} · दर्जकर्ता {recorded_by}",
   "withdrawnCasesUndone": "पूर्ववत",
   "withdrawnCasesOpen": "मामला खोलें",
-  "supervisionWithdrawalDetail": "{who} ने {date} को अनुरोध किया ({channel})"
+  "supervisionWithdrawalDetail": "{who} ने {date} को अनुरोध किया ({channel})",
+  "certificateButton": "प्रमाणपत्र (पीडीएफ)"
 }

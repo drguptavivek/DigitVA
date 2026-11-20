@@ -23,7 +23,15 @@ token may now `PATCH /profile/languages`; new `POST /auth/forgot-password`;
 the sign-in APIs refuse a mobile over 16 characters with 400
 `invalid_request` (apps send 13). The Collect changes need a new CI-built
 APK (`react-native-webview` was removed, a native change): CI run
-44591287344 (publish off, started 2026-11-20) builds it; check it passed.
+44591287344 built it (passed) but predates the diagnostics opt-in and the
+offline NQA; build a new APK before the device check.
+
+Also on `main` since 2026-11-20 (CHANGELOG.md): diagnostics opt-in, Users
+page revoke, own-case coding block, offline NQA gates, home totals + JSON,
+the web mentor view (migration `e3b7c9d1f5a2`, the only migration since
+staging). Re-audit for old APKs before deploy: additive fields and existing
+refusal codes only, but a coder holding their own case outside self-coding
+loses coding access to it.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect
@@ -34,6 +42,13 @@ and maps stay in the browser).
 
 ## Ranked next steps
 
+0. In flight: DPDP consent withdrawal (`digitva-4gu7`, owner design 1(a):
+   mark withdrawn, exclude via the shared duplicate-exclusion rule, data
+   sealed admin-only, erasure separate; admin/PI/in-scope DM record it).
+   Note: the consent parser accepts only granted/refused today
+   (docs/current-state/state-machines.md). Follow-ups: phone SA panel
+   (`digitva-088j`), native mentor view (`digitva-3vj8`). Do not retire the
+   server picker page before 2027-01-20 (`digitva-dxg1`).
 1. Device check of today's Collect changes on a CI-built APK
    (`digitva-9m8o`). Earlier phone checks still open: offline coding journey
    (`digitva-9cll.5`), coding parity remainder (`digitva-9cll.22`), ICD-10

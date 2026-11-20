@@ -14,6 +14,23 @@ What landed, newest first. Details live in the commits and the linked docs;
 - Four tests no longer fail just after midnight IST (`67b3b798f`).
 - Old-APK audit of `f2333a29e..main`: safe (no migrations, additive
   responses, no upload/sync change); check the old-APK picker by hand.
+- Privacy page: cookies and browser storage section; website sends no
+  diagnostics (`d52f16faf`, `6fcdaad2e`). App diagnostics are opt-in with a
+  one-time prompt at native start (`378781685`; needs a new APK).
+- Users page revokes unused enrolment codes and devices; a shared phone
+  signs out only the target unless the viewer sees everyone on it
+  (`f8ce15a1f`, `digitva-342x`).
+- Coders cannot code cases they collected outside self-coding projects, by
+  any path (`aa81162f6`, `digitva-yeg3.1`).
+- Offline coding asks the project's NQA; server gates NQA and SA
+  (`0f934482a`, `digitva-p8uj`; phone SA is `digitva-088j`).
+- Home page shows coded cases, interviewers and interviews by year; same
+  figures at `/api/v1/public/totals.json` (`e108e7205`).
+- Mentor view, web: per-coder progress, read-only case list, notes to coders;
+  migration `e3b7c9d1f5a2` (`10b495f9a`, `digitva-oux5`).
+- State machine diagrams from code (`1eabae74b`,
+  docs/current-state/state-machines.md). One full suite per push
+  (`f8a4e42a1`).
 
 ## 2026-11-19
 

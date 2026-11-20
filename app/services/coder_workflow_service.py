@@ -40,6 +40,7 @@ from app.services.authz import (
     resolve_grants,
     scope_filter,
 )
+from app.services.authz.predicates import own_collected_sids
 from app.services.coding_allocation_service import (
     ActiveAllocationHeld,
     _release_coding_allocation,
@@ -263,36 +264,6 @@ def _on_units(va_sid_column, unit_ids) -> sa.ColumnElement:
     return va_sid_column.in_(sa.select(sub.va_sid).where(sub.org_unit_id.in_(unit_ids)))
 
 
-def _own_collected_condition(user, va_sid_column=VaSubmissions.va_sid) -> sa.ColumnElement:
-    """*va_sid_column* is a case *user* submitted through web intake in a
-    project without self-coding: never theirs to code, from the pool or by
-    pick (coding-workflow-state-machine.md, "Self-coding"; owner 2026-11-12,
-    digitva-9xn9.22). A training interview on one of the user's self-coding
-    slot units is exempt (training-session-types.md). Served by
-    ``ix_va_web_intake_drafts_user_status``."""
-    from app.services.training_demo_service import self_coding_units_select, training_self_coding_ids
-
-    conditions = [
-        VaWebIntakeDraft.va_sid == va_sid_column,
-        VaWebIntakeDraft.user_id == user.user_id,
-        VaWebIntakeDraft.status == "submitted",
-        VaWebIntakeDraft.project_id.in_(
-            sa.select(VaProjectMaster.project_id).where(
-                VaProjectMaster.self_coding_enabled.is_not(True)
-            )
-        ),
-    ]
-    # Only a user with a grant in the training project can have a slot unit;
-    # the grants are already loaded, so everyone else adds no SQL. A subquery,
-    # not training_self_coding_ids: no extra round trip.
-    if training_scope.training_project_id() in resolve_grants(user).projects:
-        conditions.append(sa.not_(sa.and_(
-            VaWebIntakeDraft.project_id == training_scope.training_project_id(),
-            _on_units(VaWebIntakeDraft.va_sid, self_coding_units_select(user.user_id)),
-        )))
-    return sa.exists().where(*conditions)
-
-
 def _training_own_condition(user, va_sid_column=VaSubmissions.va_sid) -> sa.ColumnElement:
     """*va_sid_column* is *user*'s own submitted training interview on one of
     their self-coding slot units, not a standard-set copy: the "Code from my
@@ -370,7 +341,6 @@ def _available_submission_filters(form_ids, project_id=None, user=None, *, langu
         # The coding scope: the same predicate require(CODE) answers for
         # one submission, so the pool never offers what pick refuses.
         filters.append(scope_filter(user, Action.CODE))
-        filters.append(sa.not_(_own_collected_condition(user)))
         if queue is not None:
             filters.append(_training_queue_condition(user, queue))
     if project_id:
@@ -834,6 +804,7 @@ def _require_submission_exists(va_sid: str):
 # Refusals as the coder screens have always worded them; the decision is
 # authz's (CODE / RECODE), only the message is chosen here.
 _OUT_OF_CODING_SCOPE = "This submission belongs to a unit outside your coding scope."
+_OWN_COLLECTED_MESSAGE = "You cannot code a case you collected yourself in this project."
 _CODING_REFUSALS = {
     Reason.NOT_FOUND: ("Submission not found.", 404),
     Reason.NO_ROLE: ("You do not have coder access for this VA form.", 403),
@@ -849,6 +820,17 @@ def _require_coder_access(user, va_sid: str, action: Action = Action.CODE) -> Va
     """
     decision = can(user, action, va_sid)
     if not decision:
+        # Refusal path only: say why when the case is the user's own collection.
+        if action is Action.CODE and db.session.scalar(
+            sa.select(sa.literal(va_sid).in_(own_collected_sids(user)))
+        ):
+            # In training an own interview off the user's slot units is just
+            # not in their set: keep that refusal (training-session-types.md).
+            if training_scope.is_training_sid(va_sid):
+                raise AllocationError(
+                    "This case is not in your training set.", 403, code="not_in_your_training_set"
+                )
+            raise AllocationError(_OWN_COLLECTED_MESSAGE, 403, code="forbidden")
         if decision.reason in _CODING_REFUSALS:
             raise AllocationError(*_CODING_REFUSALS[decision.reason])
         if decision.reason is Reason.PROJECT_CLOSED:
@@ -1148,13 +1130,6 @@ def allocate_pick_form(user, va_sid: str, *, own_case: bool = False) -> Allocati
         raise AllocationError(RETIRED_MESSAGE, 409)
     if is_confirmed_duplicate(va_sid):
         raise _excluded_error(va_sid)
-    if db.session.scalar(sa.select(_own_collected_condition(user, sa.literal(va_sid)))):
-        raise AllocationError(
-            "You cannot code a case you collected yourself in this project.",
-            403,
-            code="forbidden",
-        )
-
     # The pick list filters on the narration language; so does the pick (F16).
     # An own training interview is coded in its interview language.
     languages = _normalized_vacode_languages(user)

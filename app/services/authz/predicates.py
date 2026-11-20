@@ -137,6 +137,43 @@ def _own_cases(user):
     )
 
 
+def own_collected_sids(user, g: ResolvedGrants | None = None) -> sa.Select:
+    """The cases *user* collected (a ``submitted`` web intake draft; device
+    and bundle uploads write the same rows under the interviewer's user id)
+    in a project without self-coding: never theirs to code, from the pool, by
+    pick or by direct open (coding-workflow-state-machine.md, "Self-coding";
+    digitva-9xn9.22, digitva-yeg3.1). ODK-synced cases carry the collector as
+    free text only and are not matched. A training interview on one of the
+    user's self-coding slot units is exempt (training-session-types.md).
+    Uncorrelated, read through ``ix_va_web_intake_drafts_user_status``."""
+    from app.services import training_scope
+    from app.services.training_demo_service import self_coding_units_select
+
+    conditions = [
+        VaWebIntakeDraft.user_id == user.user_id,
+        VaWebIntakeDraft.status == "submitted",
+        VaWebIntakeDraft.va_sid.is_not(None),
+        VaWebIntakeDraft.project_id.in_(
+            sa.select(VaProjectMaster.project_id)
+            .where(VaProjectMaster.self_coding_enabled.is_not(True))
+            .correlate(None)
+        ),
+    ]
+    # Only a user with a grant in the training project can have a slot unit;
+    # the grants are already loaded, so everyone else adds no SQL.
+    g = g if g is not None else resolve_grants(user)
+    training_project_id = training_scope.training_project_id()
+    if training_project_id in g.projects:
+        sub = sa.orm.aliased(VaSubmissions)
+        conditions.append(sa.not_(sa.and_(
+            VaWebIntakeDraft.project_id == training_project_id,
+            VaWebIntakeDraft.va_sid.in_(
+                sa.select(sub.va_sid).where(sub.org_unit_id.in_(self_coding_units_select(user.user_id)))
+            ),
+        )))
+    return sa.select(VaWebIntakeDraft.va_sid).where(*conditions).correlate(None)
+
+
 # The form's project has an active org level (a tree project; design 0.2).
 _HAS_TREE = sa.exists(sa.select(1).where(
     MasOrgLevel.project_id == VaForms.project_id,
@@ -455,6 +492,8 @@ def scope_filter(user, action: Action, *, _grants: ResolvedGrants | None = None)
     else:
         clauses = [c for lens in RULES[action] for c in _lens_predicate(g, lens)]
         predicate = sa.or_(*clauses) if clauses else sa.false()
+        if action is Action.CODE and clauses:
+            predicate = sa.and_(predicate, VaSubmissions.va_sid.not_in(own_collected_sids(user, g)))
     own = _own_cases(user)
     return predicate if own is None else sa.and_(predicate, own)
 

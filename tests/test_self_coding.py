@@ -502,3 +502,51 @@ class OwnCaseOutsideSelfCodingTests(SelfCodingFixture, BaseTestCase):
         self._set_project(self_coding_enabled=True, coding_intake_mode="pick_and_choose")
         self._own_case("csc-own")
         self.assertEqual(allocate_pick_form(self.submitter, "csc-own").va_sid, "csc-own")
+
+    # digitva-yeg3.1: the pick list and direct open too, through the CODE predicate.
+
+    def _pick_list_sids(self, user):
+        from app.services.coder_workflow_service import get_pick_available_forms
+
+        return {f["va_sid"] for f in get_pick_available_forms(user, [self.FORM_ID], with_names=False)}
+
+    def test_pick_list_hides_own_case_outside_self_coding(self):
+        self._set_project(self_coding_enabled=False, coding_intake_mode="pick_and_choose")
+        self._own_case("csc-own")
+        self.assertIn("csc-own", self._pick_list_sids(self.other))
+        self.assertNotIn("csc-own", self._pick_list_sids(self.submitter))
+
+    def test_pick_list_shows_own_case_in_self_coding_project(self):
+        self._set_project(self_coding_enabled=True, coding_intake_mode="pick_and_choose")
+        self._own_case("csc-own")
+        self.assertIn("csc-own", self._pick_list_sids(self.submitter))
+
+    def test_direct_open_for_coding_refuses_own_case_outside_self_coding(self):
+        from app.services.authz import Action, can
+
+        self._set_project(self_coding_enabled=False)
+        self._own_case("csc-own")
+        self.assertTrue(can(self.other, Action.CODE, "csc-own"))
+        self.assertFalse(can(self.submitter, Action.CODE, "csc-own"))
+        # Viewing is not coding: the collector still sees the case.
+        self.assertTrue(can(self.submitter, Action.VIEW, "csc-own"))
+
+    def test_direct_open_for_coding_allows_own_case_in_self_coding_project(self):
+        from app.services.authz import Action, can
+
+        self._set_project(self_coding_enabled=True)
+        self._own_case("csc-own")
+        self.assertTrue(can(self.submitter, Action.CODE, "csc-own"))
+
+    def test_random_pool_offers_own_case_in_self_coding_project(self):
+        from app.services.coder_workflow_service import allocate_random_form
+
+        self._set_project(self_coding_enabled=True, coding_intake_mode="random_form_allocation")
+        self._own_case("csc-own")
+        self.assertEqual(allocate_random_form(self.submitter, self.PROJECT).va_sid, "csc-own")
+
+    def test_a_case_collected_by_another_user_stays_allocatable(self):
+        self._set_project(self_coding_enabled=False, coding_intake_mode="pick_and_choose")
+        self._own_case("csc-other", owner=self.other)
+        self.assertIn("csc-other", self._pick_list_sids(self.submitter))
+        self.assertEqual(allocate_pick_form(self.submitter, "csc-other").va_sid, "csc-other")

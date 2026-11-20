@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-19
+last_updated: 2026-11-20
 ---
 
 # Coding Workflow State Machine Policy
@@ -819,7 +819,24 @@ Policy](web-intake.md), "Self-coding projects") a coder may interview and then
 code their own case. This adds no workflow state. Outside a self-coding
 project a coder is never allocated, from the random pool or by pick, a case
 they themselves submitted through intake; the server enforces this (owner,
-2026-11-12, `digitva-9xn9.22`).
+2026-11-12, `digitva-9xn9.22`). Owner decision 2026-10-20, `digitva-yeg3.1`:
+nor may they see it in the pick list (`/available`) or open it for coding
+directly. The rule lives in the authz `CODE` predicate, so the random pool,
+the pick list, pick allocation and every coding open read the same answer;
+a refused direct open or pick is 403 `forbidden` ("You cannot code a case
+you collected yourself in this project."), and in the training project the
+existing `not_in_your_training_set` refusal. Viewing (`VIEW`) and reviewer
+allocation are unchanged.
+
+- **Collector link.** A case counts as collected by a user when that user's
+  `submitted` web intake draft carries its `va_sid`. Browser intake, Collect
+  app uploads under the user's device token and offline-bundle interview
+  records (written under the record's roster `actor_user_id`) all write that
+  row, so all three are covered.
+- **ODK limitation.** ODK-synced cases record the collector only as the free
+  text `va_data_collector`. It is not matched to any user, so an ODK case a
+  coder collected is not excluded. Closing this needs a reliable ODK
+  username-to-user mapping.
 
 - **Normal path.** The case goes through attachment sync, `smartva_pending`,
   SmartVA on completion and `ready_for_coding` as any web or device case, and

@@ -3,7 +3,7 @@ title: Public Home Page Overview and KPIs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-20
 ---
 
 # Public Home Page Overview and KPIs
@@ -22,8 +22,19 @@ starts when the visitor prefers reduced motion.
 ## KPIs
 
 `app/services/public_home_stats_service.py` shows aggregate counts:
-interviews, physician coders, interviews with a SmartVA result, interview
-languages, and the distribution by language, age band and sex.
+interviews, interviewers, physician coders, interviews with a SmartVA
+result, interview languages, and the distribution by language, age band, sex
+and year of interview. All figures are cumulative totals across the counted
+projects; nothing is shown by project, district, site or person (owner
+2026-11-20).
+
+- **Interviewers:** distinct app users with a submitted interview (web or
+  Collect app intake, `va_web_intake_drafts.user_id`). ODK-collected
+  interviews carry the collector only as free text and are not attributed.
+- **Year of interview:** the year of the submission date on the project
+  clock. Year of death is not used: most cases have no recorded date of death.
+- **JSON:** `GET /api/v1/public/totals.json` returns the same figures, no
+  sign-in, rate-limited, from the same cache.
 
 - **Which projects count:** only projects with the project setting
   `home_kpis_included` (Admin → Projects, "Included in homepage KPIs";

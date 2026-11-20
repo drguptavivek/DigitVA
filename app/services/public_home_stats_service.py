@@ -48,7 +48,7 @@ def _rows(counts: dict, order: list[tuple[str, str]] | None, total: int) -> list
 
 
 def _compute(projects: list[str]) -> dict | None:
-    core = sa.table(CORE_MV_NAME, sa.column("va_sid"), sa.column("project_id"))
+    core = sa.table(CORE_MV_NAME, sa.column("va_sid"), sa.column("project_id"), sa.column("submission_date"))
     demo = sa.table(
         DEMOGRAPHICS_MV_NAME, sa.column("va_sid"), sa.column("va_narration_language"),
         sa.column("sex"), sa.column("analytics_age_band"), sa.column("has_smartva"),
@@ -82,10 +82,25 @@ def _compute(projects: list[str]) -> dict | None:
         ),
         {"projects": projects},
     ).scalar()
+    # App users with a submitted web or Collect interview; ODK interviews name
+    # the collector only as free text and are not attributed.
+    interviewers = db.session.execute(
+        sa.text(
+            "SELECT count(DISTINCT d.user_id) FROM va_web_intake_drafts d "
+            f"JOIN {CORE_MV_NAME} c ON c.va_sid = d.va_sid "  # fixed constant
+            "WHERE d.status = 'submitted' AND c.project_id = ANY(:projects) "
+            f"AND {not_confirmed_duplicate_sql('d.va_sid')}"
+        ),
+        {"projects": projects},
+    ).scalar()
     languages = grouped(demo.c.va_narration_language)
+    # Year of interview (project clock); most cases have no date of death.
+    by_year = grouped(sa.cast(sa.extract("year", core.c.submission_date), sa.Integer))
+    years = sorted(y for y in by_year if y is not None)
     return {
         "interviews": total,
         "coded": coded,
+        "interviewers": interviewers,
         "coders": coders,
         "smartva": smartva,
         "smartva_pct": round(100 * smartva / total, 1),
@@ -93,6 +108,7 @@ def _compute(projects: list[str]) -> dict | None:
         "languages": _rows(languages, None, total),
         "ages": _rows(grouped(demo.c.analytics_age_band), AGE_BANDS, total),
         "sexes": _rows(grouped(demo.c.sex), SEXES, total),
+        "years": _rows(by_year, [(y, str(y)) for y in years], total),
     }
 
 
@@ -115,7 +131,7 @@ def public_home_stats() -> dict | None:
     projects = included_projects()
     if not projects:
         return None
-    key = "public-home-stats:" + ",".join(projects)
+    key = "public-home-stats:v2:" + ",".join(projects)
     stats = cache.get(key)
     if stats is None:
         stats = _compute(projects) or {}

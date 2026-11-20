@@ -2,8 +2,10 @@
 
 from pathlib import Path
 
-from flask import Blueprint, abort, current_app, make_response, redirect, render_template, send_from_directory, session, url_for
+from flask import Blueprint, abort, current_app, jsonify, make_response, redirect, render_template, send_from_directory, session, url_for
 from flask_login import current_user
+
+from app import limiter
 
 va_main = Blueprint("va_main", __name__)
 
@@ -74,6 +76,17 @@ def _who_va_related_documents() -> dict[str, list[dict[str, str | bool]]]:
             _document_link("2026-pcva-manual-for-physician-reviewers.pdf"),
         ],
     }
+
+
+@va_main.get("/api/v1/public/totals.json")
+@limiter.limit("60 per minute")
+def public_totals_json():
+    """The home page figures as JSON, no sign-in (docs/policy/public-home-stats.md)."""
+    from app.services.public_home_stats_service import public_home_stats
+
+    response = jsonify(public_home_stats() or {})
+    response.headers["Cache-Control"] = "public, max-age=900"
+    return response
 
 
 @va_main.route("/")

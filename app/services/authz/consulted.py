@@ -94,6 +94,9 @@ PUBLIC_ENDPOINTS = {
     "va_auth.va_signup": "Public-demo self sign-up (public-demo.md); 404 unless "
                          "PUBLIC_DEMO_ENABLED; CAPTCHA, per-IP limits, account cap.",
     "va_main.va_index": "Public landing page; renders no user data.",
+    "va_main.public_totals_json": "Home page aggregate figures as JSON (public-home-stats.md); "
+                                  "opt-in projects only, totals and small-cell-folded groups, "
+                                  "nothing per case or person; cached, rate-limited.",
     "public_pages.privacy": "Public privacy policy; renders no user data.",
     "public_pages.contact": "Contact us: configured org details and the public contact form; "
                             "CSRF, captcha and rate limits, reads no user data.",

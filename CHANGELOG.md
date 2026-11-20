@@ -32,7 +32,8 @@ What landed, newest first. Details live in the commits and the linked docs;
   in authz for non-admins, admin Withdrawn cases page and undo; migration
   `f4c2a8e6b1d9` (`digitva-4gu7`). Erasure not built.
 - WHO-format cause-of-death certificate per coded case, print to PDF,
-  PII by the existing gate (web only).
+  PII by the existing gate; the Collect app makes it on the phone
+  (`digitva-d819`, needs a new APK).
 - State machine diagrams from code (`1eabae74b`,
   docs/current-state/state-machines.md). One full suite per push
   (`f8a4e42a1`).

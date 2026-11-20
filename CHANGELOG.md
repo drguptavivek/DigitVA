@@ -31,6 +31,8 @@ What landed, newest first. Details live in the commits and the linked docs;
 - DPDP consent withdrawal: record on a case, excluded everywhere, sealed
   in authz for non-admins, admin Withdrawn cases page and undo; migration
   `f4c2a8e6b1d9` (`digitva-4gu7`). Erasure not built.
+- WHO-format cause-of-death certificate per coded case, print to PDF,
+  PII by the existing gate (web only).
 - State machine diagrams from code (`1eabae74b`,
   docs/current-state/state-machines.md). One full suite per push
   (`f8a4e42a1`).

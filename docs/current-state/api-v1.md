@@ -641,7 +641,11 @@ only gates the web "Certificate (PDF)" button, which opens the Flask page
 `services/cod_certificate_service.py`): `Action.VIEW`, 404 for every
 unavailable case, redaction by `should_redact_pii`, one
 `cod_certificate_viewed` audit row per view, PDF through the browser's print
-dialog. The Collect native app does not offer it (follow-up).
+dialog. The Collect app uses `GET /api/v1/va/<sid>/certificate`
+(`routes/api/va_case.py:certificate`): the same `certificate_context` as JSON
+(datetimes ISO 8601 with offset, `no-store`), same VIEW check, redaction, 404
+rule and audit row; bearer allowed for coder, coding_tester and reviewer only
+(`role_required` narrows a bearer to the native roles). The phone prints the PDF.
 
 `mode=view` (`digitva-xl43.8`) is the read-only opening of a case, the web's
 `/coding/area/<sid>`: authorized by `Action.VIEW` (`authz.require`), not by an

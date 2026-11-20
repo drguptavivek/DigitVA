@@ -2249,5 +2249,7 @@
   "withdrawnCasesUndone": "Undone",
   "withdrawnCasesOpen": "Open case",
   "supervisionWithdrawalDetail": "Asked by {who} on {date} ({channel})",
-  "certificateButton": "Certificate (PDF)"
+  "certificateButton": "Certificate (PDF)",
+  "certificateConnect": "Connect to the internet to get the certificate.",
+  "certificateUnavailable": "The certificate is not available for this case."
 }

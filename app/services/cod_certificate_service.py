@@ -10,6 +10,7 @@ them. Callers authorize ``Action.VIEW`` first. PII follows the one viewer gate
 from __future__ import annotations
 
 import re
+import uuid
 from datetime import UTC, datetime
 
 import sqlalchemy as sa
@@ -23,8 +24,10 @@ from app.models import (
     VaReviewerFinalAssessments,
     VaReviewerInitialAssessments,
     VaSubmissions,
+    VaSubmissionsAuditlog,
     VaUsers,
 )
+from app.services.authz import effective_roles
 from app.services.authz.grants import has_tree_condition
 from app.services.coding_service import get_project_for_submission
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
@@ -170,3 +173,20 @@ def certificate_context(user, va_sid: str) -> dict | None:
         "real_id": None if redact else submission.va_uniqueid_real,
         "generated_at": datetime.now(UTC),
     }
+
+
+def record_certificate_view(user, va_sid: str) -> None:
+    """One audit row (ids only, no content) for a served certificate; commits.
+
+    Shared by the web page and the phone's JSON endpoint so both audit alike.
+    """
+    roles = sorted(effective_roles(user))
+    db.session.add(VaSubmissionsAuditlog(
+        va_sid=va_sid,
+        va_audit_byrole=roles[0] if roles else "viewer",
+        va_audit_by=user.user_id,
+        va_audit_operation="r",
+        va_audit_action="cod_certificate_viewed",
+        va_audit_entityid=uuid.uuid4(),
+    ))
+    db.session.commit()

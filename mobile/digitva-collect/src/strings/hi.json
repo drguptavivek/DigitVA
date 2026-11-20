@@ -2249,5 +2249,7 @@
   "withdrawnCasesUndone": "पूर्ववत",
   "withdrawnCasesOpen": "मामला खोलें",
   "supervisionWithdrawalDetail": "{who} ने {date} को अनुरोध किया ({channel})",
-  "certificateButton": "प्रमाणपत्र (पीडीएफ)"
+  "certificateButton": "प्रमाणपत्र (पीडीएफ)",
+  "certificateConnect": "प्रमाणपत्र पाने के लिए इंटरनेट से जुड़ें।",
+  "certificateUnavailable": "इस मामले के लिए प्रमाणपत्र उपलब्ध नहीं है।"
 }

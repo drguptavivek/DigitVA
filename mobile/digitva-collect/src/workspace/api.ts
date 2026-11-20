@@ -1,5 +1,6 @@
 /** Shared typed API for coding, reviewing, and read-only workspace screens. */
 import { ApiError } from "../api";
+import { parseCertificate, type CertificateData } from "./certificate";
 import {
   parseAllocation,
   parseCategory,
@@ -106,6 +107,8 @@ export interface WorkspaceApi {
   checkDorisSelection(vaSid: string, code: string, uri: string): Promise<DorisCodeInfoReply>;
   processDoris(vaSid: string, role: "coder" | "reviewer", clientRevision: number, certificate: JsonObject): Promise<DorisProcessReply>;
   getWorkflowEvents(vaSid: string, options?: { limit?: number; cursor?: string }): Promise<WorkflowEvents>;
+  /** The WHO-form certificate data of a coded organization case (404 when unavailable). Absent where no server is reachable. */
+  getCertificate?(vaSid: string): Promise<CertificateData>;
 }
 
 const API = "/api/v1";
@@ -272,6 +275,7 @@ export function createWorkspaceApi(request: JsonRequester, options: { training?:
       try { return parsed(await post(`/doris-clinical/process/${id(vaSid)}`, { schema_version: 1, role, client_revision: clientRevision, certificate }), parseDorisProcess); }
       catch (error) { return normalizeDorisError(error); }
     },
+    async getCertificate(vaSid) { return parsed(await get(`/va/${id(vaSid)}/certificate`), parseCertificate); },
     async getWorkflowEvents(vaSid, options) {
       const limit = options?.limit ?? 50;
       if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new WorkspaceContractError("request.limit");

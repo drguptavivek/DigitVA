@@ -24,6 +24,8 @@ from app.models import (
     VaSubmissionWorkflow,
     VaUserAccessGrants,
 )
+from app.models import AuthDeviceSession
+from app.services import device_auth_service as devices
 from app.services.cod_certificate_service import interval_text
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
 from tests.base import BaseTestCase
@@ -214,3 +216,75 @@ class CodCertificateTests(BaseTestCase):
         uncoded = self._case(state="ready_for_coding")
         body = self.client.get(f"/api/v1/va/{uncoded}/workspace?mode=view").get_json()
         self.assertIs(body["case"]["certificate_available"], False)
+
+    # --- JSON for the phone: GET /api/v1/va/<sid>/certificate -------------------
+
+    def _api(self, user, sid):
+        self._login(str(user.user_id))
+        return self.client.get(f"/api/v1/va/{sid}/certificate")
+
+    def test_json_has_the_certificate_fields_and_is_audited(self):
+        sid = self._case()
+        reply = self._api(self.pii_viewer, sid)
+        self.assertEqual(reply.status_code, 200)
+        self.assertIn("no-store", reply.headers["Cache-Control"])
+        body = reply.get_json()
+        self.assertEqual(body["underlying_cause"], "1B10 Tuberculosis")
+        self.assertEqual(body["part1"][0]["conditions"][0], {"text": "Septic shock", "code": "1G41"})
+        self.assertEqual(body["part1"][0]["interval"], "3 days")
+        self.assertEqual(body["part2"], [{"text": "Diabetes", "code": "5A14"}])
+        self.assertEqual(body["outcome"], "not reviewed")
+        self.assertEqual(body["project_name"], "Certificate project")
+        self.assertTrue(body["coded_at"].endswith("+00:00"))
+        audit = db.session.scalars(sa.select(VaSubmissionsAuditlog).where(
+            VaSubmissionsAuditlog.va_sid == sid, VaSubmissionsAuditlog.va_audit_action == "cod_certificate_viewed")).all()
+        self.assertEqual(len(audit), 1)
+
+    def test_json_pii_only_for_a_pii_viewer(self):
+        sid = self._case()
+        self.assertEqual(db.session.scalar(sa.select(VaDeathRegister.deceased_name).where(VaDeathRegister.va_sid == sid)), NAME)
+        with_pii = self._api(self.pii_viewer, sid).get_data(as_text=True)
+        for text in (NAME, "Hospital X", "Respondent Rao", f"REAL-{sid[-6:]}", self.coder.name):
+            self.assertIn(text, with_pii)
+        plain = self._api(self.plain_viewer, sid)
+        self.assertEqual(plain.status_code, 200)
+        body = plain.get_data(as_text=True)
+        for text in (NAME, "Hospital X", "Respondent Rao", f"REAL-{sid[-6:]}", self.coder.name):
+            self.assertNotIn(text, body)
+        self.assertIs(plain.get_json()["redacted"], True)
+
+    def test_json_unavailable_cases_are_404(self):
+        sid = self._case()
+        self.assertEqual(self._api(self.pii_viewer, sid).status_code, 200)
+        self.assertEqual(self._api(self.other_viewer, sid).status_code, 404, "out of scope")
+        self.assertEqual(self._api(self.pii_viewer, self._case(state="ready_for_coding")).status_code, 404)
+        withdrawn = self._case()
+        register = db.session.scalar(sa.select(VaDeathRegister).where(VaDeathRegister.va_sid == withdrawn))
+        self.assertEqual(self._api(self.pii_viewer, withdrawn).status_code, 200)
+        register.consent_withdrawn_at = datetime.now(UTC)
+        db.session.commit()
+        self.assertEqual(self._api(self.pii_viewer, withdrawn).status_code, 404)
+
+    def test_json_accepts_a_device_token(self):
+        sid = self._case()
+        phone_coder = self._get_or_make_user("cert.phone@test.local", "Certificate123")
+        db.session.add(VaUserAccessGrants(
+            user_id=phone_coder.user_id, role=VaAccessRoles.coder, notes="cert", grant_status=VaStatuses.active,
+            scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT_ID,
+        ))
+        db.session.commit()
+        _row, code = devices.create_enrolment_code(self.PROJECT_ID, actor=self.pii_viewer)
+        device, _secret = devices.enrol_device(code, device_name="cert", platform="android", app_version="0.1.0")
+        session = AuthDeviceSession(
+            device_id=device.device_id, user_id=phone_coder.user_id,
+            user_session_version=phone_coder.auth_session_version or 0, created_at=datetime.now(UTC),
+        )
+        issued = devices._issue(session)
+        db.session.add(session)
+        db.session.commit()
+        with self.app.test_client() as phone:
+            reply = phone.get(f"/api/v1/va/{sid}/certificate",
+                              headers={"Authorization": f"Bearer {issued.access_token}"})
+        self.assertEqual(reply.status_code, 200, reply.get_data(as_text=True))
+        self.assertEqual(reply.get_json()["case_id"], f"MASK-{sid[-6:]}")
+        self.assertIsNone(reply.get_json()["deceased_name"])

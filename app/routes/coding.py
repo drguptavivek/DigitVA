@@ -29,7 +29,7 @@ from app.services.authz import (
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
 from app.services.coding_service import render_va_coding_page
-from app.services.cod_certificate_service import certificate_context
+from app.services.cod_certificate_service import certificate_context, record_certificate_view
 from app.services.coder_workflow_service import (
     AllocationError,
     AllocationResult,
@@ -453,16 +453,7 @@ def cod_certificate(va_sid):
     context = certificate_context(current_user, va_sid)
     if context is None:
         abort(404)
-    roles = sorted(effective_roles(current_user))
-    db.session.add(VaSubmissionsAuditlog(
-        va_sid=va_sid,
-        va_audit_byrole=roles[0] if roles else "viewer",
-        va_audit_by=current_user.user_id,
-        va_audit_operation="r",
-        va_audit_action="cod_certificate_viewed",
-        va_audit_entityid=uuid.uuid4(),
-    ))
-    db.session.commit()
+    record_certificate_view(current_user, va_sid)
     response = make_response(render_template("va_frontpages/va_cod_certificate.html", c=context))
     # Personal data on a shared browser is never cached.
     response.cache_control.private = True

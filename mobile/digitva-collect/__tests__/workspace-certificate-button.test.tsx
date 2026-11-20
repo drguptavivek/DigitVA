@@ -4,19 +4,27 @@ import { act, create } from "react-test-renderer";
 import en from "../src/strings/en.json";
 import hi from "../src/strings/hi.json";
 
+jest.mock("../src/workspace/certificatePdf", () => ({ sharePdf: jest.fn(async () => undefined) }));
 jest.mock("../src/ui", () => ({
-  Button: ({ label, onPress }: { label: string; onPress: () => void }) => <button data-label={label} onClick={onPress} />,
+  Button: ({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) => <button data-label={label} disabled={disabled} onClick={onPress} />,
+  errorText: () => "error",
+  useUiStyles: () => ({ muted: {} }),
 }));
 
 import { Platform } from "react-native";
+import { ApiError } from "../src/api";
 import { CertificateButton } from "../src/workspace/CertificateButton";
+import { sharePdf } from "../src/workspace/certificatePdf";
 
 const workspace = (available: boolean | undefined) =>
   ({ case: { va_sid: "uuid:a b", certificate_available: available } }) as never;
 
-function render(available: boolean | undefined) {
+const CERT = { part1: [], part2: [], project_name: "P", underlying_cause: "TB", outcome: "not reviewed" };
+const apiWith = (getCertificate: jest.Mock) => ({ getCertificate }) as never;
+
+function render(available: boolean | undefined, api?: never) {
   let tree: ReturnType<typeof create>;
-  act(() => { tree = create(<CertificateButton workspace={workspace(available)} />); });
+  act(() => { tree = create(<CertificateButton workspace={workspace(available)} api={api} />); });
   return tree!;
 }
 
@@ -30,7 +38,33 @@ describe("CertificateButton", () => {
     expect(render(false).toJSON()).toBeNull();
     expect(render(undefined).toJSON()).toBeNull();
     Platform.OS = "android";
-    expect(render(true).toJSON()).toBeNull();
+    expect(render(true).toJSON()).toBeNull(); // no api to ask
+  });
+
+  it("native: not rendered when the case has no certificate", () => {
+    Platform.OS = "android";
+    expect(render(false, apiWith(jest.fn())).toJSON()).toBeNull();
+    expect(render(undefined, apiWith(jest.fn())).toJSON()).toBeNull();
+  });
+
+  it("native: fetches the data, prints and shares a PDF", async () => {
+    Platform.OS = "android";
+    const getCertificate = jest.fn(async () => CERT);
+    const tree = render(true, apiWith(getCertificate));
+    await act(async () => { await tree.root.findByType("button" as never).props.onClick(); });
+    expect(getCertificate).toHaveBeenCalledWith("uuid:a b");
+    expect(sharePdf).toHaveBeenCalledWith(expect.stringContaining("Underlying cause of death"));
+  });
+
+  it("native: without a network it says to connect; a 404 says unavailable", async () => {
+    Platform.OS = "android";
+    const getCertificate = jest.fn().mockRejectedValueOnce(new TypeError("Network request failed")).mockRejectedValueOnce(new ApiError(404, "not_found"));
+    const tree = render(true, apiWith(getCertificate));
+    const press = async () => { await act(async () => { await tree.root.findByType("button" as never).props.onClick(); }); };
+    await press();
+    expect(JSON.stringify(tree.toJSON())).toContain(en.certificateConnect);
+    await press();
+    expect(JSON.stringify(tree.toJSON())).toContain(en.certificateUnavailable);
   });
 
   it("opens the certificate page in a new tab", () => {
@@ -44,6 +78,6 @@ describe("CertificateButton", () => {
 
   it("has English and Hindi labels", () => {
     expect(en.certificateButton).toBe("Certificate (PDF)");
-    expect(hi.certificateButton).toBeTruthy();
+    for (const key of ["certificateButton", "certificateConnect", "certificateUnavailable"] as const) expect(hi[key]).toBeTruthy();
   });
 });

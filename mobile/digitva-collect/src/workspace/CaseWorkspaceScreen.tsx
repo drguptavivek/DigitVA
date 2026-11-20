@@ -508,7 +508,7 @@ export function CaseWorkspaceScreen({
             </View>
           )
         ) : selectedCode === "allocated_cod_section" ? (
-          <AllocatedCodReference workspace={workspace} />
+          <AllocatedCodReference workspace={workspace} api={api} />
         ) : selectedCode === "audit_log_section" ? (
           <WorkflowHistory
             events={events}
@@ -638,11 +638,11 @@ function CaseReference({ workspace }: { workspace: WorkspacePayload }) {
   );
 }
 
-function AllocatedCodReference({ workspace }: { workspace: WorkspacePayload }) {
+function AllocatedCodReference({ workspace, api }: { workspace: WorkspacePayload; api: WorkspaceApi }) {
   return (
     <>
       <CodArtifacts title="Allocated Causes of Death" artifacts={referenceArtifacts(workspace)} empty="No cause-of-death assessments have been recorded for this submission yet." />
-      <CertificateButton workspace={workspace} />
+      <CertificateButton workspace={workspace} api={api} />
     </>
   );
 }

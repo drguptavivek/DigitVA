@@ -931,6 +931,16 @@ the iOS section of [the engine interface](icd11-android-engine-interface.md#ios)
   deleted afterwards on both. `expo-sharing` is excluded from Android
   autolinking (`package.json` `expo.autolinking.android.exclude`), and its
   config plugin (an iOS share extension) is not added.
+- Certificate PDF (digitva-d819): `src/workspace/CertificateButton.tsx` on a
+  coded organization case (`case.certificate_available`). Web opens the Flask
+  page; native calls `WorkspaceApi.getCertificate`
+  (`GET /api/v1/va/<sid>/certificate`), builds A4 HTML with
+  `certificateHtml` (`src/workspace/certificate.ts`), prints it with
+  `expo-print` (`certificatePdf.native.ts`; the plain `certificatePdf.ts` keeps
+  expo-print out of the web bundle) and shares it through `shareAndDelete`.
+  A non-HTTP failure shows `certificateConnect`; no offline build (offline
+  cases never carry `certificate_available`). `expo-print` is a native module:
+  it needs a new APK build.
 - Updates: `checkForUpdate` returns `unknown` and `checkForUpdateDaily`
   returns undefined on iOS without a network call (`src/updateCheck.ts`), so
   the start-up check offers nothing; Settings shows the App Store row only

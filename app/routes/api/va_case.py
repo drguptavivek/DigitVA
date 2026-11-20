@@ -69,7 +69,7 @@ from app.services.coder_cod_service import (
     other_conditions_choices,
     require_coding_session,
 )
-from app.services.cod_certificate_service import is_coded_tree_case
+from app.services.cod_certificate_service import certificate_context, is_coded_tree_case, record_certificate_view
 from app.services.coder_workflow_service import get_active_coding_allocation
 from app.services.coding_service import _count_attachments_per_category
 from app.services.demo_project_service import is_demo_training_project
@@ -990,3 +990,29 @@ def put_note(va_sid):
         return api_error(f"A note is at most {_NOTE_MAX_CHARS} characters.", "invalid_request", 422)
     save_note(current_user.user_id, va_sid, content)
     return _note_json(va_sid)
+
+
+@bp.get("/<va_sid>/certificate")
+@role_required("coder", "coding_tester", "reviewer", "collaborator", "collaborator_pii", "admin")
+def certificate(va_sid):
+    """The WHO-form cause-of-death certificate data of a coded organization case.
+
+    200 ``certificate_context`` as JSON (PII already redacted by the viewer
+    gate; the phone renders the PDF from it). 404 ``not_found`` for every
+    unavailable case, scope included, so the reason is not revealed. Policy:
+    docs/policy/cod-certificate-export.md. One audit row per served response.
+    """
+    try:
+        require(current_user, Action.VIEW, va_sid)
+    except AuthzError:
+        return api_error("Certificate not available.", "not_found", 404)
+    context = certificate_context(current_user, va_sid)
+    if context is None:
+        return api_error("Certificate not available.", "not_found", 404)
+    record_certificate_view(current_user, va_sid)
+    context["coded_at"] = _iso(context["coded_at"])
+    context["generated_at"] = _iso(context["generated_at"])
+    response = jsonify(context)
+    response.cache_control.private = True
+    response.cache_control.no_store = True
+    return response

@@ -29,6 +29,24 @@ as a PDF with the browser's print dialog; the server adds no PDF dependency.
 - Every successful view writes one `va_submissions_auditlog` row (operation
   `r`, action `cod_certificate_viewed`, ids only, no content).
 
+## Collect app (digitva-d819)
+
+The Collect APK (Collect and Collect Plus) offers the same certificate with no
+WebView or web page. `GET /api/v1/va/<va_sid>/certificate` returns the
+`certificate_context` data as JSON: same `Action.VIEW`, same 404 for every
+unavailable case, same `should_redact_pii` gate, same audit row, `no-store`.
+Bearer device tokens are accepted, but only for the native roles the route
+decorator allows through a bearer (coder, coding_tester, reviewer);
+collaborator, collaborator_pii and admin use the web page. The phone builds an
+A4 HTML document from that JSON (same sections and labels, English, every text
+escaped), prints it to a PDF with `expo-print` and hands it to the share sheet
+(`src/standalone/shareFile.ts`; `expo-sharing` is excluded from Android
+autolinking, so Android uses the SEND/VIEW intent). The button shows where the
+case view says `certificate_available`. It needs a connection: the server owns
+availability and the withdrawal and duplicate exclusion, so a case coded offline
+on the phone (no organization, no server case) has no certificate, and a
+dropped connection shows "Connect to the internet to get the certificate."
+
 ## Content
 
 - Source: the **final** result: the reviewer's final assessment when the case
@@ -62,6 +80,4 @@ them to every coder (`doris-cod-workflow.md`).
 
 ## Out of scope
 
-- The Collect native app has no web pages and does not offer the certificate
-  (follow-up).
 - No stored PDF, no email, no bulk export.

@@ -608,6 +608,8 @@ def create_app(config_class=None, register_routes=True):
 
     app.add_template_filter(whole_number)
     app.add_template_filter(smartva_gender)
+    from app.services.cod_certificate_service import cert_date
+    app.add_template_filter(cert_date)
 
     @app.template_filter('user_timezone')
     def user_timezone_filter(dt, format='%Y-%m-%d %H:%M:%S'):

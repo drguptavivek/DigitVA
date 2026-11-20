@@ -47,3 +47,11 @@ it("sharePdf prints the HTML to an A4 PDF and shares it as application/pdf", asy
   expect(printToFileAsync).toHaveBeenCalledWith({ html: "<html></html>", width: 595, height: 842 });
   expect(shareAndDelete).toHaveBeenCalledWith({ uri: "file:///cache/Print/x.pdf" }, "application/pdf");
 });
+
+
+test("dates print as DD-MMM-YYYY HH:MM:SS and DD-MMM-YYYY", () => {
+  const { formatWhen, formatDate } = require("../src/workspace/certificate");
+  const local = new Date(2026, 9, 21, 20, 7, 1).toISOString();
+  expect(formatWhen(local)).toBe("21-Oct-2026 20:07:01");
+  expect(formatDate("2026-10-12")).toBe("12-Oct-2026");
+});

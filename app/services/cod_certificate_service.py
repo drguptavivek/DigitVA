@@ -190,3 +190,13 @@ def record_certificate_view(user, va_sid: str) -> None:
         va_audit_entityid=uuid.uuid4(),
     ))
     db.session.commit()
+
+
+def cert_date(value) -> str:
+    """A YYYY-MM-DD date as DD-MMM-YYYY (owner 2026-11-20); other text as stored."""
+    if not value:
+        return "—"
+    try:
+        return datetime.strptime(str(value)[:10], "%Y-%m-%d").strftime("%d-%b-%Y")
+    except ValueError:
+        return str(value)

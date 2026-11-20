@@ -64,7 +64,20 @@ export function parseCertificate(value: unknown): CertificateData {
 const esc = (value: string | number | null | undefined): string =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
 const dash = (value: string | number | null | undefined): string => (value === null || value === undefined || value === "" ? "—" : esc(value));
-const when = (iso: string | null): string => (iso && !Number.isNaN(Date.parse(iso)) ? esc(new Date(iso).toLocaleString()) : "—");
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const pad = (n: number) => String(n).padStart(2, "0");
+/** DD-MMM-YYYY HH:MM:SS in the phone's local time (owner 2026-11-20). */
+export const formatWhen = (iso: string | null): string => {
+  if (!iso || Number.isNaN(Date.parse(iso))) return "—";
+  const d = new Date(iso);
+  return `${pad(d.getDate())}-${MONTHS[d.getMonth()]}-${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+/** A YYYY-MM-DD date as DD-MMM-YYYY; other text as stored. */
+export const formatDate = (value: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  return m ? `${m[3]}-${MONTHS[Number(m[2]) - 1]}-${m[1]}` : value || "—";
+};
+const when = (iso: string | null): string => esc(formatWhen(iso));
 const cond = (c: CertificateCondition) => `<div>${esc(c.text)}${c.code ? ` <span class="small">[${esc(c.code)}]</span>` : ""}</div>`;
 const LETTERS = "abcde";
 
@@ -94,7 +107,7 @@ th { background: lightgray; font-weight: bold; }
 <div class="sub">Coding result of a verbal autopsy, in the layout of the WHO form</div>
 <table>
   <tr><th>Case id</th><td>${dash(c.case_id)}</td><th>Age</th><td>${dash(c.age)}</td><th>Sex</th><td>${dash(c.sex)}</td></tr>
-  <tr><th>Date of death</th><td>${dash(c.date_of_death)}</td><th>Place of death</th><td colspan="3">${dash(c.place_of_death)}</td></tr>
+  <tr><th>Date of death</th><td>${esc(formatDate(c.date_of_death))}</td><th>Place of death</th><td colspan="3">${dash(c.place_of_death)}</td></tr>
   <tr><th>Deceased</th><td colspan="2">${dash(c.deceased_name)}</td><th>Respondent</th><td colspan="2">${dash(c.respondent)}</td></tr>
   <tr><th>Address</th><td colspan="3">${dash(c.address)}</td><th>Identifier</th><td>${dash(c.real_id)}</td></tr>
 </table>

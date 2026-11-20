@@ -288,3 +288,10 @@ class CodCertificateTests(BaseTestCase):
         self.assertEqual(reply.status_code, 200, reply.get_data(as_text=True))
         self.assertEqual(reply.get_json()["case_id"], f"MASK-{sid[-6:]}")
         self.assertIsNone(reply.get_json()["deceased_name"])
+
+
+def test_cert_date_formats_dd_mmm_yyyy():
+    from app.services.cod_certificate_service import cert_date
+
+    assert cert_date("2026-10-12") == "12-Oct-2026"
+    assert cert_date(None) == "\u2014"

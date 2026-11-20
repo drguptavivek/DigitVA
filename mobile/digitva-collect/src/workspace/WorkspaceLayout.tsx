@@ -47,7 +47,7 @@ export function WorkspaceLayout({
   const phone = useWindowDimensions().width < PHONE_BREAKPOINT;
   const { ui } = useTheme();
   const nav = (
-    <ScrollView keyboardDismissMode="on-drag" accessibilityLabel="Case categories" style={styles.card}>
+    <ScrollView keyboardDismissMode="on-drag" accessibilityLabel="Case categories" style={[styles.card, { width: 280, flexGrow: 0, flexShrink: 0 }]}>
       {categories.map((item) => {
         const selected = selectedCode === item.code;
         return (

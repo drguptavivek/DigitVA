@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-19
+last_updated: 2026-11-20
 ---
 
 # DORIS COD Workflow Policy
@@ -324,9 +324,21 @@ attachments, then SmartVA, the DORIS certificate and the private note.
 - **NQA and Social Autopsy** follow the rule of
   [Field Data Collection](field-data-collection.md): disabled in standalone mode;
   for an enrolled account they follow the project (owner reconfirmed
-  2026-11-13, `digitva-9cll.22.4`). Until the phone can store and send them and
-  the import checks them (`digitva-p8uj`), the phone hides both panels offline
-  rather than showing panels it cannot save.
+  2026-11-13, `digitva-9cll.22.4`; built `digitva-p8uj`). `/me/access` names
+  the project's switches in `self_coding.offline_coding`
+  (`narrative_qa_enabled`, `social_autopsy_enabled`). Where NQA is on, the
+  phone shows the online NQA panel in the narrative category, which it blocks
+  until the NQA is saved, and refuses the final without it, as online. The
+  NQA is kept in the encrypted account store, bound to the answers it
+  assessed, and sent inside the final's `offline_coding` object. The import
+  saves it as the coder's NQA on the case and refuses a final whose required
+  NQA or Social Autopsy is missing
+  ([Offline API Contract](offline-api-contract.md) section 17); the refused
+  coding stays on the phone until the coder completes it. Social Autopsy is
+  enforced by the import the same way, but the phone does not ask it yet: the
+  bundled display pack has no `social_autopsy` category to show it in, so the
+  phone sends no Social Autopsy and the import treats it as an older APK.
+  An older APK sends neither key and is imported as before.
 - **Private note** is kept in the encrypted account store with the case and
   is never synced.
 

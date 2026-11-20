@@ -42,8 +42,12 @@ from app.models import (
     VaAccessRoles,
     VaBundlePendingCoding,
     VaFinalAssessments,
+    VaNarrativeAssessment,
     VaProjectMaster,
+    VaSocialAutopsyAnalysis,
+    VaSocialAutopsyAnalysisOption,
     VaStatuses,
+    VaSubmissions,
     VaSubmissionsAuditlog,
     VaUsers,
     VaWebIntakeDraft,
@@ -67,7 +71,21 @@ from app.services.final_cod_authority_service import (
 from app.services.icd11_mms_service import POLICY_EDITABLE_CLASS_KINDS
 from app.services.icd_coding_policy import coding_context_for_submission, policy_ok_columns
 from app.services.icd_coding_value import extract_icd11_code_expression, extract_icd_code
-from app.services.submission_payload_version_service import get_active_payload_version
+from app.services.narrative_qa_service import narrative_qa_allowed_values
+from app.services.payload_bound_coding_artifact_service import (
+    deactivate_other_active_narrative_assessments,
+    deactivate_other_active_social_autopsy_analyses,
+    get_current_payload_narrative_assessment,
+    get_current_payload_social_autopsy_analysis,
+)
+from app.services.social_autopsy_analysis_service import (
+    SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS,
+    social_autopsy_option_set,
+)
+from app.services.submission_payload_version_service import (
+    get_active_payload_version,
+    joined_payload,
+)
 from app.services.who_icd_api import DEFAULT_ICD11_RELEASE
 from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED
 from app.services.workflow.state_store import get_submission_workflow_state
@@ -99,7 +117,12 @@ PROFILE_KEYS = frozenset({"name", "designation", "facility", "country"})
 CODING_KEYS = frozenset({
     "coded_answers_sha256", "device_uuid", "process_token", "conclusive_cod", "remark", "certificate",
     "result", "codedit_result", "certificate_digest", "result_digest", "provenance", "pack_versions",
+    "narrative_qa", "social_autopsy",
 })
+#: The optional quality keys (digitva-p8uj): absent = an older APK, never gated
+#: (as before); present = gated as the project configures it, null = not done.
+NARRATIVE_QA_REQUIRED = "narrative_qa_required"
+SOCIAL_AUTOPSY_REQUIRED = "social_autopsy_required"
 _REQUIRED_CODING = ("coded_answers_sha256", "device_uuid", "process_token", "conclusive_cod", "certificate",
                     "provenance")
 _CONFIRMATION_KEYS = frozenset({"confirmed_by", "confirmed_at", "code", "age_group_selectable",
@@ -111,6 +134,7 @@ _TEXT_MAX = 200
 _COD_MAX = 512
 _REMARK_MAX = 2000
 _PACK_MAX = 20
+_SA_REMARK_MAX = 4000  # the online Social Autopsy save's cap (routes/api/so.py)
 
 #: Reply statuses of the coding (the held row's status, as the phone sees it).
 _REPLY_STATUS = {"pending": "pending", "applied": "applied", "rejected": "refused"}
@@ -297,6 +321,56 @@ def _pack_versions(value) -> dict:
     return dict(value)
 
 
+def _narrative_qa(value) -> dict | None:
+    """``{cannot_grade, length, ...}`` as the online NQA save takes it; a
+    cannot-grade answer stores zeros, as online."""
+    if value is None:
+        return None
+    allowed = narrative_qa_allowed_values()
+    if not isinstance(value, dict) or not set(value) <= {"cannot_grade", *allowed}:
+        _bad("offline_coding.narrative_qa must be the narrative quality answers or null.")
+    cannot_grade = value.get("cannot_grade", False)
+    if not isinstance(cannot_grade, bool):
+        _bad("offline_coding.narrative_qa.cannot_grade must be true or false.")
+    if cannot_grade:
+        return {"cannot_grade": True, **{key: 0 for key in allowed}}
+    answers = {}
+    for key, values in allowed.items():
+        answer = value.get(key)
+        if type(answer) is not int or answer not in values:
+            _bad(f"offline_coding.narrative_qa.{key} is missing or invalid.")
+        answers[key] = answer
+    return {"cannot_grade": False, **answers}
+
+
+def _social_autopsy(value) -> dict | None:
+    """``{selected_options: [{delay_level, option_code}], remark}`` under the
+    online save's rules: known pairs, every delay level answered, ``none``
+    exclusive within its level; returned normalized as sorted pairs."""
+    if value is None:
+        return None
+    if not isinstance(value, dict) or not set(value) <= {"selected_options", "remark"}:
+        _bad("offline_coding.social_autopsy must be the social autopsy answers or null.")
+    remark = value.get("remark")
+    if remark is not None and (not isinstance(remark, str) or len(remark) > _SA_REMARK_MAX or "\x00" in remark):
+        _bad(f"offline_coding.social_autopsy.remark must be text of at most {_SA_REMARK_MAX} characters or null.")
+    options = value.get("selected_options")
+    valid = social_autopsy_option_set()
+    if not isinstance(options, list) or len(options) > len(valid):
+        _bad("offline_coding.social_autopsy.selected_options must be a list of options.")
+    by_delay: dict[str, set[str]] = {}
+    for item in options:
+        pair = (item.get("delay_level"), item.get("option_code")) if isinstance(item, dict) else None
+        if pair not in valid:
+            _bad("offline_coding.social_autopsy has an unknown option.")
+        by_delay.setdefault(pair[0], set()).add(pair[1])
+    if set(by_delay) != {question["delay_level"] for question in SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS}:
+        _bad("offline_coding.social_autopsy must answer every delay question.")
+    pairs = [[level, code] for level in sorted(by_delay)
+             for code in (["none"] if "none" in by_delay[level] else sorted(by_delay[level]))]
+    return {"selected_options": pairs, "remark": (remark or "").strip() or None}
+
+
 def parse_offline_coding(value) -> dict:
     """The ``offline_coding`` object checked for shape. 422
     ``offline_coding_invalid`` names the first problem, never echoing a
@@ -338,6 +412,8 @@ def parse_offline_coding(value) -> dict:
         "result_digest": _optional_hex(value.get("result_digest"), "result_digest"),
         "provenance": provenance,
         "pack_versions": _pack_versions(value.get("pack_versions")),
+        **({"narrative_qa": _narrative_qa(value["narrative_qa"])} if "narrative_qa" in value else {}),
+        **({"social_autopsy": _social_autopsy(value["social_autopsy"])} if "social_autopsy" in value else {}),
     }
 
 
@@ -416,6 +492,25 @@ def _push_refusal(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDra
     return None
 
 
+def _require_quality(project: VaProjectMaster, coding: dict, va_sid: str | None) -> None:
+    """Refuse, before anything is held, a final that sent a quality key empty
+    where the project asks it: 422 ``narrative_qa_required`` or
+    ``social_autopsy_required``. The upload rolls back and the phone sends the
+    interview alone, keeping the coding to finish (as its other enrolled 422
+    refusals). Social Autopsy follows the online rule (the case shows its
+    category); a case with no payload yet is asked on the project switch."""
+    if project.narrative_qa_enabled and "narrative_qa" in coding and coding["narrative_qa"] is None:
+        raise OfflineCodingError("Narrative Quality Assessment must be completed before the final COD.",
+                                 NARRATIVE_QA_REQUIRED)
+    if not (project.social_autopsy_enabled and "social_autopsy" in coding and coding["social_autopsy"] is None):
+        return
+    payload = get_active_payload_version(va_sid) if va_sid else None
+    submission = db.session.get(VaSubmissions, va_sid) if payload is not None else None
+    if submission is None or coder_cod._social_autopsy_required(project, submission, joined_payload(payload)):
+        raise OfflineCodingError("Social Autopsy Analysis must be completed before the final COD.",
+                                 SOCIAL_AUTOPSY_REQUIRED)
+
+
 def _audit(va_sid: str, user_id, action: str, entity_id=None) -> None:
     db.session.add(VaSubmissionsAuditlog(
         va_sid=va_sid, va_audit_byrole="vacoder", va_audit_by=user_id, va_audit_operation="c",
@@ -444,10 +539,12 @@ def hold(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, codin
     (stale): never applied, the phone asks the coder to recode."""
     held = _lock_held(draft.client_draft_id, draft.va_sid)
     digest = coding_sha256
+    if held is not None and hmac.compare_digest(held.content_sha256, digest):
+        return status_of(held)
+    refusal = _push_refusal(user, project, draft, coding)
+    if refusal is None:
+        _require_quality(project, coding, draft.va_sid)
     if held is not None:
-        if hmac.compare_digest(held.content_sha256, digest):
-            return status_of(held)
-        refusal = _push_refusal(user, project, draft, coding)
         replaced = {"coding_sha256": held.content_sha256, "status": held.status, "code": held.code,
                     "resolved_at": held.resolved_at.isoformat() if held.resolved_at else None,
                     "coding": held.result.get("coding")}
@@ -462,7 +559,6 @@ def hold(user: VaUsers, project: VaProjectMaster, draft: VaWebIntakeDraft, codin
         if refusal:
             _audit(draft.va_sid, user.user_id, f"offline coding refused ({refusal})", draft.draft_id)
         return status_of(held)
-    refusal = _push_refusal(user, project, draft, coding)
     if draft.va_sid is None:
         # A superseded copy: no case of its own to hold the coding against.
         return {"status": "refused", "code": refusal, "coding_sha256": digest}
@@ -696,16 +792,19 @@ def _save_imported_final(actor: VaUsers, va_sid: str, project: VaProjectMaster, 
                          profile_snapshot: dict) -> VaFinalAssessments:
     """The coder's final from an offline coding, as ``submit_coder_final_cod``
     stores an unmasked DORIS final (supersede, authority, release, state) but
-    with the device's certificate and results as imported, no DORIS
-    verification, and the narrative QA and social autopsy gates not asked
-    (the phone has neither). Raises ``CoderCodingError`` (no allocation, no
-    active payload) or ``WorkflowTransitionError``. Caller commits with the receipt."""
+    with the device's certificate and results as imported and no DORIS
+    verification. The NQA and Social Autopsy sent with it are saved as the
+    coder's on the active payload and the online final gates asked of each key
+    sent; an older APK sends neither and is not asked. Raises
+    ``CoderCodingError`` (no allocation, no active payload, a quality gate) or
+    ``WorkflowTransitionError``. Caller commits with the receipt."""
     submission = coder_cod.lock_coding_submission(va_sid)
     actiontype = coder_cod.derive_actiontype(va_sid)
     allocation = coder_cod.require_coding_session(actor, va_sid, actiontype)
     payload = get_active_payload_version(va_sid)
     if submission is None or payload is None:
         raise coder_cod.CoderCodingError("This submission has no active payload version.", 422, code="final_blocked")
+    _save_quality(actor, va_sid, project, submission, payload, coding, actiontype)
     recode_episode = get_active_recode_episode(va_sid)
     flags, primary = allowability_disagreements(va_sid, coding["provenance"])
     snapshot = cod_entry_mode_snapshot(project, str(current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or "").strip())
@@ -764,3 +863,45 @@ def _save_imported_final(actor: VaUsers, va_sid: str, project: VaProjectMaster, 
     bust_coder_dashboard_cache(actor.user_id)
     log.info("offline coding imported | sid=%s | by=%s | disagreements=%s", va_sid, actor.user_id, len(flags))
     return final
+
+
+def _save_quality(actor: VaUsers, va_sid: str, project: VaProjectMaster, submission, payload, coding: dict,
+                  actiontype: str) -> None:
+    """Save the offline NQA and Social Autopsy as the online saves do (the
+    coder's one active row on *payload*, earlier rows deactivated, audited),
+    then ask the online final gates of each key the phone sent."""
+    demo_expires_at = get_demo_expiry_for_submission(va_sid, actiontype)
+    nqa = coding.get("narrative_qa")
+    if nqa is not None and project.narrative_qa_enabled:
+        deactivate_other_active_narrative_assessments(va_sid, actor.user_id, audit_by=actor.user_id)
+        answers = {key: nqa[key] for key in narrative_qa_allowed_values()}
+        row = VaNarrativeAssessment(
+            va_sid=va_sid, va_nqa_by=actor.user_id, payload_version_id=payload.payload_version_id,
+            **{f"va_nqa_{key}": value for key, value in answers.items()},
+            va_nqa_score=sum(answers.values()), va_nqa_cannot_grade=nqa["cannot_grade"],
+            va_nqa_status=VaStatuses.active, demo_expires_at=demo_expires_at,
+        )
+        db.session.add(row)
+        db.session.flush()
+        _audit(va_sid, actor.user_id, "narrative quality assessment imported from collect plus offline", row.va_nqa_id)
+    answered = coding.get("social_autopsy")
+    if answered is not None and project.social_autopsy_enabled:
+        deactivate_other_active_social_autopsy_analyses(va_sid, actor.user_id, audit_by=actor.user_id)
+        row = VaSocialAutopsyAnalysis(
+            va_sid=va_sid, va_saa_by=actor.user_id, payload_version_id=payload.payload_version_id,
+            va_saa_remark=answered["remark"], va_saa_status=VaStatuses.active, demo_expires_at=demo_expires_at,
+            selected_options=[VaSocialAutopsyAnalysisOption(delay_level=level, option_code=code)
+                              for level, code in answered["selected_options"]],
+        )
+        db.session.add(row)
+        db.session.flush()
+        _audit(va_sid, actor.user_id, "social autopsy analysis imported from collect plus offline", row.va_saa_id)
+    if ("narrative_qa" in coding and project.narrative_qa_enabled
+            and not get_current_payload_narrative_assessment(va_sid, actor.user_id)):
+        raise coder_cod.CoderCodingError("Narrative Quality Assessment must be completed before the final COD.",
+                                         422, code=NARRATIVE_QA_REQUIRED)
+    if ("social_autopsy" in coding
+            and coder_cod._social_autopsy_required(project, submission, joined_payload(payload))
+            and not get_current_payload_social_autopsy_analysis(va_sid, actor.user_id)):
+        raise coder_cod.CoderCodingError("Social Autopsy Analysis must be completed before the final COD.",
+                                         422, code=SOCIAL_AUTOPSY_REQUIRED)

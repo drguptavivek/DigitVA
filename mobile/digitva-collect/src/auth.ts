@@ -52,7 +52,7 @@ import type { UnlockResult } from "./interviewerDb";
 import { getOrCreatePlusDeviceIdentity } from "./offlineIdentity";
 import { clearNotificationState, resetNotificationState } from "./notificationState";
 import { attachmentMediaExtension } from "./workspace/media/path";
-import { offlineCodingProjectIds } from "./codingCapabilities";
+import { offlineCodingProjectIds, offlineCodingQuality, type OfflineCodingQuality } from "./codingCapabilities";
 import { flushPerformanceTelemetry } from "./performanceTelemetry";
 import { hasTypedTrainingSession, scopeFor, trainingAreas, trainingScopedPath, withTrainingCollection } from "./training";
 
@@ -79,6 +79,8 @@ export interface Account {
   coding_access?: boolean;
   /** Project ids where self-coding and an active coder grant permit local coding. */
   offline_coding_access?: string[];
+  /** The NQA and Social Autopsy switches of those projects (codingCapabilities.offlineCodingQuality); display cache. */
+  offline_coding_quality?: OfflineCodingQuality;
   /** Digest of the last validated coding scope; display cache only, never authorization. */
   coding_history_access?: string;
   reviewing_access?: boolean;
@@ -409,6 +411,7 @@ async function publishAccessSummary(userId: string, value: unknown): Promise<Acc
       coding: hasTypedTrainingSession(access) && trainingAreas(access).includes("coding"),
       pending: hasTypedTrainingSession(access) && access.training?.pending === true,
     },
+    offlineCodingQuality(access),
   );
   for (const listener of accessListeners) await listener(userId, access);
   return access;
@@ -424,6 +427,7 @@ async function setAccountAccess(
   offlineCoding: string[],
   codingHistoryAccess?: string,
   training: { coding: boolean; pending: boolean } = { coding: false, pending: false },
+  offlineQuality: OfflineCodingQuality = {},
 ): Promise<void> {
   const changed = await updateAccountsOf(userId, (accounts) => {
     if (!accounts.some((account) => account.user_id === userId &&
@@ -432,14 +436,16 @@ async function setAccountAccess(
           account.registered_deaths_access !== registeredDeaths || account.coding_access !== coding ||
           account.reviewing_access !== reviewing ||
           account.coding_history_access !== codingHistoryAccess ||
-          JSON.stringify(account.offline_coding_access ?? []) !== JSON.stringify(offlineCoding)))) return undefined;
+          JSON.stringify(account.offline_coding_access ?? []) !== JSON.stringify(offlineCoding) ||
+          JSON.stringify(account.offline_coding_quality ?? {}) !== JSON.stringify(offlineQuality)))) return undefined;
     return accounts.map((account) => {
       if (account.user_id !== userId) return account;
-      // The training flags are stored only while true, so an account without training keeps its earlier shape.
-      const { training_coding_access: _coding, training_pending: _pending, ...rest } = account;
+      // The training flags and offline NQA/SA switches are stored only while set, so other accounts keep their shape.
+      const { training_coding_access: _coding, training_pending: _pending, offline_coding_quality: _quality, ...rest } = account;
       return { ...rest, collection_access: collection, registration_access: registration,
         registered_deaths_access: registeredDeaths, coding_access: coding, reviewing_access: reviewing,
         offline_coding_access: offlineCoding, coding_history_access: codingHistoryAccess,
+        ...(Object.keys(offlineQuality).length ? { offline_coding_quality: offlineQuality } : {}),
         ...(training.coding ? { training_coding_access: true } : {}), ...(training.pending ? { training_pending: true } : {}) };
     });
   });

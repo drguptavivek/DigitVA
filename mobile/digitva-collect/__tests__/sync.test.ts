@@ -42,6 +42,7 @@ import { acquireDraftUpload, acquireLocalCodingEditor } from "../src/localCoding
 import { getOrCreatePlusDeviceIdentity } from "../src/offlineIdentity";
 import { codingReceiptSha256 } from "../src/codingReceipt";
 import { codingNotices } from "../src/codingUploadNotices";
+import { saveOfflineNqa } from "../src/offlineQuality";
 import { beginRevision, getRevisionRow, queueRevision } from "../src/revisions";
 import { createNativeDefinitionCache } from "../src/formDefinitionCache";
 import { checkCollectionGate } from "../src/collectionGate";
@@ -1250,6 +1251,55 @@ describe("sync upload ordering", () => {
     expect(submissionCalls()[0].body).toHaveProperty("offline_coding");
     expect(await getDraftRow(db, DRAFT)).toBeNull();
     expect(await codingNotices(db)).toEqual([]);
+  });
+
+  it("sends no NQA key for a final whose coder saved none, as an older APK (digitva-p8uj)", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await createDraftStore(db, { projectId: PROJECT, siteId: SITE }).save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    await saveOfflineCoding(db, { ...CODING_ROW, answers_sha256: await draftAnswersSha256(db, DRAFT) });
+    server((call) => call.url.endsWith("/submissions") ? submissionSuccess(call, codingAck(call)) : json(204, null));
+
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 1, codingOutcomes: [{ status: "pending" }] });
+    expect(submissionCalls()[0].body?.offline_coding).not.toHaveProperty("narrative_qa");
+  });
+
+  it("sends the NQA inside the final, and keeps a final refused for a missing NQA until the coder saves one (digitva-p8uj)", async () => {
+    const db = memoryDb();
+    await migrate(db);
+    await createDraftStore(db, { projectId: PROJECT, siteId: SITE }).save(draft(DRAFT));
+    await markCompleted(db, DRAFT, { valid: true, issues: [] });
+    const answersHash = await draftAnswersSha256(db, DRAFT);
+    await saveOfflineCoding(db, { ...CODING_ROW, answers_sha256: answersHash });
+    const nqa = { cannot_grade: false, length: 3, pos_symptoms: 2, neg_symptoms: 1, chronology: 1, doc_review: 0, comorbidity: 1 };
+    // The project asks NQA (the account's cached switch) and the coder has none: sent empty, which it refuses.
+    const auth = jest.requireActual<typeof import("../src/auth")>("../src/auth");
+    const accounts = jest.spyOn(require("../src/auth") as typeof auth, "loadAccounts")
+      .mockResolvedValue([{ user_id: USER, name: "A", offline_coding_quality: { [PROJECT]: { narrative_qa: true, social_autopsy: false } } }]);
+    server((call) => {
+      if (!call.url.endsWith("/submissions")) return json(204, null);
+      const sent = call.body?.offline_coding as { narrative_qa?: unknown } | undefined;
+      if (sent && sent.narrative_qa === null) return json(422, { error: "NQA first", code: "narrative_qa_required" });
+      return submissionSuccess(call, sent ? codingAck(call) : {});
+    });
+
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 1, failed: 0, codingOutcomes: [] });
+    expect(submissionCalls()[0].body?.offline_coding).toMatchObject({ narrative_qa: null });
+    expect(submissionCalls()[1].body).not.toHaveProperty("offline_coding");
+    expect(await getDraftRow(db, DRAFT)).not.toBeNull();
+    expect(await getOfflineCoding(db, DRAFT)).not.toBeNull();
+    expect(await codingNotices(db)).toEqual([expect.objectContaining({ draftId: DRAFT, code: "narrative_qa_required" })]);
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 0, failed: 0 });
+    expect(submissionCalls()).toHaveLength(2);
+
+    // The coder saves the NQA on these answers: the same final goes again with it, and the draft is done.
+    await saveOfflineNqa(db, DRAFT, answersHash!, nqa);
+    await expect(uploadQueuedWork(USER, db)).resolves.toMatchObject({ sent: 1, codingOutcomes: [{ status: "pending" }] });
+    expect(submissionCalls()[2].body?.offline_coding).toMatchObject({ narrative_qa: nqa });
+    expect(await getDraftRow(db, DRAFT)).toBeNull();
+    expect(await getMeta(db, "offlineNqa:" + DRAFT)).toBeUndefined();
+    accounts.mockRestore();
   });
 
   it.each([false, true])("persists refusal before deletion and retains work if persistence fails (%s)", async (failNotice) => {

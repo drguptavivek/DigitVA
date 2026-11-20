@@ -77,6 +77,7 @@ import { ensureLocalSmartVa } from "../smartva/ensureLocal";
 import { offlineSmartvaEngine } from "../smartva/nativeEngine";
 import { DEFAULT_COVERED_FIELDS, consentForDraft } from "../consentStore";
 import { isRefused } from "../refusalBoundary";
+import { getOfflineNqa, NARRATIVE_QA_FIELDS, NARRATIVE_QA_MAX_SCORE, narrativeAnswers, narrativeSaved, saveOfflineNqa } from "../offlineQuality";
 
 type Params = { userId?: string | string[]; caseId?: string | string[] };
 
@@ -220,6 +221,8 @@ function offlineCodDraftStore(db: Db, clientDraftId: string, loaded: CodDraft | 
   };
 }
 const NOTE_MAX_CHARS = 20_000;
+/** The category that holds the narrative and the NQA panel (case_content_service, BLOCK_NARRATIVE_QA). */
+const NARRATIVE_CATEGORY = "vanarrationanddocuments";
 
 /**
  * The CaseWorkspaceScreen API, answered on the phone: the workspace and its categories from the local render,
@@ -238,6 +241,7 @@ function offlineWorkspaceApi(
   vaSid: string,
   answersHash: (draftId: string) => Promise<string | null>,
   assertAllowed: () => Promise<void>,
+  narrativeQa: { current: boolean },
 ): WorkspaceApi {
   const unavailable = (_name: string): never => { throw new Error("offline_server_unavailable"); };
   const opened = async () => {
@@ -253,9 +257,25 @@ function offlineWorkspaceApi(
       updated_at: typeof stored.updated_at === "string" ? stored.updated_at : null,
     };
   };
+  // The project's NQA (digitva-p8uj), asked as online: shown in the narrative category, which it blocks until saved,
+  // and required before the final. Read from the store on each call, so a save shows at once.
+  const savedNqa = async () => getOfflineNqa(db, vaSid, await answersHash(vaSid));
+  const nqaBlocks = async () => narrativeQa.current && !(await savedNqa());
   return {
-    async getWorkspace() { return (await opened()).workspace; },
-    async getCategory(_vaSid, code) { return (await opened()).view.category(code); },
+    async getWorkspace() {
+      const workspace = (await opened()).workspace;
+      if (!narrativeQa.current || workspace.step === "view") return workspace;
+      const saved = await savedNqa();
+      return {
+        ...workspace,
+        case: { ...workspace.case, narrative_qa_enabled: true },
+        narrative_qa: { fields: NARRATIVE_QA_FIELDS, max_score: NARRATIVE_QA_MAX_SCORE, saved: saved ? narrativeSaved(saved) : null },
+      };
+    },
+    async getCategory(_vaSid, code) {
+      const category = (await opened()).view.category(code);
+      return code === NARRATIVE_CATEGORY && await nqaBlocks() ? { ...category, blocked_by: ["narrative_qa"] } : category;
+    },
     getCodingStats: () => unavailable("getCodingStats"),
     getCodingAvailable: () => unavailable("getCodingAvailable"),
     getCodingHistory: () => unavailable("getCodingHistory"),
@@ -275,7 +295,17 @@ function offlineWorkspaceApi(
     searchIcd: () => unavailable("searchIcd"),
     runSmartva: () => unavailable("runSmartva"),
     async getSmartvaStatus() { return { va_sid: vaSid, status: (await opened()).smartvaStatus, can_run: false }; },
-    saveNarrativeQuality: () => unavailable("saveNarrativeQuality"),
+    async saveNarrativeQuality(_vaSid, body) {
+      if (!narrativeQa.current) return unavailable("saveNarrativeQuality");
+      await opened();
+      const nqa = narrativeAnswers(body);
+      const hash = await answersHash(vaSid);
+      if (!hash) throw new Error("offline_case_missing");
+      await assertAllowed();
+      await saveOfflineNqa(db, vaSid, hash, nqa);
+      const saved = narrativeSaved(nqa);
+      return { saved: true, score: saved.score, rating: saved.rating };
+    },
     saveSocialAutopsy: () => unavailable("saveSocialAutopsy"),
     async getNote() {
       await opened();
@@ -331,6 +361,11 @@ function offlineWorkspaceApi(
     },
     async saveInitial(_vaSid, body): Promise<CodingWriteReply> {
       await assertAllowed();
+      if (await nqaBlocks()) {
+        // The shape of the server's final gate (coder_cod_service, 422 final_blocked), which DorisPanel shows.
+        const message = "Narrative Quality Assessment must be completed before submitting the final COD.";
+        throw new ApiError(422, "final_blocked", undefined, undefined, { error: message, messages: [message] });
+      }
       const { deviceUuid, coderProfileUpdatedAt } = await resolveOfflineSaveContext();
       try {
         const answersSha256 = await answersHash(vaSid);
@@ -588,8 +623,8 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
         project_mode: "unmasked_doris",
         icd_classification: "icd11",
         workflow_state: "coding",
-        // Offline coding asks neither NQA nor Social Autopsy, standalone or enrolled: the phone cannot save them
-        // and the server imports the final without either gate (coding-workflow-state-machine.md, digitva-9cll.22.4).
+        // Standalone coding asks neither. Enrolled, the project's NQA is added by the workspace API (getWorkspace);
+        // Social Autopsy is not asked offline: the bundled display pack has no social_autopsy category (digitva-p8uj).
         narrative_qa_enabled: false,
         social_autopsy_enabled: false,
       },
@@ -633,8 +668,11 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
   );
   const editorRef = useRef(editor);
   editorRef.current = editor;
+  // The project's NQA switch, from the last access refresh; never asked of a standalone account.
+  const narrativeQa = useRef(false);
+  narrativeQa.current = !!loaded && !account.standalone && account.offline_coding_quality?.[loaded.projectId]?.narrative_qa === true;
   const api = useMemo(
-    () => offlineWorkspaceApi(db, editorRef, localCase, lastReply, timeline, clientDraftId, (draftId) => draftAnswersSha256(db, draftId), assertAllowed),
+    () => offlineWorkspaceApi(db, editorRef, localCase, lastReply, timeline, clientDraftId, (draftId) => draftAnswersSha256(db, draftId), assertAllowed, narrativeQa),
     [clientDraftId, db, assertAllowed],
   );
   const request = offlineRequester(db, createGuidanceRequester(editor, clientDraftId, assertAllowed));

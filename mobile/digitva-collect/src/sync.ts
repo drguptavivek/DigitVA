@@ -35,7 +35,7 @@ import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument } from "@drguptavivek/who-2022-va";
 import { ApiError, INTAKE_API, isSmartVaTarget, parseAccessSummary, type AccessSummary, type SmartVaTarget } from "./api";
-import { authedRawRequest, authedRequest, rememberTrainingProject, sendQueuedProfileDeletions, SessionRevokedError, SignInRequiredError } from "./auth";
+import { authedRawRequest, authedRequest, loadAccounts, rememberTrainingProject, sendQueuedProfileDeletions, SessionRevokedError, SignInRequiredError } from "./auth";
 import { withTrainingCollection } from "./training";
 import { identifierFieldErrors, type IdentifierType } from "./identifiers";
 import {
@@ -87,6 +87,8 @@ import {
 import { getOrCreatePlusDeviceIdentity } from "./offlineIdentity";
 import { codingReceiptSha256 } from "./codingReceipt";
 import { recordCodingOutcome } from "./codingUploadNotices";
+import { offlineQualityFields } from "./offlineQuality";
+import type { OfflineCodingQuality } from "./codingCapabilities";
 import { acquireDraftUpload } from "./localCodingLeases";
 import { getStandaloneConsent } from "./standaloneConsentStore";
 import { syncDraftSnapshot, type DraftSyncDefaults } from "./draftSync";
@@ -384,8 +386,12 @@ export const codingLeftKey = (draftId: string) => `coding-left:${draftId}`;
 /** Meta key: the `updated_at` of a coding revision the server refused outright, held until the coder changes it. */
 export const codingRefusedKey = (draftId: string) => `coding-refused:${draftId}`;
 
-/** Enrolled refusals of the offline coding alone, after which the interview is sent again without it. */
-const ENROLLED_CODING_REFUSALS = new Set(["422 offline_coding_invalid", "409 coding_conflict", "403 device_mismatch"]);
+/**
+ * Enrolled refusals of the offline coding alone, after which the interview is sent again without it and the coding
+ * stays on the phone until the coder changes it (a missing NQA or Social Autopsy the project asks, digitva-p8uj).
+ */
+const ENROLLED_CODING_REFUSALS = new Set(["422 offline_coding_invalid", "409 coding_conflict", "403 device_mismatch",
+  "422 narrative_qa_required", "422 social_autopsy_required"]);
 
 /** Standalone refusals shown and held, never resent or reopened on their own (contract 17: consent is terminal). */
 const STANDALONE_HELD_422 = new Set(["consent_invalid", "consent_required", "consent_conflict", "standalone_invalid", "offline_coding_invalid"]);
@@ -427,6 +433,7 @@ export async function uploadQueuedWork(
   await rememberTrainingProjectOnPhone(userId, db, undefined);
   const codingOutcomes: OfflineCodingOutcome[] = [];
   let enrolledDeviceUuid: string | null | undefined;
+  let offlineQuality: OfflineCodingQuality | undefined;
   let sent = 0;
   let failed = 0;
   const supersededUniqueIds: string[] = [];
@@ -442,6 +449,18 @@ export async function uploadQueuedWork(
       }
     }
     return enrolledDeviceUuid;
+  }
+
+  /** The cached NQA / Social Autopsy switches of this account's projects (digitva-p8uj), read once per pass. */
+  async function projectAsksNqa(projectId: string): Promise<boolean> {
+    if (offlineQuality === undefined) {
+      try {
+        offlineQuality = (await loadAccounts()).find((account) => account.user_id === userId)?.offline_coding_quality ?? {};
+      } catch {
+        offlineQuality = {};
+      }
+    }
+    return offlineQuality[projectId]?.narrative_qa === true;
   }
 
   for (const reg of await listRegistrations(db)) {
@@ -595,6 +614,10 @@ export async function uploadQueuedWork(
     try {
       const deviceUuid = standalone ? standalone.clientDeviceUuid : row ? await currentEnrolledDeviceUuid() : null;
       coding = row && deviceUuid ? offlineCodingBody(row, sentHash, deviceUuid, true) : null;
+      // The enrolled final carries the NQA the coder saved for it (digitva-p8uj); a standalone one asks none.
+      if (coding && !standalone) {
+        coding = { ...coding, ...(await offlineQualityFields(db, item.id, coding.coded_answers_sha256, await projectAsksNqa(item.project_id))) };
+      }
       // A coding revision the server refused outright is not sent again until the coder changes it.
       if (!standalone && row && await getMeta<string>(db, codingRefusedKey(item.id)) === row.updated_at) coding = null;
     } catch {

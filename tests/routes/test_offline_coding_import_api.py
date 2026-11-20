@@ -28,6 +28,7 @@ from app.models import (
     VaConsentRecord,
     VaFinalAssessments,
     VaForms,
+    VaNarrativeAssessment,
     VaProjectMaster,
     VaProjectSites,
     VaSiteMaster,
@@ -898,3 +899,129 @@ class StandalonePushTests(BaseTestCase):
         response, draft_id = self._push(headers, client_uuid, coding=False, offline_coding=bad)
         self.assertEqual((response.status_code, response.get_json()["code"]), (422, "offline_coding_invalid"))
         self.assertIsNone(self._draft(draft_id))
+
+    # ── NQA and Social Autopsy follow the project (digitva-p8uj) ───────────
+
+    NQA = {"cannot_grade": False, "length": 3, "pos_symptoms": 2, "neg_symptoms": 1, "chronology": 1,
+           "doc_review": 0, "comorbidity": 1}
+
+    def _quality_project(self, *, nqa, sa):
+        project = db.session.get(VaProjectMaster, PROJECT)
+        before = (project.narrative_qa_enabled, project.social_autopsy_enabled)
+        project.narrative_qa_enabled, project.social_autopsy_enabled = nqa, sa
+        db.session.commit()
+
+        def restore():
+            row = db.session.get(VaProjectMaster, PROJECT)
+            row.narrative_qa_enabled, row.social_autopsy_enabled = before
+            db.session.commit()
+        self.addCleanup(restore)
+
+    def _push_quality(self, headers, client_uuid, **quality):
+        _json, sha = self._answers_json()
+        return self._push_enrolled(headers, client_uuid, coding=False,
+                                   offline_coding={**self._coding(client_uuid, sha), **quality})
+
+    @staticmethod
+    def _nqa_rows(va_sid):
+        return db.session.scalars(sa.select(VaNarrativeAssessment).where(
+            VaNarrativeAssessment.va_sid == va_sid, VaNarrativeAssessment.va_nqa_status == VaStatuses.active)).all()
+
+    def test_a_required_nqa_sent_empty_refuses_the_push_and_stores_nothing(self):
+        self._quality_project(nqa=True, sa=False)
+        client_uuid, headers = self._device(self.coder)
+        response, draft_id = self._push_quality(headers, client_uuid, narrative_qa=None)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (422, "narrative_qa_required"))
+        self.assertIsNone(self._draft(draft_id))
+        self.assertIsNone(db.session.get(VaBundlePendingCoding, draft_id))
+
+    def test_a_required_social_autopsy_sent_empty_refuses_the_push(self):
+        self._quality_project(nqa=False, sa=True)
+        client_uuid, headers = self._device(self.coder)
+        with mock.patch.object(offline_coding.coder_cod, "_social_autopsy_required", return_value=True):
+            response, draft_id = self._push_quality(headers, client_uuid, social_autopsy=None)
+        self.assertEqual((response.status_code, response.get_json()["code"]), (422, "social_autopsy_required"))
+        self.assertIsNone(self._draft(draft_id))
+
+    def test_social_autopsy_on_a_case_without_its_category_is_not_asked(self):
+        self._quality_project(nqa=False, sa=True)
+        client_uuid, headers = self._device(self.coder)
+        with mock.patch.object(offline_coding.coder_cod, "_social_autopsy_required", return_value=False):
+            response, _ = self._push_quality(headers, client_uuid, social_autopsy=None)
+            self.assertEqual(self._coding_receipt(response), {"status": "pending", "code": "not_ready"})
+            self.assertEqual(self._apply(response.get_json()["va_sid"])["applied"], 1)
+
+    def test_a_social_autopsy_sent_is_saved_with_its_options(self):
+        from app.models import VaSocialAutopsyAnalysis
+        from app.services.social_autopsy_analysis_service import SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS
+        self._quality_project(nqa=False, sa=True)
+        client_uuid, headers = self._device(self.coder)
+        chosen = [{"delay_level": q["delay_level"], "option_code": "none"} for q in SOCIAL_AUTOPSY_ANALYSIS_QUESTIONS]
+        with mock.patch.object(offline_coding.coder_cod, "_social_autopsy_required", return_value=True):
+            response, _ = self._push_quality(headers, client_uuid,
+                                             social_autopsy={"selected_options": chosen, "remark": " far "})
+            va_sid = response.get_json()["va_sid"]
+            self.assertEqual(self._apply(va_sid)["applied"], 1)
+        rows = db.session.scalars(sa.select(VaSocialAutopsyAnalysis).where(
+            VaSocialAutopsyAnalysis.va_sid == va_sid, VaSocialAutopsyAnalysis.va_saa_status == VaStatuses.active)).all()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0].va_saa_by, rows[0].va_saa_remark), (self.coder.user_id, "far"))
+        self.assertEqual(sorted((o.delay_level, o.option_code) for o in rows[0].selected_options),
+                         sorted((c["delay_level"], "none") for c in chosen))
+
+    def test_a_required_nqa_sent_is_saved_with_the_imported_final(self):
+        self._quality_project(nqa=True, sa=False)
+        client_uuid, headers = self._device(self.coder)
+        response, draft_id = self._push_quality(headers, client_uuid, narrative_qa=self.NQA)
+        self.assertEqual(self._coding_receipt(response), {"status": "pending", "code": "not_ready"})
+        va_sid = response.get_json()["va_sid"]
+        self.assertEqual(self._apply(va_sid)["applied"], 1, db.session.get(VaBundlePendingCoding, draft_id).code)
+        self.assertIsNotNone(self._final(va_sid))
+        rows = self._nqa_rows(va_sid)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0].va_nqa_by, rows[0].va_nqa_score, rows[0].va_nqa_cannot_grade),
+                         (self.coder.user_id, 8, False))
+        self.assertEqual(self._audits(va_sid, "narrative quality assessment imported"),
+                         ["narrative quality assessment imported from collect plus offline"])
+
+    def test_nqa_switched_on_after_the_push_refuses_an_empty_nqa_at_import(self):
+        self._quality_project(nqa=False, sa=False)
+        client_uuid, headers = self._device(self.coder)
+        response, draft_id = self._push_quality(headers, client_uuid, narrative_qa=None)
+        self.assertEqual(self._coding_receipt(response), {"status": "pending", "code": "not_ready"})
+        db.session.get(VaProjectMaster, PROJECT).narrative_qa_enabled = True
+        db.session.commit()
+        va_sid = response.get_json()["va_sid"]
+        self._apply(va_sid)
+        held = db.session.get(VaBundlePendingCoding, draft_id)
+        self.assertEqual((held.status, held.code), ("rejected", "narrative_qa_required"))
+        self.assertIsNone(self._final(va_sid))
+
+    def test_a_project_without_nqa_or_sa_imports_as_before_and_saves_no_nqa(self):
+        self._quality_project(nqa=False, sa=False)
+        client_uuid, headers = self._device(self.coder)
+        response, _ = self._push_quality(headers, client_uuid, narrative_qa=self.NQA, social_autopsy=None)
+        va_sid = response.get_json()["va_sid"]
+        self.assertEqual(self._apply(va_sid)["applied"], 1)
+        self.assertIsNotNone(self._final(va_sid))
+        self.assertEqual(self._nqa_rows(va_sid), [])
+
+    def test_an_old_body_without_the_quality_keys_imports_as_today(self):
+        self._quality_project(nqa=True, sa=True)
+        client_uuid, headers = self._device(self.coder)
+        response, _ = self._push_enrolled(headers, client_uuid)
+        self.assertEqual(self._coding_receipt(response), {"status": "pending", "code": "not_ready"})
+        va_sid = response.get_json()["va_sid"]
+        self.assertEqual(self._apply(va_sid)["applied"], 1)
+        self.assertIsNotNone(self._final(va_sid))
+        self.assertEqual(self._nqa_rows(va_sid), [])
+
+    def test_malformed_quality_answers_refuse_the_whole_push(self):
+        client_uuid, headers = self._device(self.coder)
+        for quality in ({"narrative_qa": {**self.NQA, "length": 9}},
+                        {"social_autopsy": {"selected_options": [{"delay_level": "x", "option_code": "y"}]}},
+                        {"social_autopsy": {"selected_options": []}}):
+            response, draft_id = self._push_quality(headers, client_uuid, **quality)
+            self.assertEqual((response.status_code, response.get_json()["code"]), (422, "offline_coding_invalid"),
+                             quality)
+            self.assertIsNone(self._draft(draft_id))

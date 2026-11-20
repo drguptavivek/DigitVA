@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-19
+last_updated: 2026-11-20
 ---
 
 # Expo Client Hosting And Access
@@ -1147,6 +1147,17 @@ the device while unenrolled.
   `__tests__/localCategories.test.ts`). Attachments open one at a time on tap
   from the encrypted store (`src/workspace/media/LocalAttachmentMedia.native.tsx`);
   the private note lives in the store's meta (`offlineNote:<id>`), never synced;
+  where the account's cached `offline_coding_quality` (from `/me/access`
+  `offline_coding.narrative_qa_enabled`) has the project's NQA on, enrolled
+  only, the workspace API serves the online NQA panel (`src/offlineQuality.ts`
+  holds the form, a copy of `NARRATIVE_QA_FIELDS`), blocks the narrative
+  category and the final until it is saved, and keeps it in meta
+  (`offlineNqa:<id>`, bound to the answers hash, deleted with the draft);
+  `src/sync.ts` sends it as `offline_coding.narrative_qa`, and a 422
+  `narrative_qa_required` / `social_autopsy_required` keeps the coding like
+  `offline_coding_invalid` until an NQA save clears the hold (`digitva-p8uj`).
+  Social Autopsy is not asked offline (no `social_autopsy` category in the
+  display pack);
   SmartVA shows the local result. Every server-only call refuses. The COD
   section holds the unmasked `DorisPanel` driven by the offline engine
   (`src/workspace/offlineDoris.ts`), which saves to the per-interviewer store's

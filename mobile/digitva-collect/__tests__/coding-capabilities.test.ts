@@ -1,4 +1,4 @@
-import { canUseOfflineCoding, offlineCodingProjectIds } from "../src/codingCapabilities";
+import { canUseOfflineCoding, offlineCodingProjectIds, offlineCodingQuality } from "../src/codingCapabilities";
 import type { AccessSummary } from "../src/api";
 
 const project = (
@@ -27,6 +27,16 @@ const access = (...projects: AccessSummary["projects"]): AccessSummary => ({
 });
 
 describe("offline coding capability", () => {
+  it("keeps the NQA and Social Autopsy switches of offline-coding projects only; an older server's absent flags ask neither (digitva-p8uj)", () => {
+    expect(offlineCodingQuality(access(
+      project("both", true, {}, { narrative_qa_enabled: true, social_autopsy_enabled: true }),
+      project("nqa", true, {}, { narrative_qa_enabled: true, social_autopsy_enabled: false }),
+      project("neither", true, {}, { narrative_qa_enabled: false, social_autopsy_enabled: false }),
+      project("old_server", true),
+      project("not_offline", false, {}, { narrative_qa_enabled: true }),
+    ))).toEqual({ both: { narrative_qa: true, social_autopsy: true }, nqa: { narrative_qa: true, social_autopsy: false } });
+  });
+
   it("requires self-coding and an active codes-enabled coder grant in the same project", () => {
     expect(offlineCodingProjectIds(access(project("same", true)))).toEqual(["same"]);
     expect(offlineCodingProjectIds(access(project("cross", false), project("self", true, { codes: false })))).toEqual([]);

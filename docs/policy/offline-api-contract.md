@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-13
+last_updated: 2026-11-20
 ---
 
 # Offline API Contract v1
@@ -1135,6 +1135,20 @@ all. The body is the 3.6 upload plus:
   | `certificate_digest`, `result_digest` | local integrity markers (64 hex) or null; never verified |
   | `provenance` | `{allowability: {rules, release}, antecedent: {code, primary_stem, release, causing_condition_unknown?, age_restriction_confirmation?}}`; the confirmation is the six-key record of `record_final_cod_flags` |
   | `pack_versions` | at most 20 `{name: version}` texts (allowability pack, WHO files, engine). Collect Plus sends `allowability`, `icd11_engine` (the engine release), `doris_engine` (rule engine), `doris_rules` and `icd_release` |
+  | `narrative_qa` | optional, additive (`digitva-p8uj`): the coder's NQA as the online save takes it, `{cannot_grade, length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity}` (allowed score points of `NARRATIVE_QA_FIELDS`; zeros when it cannot be graded), or null when not done. Absent (an older APK, or the coder saved none) = not asked, as before |
+  | `social_autopsy` | optional, additive: `{selected_options: [{delay_level, option_code}], remark}` under the online save's rules (known pairs, every delay level, `none` exclusive, remark up to 4000), or null; absent = not asked. Collect Plus does not send it yet |
+
+  Enrolled phones learn the project's switches from `/me/access`
+  `self_coding.offline_coding.narrative_qa_enabled` and
+  `social_autopsy_enabled` (additive booleans). A key sent null where the
+  project asks it (Social Autopsy: the switch and, once the case has a
+  payload, its category shown, as online) refuses the whole upload with 422
+  `narrative_qa_required` or `social_autopsy_required` (the phone sends the
+  interview alone and keeps the coding until the coder completes it, as for
+  `offline_coding_invalid`). At import, each key sent is saved as the coder's
+  NQA / Social Autopsy on the active payload, then the online final gates are
+  asked (Social Autopsy only where the case shows its category); a failure is
+  `refused` with the same code.
 
   A malformed object refuses the whole upload with 422
   `offline_coding_invalid` (the phone keeps both); `standalone` with 422
@@ -1188,6 +1202,7 @@ ignore the additive reply field; the server computes it without a new request ke
 | `refused` | `coding_mode_mismatch` | the project is not unmasked DORIS on ICD-11 |
 | `refused` | `coded_version_superseded` | stale coding (above): the phone asks the coder to recode |
 | `refused` | `recode_not_allowed` | a recode over an applied final that the online recode rules refuse |
+| `refused` | `narrative_qa_required`, `social_autopsy_required` | at import, a key sent empty that the project now asks (it switched it on after the push); nothing is saved |
 | `refused` | `not_available` | no case of its own (a superseded copy), or the account is gone |
 | `refused` | an allocation code (`forbidden`, ...) | the import could not take the coder's allocation (scope, language, coding gates) |
 

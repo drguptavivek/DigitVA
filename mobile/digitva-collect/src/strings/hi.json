@@ -887,6 +887,8 @@
   "codingRefused_coded_version_superseded": "कोड करने के बाद साक्षात्कार बदल गया; इसे फिर से कोड करें",
   "codingRefused_held_by_another": "इस केस पर कोई और कोडर काम कर रहा है",
   "codingRefused_final_blocked": "पहले Narrative QA या Social Autopsy पूरा करना होगा",
+  "codingRefused_narrative_qa_required": "Narrative Quality Assessment पूरा करें, फिर कोडिंग दोबारा भेजी जाएगी",
+  "codingRefused_social_autopsy_required": "Social Autopsy Analysis पूरा करें, फिर कोडिंग दोबारा भेजी जाएगी",
   "codingRefused_forbidden": "इस व्यक्ति को इस प्रोजेक्ट में कोड करने की अनुमति नहीं है",
   "codingRefused_depends_on_rejected": "जिस साक्षात्कार को यह कोड करता है, वह अस्वीकार हो चुका है",
   "codingRefused_conflict": "यह सर्वर पर पहले से मौजूद रिकॉर्ड से टकराता है",

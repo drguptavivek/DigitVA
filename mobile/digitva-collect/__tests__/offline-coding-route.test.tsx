@@ -823,6 +823,52 @@ describe("the offline coding workspace's local API", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("asks the project's NQA offline: shown, blocking the narrative and the final until saved, then kept (digitva-p8uj)", async () => {
+    const { parseWorkspace } = jest.requireActual<typeof import("../src/workspace/contracts")>("../src/workspace/contracts");
+    mockAccounts[0] = { ...mockAccounts[0], offline_coding_quality: { SELF: { narrative_qa: true, social_autopsy: true } } };
+    const { api } = await openCase();
+    const before = await api.getWorkspace("draft-7", "coding");
+    expect(parseWorkspace(JSON.parse(JSON.stringify(before)), "coding")).toEqual(before);
+    expect(before.case).toMatchObject({ narrative_qa_enabled: true, social_autopsy_enabled: false });
+    expect(before.narrative_qa).toMatchObject({ max_score: 10, saved: null });
+    expect(before.narrative_qa!.fields.map((field) => field.key)).toEqual(["length", "pos_symptoms", "neg_symptoms", "chronology", "doc_review", "comorbidity"]);
+    expect(before.social_autopsy).toBeNull();
+    await expect(api.getCategory("draft-7", "vanarrationanddocuments", "coding")).resolves.toMatchObject({ blocked_by: ["narrative_qa"] });
+    await expect(api.saveInitial("draft-7", {})).rejects.toMatchObject({ status: 422, code: "final_blocked" });
+
+    await expect(api.saveNarrativeQuality("draft-7", { cannot_grade: false, length: 9 })).rejects.toThrow("offline_nqa_invalid");
+    const body = { cannot_grade: false, length: "3", pos_symptoms: "2", neg_symptoms: "1", chronology: "1", doc_review: "0", comorbidity: "1" };
+    // An unanswered 0/1 question is never read as 0, as the online save's int() refuses it.
+    for (const unanswered of ["", null, false, undefined]) {
+      await expect(api.saveNarrativeQuality("draft-7", { ...body, doc_review: unanswered } as never)).rejects.toThrow("offline_nqa_invalid");
+    }
+    await expect(api.saveNarrativeQuality("draft-7", body)).resolves.toEqual({ saved: true, score: 8, rating: "Good" });
+    expect(metaStore.get("offlineNqa:draft-7")).toEqual({
+      answersHash: "a".repeat(64),
+      nqa: { cannot_grade: false, length: 3, pos_symptoms: 2, neg_symptoms: 1, chronology: 1, doc_review: 0, comorbidity: 1 },
+    });
+    expect(metaStore.get("coding-refused:draft-7")).toBeNull();
+    const after = await api.getWorkspace("draft-7", "coding");
+    expect(after.narrative_qa!.saved).toEqual({
+      cannot_grade: false, score: 8, rating: "Good",
+      values: { length: 3, pos_symptoms: 2, neg_symptoms: 1, chronology: 1, doc_review: 0, comorbidity: 1 },
+    });
+    await expect(api.getCategory("draft-7", "vanarrationanddocuments", "coding")).resolves.toMatchObject({ blocked_by: [] });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("asks no NQA of a project without it, nor of an NQA saved on other answers", async () => {
+    metaStore.set("offlineNqa:draft-7", { answersHash: "b".repeat(64), nqa: { cannot_grade: true } });
+    mockAccounts[0] = { ...mockAccounts[0], offline_coding_quality: { OTHER: { narrative_qa: true, social_autopsy: false } } };
+    let { api, root } = await openCase();
+    expect((await api.getWorkspace("draft-7", "coding")).narrative_qa).toBeNull();
+    await act(async () => root.unmount());
+    mockAccounts[0] = { ...mockAccounts[0], offline_coding_quality: { SELF: { narrative_qa: true, social_autopsy: false } } };
+    ({ api, root } = await openCase());
+    expect((await api.getWorkspace("draft-7", "coding")).narrative_qa!.saved).toBeNull();
+    await act(async () => root.unmount());
+  });
+
   it("refuses every server-only call", async () => {
     const { api } = await openCase();
     const calls: Array<() => Promise<unknown>> = [
@@ -870,6 +916,27 @@ describe("the offline coding workspace's local API", () => {
       await act(async () => { await Promise.resolve(); });
       expect(text()).toContain("SmartVA Analysis");
       expect(text()).toContain("Stroke");
+    } finally {
+      if (appState) Object.defineProperty(AppState, "currentState", appState);
+    }
+  });
+
+  it("renders the online NQA panel in the narrative category where the project asks it (digitva-p8uj)", async () => {
+    const appState = Object.getOwnPropertyDescriptor(AppState, "currentState");
+    Object.defineProperty(AppState, "currentState", { configurable: true, value: "active" });
+    try {
+      mockRealScreen = true;
+      mockAccounts[0] = { ...mockAccounts[0], offline_coding_quality: { SELF: { narrative_qa: true, social_autopsy: false } } };
+      const root = await render(<OfflineCoding />);
+      await act(async () => { await Promise.resolve(); });
+      const narration = root.root.findAll((n) => n.props.accessibilityLabel === "Narration / Documents / COD" && typeof n.props.onPress === "function")[0];
+      expect(narration).toBeDefined();
+      await act(async () => { narration.props.onPress(); });
+      await act(async () => { await Promise.resolve(); });
+      const text = JSON.stringify(root.toJSON());
+      expect(text).toContain("Narrative quality");
+      expect(text).toContain("Q1. Length of Narrative");
+      expect(labels(root)).toContain("Save narrative quality");
     } finally {
       if (appState) Object.defineProperty(AppState, "currentState", appState);
     }
@@ -1070,7 +1137,7 @@ describe("direct coding and the coded-case summary (digitva-9cll.23, .24)", () =
     await act(async () => root.unmount());
   });
 
-  it("tells DorisPanel it is offline and asks neither NQA nor Social Autopsy, enrolled included (digitva-9cll.22.4/.22.5)", async () => {
+  it("tells DorisPanel it is offline and asks neither NQA nor Social Autopsy where the project has neither (digitva-9cll.22.4/.22.5, p8uj)", async () => {
     const root = await open(false, null);
     expect(mockPanelProps!.offline).toBe(true);
     const workspace = await mockScreenProps!.api.getWorkspace("draft-7", "coding");

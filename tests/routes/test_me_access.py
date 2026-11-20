@@ -350,7 +350,8 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
             "enabled": False,
             "code_now": False,
             "offline_coding": {
-                "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10"}})
+                "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10",
+                "narrative_qa_enabled": False, "social_autopsy_enabled": True}})
         self.assertEqual(self.client.get(policy).status_code, 200)
         self.assertTrue(can(user, Action.CODE, "sp-1"))
 
@@ -402,7 +403,8 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
             "enabled": True,
             "code_now": True,
             "offline_coding": {
-                "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10"}})
+                "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10",
+                "narrative_qa_enabled": False, "social_autopsy_enabled": True}})
         self.assertEqual([e["site_id"] for e in project["actions"]["interview"]], ["AZS5"])
         self.assertIn("interviewer", project["sites"][0]["roles"])
         # Absent: a plain coder on a project that is not self-coding.
@@ -412,7 +414,8 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
             "enabled": False,
             "code_now": False,
             "offline_coding": {
-                "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10"}})
+                "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10",
+                "narrative_qa_enabled": False, "social_autopsy_enabled": True}})
         self.assertEqual(plain["settings"]["coding_scope"],
                          {"level_code": "phc", "above_mode": "view_only"})
 
@@ -424,7 +427,8 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         db.session.commit()
         summary = self._body("coder_tb")
         self.assertEqual(self._project(summary, TB)["self_coding"]["offline_coding"], {
-            "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10"})
+            "enabled": False, "project_mode": "masked_simple", "icd_classification": "icd10",
+            "narrative_qa_enabled": False, "social_autopsy_enabled": True})
 
         project_row.masked_cod_required = False
         project_row.icd_classification = "icd11"
@@ -436,7 +440,15 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
             grant["role"] == "coder" and grant["active"] and grant["codes"]
             for grant in project["grants"]))
         self.assertEqual(project["self_coding"]["offline_coding"], {
-            "enabled": True, "project_mode": "unmasked_doris", "icd_classification": "icd11"})
+            "enabled": True, "project_mode": "unmasked_doris", "icd_classification": "icd11",
+            "narrative_qa_enabled": False, "social_autopsy_enabled": True})
+
+        # The project's NQA and Social Autopsy switches travel with it.
+        project_row.narrative_qa_enabled = True
+        project_row.social_autopsy_enabled = False
+        db.session.commit()
+        offline = self._project(self._body("coder_tb"), TB)["self_coding"]["offline_coding"]
+        self.assertEqual((offline["narrative_qa_enabled"], offline["social_autopsy_enabled"]), (True, False))
 
     def test_smartva_targets_are_exactly_authorized_and_inherit_each_area_preset(self):
         project_row = db.session.get(VaProjectMaster, TA)

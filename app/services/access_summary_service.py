@@ -96,6 +96,8 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
                     VaProjectMaster.cod_entry_mode,
                     VaProjectMaster.icd_classification,
                     VaProjectMaster.timezone,
+                    VaProjectMaster.narrative_qa_enabled,
+                    VaProjectMaster.social_autopsy_enabled,
                 ).where(VaProjectMaster.project_id.in_(project_ids))
             ).all()
         }
@@ -319,6 +321,10 @@ def _project(project_id, grants, resolved, project, site_rows, unit_names, inter
         ),
         "project_mode": mode,
         "icd_classification": classification,
+        # Additive (digitva-p8uj): what the import requires with an offline
+        # final, as the online final gate (coder_cod_service) asks it.
+        "narrative_qa_enabled": bool(project is not None and project.narrative_qa_enabled),
+        "social_autopsy_enabled": bool(project is not None and project.social_autopsy_enabled),
     }
     actions = action_reach(resolved, project_id)
     actions["interview"] = [

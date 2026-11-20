@@ -968,8 +968,13 @@ enrolment. It adds no workflow state and no new transition.
   allocated the case (`coding_started`, as "Code this case now": scope,
   language and coding gates apply, pick mode does not) and the result is saved
   as their final (`coder_finalized`, reason `offline_coding_imported`). No
-  DORIS re-run and no WHO call; the narrative QA and social autopsy gates are
-  not asked, since the phone has neither.
+  DORIS re-run and no WHO call. The narrative QA and social autopsy sent with
+  the final are saved as the coder's, and the online final gates are asked of
+  each one the phone sent (`digitva-p8uj`): a required one sent empty is
+  refused at push (422 `narrative_qa_required` / `social_autopsy_required`,
+  the coding kept on the phone) or, when the project switched it on after the
+  push, at import (`refused` with the same code). An older APK sends neither
+  and is not asked.
 - **Who.** Only an account holding a `coder` grant that codes on the project
   (the self-coding grant included). Without one the interview is kept and the
   coding refused (`coding_grant_required`); so is a stale coding or a

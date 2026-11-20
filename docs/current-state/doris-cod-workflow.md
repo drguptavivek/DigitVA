@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-19
+last_updated: 2026-11-20
 ---
 
 # DORIS COD Workflow
@@ -384,6 +384,20 @@ outage skips the remaining titles of that reply only. Each offline save records
 `__tests__/offline-who-golden.test.ts` replays `scripts/icd11-golden` (search,
 postcoordination codeinfo and selection-check, the guidance routes, DORIS) with
 a fake engine that answers only the WHO requests the fixture recorded.
+
+**Offline NQA and Social Autopsy (2026-11-20, digitva-p8uj).** `/me/access`
+`self_coding.offline_coding` carries `narrative_qa_enabled` and
+`social_autopsy_enabled` (`access_summary_service._project`). The offline
+final may carry `narrative_qa` and `social_autopsy`
+(`offline_coding_import_service.parse_offline_coding`, the online saves'
+rules). `hold` refuses a key sent null where the project has it on (422
+`narrative_qa_required` / `social_autopsy_required`, upload rolled back);
+`_save_imported_final` calls `_save_quality`, which saves each sent answer as
+the coder's active row on the payload (earlier rows deactivated, audited
+`... imported from collect plus offline`) and then asks the online gates of
+each key sent, raising `CoderCodingError` with the same codes. A body without
+the keys is imported as before. The phone asks NQA only (see
+[Expo client](expo-client.md)).
 
 **Offline guidance (Collect Plus, 2026-10-30, digitva-9cll.4).** The picker's
 five guidance routes (`postcoordination` and its Build stem and axes,

@@ -81,6 +81,9 @@ export interface AccessProject {
       enabled: boolean;
       project_mode: string;
       icd_classification: string;
+      /** Additive (digitva-p8uj); absent on older servers: offline coding then asks neither. */
+      narrative_qa_enabled?: boolean;
+      social_autopsy_enabled?: boolean;
     };
   };
   units?: AccessUnit[];
@@ -192,7 +195,9 @@ export function parseAccessSummary(value: unknown): AccessSummary {
         (!record(project.self_coding.offline_coding) ||
           typeof project.self_coding.offline_coding.enabled !== "boolean" ||
           typeof project.self_coding.offline_coding.project_mode !== "string" ||
-          typeof project.self_coding.offline_coding.icd_classification !== "string")) {
+          typeof project.self_coding.offline_coding.icd_classification !== "string" ||
+          !["boolean", "undefined"].includes(typeof project.self_coding.offline_coding.narrative_qa_enabled) ||
+          !["boolean", "undefined"].includes(typeof project.self_coding.offline_coding.social_autopsy_enabled))) {
       throw new ApiError(200, "malformed_response");
     }
     for (const grant of project.grants) {

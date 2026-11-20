@@ -372,6 +372,17 @@ it("rejects malformed self-coding capability fields at the access boundary", () 
       offline_coding: { enabled: "yes", project_mode: "unmasked_doris", icd_classification: "icd11" },
     } }],
   })).toThrow("malformed_response");
+  // The additive NQA / Social Autopsy switches (digitva-p8uj): optional, but booleans when sent.
+  const offline = (extra: Record<string, unknown>) => ({
+    ...ACCESS,
+    projects: [{ ...interviewAccess().projects[0], self_coding: {
+      enabled: true, offline_coding: { enabled: true, project_mode: "unmasked_doris", icd_classification: "icd11", ...extra },
+    } }],
+  });
+  expect(() => parseAccessSummary(offline({ narrative_qa_enabled: "yes" }))).toThrow("malformed_response");
+  expect(() => parseAccessSummary(offline({ social_autopsy_enabled: 1 }))).toThrow("malformed_response");
+  expect(() => parseAccessSummary(offline({ narrative_qa_enabled: true, social_autopsy_enabled: false }))).not.toThrow();
+  expect(() => parseAccessSummary(offline({}))).not.toThrow();
 });
 
 it("rotates an expired access token while refreshing collection access", async () => {

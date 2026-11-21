@@ -28,34 +28,33 @@ beforeEach(() => {
   mockPlus = true;
 });
 
-it("defaults missing and corrupt values to disabled and treats them as unanswered", async () => {
+// Owner 2026-11-21: coding is on by default in Collect Plus too, as in plain Collect.
+it("Plus reads a missing, corrupt or unreadable preference as enabled", async () => {
   let preference = await freshPreferenceModule();
-  expect(await preference.isIcd11DorisEnabled()).toBe(false);
-  expect(preference.useIcd11DorisPreference).toBeDefined();
+  expect(await preference.isIcd11DorisEnabled()).toBe(true);
 
   mockSecureStore.set("digitva.icd11-doris-enabled.v1", "unexpected");
   preference = await freshPreferenceModule();
-  expect(await preference.isIcd11DorisEnabled()).toBe(false);
-});
+  expect(await preference.isIcd11DorisEnabled()).toBe(true);
 
-it("fails closed when the secure preference cannot be read", async () => {
   mockReadError = true;
-  const preference = await freshPreferenceModule();
-  expect(await preference.isIcd11DorisEnabled()).toBe(false);
+  preference = await freshPreferenceModule();
+  expect(await preference.isIcd11DorisEnabled()).toBe(true);
 });
 
 it("persists a choice before publishing it and reads it after module restart", async () => {
   const preference = await freshPreferenceModule();
-  expect(await preference.isIcd11DorisEnabled()).toBe(false);
-  mockWriteError = true;
-  await expect(preference.setIcd11DorisEnabled(true)).rejects.toThrow("secure store unavailable");
-  mockWriteError = false;
-  await preference.setIcd11DorisEnabled(true);
-  expect(mockSecureStore.get("digitva.icd11-doris-enabled.v1")).toBe("enabled");
   expect(await preference.isIcd11DorisEnabled()).toBe(true);
+  mockWriteError = true;
+  await expect(preference.setIcd11DorisEnabled(false)).rejects.toThrow("secure store unavailable");
+  expect(await preference.isIcd11DorisEnabled()).toBe(true);
+  mockWriteError = false;
+  await preference.setIcd11DorisEnabled(false);
+  expect(mockSecureStore.get("digitva.icd11-doris-enabled.v1")).toBe("disabled");
+  expect(await preference.isIcd11DorisEnabled()).toBe(false);
 
   const restarted = await freshPreferenceModule();
-  expect(await restarted.isIcd11DorisEnabled()).toBe(true);
+  expect(await restarted.isIcd11DorisEnabled()).toBe(false);
 });
 
 it("plain Collect reads a missing or unreadable preference as enabled and answered, and honours a stored off", async () => {

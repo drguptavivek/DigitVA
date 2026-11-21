@@ -1,7 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import * as SecureStore from "expo-secure-store";
 
-import { isPlusVariant } from "./appVariant";
 
 const KEY = "digitva.icd11-doris-enabled.v1";
 
@@ -40,15 +39,15 @@ async function load(): Promise<void> {
         // An unreadable preference is fail-closed and can be answered again in the first-run gate.
       }
       const valid = value === "enabled" || value === "disabled";
-      // Plain Collect only gates online coding, so it defaults on without asking; Plus (offline engine) asks and defaults off.
-      const plain = !isPlusVariant();
-      publish({ ready: true, answered: valid || plain, enabled: valid ? value === "enabled" : plain });
+      // Owner 2026-11-21: coding is on by default in Collect and Collect Plus alike, without a first-run question.
+      // A stored choice (an earlier "Not now", or Settings) still wins.
+      publish({ ready: true, answered: true, enabled: valid ? value === "enabled" : true });
     })();
   }
   await loadPromise;
 }
 
-/** Read the device-wide coding preference. Missing, invalid, or unreadable values are disabled in Plus and enabled in plain Collect. */
+/** Read the device-wide coding preference. Missing, invalid, or unreadable values are enabled (Collect and Collect Plus). */
 export async function isIcd11DorisEnabled(): Promise<boolean> {
   await load();
   return snapshot.enabled;

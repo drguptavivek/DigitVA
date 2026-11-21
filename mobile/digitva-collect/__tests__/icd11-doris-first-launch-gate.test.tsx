@@ -31,27 +31,9 @@ import NativeIcd11DorisFirstLaunchGate from "../src/NativeIcd11DorisFirstLaunchG
 import { isIcd11DorisEnabled } from "../src/icd11DorisPreference";
 import en from "../src/strings/en.json";
 
-it("asks once at first run in Plus and persists an explicit Not now choice", async () => {
-  mockSecureStore.clear();
-  let tree!: ReactTestRenderer;
-  await act(async () => {
-    tree = create(<NativeIcd11DorisFirstLaunchGate><Text>App home</Text></NativeIcd11DorisFirstLaunchGate>);
-  });
-  expect(tree.toJSON()).toBeTruthy();
-  expect(JSON.stringify(tree.toJSON())).toContain(en.icd11DorisPreferenceTitle);
-  // The children are not mounted under the prompt: Android keeps a covered tree reachable.
-  expect(JSON.stringify(tree.toJSON())).not.toContain("App home");
-  expect(tree.root.findByProps({ accessibilityViewIsModal: true }).props.style).toMatchObject({ paddingTop: 24, paddingBottom: 12 });
-  const notNow = tree.root.findByProps({ accessibilityLabel: en.icd11DorisPreferenceNotNow });
-  await act(async () => { await notNow.props.onPress(); });
-  expect(mockSecureStore.get("digitva.icd11-doris-enabled.v1")).toBe("disabled");
-  expect(JSON.stringify(tree.toJSON())).toContain("App home");
-  expect(JSON.stringify(tree.toJSON())).not.toContain(en.icd11DorisPreferenceTitle);
-  expect(await isIcd11DorisEnabled()).toBe(false);
-});
-
-it.each([[undefined, true], ["disabled", false]] as const)("plain Collect never shows the gate (stored %s)", async (stored, enabled) => {
-  mockPlus = false;
+// Owner 2026-11-21: coding is on by default in both variants, with no first-run question; a stored choice still wins.
+it.each([[false, undefined, true], [false, "disabled", false], [true, undefined, true], [true, "disabled", false]] as const)("never shows the gate (Plus %s, stored %s)", async (plus, stored, enabled) => {
+  mockPlus = plus;
   jest.resetModules();
   mockSecureStore.clear();
   if (stored) mockSecureStore.set("digitva.icd11-doris-enabled.v1", stored);

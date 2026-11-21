@@ -75,6 +75,8 @@ export function CaseWorkspaceScreen({
   const [loadedCategory, setLoadedCategory] = useState<{ vaSid: string; mode: WorkspaceIdentity["mode"]; api: WorkspaceApi; payload: CategoryPayload } | null>(null);
   const [selectedCode, setSelectedCode] = useState("");
   const selectedCategory = useRef("");
+  // The case whose COD form has been shown; later category reloads keep it mounted (see the render).
+  const codShownFor = useRef<string | null>(null);
   const [savedNote, setSavedNote] = useState<{ api: WorkspaceApi; vaSid: string; mode: WorkspaceIdentity["mode"]; note: NotePayload } | null>(null);
   const [loadedEvents, setLoadedEvents] = useState<{ vaSid: string; mode: "view"; api: WorkspaceApi; cursor: string | null; payload: WorkflowEvents } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -446,6 +448,7 @@ export function CaseWorkspaceScreen({
   const noteSummary = identity.mode !== "view" ? <View style={styles.card}>
     <Text style={styles.text}>{!currentNote ? "Open Notes to view your saved note." : currentNote.content ? noteText(currentNote.content) : "No note saved for this submission yet."}</Text>
   </View> : undefined;
+  if (selectedCode === "vacodassessment" && category) codShownFor.current = identityKey;
   const reviewing = identity.mode === "reviewing";
   // Reviewers get the COD entry form right under the coder's COD, above the long reference content.
   const codEditor = selectedCode === "vacodassessment" && identity.mode !== "view" ? (
@@ -543,7 +546,9 @@ export function CaseWorkspaceScreen({
             </View>
           ) : null}
           {category ? <CategoryPanel category={category} iconName={workspace.categories.find((item) => item.code === selectedCode)?.icon_name} renderMedia={renderMedia} categoryNav={workspace.categories} workspaceIdentity={`${identityKey}:${selectedCode}`} notesSummary={noteSummary} afterContent={qualityPanels} /> : null}
-          {selectedCode === "vacodassessment" && identity.mode !== "view" ? (
+          {/* The COD form waits for the section above it (drawn first, it was pushed down: a jump); once shown it
+              stays mounted through later reloads, so an unsaved draft is never dropped. */}
+          {selectedCode === "vacodassessment" && identity.mode !== "view" && (category || codShownFor.current === identityKey) ? (
             <View key={identityKey}>
               {reviewing ? null : codEditor}
             </View>

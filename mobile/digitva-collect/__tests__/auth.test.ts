@@ -55,6 +55,7 @@ import {
   SignInRequiredError,
   standaloneModeAvailable,
   subscribeAccountChanges,
+  loadDevice,
   subscribeAccessChanges,
   subscribeTermsChanges,
 } from "../src/auth";
@@ -186,6 +187,18 @@ it("sends replace_device_id to demo enrolment only when one is chosen", async ()
   await forgetDevice("demo");
   await enrolDemoDevice(SERVER, "demo.user", "pw", "Pixel", APP_VERSION, "old-phone");
   expect(JSON.parse(calls[1].body!)).toMatchObject({ replace_device_id: "old-phone" });
+});
+
+it("tells screens when a revoked device is forgotten", async () => {
+  mockServer(() => json(201, { device_id: "demo-device", device_secret: "secret", project: { project_id: "PUB01", name: "Demo" } }));
+  await enrolDemoDevice(SERVER, "demo.user", "pw", "Pixel", APP_VERSION);
+  expect(await loadDevice("demo")).toBeDefined();
+  const changed = jest.fn();
+  const unsubscribe = subscribeAccountChanges(changed);
+  await forgetDevice("demo");
+  unsubscribe();
+  expect(await loadDevice("demo")).toBeUndefined();
+  expect(changed).toHaveBeenCalled();
 });
 
 it("keeps the local store when the session has ended", async () => {

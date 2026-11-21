@@ -588,6 +588,9 @@ export async function forgetDevice(slot?: Slot): Promise<void> {
   await SecureStore.deleteItemAsync(slotKey(target, DEVICE_SECRET_KEY), OPTIONS);
   await SecureStore.deleteItemAsync(slotKey(target, DEVICE_KEY), OPTIONS);
   if (target === "demo" && chosen === "demo") await setActiveSlot("active");
+  // Screens re-read the device (AppState reload): without this, Home keeps the revoked enrolment and offers
+  // Add profile, whose sign-in then fails not_enrolled instead of sending the phone to enrolment.
+  for (const listener of accountListeners) listener();
 }
 
 /**

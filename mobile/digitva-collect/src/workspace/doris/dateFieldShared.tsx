@@ -125,7 +125,7 @@ export function MonthYearFallback({ label, value, onChange }: { label: string; v
   return (
     <View style={{ gap: 4, flexGrow: 1 }}>
       <View style={layout.row}>
-        <MenuSelect triggerLabel={`${label} month`} valueText={month ? MONTH_NAMES[Number(month) - 1] : "Month"} selected={month} options={MONTH_NAMES.map((name, index) => ({ value: String(index + 1).padStart(2, "0"), label: name, accessibilityLabel: `${label} month: ${name}` }))} onSelect={(code) => commit(code, year)} />
+        <MenuSelect triggerLabel={`${label} month`} valueText={month ? MONTH_NAMES[Number(month) - 1] : "Mon"} selected={month} options={MONTH_NAMES.map((name, index) => ({ value: String(index + 1).padStart(2, "0"), label: name, accessibilityLabel: `${label} month: ${name}` }))} onSelect={(code) => commit(code, year)} />
         <YearSelect trigger={`${label} year`} value={year} onSelect={(next) => commit(month, next)} />
       </View>
     </View>

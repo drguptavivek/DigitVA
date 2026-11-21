@@ -259,6 +259,9 @@ describe("MenuSelect dropdown", () => {
     const rows = tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "menuitem");
     expect(rows.length).toBeGreaterThanOrEqual(7);
     expect(rows.length).toBeLessThan(40);
+    // The FlatList renders more rows on a timer; left mounted, that update lands after the suite ends and CI's
+    // single-process run fails on the late log.
+    act(() => tree.unmount());
   });
 
   it("places a menu that fits neither above nor below inside the window, and hides it until measured", () => {

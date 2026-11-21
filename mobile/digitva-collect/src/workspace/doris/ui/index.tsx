@@ -5,7 +5,7 @@
  */
 import { useContext, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { SafeAreaInsetsContext } from "react-native-safe-area-context";
-import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 
 import { BUTTON_MIN_WIDTH, buttonTone, fontSize, uiRadius, useTheme, type ButtonSize, type ButtonVariant, type ChartToken, type UiTokens } from "../../../theme";
 import { Chevron } from "../../../web/Chevron";
@@ -358,6 +358,8 @@ export function menuTop(anchor: Anchor, menuHeight: number, windowHeight: number
 
 /** A long list (a year list) shows this many rows and scrolls, so it opens beside its field instead of over the page. */
 const MENU_VISIBLE_ROWS = 7;
+/** Menus longer than this are virtualised (FlatList); shorter ones render every option at once. */
+const LONG_MENU = 20;
 
 /**
  * Vertical choice menu over the content: a Modal with its options in a ScrollView capped to the window, placed
@@ -401,7 +403,15 @@ export function MenuSelect<T extends string>({ triggerLabel, valueText, accessib
   const listMaxHeight = Math.max(controlHeight, Math.min(MENU_VISIBLE_ROWS * rowHeight, windowHeight - topInset - bottomInset - 2 * (MENU_EDGE + gap.xs)));
   // Opens scrolled to the chosen option, a few rows down, so a year far down the list is in view.
   const selectedIndex = options.findIndex((option) => option.value === selected);
-  const initialOffset = selectedIndex > 2 ? { x: 0, y: (selectedIndex - 2) * rowHeight } : undefined;
+  const renderOption = (option: MenuOption<T>) => {
+    const on = option.value === selected;
+    return (
+      <Pressable key={option.value} accessibilityRole="menuitem" accessibilityLabel={option.accessibilityLabel} accessibilityState={{ selected: on }} hitSlop={HIT_SLOP} onPress={() => { close(); onSelect(option.value); }}
+        style={[{ height: controlHeight, justifyContent: "center", paddingHorizontal: gap.md, marginBottom: gap.xs, borderRadius: uiRadius.sm, backgroundColor: on ? t.accent : "transparent" }, option.dimmed ? layout.dim : null]}>
+        <ControlText>{option.label}</ControlText>
+      </Pressable>
+    );
+  };
   return (
     <View ref={trigger} collapsable={false}>
       <FieldButton accessibilityLabel={triggerLabel} accessibilityValue={accessibilityValue} accessibilityState={{ expanded: open }} onPress={() => (open ? close() : openMenu())} style={style}>
@@ -414,17 +424,25 @@ export function MenuSelect<T extends string>({ triggerLabel, valueText, accessib
             <Pressable accessibilityLabel="Close menu" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0 }} />
             <View accessibilityRole="menu" onLayout={(event) => setMenuHeight(event.nativeEvent.layout.height)}
               style={[{ position: "absolute", top, left, minWidth: width, opacity: ready ? 1 : 0, backgroundColor: t.popover, borderWidth: 1, borderColor: t.border, borderRadius: uiRadius.md, padding: gap.xs, elevation: 4 }]}>
-              <ScrollView keyboardDismissMode="on-drag" style={{ maxHeight: listMaxHeight }} contentOffset={initialOffset} keyboardShouldPersistTaps="handled">
-                {options.map((option) => {
-                  const on = option.value === selected;
-                  return (
-                    <Pressable key={option.value} accessibilityRole="menuitem" accessibilityLabel={option.accessibilityLabel} accessibilityState={{ selected: on }} hitSlop={HIT_SLOP} onPress={() => { close(); onSelect(option.value); }}
-                      style={[{ minHeight: controlHeight, justifyContent: "center", paddingHorizontal: gap.md, marginBottom: gap.xs, borderRadius: uiRadius.sm, backgroundColor: on ? t.accent : "transparent" }, option.dimmed ? layout.dim : null]}>
-                      <ControlText>{option.label}</ControlText>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+              {options.length > LONG_MENU ? (
+                // Virtualised: a 121-year list builds only the rows in view, so the menu opens without a pause.
+                <FlatList
+                  data={options as MenuOption<T>[]}
+                  keyExtractor={(option) => option.value}
+                  style={{ maxHeight: listMaxHeight }}
+                  keyboardDismissMode="on-drag"
+                  keyboardShouldPersistTaps="handled"
+                  getItemLayout={(_data, index) => ({ length: rowHeight, offset: rowHeight * index, index })}
+                  initialScrollIndex={selectedIndex > 2 ? selectedIndex - 2 : undefined}
+                  initialNumToRender={MENU_VISIBLE_ROWS + 2}
+                  windowSize={3}
+                  renderItem={({ item }) => renderOption(item)}
+                />
+              ) : (
+                <ScrollView keyboardDismissMode="on-drag" style={{ maxHeight: listMaxHeight }} keyboardShouldPersistTaps="handled">
+                  {options.map(renderOption)}
+                </ScrollView>
+              )}
             </View>
           </View>
         </Modal>

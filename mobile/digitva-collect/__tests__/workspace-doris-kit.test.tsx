@@ -255,7 +255,10 @@ describe("MenuSelect dropdown", () => {
     expect(style.top).toBe(1200 - 4 - 900);
     expect(style.top).toBeGreaterThanOrEqual(0);
     expect(style.top + 900).toBeLessThanOrEqual(1334);
-    expect(tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "menuitem")).toHaveLength(40);
+    // A long list is virtualised: the first rows are built, not all 40.
+    const rows = tree.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "menuitem");
+    expect(rows.length).toBeGreaterThanOrEqual(7);
+    expect(rows.length).toBeLessThan(40);
   });
 
   it("places a menu that fits neither above nor below inside the window, and hides it until measured", () => {

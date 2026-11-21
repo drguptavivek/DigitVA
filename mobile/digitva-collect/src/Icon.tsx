@@ -16,6 +16,7 @@ export const icons = {
   error: { ios: "exclamationmark.circle.fill", android: "error" },
   success: { ios: "checkmark.circle.fill", android: "check_circle" },
   chevronRight: { ios: "chevron.right", android: "chevron_right" },
+  calendar: { ios: "calendar", android: "calendar_today" },
   close: { ios: "xmark.circle.fill", android: "cancel" },
   // The phone shell (src/nativeShell/NativeChrome.tsx): tabs, back, Help, app language.
   home: { ios: "house", android: "home" },

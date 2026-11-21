@@ -644,11 +644,11 @@ describe("clear and precision controls", () => {
     const api = apiFor();
     const { tree } = renderPanel(makeWorkspace({ seed: { ...whoSeed, AdministrativeData: { Sex: 1, DateBirth: "1997" } } }), api);
     expect(byLabel(tree, "Date of birth precision").props.accessibilityValue).toEqual({ text: "Year" });
-    expect(tree.root.findByProps({ accessibilityLabel: "Date of birth", placeholder: "Year" }).props.value).toBe("1997");
+    expect(byLabel(tree, "Date of birth").props.accessibilityValue).toEqual({ text: "1997" });
     await act(async () => byLabel(tree, "Clear Date of birth").props.onPress());
     expect(has(tree, "Clear Date of birth")).toBe(false);
     expect(byLabel(tree, "Date of birth precision").props.accessibilityValue).toEqual({ text: "Year" });
-    expect(tree.root.findByProps({ accessibilityLabel: "Date of birth", placeholder: "Year" }).props.value).toBe("");
+    expect(byLabel(tree, "Date of birth").props.accessibilityValue).toEqual({ text: "Not set" });
     await act(async () => tree.unmount());
   });
 
@@ -659,7 +659,8 @@ describe("clear and precision controls", () => {
       await act(async () => byLabel(tree, `${label} precision`).props.onPress());
       await act(async () => byLabel(tree, `${label} precision: ${name}`).props.onPress());
     }
-    await act(async () => tree.root.findByProps({ accessibilityLabel: "If yes please specify date of surgery*", placeholder: "Year" }).props.onChangeText("2025"));
+    await act(async () => byLabel(tree, "If yes please specify date of surgery*").props.onPress());
+    await act(async () => byLabel(tree, "If yes please specify date of surgery*: 2025").props.onPress());
     expect(has(tree, "Date of death precision")).toBe(false);
     await process(tree);
     expect((processedCertificate(api).Surgery as JsonObject).Date).toBe("2025");

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Platform, View } from "react-native";
 
+import { Icon, icons } from "../../Icon";
+import { useTheme } from "../../theme";
 import { ControlText, FieldButton, useLayout } from "./ui";
 import { DateFieldShell, isFullIso, isoFromLocal, localDate, todayIso, type DateFieldProps } from "./dateFieldShared";
 
@@ -13,6 +15,7 @@ export type { DateFieldProps };
  */
 export function DateField(props: DateFieldProps) {
   const layout = useLayout();
+  const { ui } = useTheme();
   const [open, setOpen] = useState(false);
   const today = localDate(todayIso(props.now, props.timeZone));
 
@@ -31,7 +34,8 @@ export function DateField(props: DateFieldProps) {
       return (
         <View style={{ gap: 4, flexGrow: 1, flexBasis: 150 }}>
           <FieldButton accessibilityLabel={props.label} accessibilityValue={{ text: value || "Not set" }} onPress={show}>
-            <ControlText>{value ? value : "Select date 📅"}</ControlText>
+            <ControlText>{value ? value : "Select date"}</ControlText>
+            <Icon name={icons.calendar} color={ui.mutedForeground} size={20} />
           </FieldButton>
           {Picker ? <Picker value={current} mode="date" display="inline" onChange={(_event, date) => { setOpen(false); if (date) pick(date); }} /> : null}
         </View>

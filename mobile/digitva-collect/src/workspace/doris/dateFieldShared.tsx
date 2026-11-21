@@ -86,6 +86,22 @@ function useEmitText(value: string) {
   return { text, setText, emitted };
 }
 
+/** Years offered in the phone's year dropdowns: this year back 120 years, newest first (the web's dropdown does the same). */
+const YEAR_SPAN = 120;
+function yearOptions(trigger: string, selected: string) {
+  const newest = new Date().getFullYear();
+  const years = Array.from({ length: YEAR_SPAN + 1 }, (_, index) => String(newest - index));
+  // A stored year outside the span (an odd value the V10 warning flags) stays visible and selected.
+  if (YEAR.test(selected) && !years.includes(selected)) years.unshift(selected);
+  return years.map((value) => ({ value, label: value, accessibilityLabel: `${trigger}: ${value}` }));
+}
+
+/** A year dropdown instead of a typed four-digit field. `trigger` names it: the field's label when it is the whole field (Year
+ * precision), "<label> year" beside a month list. */
+function YearSelect({ trigger, value, onSelect, grow }: { trigger: string; value: string; onSelect: (year: string) => void; grow?: boolean }) {
+  return <MenuSelect triggerLabel={trigger} valueText={value || "Year"} accessibilityValue={{ text: value || "Not set" }} selected={value} options={yearOptions(trigger, value)} onSelect={onSelect} style={grow ? { flexGrow: 1, flexBasis: 90, minWidth: 90 } : { minWidth: 100 }} />;
+}
+
 /** Year-Month for builds without a native month input: a month list and a four-digit year. */
 export function MonthYearFallback({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   const layout = useLayout();
@@ -110,7 +126,7 @@ export function MonthYearFallback({ label, value, onChange }: { label: string; v
     <View style={{ gap: 4, flexGrow: 1 }}>
       <View style={layout.row}>
         <MenuSelect triggerLabel={`${label} month`} valueText={month ? MONTH_NAMES[Number(month) - 1] : "Month"} selected={month} options={MONTH_NAMES.map((name, index) => ({ value: String(index + 1).padStart(2, "0"), label: name, accessibilityLabel: `${label} month: ${name}` }))} onSelect={(code) => commit(code, year)} />
-        <Input accessibilityLabel={`${label} year`} placeholder="Year" keyboardType="numeric" inputMode="numeric" maxLength={4} value={year} onChangeText={(next) => commit(month, next.replace(/\D/g, ""))} style={{ width: 90 }} />
+        <YearSelect trigger={`${label} year`} value={year} onSelect={(next) => commit(month, next)} />
       </View>
     </View>
   );
@@ -165,12 +181,9 @@ export function DateFieldShell({ label, value, onChange, precision, date, month,
   const field = mode === "date" ? date(value, onChange)
     : mode === "month" ? (month ? month(value, onChange) : <MonthYearFallback label={label} value={value} onChange={onChange} />)
       : year ? year(value, onChange) : (
-        <Input accessibilityLabel={label} placeholder="Year" keyboardType="numeric" inputMode="numeric" maxLength={4} value={text} invalid={Boolean(error)} style={{ flexGrow: 1, flexBasis: 90, minWidth: 90 }} onChangeText={(next) => {
-          const digits = next.replace(/\D/g, "");
-          setText(digits);
-          // No min or max: an out-of-range year is the V10 warning's business, not a block.
-          const out = YEAR.test(digits) ? digits : "";
-          if (out !== value) emit(out);
+        <YearSelect trigger={label} value={text} grow onSelect={(next) => {
+          setText(next);
+          if (next !== value) emit(next);
         }} />
       );
   return (

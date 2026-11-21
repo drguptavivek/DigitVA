@@ -748,7 +748,7 @@ export function DorisPanel({
   return (
     <IntervalErrorContext.Provider value={reportIntervalError}>
     <Card style={[layout.panel, pageCard]}>
-      <EditorHeading title="DORIS certificate" subtitle={direct ? undefined : isInitial ? "Step 1" : "Final cause"} />
+      <EditorHeading title="DORIS" subtitle={direct ? undefined : isInitial ? "Step 1" : "Final cause"} />
       {state.notice ? <Muted>{state.notice}</Muted> : null}
       {workspace.doris.saved_processing ? <ProcessingSummary processing={null} saved={workspace.doris.saved_processing} api={api} vaSid={identity.vaSid} /> : null}
       {demo || state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} interviewAge={interviewAge(workspace.doris)} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}

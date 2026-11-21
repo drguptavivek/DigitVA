@@ -154,7 +154,7 @@ it("renders a centred h2 heading with a step subtitle and bounding separators", 
   const style = Object.assign({}, ...[heading[0].props.style].flat(3).filter(Boolean));
   expect(style).toMatchObject({ fontWeight: "700", textAlign: "center" });
   expect(style.fontSize).toBeGreaterThanOrEqual(24);
-  expect(allText(tree)).toContain("DORIS certificate|Step 1");
+  expect(allText(tree)).toContain("DORIS|Step 1");
   expect(tree.root.findAllByProps({ testID: "doris-heading-separator" }).length).toBeGreaterThan(0);
   expect(tree.root.findAllByProps({ testID: "doris-actions-separator" }).length).toBeGreaterThan(0);
   await act(async () => tree.unmount());

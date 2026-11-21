@@ -879,7 +879,7 @@
   "codingRefused_actor_not_station_coder": "the person who coded is not a coder for this site on the server",
   "codingRefused_coding_mode_mismatch": "the coding mode does not match the project's",
   "codingRefused_coding_mode_unsupported": "the server does not accept this coding mode",
-  "codingRefused_invalid_doris": "the DORIS certificate did not pass the server's check",
+  "codingRefused_invalid_doris": "the DORIS entry did not pass the server's check",
   "codingRefused_invalid_cod": "the cause of death codes did not pass the server's check",
   "codingRefused_not_available": "the server has no interview from this station for this case",
   "codingRefused_record_invalid": "the coding record was incomplete or damaged",

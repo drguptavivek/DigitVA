@@ -3,6 +3,29 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-21
+
+- Collect 0.3.28 coding screen: tablet rail with the phone panel's rows
+  (icons, yes-counts, 48dp), no Exit button (`33980ec4c`, `dd957f07a`).
+- Sign in again on a revoked device offers to enrol it again, with the
+  device-limit picker (`f4f1d8bfc`, `048d1606f`, `digitva-dbcw`).
+- DORIS dates: calendar icon, year dropdown, "Mon" placeholder; menus stay
+  inside the safe area and long ones open without a pause; estimated age
+  recomputes from the dates and shows the interview's age beside it, without
+  the "from interview" badge once they differ (`c07651c4e`, `444a26190`,
+  `2b20298fe`, `0595c28a1`, `ce372b1ba`, `28c798f4a`).
+- "COD form (PDF)" on the case view, shared as `COD-form-<case id>.pdf`;
+  "Coded by" now names the coder on their own form; the editor heading is
+  "DORIS" (`c5f86de19`, `2c9dbc832`, `ac4bb7b75`, `28c798f4a`).
+- Coding on by default in Collect Plus (`9d2ddf43f`); coded-case "Copy
+  details" for support (`2c9dbc832`).
+- Flashes removed: queue header on tab switch, case open, COD form jump,
+  Code tab mode guess, section switch now holds a skeleton
+  (`e1393fb5b`, `09f3b894d`, `dc72ea60d`, `28c798f4a`, `digitva-2rm2`).
+- Phone NQA tab no longer shows the symptoms card (`digitva-70nl`); PIN
+  backspace steps back a box (`892a040dd`).
+- Bead audit: closed verified-done beads; remainders filed as new beads.
+
 ## 2026-11-20
 
 - Per-identifier rate limits key on an HMAC, so Redis holds no raw email,

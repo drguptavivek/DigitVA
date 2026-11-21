@@ -2,35 +2,13 @@
 
 ## Start here
 
-Staging runs `c622782` (deployed 2026-11-20 on the owner's go; backup
-verified; migrations at head `f4c2a8e6b1d9`; rollback:
+Staging runs `c622782` (deployed 2026-11-20; rollback:
 `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh f2333a29e8b35c330f1463e2228bff36a2304947`).
-It bakes web `expo-web-v2026.11.20.1`. Collect 0.3.26 (`f01f7ed`, version
-bump only) APK and AAB builds are on CI; device check before the Play upload.
-
-`main` is ahead of staging with the 2026-11-19 work (CHANGELOG.md): bottom bar
-labels, roster codes for active accounts only, the dictation tip, Statistics
-wording, the public DORIS demo rebuilt on the web editor, the web DORIS
-editor matching the frozen Collect screen, Collect with no WebView (in-app
-picker, Selected ICD Codes list, Coding languages screen, in-app "I have a
-code" and "Forgot password"), the 16-character mobile rule and the
-rate-limit log fix, plus the 2026-11-20 HMAC limit keys and web masked
-Step 2 parity. Deploy is the owner's go. The old-APK audit (2026-11-20)
-found it safe; check the old-APK ICD picker by hand first (its JS changed).
-Known changes, all additive or a refusal with existing shapes: `GET /profile/` adds `available_languages`; the device
-token may now `PATCH /profile/languages`; new `POST /auth/forgot-password`;
-the sign-in APIs refuse a mobile over 16 characters with 400
-`invalid_request` (apps send 13). The Collect changes need a new CI-built
-APK (`react-native-webview` was removed, a native change): CI run
-44591287344 built it (passed) but predates the diagnostics opt-in and the
-offline NQA; build a new APK before the device check.
-
-Also on `main` since 2026-11-20 (CHANGELOG.md): diagnostics opt-in, Users
-page revoke, own-case coding block, offline NQA gates, home totals + JSON,
-the web mentor view (migration `e3b7c9d1f5a2`, the only migration since
-staging). Re-audit for old APKs before deploy: additive fields and existing
-refusal codes only, but a coder holding their own case outside self-coding
-loses coding access to it.
+`main` is ahead with the 2026-11-21 Collect work (CHANGELOG.md). Its only
+server change is the COD form's "Coded by" name and title (no migration).
+Collect is 0.3.28 (`64005b4`); its CI builds were cancelled and must be
+rebuilt from `main` (APK, Collect Plus, Play AAB), then device-checked.
+0.3.27 builds on CI are stale: do not publish.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect
@@ -41,6 +19,9 @@ and maps stay in the browser).
 
 ## Ranked next steps
 
+- Build 0.3.28 from `main` on CI and device-check: re-enrol from Sign in
+  again (`digitva-dbcw`), tablet rail, DORIS dates and year menu, COD form
+  PDF, coded-case Copy details. Flaky under `-n 4`: `digitva-9czl`.
 0. Consent withdrawal landed (`digitva-4gu7`); erasure of a withdrawn case
    is not built (owner to decide). Migrations since staging:
    `e3b7c9d1f5a2`, `f4c2a8e6b1d9`. Follow-ups: phone SA panel
@@ -71,7 +52,6 @@ and maps stay in the browser).
 
 ## Open owner decisions
 
-- Staging deploy of `main` and its timing.
 - Golden postcoordination fixtures: 12 re-recorded on 2026-11-19 then the
   change reverted; the corpus is unchanged and approved.
 - `kkdb` step 2 (on-device Dictate button); `wawz` start.

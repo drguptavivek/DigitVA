@@ -3,7 +3,8 @@
  * components. No UI library; variants are small style maps (the cva idea).
  * Token table and rules: docs/current-state/doris-ui-tokens.md.
  */
-import { useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useContext, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 import { ActivityIndicator, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 
 import { BUTTON_MIN_WIDTH, buttonTone, fontSize, uiRadius, useTheme, type ButtonSize, type ButtonVariant, type ChartToken, type UiTokens } from "../../../theme";
@@ -344,13 +345,19 @@ const MENU_EDGE = gap.sm;
  * Top of a menu of `menuHeight` beside its trigger: below the trigger when it fits the window, else above it, else
  * pinned inside the window. Pure so the placement is testable without a device.
  */
-export function menuTop(anchor: Anchor, menuHeight: number, windowHeight: number): number {
+export function menuTop(anchor: Anchor, menuHeight: number, windowHeight: number, topInset = 0, bottomInset = 0): number {
+  // The modal draws edge to edge (statusBarTranslucent): keep clear of the status bar, cutout and navigation bar.
+  const first = topInset + MENU_EDGE;
+  const last = windowHeight - bottomInset - MENU_EDGE;
   const below = anchor.y + anchor.height + gap.xs;
-  if (below + menuHeight <= windowHeight - MENU_EDGE) return below;
+  if (below + menuHeight <= last) return below;
   const above = anchor.y - gap.xs - menuHeight;
-  if (above >= MENU_EDGE) return above;
-  return Math.max(MENU_EDGE, windowHeight - MENU_EDGE - menuHeight);
+  if (above >= first) return above;
+  return Math.max(first, last - menuHeight);
 }
+
+/** A long list (a year list) shows this many rows and scrolls, so it opens beside its field instead of over the page. */
+const MENU_VISIBLE_ROWS = 7;
 
 /**
  * Vertical choice menu over the content: a Modal with its options in a ScrollView capped to the window, placed
@@ -365,6 +372,9 @@ export function MenuSelect<T extends string>({ triggerLabel, valueText, accessib
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [menuHeight, setMenuHeight] = useState(0);
+  const insets = useContext(SafeAreaInsetsContext);
+  const topInset = insets?.top ?? 0;
+  const bottomInset = insets?.bottom ?? 0;
   const focusTrigger = () => {
     if (Platform.OS !== "web") return;
     // The trigger is the wrapper's only button; web focus needs the DOM node.
@@ -385,9 +395,13 @@ export function MenuSelect<T extends string>({ triggerLabel, valueText, accessib
   const ready = anchor !== null && menuHeight > 0;
   const width = Math.max(anchor?.width ?? 0, CHIP_MIN_WIDTH);
   const left = anchor ? Math.min(Math.max(MENU_EDGE, anchor.x), windowWidth - MENU_EDGE - width) : MENU_EDGE;
-  const top = anchor && ready ? menuTop(anchor, menuHeight, windowHeight) : 0;
-  // The option list scrolls inside the window; the menu's own padding is the gap to the window edge.
-  const listMaxHeight = Math.max(controlHeight, windowHeight - 2 * (MENU_EDGE + gap.xs));
+  const top = anchor && ready ? menuTop(anchor, menuHeight, windowHeight, topInset, bottomInset) : 0;
+  // The option list scrolls inside the safe window, at most MENU_VISIBLE_ROWS rows tall.
+  const rowHeight = controlHeight + gap.xs;
+  const listMaxHeight = Math.max(controlHeight, Math.min(MENU_VISIBLE_ROWS * rowHeight, windowHeight - topInset - bottomInset - 2 * (MENU_EDGE + gap.xs)));
+  // Opens scrolled to the chosen option, a few rows down, so a year far down the list is in view.
+  const selectedIndex = options.findIndex((option) => option.value === selected);
+  const initialOffset = selectedIndex > 2 ? { x: 0, y: (selectedIndex - 2) * rowHeight } : undefined;
   return (
     <View ref={trigger} collapsable={false}>
       <FieldButton accessibilityLabel={triggerLabel} accessibilityValue={accessibilityValue} accessibilityState={{ expanded: open }} onPress={() => (open ? close() : openMenu())} style={style}>
@@ -400,7 +414,7 @@ export function MenuSelect<T extends string>({ triggerLabel, valueText, accessib
             <Pressable accessibilityLabel="Close menu" onPress={close} style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0 }} />
             <View accessibilityRole="menu" onLayout={(event) => setMenuHeight(event.nativeEvent.layout.height)}
               style={[{ position: "absolute", top, left, minWidth: width, opacity: ready ? 1 : 0, backgroundColor: t.popover, borderWidth: 1, borderColor: t.border, borderRadius: uiRadius.md, padding: gap.xs, elevation: 4 }]}>
-              <ScrollView keyboardDismissMode="on-drag" style={{ maxHeight: listMaxHeight }} keyboardShouldPersistTaps="handled">
+              <ScrollView keyboardDismissMode="on-drag" style={{ maxHeight: listMaxHeight }} contentOffset={initialOffset} keyboardShouldPersistTaps="handled">
                 {options.map((option) => {
                   const on = option.value === selected;
                   return (

@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
-import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
+import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 
 import { useTheme } from "../theme";
 import { Button, Screen, useUiStyles } from "../ui";
 import { NotesCloseContext } from "./notesClose";
-import { PhoneSectionRail } from "./PhoneSectionRail";
+import { PhoneSectionRail, SectionRows } from "./PhoneSectionRail";
 import { WorkspaceScrollContext } from "./scrollTarget";
 import type { WorkspaceCategoryNav, WorkspaceIdentity, WorkspacePayload } from "./contracts";
 
@@ -46,16 +46,16 @@ export function WorkspaceLayout({
   const styles = useUiStyles();
   const phone = useWindowDimensions().width < PHONE_BREAKPOINT;
   const { ui } = useTheme();
+  // Tablet: a flat full-height column (the phone panel's rows: icon, name, positives, attachments, 48dp), its first row
+  // level with the page body. A rounded card flush to the edge read as misaligned; a ScrollView grows unless pinned.
   const nav = (
-    <ScrollView keyboardDismissMode="on-drag" accessibilityLabel="Case categories" style={[styles.card, { width: 280, flexGrow: 0, flexShrink: 0 }]}>
-      {categories.map((item) => {
-        const selected = selectedCode === item.code;
-        return (
-          <Pressable key={item.code} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => onSelectCategory(item.code)}>
-            <Text style={selected ? styles.headline : styles.text}>{item.nav_label}</Text>
-          </Pressable>
-        );
-      })}
+    <ScrollView
+      keyboardDismissMode="on-drag"
+      accessibilityLabel="Case categories"
+      style={{ width: 300, flexGrow: 0, flexShrink: 0, backgroundColor: ui.card, borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: ui.border }}
+      contentContainerStyle={{ paddingTop: 16, paddingBottom: 16 }}
+    >
+      <SectionRows categories={categories} selectedCode={selectedCode} onSelect={onSelectCategory} />
     </ScrollView>
   );
   // On a phone the categories are an icon rail floating over the page (PhoneSectionRail): a row sidebar would take most of the width.

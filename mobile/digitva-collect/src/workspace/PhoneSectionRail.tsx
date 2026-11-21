@@ -99,38 +99,56 @@ export function PhoneSectionRail({ categories, selectedCode, onSelect }: {
           </Pressable>
           {/* Edge to edge: the last section (COD Assessment) clears the system navigation bar. */}
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: bottomInset + 16 }}>
-            {categories.map((item) => {
-              const selected = item.code === selectedCode;
-              const fg = selected ? ui.primaryForeground : ui.primary;
-              const muted = selected ? ui.primaryForeground : ui.mutedForeground;
-              return (
-                <Pressable
-                  key={item.code}
-                  accessibilityRole="button"
-                  accessibilityLabel={sectionLabel(item)}
-                  accessibilityState={{ selected }}
-                  onPress={() => choose(item.code)}
-                  style={{ minHeight: 48, minWidth: 48, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: selected ? ui.primary : "transparent" }}
-                >
-                  <Icon name={sectionIcon(item.icon_name)} color={fg} size={24} />
-                  {open ? (
-                    <>
-                      <Text style={[styles.text, { flex: 1, color: selected ? ui.primaryForeground : ui.foreground }]}>{item.nav_label}</Text>
-                      {item.count && item.count > 0 ? <Text style={[styles.text, { color: muted }]}>{item.count}</Text> : null}
-                      {item.attachment_count && item.attachment_count > 0 ? (
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
-                          <Icon name={icons.attachments} color={muted} size={16} />
-                          <Text style={[styles.text, { color: muted }]}>{item.attachment_count}</Text>
-                        </View>
-                      ) : null}
-                    </>
-                  ) : null}
-                </Pressable>
-              );
-            })}
+            <SectionRows categories={categories} selectedCode={selectedCode} onSelect={choose} showLabels={open} />
           </ScrollView>
         </Animated.View>
       </GestureDetector>
     </View>
+  );
+}
+
+/** The section rows: icon, name, response count and attachment count, 48dp tall. Shared by the phone panel and the tablet column. */
+export function SectionRows({ categories, selectedCode, onSelect, showLabels = true }: {
+  categories: WorkspaceCategoryNav[];
+  selectedCode: string;
+  onSelect: (code: string) => void;
+  showLabels?: boolean;
+}) {
+  const { ui } = useTheme();
+  const styles = useUiStyles();
+  const open = showLabels;
+  const choose = onSelect;
+  return (
+    <>
+      {categories.map((item) => {
+        const selected = item.code === selectedCode;
+        const fg = selected ? ui.primaryForeground : ui.primary;
+        const muted = selected ? ui.primaryForeground : ui.mutedForeground;
+        return (
+          <Pressable
+            key={item.code}
+            accessibilityRole="button"
+            accessibilityLabel={sectionLabel(item)}
+            accessibilityState={{ selected }}
+            onPress={() => choose(item.code)}
+            style={{ minHeight: 48, minWidth: 48, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 8, backgroundColor: selected ? ui.primary : "transparent" }}
+          >
+            <Icon name={sectionIcon(item.icon_name)} color={fg} size={24} />
+            {open ? (
+              <>
+                <Text style={[styles.text, { flex: 1, color: selected ? ui.primaryForeground : ui.foreground }]}>{item.nav_label}</Text>
+                {item.count && item.count > 0 ? <Text style={[styles.text, { color: muted }]}>{item.count}</Text> : null}
+                {item.attachment_count && item.attachment_count > 0 ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+                    <Icon name={icons.attachments} color={muted} size={16} />
+                    <Text style={[styles.text, { color: muted }]}>{item.attachment_count}</Text>
+                  </View>
+                ) : null}
+              </>
+            ) : null}
+          </Pressable>
+        );
+      })}
+    </>
   );
 }

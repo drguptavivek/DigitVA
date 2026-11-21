@@ -32,7 +32,6 @@ export function WorkspaceLayout({
   selectedCode,
   categoryLoading,
   onSelectCategory,
-  onExit,
   children,
   notes,
   nextBlockedReason,
@@ -60,7 +59,7 @@ export function WorkspaceLayout({
   );
   // On a phone the categories are an icon rail floating over the page (PhoneSectionRail): a row sidebar would take most of the width.
   const screen = (
-    <Screen title={workspace.case.deceased_name ? `${workspace.case.deceased_name} · ${workspace.case.instance_name}` : workspace.case.instance_name} headerAction={phone ? undefined : <Button label="Exit" kind="secondary" onPress={onExit} />} sidebar={phone ? undefined : nav} scrollRef={scroller}>
+    <Screen title={workspace.case.deceased_name ? `${workspace.case.deceased_name} · ${workspace.case.instance_name}` : workspace.case.instance_name} sidebar={phone ? undefined : nav} scrollRef={scroller}>
       {categoryLoading ? <Text style={styles.muted}>Loading category…</Text> : null}
       {children}
       {categories.length > 1 ? (

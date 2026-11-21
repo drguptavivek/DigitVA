@@ -725,7 +725,13 @@ export function QueueScreen({
     && allocationData.generation === generation.current ? allocationData.snapshot : null;
   const allocationVerified = allocationData?.api === api && allocationData.mode === mode
     && allocationData.generation === generation.current && allocationData.verified;
-  const stats = currentData?.stats;
+  // Switching Available / My coded cases reloads the list; keep the last counts of the same queue on screen
+  // meanwhile, so the header, languages and filters do not collapse and reappear (they all follow the stats).
+  const lastStats = useRef<{ api: unknown; mode: string; projectId: unknown; stats: NonNullable<typeof currentData>["stats"] } | null>(null);
+  if (currentData?.stats) lastStats.current = { api, mode, projectId, stats: currentData.stats };
+  const heldStats = lastStats.current && lastStats.current.api === api && lastStats.current.mode === mode
+    && lastStats.current.projectId === projectId ? lastStats.current.stats : undefined;
+  const stats = currentData?.stats ?? heldStats;
   const projects = catalogReady ? catalog?.projects : undefined;
 
   // The allocation snapshot carries only the SID; one workspace read per held case names its form and project.

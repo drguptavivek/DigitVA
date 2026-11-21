@@ -548,7 +548,8 @@ export function CaseWorkspaceScreen({
               {reviewing ? null : codEditor}
             </View>
           ) : null}
-          {identity.mode === "view" ? (
+          {/* Held back until the first section arrives: rendered first, they were pushed down by it (a jump on open). */}
+          {identity.mode === "view" && category ? (
             <>
               {viewAction}
               <CaseReference workspace={workspace} api={api} />

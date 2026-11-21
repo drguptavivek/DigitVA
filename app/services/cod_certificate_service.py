@@ -163,7 +163,8 @@ def certificate_context(user, va_sid: str) -> dict | None:
         "underlying_cause": final.va_conclusive_cod,
         "outcome": outcome,
         "coded_at": record.effective_at,
-        "coded_by": None if redact else _user_name(coded_by),
+        # Staff names follow the PII gate, except the viewer's own name: a coder sees who coded their own case.
+        "coded_by": _user_name(coded_by) if coded_by and (not redact or coded_by == user.user_id) else None,
         "reviewed_by": None if redact or reviewer_final is None else _user_name(reviewer_final.va_rfinassess_by),
         "redacted": redact,
         "deceased_name": pii.get("deceased_name"),

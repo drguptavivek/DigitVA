@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { ActivityIndicator, Alert, AppState, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
+import { APP_VERSION } from "../appVersion";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button, Card, DetailsChip, Screen, SegmentedControl, TextField, errorText as uiErrorText, useUiStyles } from "../ui";
@@ -170,6 +171,27 @@ export function recodeDeadlineText(item: Pick<CoderHistoryCase, "recodeable" | "
   if (item.recodeable) return t("codingRecodeUntil", { date: formatDisplayTimestamp(item.recode_until) });
   const until = Date.parse(item.recode_until);
   return !Number.isNaN(until) && until <= now ? t("codingRecodeClosed") : null;
+}
+
+/**
+ * The coded-case card's visible details as plain text, for "Copy details": the share sheet offers Copy,
+ * WhatsApp and email, so a coder can send it to support. The full masked case id, never the deceased's name.
+ */
+export function codedCaseSupportText(item: CoderHistoryCase, now: number = Date.now()): string {
+  const lines = [
+    `Case ${item.va_uniqueid_masked}`,
+    [item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · "),
+    [item.va_deceased_age != null && String(item.va_deceased_age).trim() !== "" ? `Age: ${item.va_deceased_age}` : null,
+      item.va_deceased_gender ? `Sex: ${item.va_deceased_gender}` : null,
+      item.va_form_id ? `Form: ${item.va_form_id}` : null,
+      item.va_coding_date ? `Coded: ${formatQueueDate(item.va_coding_date)}` : null].filter(Boolean).join(" · "),
+    [item.va_code_status, item.recodeable ? "Recodeable" : null].filter(Boolean).join(" · "),
+    codingServerStatusText(item),
+    item.server_status === "refused" && item.server_code ? `Code: ${item.server_code}` : null,
+    recodeDeadlineText(item, now),
+    `App ${APP_VERSION}`,
+  ];
+  return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
 /** "Case 000020" for a masked id like PHC01-000020_172313647; any other shape is shown as given. */
@@ -1232,6 +1254,7 @@ export function QueueScreen({
                 <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
                 {item.recodeable ? <Button label="Recode" size="sm" style={q.actionBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
               </View> : null}
+              <Button label="Copy details" kind="secondary" size="sm" accessibilityLabel={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} onPress={() => void Share.share({ message: codedCaseSupportText(item) }).catch(() => undefined)} />
             </View>
           )) : filteredCoderAvailable.map((item) => (
             <View key={item.va_sid} style={[styles.card, q.caseCard]}>

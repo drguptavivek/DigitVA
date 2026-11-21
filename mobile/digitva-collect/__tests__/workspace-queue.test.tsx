@@ -5,7 +5,8 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from "rea
 
 import { ApiError } from "../src/api";
 import { errorText } from "../src/ui";
-import { QueueScreen, recodeDeadlineText } from "../src/workspace/QueueScreen";
+import { QueueScreen, codedCaseSupportText, recodeDeadlineText } from "../src/workspace/QueueScreen";
+import { APP_VERSION } from "../src/appVersion";
 import type { WorkspaceApi } from "../src/workspace/api";
 import type { CodingHistoryCache, CodingHistoryIdentity } from "../src/codingHistoryCache";
 import type { CoderHistory } from "../src/workspace/contracts";
@@ -1211,5 +1212,23 @@ describe("coder recode deadline", () => {
     expect(line("closed")).toEqual(["Recode window closed"]);
     expect(line("none")).toEqual([]);
     await unmount(renderer);
+  });
+});
+
+describe("codedCaseSupportText", () => {
+  it("copies the card's visible details with the full case id and app version, never a name", () => {
+    const text = codedCaseSupportText({
+      va_sid: "sid-1", va_uniqueid_masked: "SC01-000184_150845443", project_id: "TST001", site_id: "O002",
+      va_submission_date: "2026-11-08", va_deceased_age: 61, va_deceased_gender: "female", va_form_id: "TST001O000201",
+      va_coding_date: "2026-11-21", va_code_status: "VA Coding Completed", recodeable: true,
+      recode_until: "2026-11-22T04:59:00+00:00", deceased_name: "Secret Name",
+    } as never, Date.parse("2026-11-21T00:00:00Z"));
+    expect(text).toContain("Case SC01-000184_150845443");
+    expect(text).toContain("TST001 · O002");
+    expect(text).toContain("Age: 61 · Sex: female · Form: TST001O000201");
+    expect(text).toContain("VA Coding Completed · Recodeable");
+    expect(text).toContain("Recode until");
+    expect(text).toContain(`App ${APP_VERSION}`);
+    expect(text).not.toContain("Secret Name");
   });
 });

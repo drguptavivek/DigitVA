@@ -254,6 +254,27 @@ class CodCertificateTests(BaseTestCase):
             self.assertNotIn(text, body)
         self.assertIs(plain.get_json()["redacted"], True)
 
+    def test_json_shows_the_coder_their_own_name_without_pii(self):
+        sid = self._case()
+        grant = VaUserAccessGrants(
+            user_id=self.coder.user_id, role=VaAccessRoles.collaborator, notes="cert own name",
+            grant_status=VaStatuses.active, scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT_ID,
+        )
+        db.session.add(grant)
+        db.session.commit()
+        try:
+            own = self._api(self.coder, sid)
+            self.assertEqual(own.status_code, 200)
+            body = own.get_json()
+            self.assertIs(body["redacted"], True)
+            self.assertEqual(body["coded_by"], self.coder.name)
+            self.assertNotIn(NAME, own.get_data(as_text=True))
+            # Anyone else without PII still sees no staff name.
+            self.assertIsNone(self._api(self.plain_viewer, sid).get_json()["coded_by"])
+        finally:
+            db.session.delete(grant)
+            db.session.commit()
+
     def test_json_unavailable_cases_are_404(self):
         sid = self._case()
         self.assertEqual(self._api(self.pii_viewer, sid).status_code, 200)

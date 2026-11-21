@@ -37,6 +37,11 @@ describe("applyPinInput", () => {
     expect(applyPinInput("123", 1, "")).toEqual({ value: "13", focus: 1 });
   });
 
+  it("deleting the last digit steps back to the box before it", () => {
+    expect(applyPinInput("123456", 5, "")).toEqual({ value: "12345", focus: 4 });
+    expect(applyPinInput("1", 0, "")).toEqual({ value: "", focus: 0 });
+  });
+
   it("backspace on an empty box drops the last digit and steps back", () => {
     expect(backspaceFromEmpty("123")).toEqual({ value: "12", focus: 2 });
     expect(backspaceFromEmpty("1")).toEqual({ value: "", focus: 0 });

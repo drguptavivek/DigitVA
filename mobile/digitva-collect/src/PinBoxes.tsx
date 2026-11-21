@@ -38,7 +38,9 @@ export function applyPinInput(value: string, index: number, text: string): { val
     next = (value.slice(0, at) + typed + value.slice(at + 1)).slice(0, PIN_BOXES);
     return { value: next, focus: Math.min(at + 1, PIN_BOXES - 1) };
   }
-  return { value: next, focus: Math.min(digits.length === 0 ? index : next.length, PIN_BOXES - 1) };
+  // Clearing the last digit steps back too (a middle one closes the gap and stays): Android keyboards often send no Backspace key event for an empty box, so
+  // waiting for a second press there left the cursor stuck.
+  return { value: next, focus: Math.min(digits.length === 0 ? (index >= next.length ? Math.max(index - 1, 0) : index) : next.length, PIN_BOXES - 1) };
 }
 
 /** Backspace on an empty box: drop the last digit and step back to its box. */

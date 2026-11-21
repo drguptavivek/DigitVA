@@ -1183,7 +1183,7 @@ function AdministrativeFields({ certificate, provenance, warns, onChange, interv
         </Cell>
         {/* After the two dates: it is filled from them, so it reads as their result. */}
         <Cell>
-          <FieldLabel text="Estimated age" badge={badge("EstimatedAge")} onClear={clear("EstimatedAge")} />
+          <FieldLabel text="Estimated age" badge={interviewAge && interviewAge !== text(data.EstimatedAge) ? undefined : badge("EstimatedAge")} onClear={clear("EstimatedAge")} />
           <IntervalField raw={text(data.EstimatedAge)} onChange={(value) => onChange("AdministrativeData", "EstimatedAge", value)} inputLabel="Estimated age" unitLabel="Estimated age unit" placeholder="Age" unitPlaceholder="Age unit" />
           <Warn id="AdministrativeData.EstimatedAge" text={warns["AdministrativeData.EstimatedAge"]} />
           {interviewAge ? (interviewAge === text(data.EstimatedAge)

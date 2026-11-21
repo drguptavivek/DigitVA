@@ -1014,13 +1014,13 @@ it("keeps the open section rendered while a quality save refreshes it, but shows
     await act(async () => { await tree.root.findByType(QualityPanels).props.onSaveNarrative({ cannot_grade: true }); await flush(); });
     expect(getCategory).toHaveBeenCalledTimes(2);
     expect(textContent(tree.root)).toContain("Interview text");
-    expect(textContent(tree.root)).not.toContain("Loading category…");
+    expect(tree.root.findAllByProps({ testID: "state-loading" })).toHaveLength(0);
     await act(async () => { release({ ...category, subcategories: [{ ...category.subcategories[0], items: [{ label: "Narration", value: "Refreshed text", flip: false, info: false }] }] }); await flush(); });
     expect(textContent(tree.root)).toContain("Refreshed text");
     expect(textContent(tree.root)).not.toContain("Interview text");
     getCategory.mockImplementationOnce(() => new Promise<CategoryPayload>(() => undefined));
     await act(async () => { tree.root.findByProps({ selectedCode: "vacodassessment" }).props.onSelectCategory("docs"); await flush(); });
-    expect(textContent(tree.root)).toContain("Loading category…");
+    expect(tree.root.findAllByProps({ testID: "state-loading" }).length).toBeGreaterThan(0);
     expect(textContent(tree.root)).not.toContain("Refreshed text");
   } finally {
     if (tree) await act(async () => tree.unmount());

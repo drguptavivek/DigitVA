@@ -53,7 +53,7 @@ describe("CertificateButton", () => {
     const tree = render(true, apiWith(getCertificate));
     await act(async () => { await tree.root.findByType("button" as never).props.onClick(); });
     expect(getCertificate).toHaveBeenCalledWith("uuid:a b");
-    expect(sharePdf).toHaveBeenCalledWith(expect.stringContaining("Underlying cause of death"));
+    expect(sharePdf).toHaveBeenCalledWith(expect.stringContaining("Underlying cause of death"), expect.stringMatching(/^COD-form-/));
   });
 
   it("native: without a network it says to connect; a 404 says unavailable", async () => {

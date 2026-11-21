@@ -1,5 +1,6 @@
 jest.mock("expo-print", () => ({ printToFileAsync: jest.fn(async () => ({ uri: "file:///cache/Print/x.pdf" })) }));
-jest.mock("expo-file-system", () => ({ File: jest.fn().mockImplementation((uri: string) => ({ uri })) }));
+const mockRename = jest.fn();
+jest.mock("expo-file-system", () => ({ File: jest.fn().mockImplementation((uri: string) => ({ uri, rename: mockRename })) }));
 jest.mock("../src/standalone/shareFile", () => ({ shareAndDelete: jest.fn(async () => undefined) }));
 
 import { printToFileAsync } from "expo-print";
@@ -42,10 +43,11 @@ describe("certificateHtml", () => {
   });
 });
 
-it("sharePdf prints the HTML to an A4 PDF and shares it as application/pdf", async () => {
-  await sharePdf("<html></html>");
+it("sharePdf prints the HTML to an A4 PDF named after the case and shares it as application/pdf", async () => {
+  await sharePdf("<html></html>", "COD-form-AAM125/000030 x");
+  expect(mockRename).toHaveBeenCalledWith("COD-form-AAM125_000030_x.pdf");
   expect(printToFileAsync).toHaveBeenCalledWith({ html: "<html></html>", width: 595, height: 842 });
-  expect(shareAndDelete).toHaveBeenCalledWith({ uri: "file:///cache/Print/x.pdf" }, "application/pdf");
+  expect(shareAndDelete).toHaveBeenCalledWith(expect.objectContaining({ uri: "file:///cache/Print/x.pdf" }), "application/pdf");
 });
 
 

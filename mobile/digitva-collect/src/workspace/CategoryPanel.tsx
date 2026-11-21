@@ -195,7 +195,8 @@ export function CategoryPanel({
       {placement === "before" ? summary : null}
       {body}
       {afterContent}
-      {placement === "after" ? summary : null}
+      {/* Not after the narrative: on the phone that tab is the NQA screen, and the symptoms card there pulled the
+          coder off the narrative (digitva-70nl). The web still shows it. */}
     </View>
     </ImageViewerProvider>
   );

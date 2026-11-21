@@ -31,13 +31,14 @@ test("pure helpers: gating, headings, grouping", () => {
   expect(g).toEqual({ positive: ["Asthma"], negative: ["TB"], remaining: [it_("Other", "Maybe")] });
 });
 
-describe.each(panels)("%s panel", (_n, Panel) => {
-  test("symptoms card only on gated modes, after the narrative on attachments", () => {
+describe.each(panels)("%s panel", (panelName, Panel) => {
+  test("symptoms card on workflow panels; on the narrative tab only on the web (the phone's is the NQA screen)", () => {
     const subs = [{ code: "n", label: "Narrative", items: [it_("Story", "Text")] }];
     expect(out(Panel, cat("table_sections", subs))).not.toContain("Symptoms on VA Interview");
     const attachments = out(Panel, cat("attachments", subs), { afterContent: <Text>Quality review</Text> });
-    expect(attachments.indexOf("Story")).toBeGreaterThan(-1);
-    expect(attachments.indexOf("Story")).toBeLessThan(attachments.indexOf("Symptoms on VA Interview"));
+    expect(attachments).toContain("Story");
+    if (panelName === "web") expect(attachments.indexOf("Story")).toBeLessThan(attachments.indexOf("Symptoms on VA Interview"));
+    else expect(attachments).not.toContain("Symptoms on VA Interview");
     const workflow = out(Panel, cat("workflow_panel", subs));
     expect(workflow.indexOf("Symptoms on VA Interview")).toBeGreaterThan(-1);
     expect(workflow.indexOf("Symptoms on VA Interview")).toBeLessThan(workflow.indexOf("Story"));

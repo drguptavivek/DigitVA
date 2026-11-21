@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-n
 import { useTheme } from "../theme";
 import { Button, Screen, useUiStyles } from "../ui";
 import { NotesCloseContext } from "./notesClose";
+import { SkeletonCards } from "../ui/StateView";
 import { PhoneSectionRail, SectionRows } from "./PhoneSectionRail";
 import { WorkspaceScrollContext } from "./scrollTarget";
 import type { WorkspaceCategoryNav, WorkspaceIdentity, WorkspacePayload } from "./contracts";
@@ -60,7 +61,14 @@ export function WorkspaceLayout({
   // On a phone the categories are an icon rail floating over the page (PhoneSectionRail): a row sidebar would take most of the width.
   const screen = (
     <Screen title={workspace.case.deceased_name ? `${workspace.case.deceased_name} · ${workspace.case.instance_name}` : workspace.case.instance_name} sidebar={phone ? undefined : nav} scrollRef={scroller}>
-      {categoryLoading ? <Text style={styles.muted}>Loading category…</Text> : null}
+      {/* The next section's title and placeholder cards while it loads: a one-line "Loading" collapsed the page and
+          pulled Previous / Next up under the finger, then the content pushed them down again (digitva-2rm2). */}
+      {categoryLoading ? (
+        <View style={{ gap: 8, minHeight: 480 }}>
+          <Text accessibilityRole="header" style={[styles.headline, { textAlign: "center" }]}>{categories[index]?.label ?? ""}</Text>
+          <SkeletonCards count={4} />
+        </View>
+      ) : null}
       {children}
       {categories.length > 1 ? (
         <View style={{ gap: 8 }}>

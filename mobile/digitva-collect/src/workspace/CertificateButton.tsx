@@ -36,7 +36,8 @@ export function CertificateButton({ workspace, api }: { workspace: WorkspacePayl
     setBusy(true);
     setMessage("");
     try {
-      await sharePdf(certificateHtml(await getCertificate(vaSid)));
+      const certificate = await getCertificate(vaSid);
+      await sharePdf(certificateHtml(certificate), `COD-form-${certificate.case_id ?? vaSid}`);
     } catch (error) {
       // A non-HTTP failure is the network: the certificate is built from server data, so it needs a connection.
       setMessage(!(error instanceof ApiError) ? t("certificateConnect") : error.status === 404 ? t("certificateUnavailable") : errorText(error));

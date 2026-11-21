@@ -10,7 +10,7 @@ import { sharePdf } from "./certificatePdf";
 import type { WorkspacePayload } from "./contracts";
 
 /**
- * "Certificate (PDF)", only when the server says the case is coded in an organization project
+ * "COD form (PDF)", only when the server says the case is coded in an organization project
  * (`case.certificate_available`; the server re-checks). Web: opens the printable page
  * (`/coding/area/<sid>/certificate`) in a new tab. Native: fetches the certificate data, prints it to a PDF
  * on the phone and shares it, so it needs a connection; offline cases carry no `certificate_available`.

@@ -77,7 +77,7 @@ describe("CertificateButton", () => {
   });
 
   it("has English and Hindi labels", () => {
-    expect(en.certificateButton).toBe("Certificate (PDF)");
+    expect(en.certificateButton).toBe("COD form (PDF)");
     for (const key of ["certificateButton", "certificateConnect", "certificateUnavailable"] as const) expect(hi[key]).toBeTruthy();
   });
 });

@@ -551,7 +551,7 @@ export function CaseWorkspaceScreen({
           {identity.mode === "view" ? (
             <>
               {viewAction}
-              <CaseReference workspace={workspace} />
+              <CaseReference workspace={workspace} api={api} />
               {workspace.case.history_available === false ? null : <WorkflowHistory
                 events={events}
                 cursor={currentEvents?.cursor ?? null}
@@ -629,10 +629,12 @@ function referenceArtifacts(workspace: WorkspacePayload): Artifact[] {
 }
 
 /** Show only assessment and SmartVA reference fields actually served by the API. */
-function CaseReference({ workspace }: { workspace: WorkspacePayload }) {
+function CaseReference({ workspace, api }: { workspace: WorkspacePayload; api: WorkspaceApi }) {
   return (
     <View>
       <CodArtifacts title="COD reference" artifacts={referenceArtifacts(workspace)} />
+      {/* The phone shows its case view here, not the web's Allocated Causes panel: the certificate lives with the COD too. */}
+      <CertificateButton workspace={workspace} api={api} />
       {workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null}
     </View>
   );

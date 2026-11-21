@@ -2252,7 +2252,7 @@
   "withdrawnCasesUndone": "पूर्ववत",
   "withdrawnCasesOpen": "मामला खोलें",
   "supervisionWithdrawalDetail": "{who} ने {date} को अनुरोध किया ({channel})",
-  "certificateButton": "प्रमाणपत्र (पीडीएफ)",
-  "certificateConnect": "प्रमाणपत्र पाने के लिए इंटरनेट से जुड़ें।",
-  "certificateUnavailable": "इस मामले के लिए प्रमाणपत्र उपलब्ध नहीं है।"
+  "certificateButton": "मृत्यु कारण फ़ॉर्म (पीडीएफ)",
+  "certificateConnect": "मृत्यु कारण फ़ॉर्म पाने के लिए इंटरनेट से जुड़ें।",
+  "certificateUnavailable": "इस मामले के लिए मृत्यु कारण फ़ॉर्म उपलब्ध नहीं है।"
 }

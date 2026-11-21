@@ -89,7 +89,7 @@ export function certificateHtml(c: CertificateData): string {
       <td><strong>(${LETTERS[i] ?? ""})</strong>${i ? ' <span class="small">due to (or as a consequence of)</span>' : ""}
         ${line.conditions.length ? line.conditions.map(cond).join("") : '<div class="blank"></div>'}</td>
       <td>${esc(line.interval)}</td></tr>`).join("");
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Cause of death certificate ${esc(c.case_id)}</title>
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>COD form ${esc(c.case_id)}</title>
 <style>
 @page { size: A4; margin: 14mm; }
 body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: black; background: white; margin: 0; }

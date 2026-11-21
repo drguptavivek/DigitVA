@@ -30,20 +30,39 @@ export function isoDay(value: unknown): number | null {
 }
 
 /**
- * Completed age at death from two full dates, in the ISO duration EstimatedAge stores: whole years from 1 year,
- * else whole months from 1 month, else whole days. Null unless both are real dates and death is not before birth.
- * Calendar arithmetic: a birthday not yet reached does not count (12 Aug 1996 to 12 Jun 2025 is P28Y).
+ * Completed age at death in the ISO duration EstimatedAge stores: whole years from 1 year, else whole months from
+ * 1 month, else whole days. Death must be a real full date. Birth may be a full date, "YYYY-MM" or "YYYY":
+ * a partial birth is read as the 1st of the month (or 1 January), so a year-only birth gives death year minus
+ * birth year, a year-month birth gives whole months (days are never compared) and, with no whole month, null for
+ * year-only (no day-level age exists) or days from the 1st for a year-month. Null when not computable or death
+ * is before birth. Full dates use calendar arithmetic: a birthday not yet reached does not count.
  */
 export function ageFromDates(birth: string, death: string): string | null {
-  const birthDay = isoDay(birth);
   const deathDay = isoDay(death);
-  if (birthDay === null || deathDay === null || deathDay < birthDay) return null;
-  const [by, bm, bd] = birth.split("-").map(Number);
+  const partial = /^(\d{4})(?:-(\d{2}))?$/.exec(birth);
+  if (deathDay === null || (!partial && isoDay(birth) === null)) return null;
   const [dy, dm, dd] = death.split("-").map(Number);
+  const [by, bm, bd] = partial ? [Number(partial[1]), partial[2] ? Number(partial[2]) : 1, 1] : birth.split("-").map(Number);
+  if (partial && (bm < 1 || bm > 12)) return null;
+  const birthDay = isoDay(`${String(by).padStart(4, "0")}-${String(bm).padStart(2, "0")}-${String(bd).padStart(2, "0")}`);
+  if (birthDay === null || deathDay < birthDay) return null;
   const months = (dy - by) * 12 + (dm - bm) - (dd < bd ? 1 : 0);
   if (months >= 12) return serializeInterval(String(Math.floor(months / 12)), "Y").value;
   if (months >= 1) return serializeInterval(String(months), "M").value;
+  if (partial && !partial[2]) return null;
   return serializeInterval(String(deathDay - birthDay), "D").value;
+}
+
+/**
+ * Owner decision 2026-11-21: whenever Date of birth or Date of death changes, EstimatedAge is overwritten with the
+ * age they give, replacing a value the coder typed. When the dates give none (cleared, partial death, death before
+ * birth) the age is left as it is, never cleared.
+ */
+export function recomputeEstimatedAge(certificate: JsonObject): JsonObject {
+  const admin = obj(certificate.AdministrativeData);
+  const next = ageFromDates(String(admin.DateBirth ?? ""), String(admin.DateDeath ?? ""));
+  if (!next || next === admin.EstimatedAge) return certificate;
+  return { ...certificate, AdministrativeData: { ...admin, EstimatedAge: next } };
 }
 
 /**

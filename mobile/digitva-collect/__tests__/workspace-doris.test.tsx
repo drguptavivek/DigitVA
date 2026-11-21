@@ -808,26 +808,14 @@ describe("EstimatedAge from the dates", () => {
     expect((await sentCertificate(tree, api)).AdministrativeData).toMatchObject({ DateDeath: "2025-08-12", EstimatedAge: "P29Y" });
   });
 
-  it("does not refill over a number typed without a unit, and Process is blocked until the unit is chosen", async () => {
+  it("replaces a half-typed age (number without a unit, or unit without a number) when a date changes", async () => {
     const api = apiFor();
     const { tree } = renderPanel(makeWorkspace({ seed: dated }), api);
     await act(async () => byLabel(tree, "Estimated age").props.onChangeText("76"));
     await act(async () => tree.root.findByProps({ label: "Date of death" }).props.onChange("2025-08-12"));
-    expect(byLabel(tree, "Estimated age").props.value).toBe("76");
+    expect(byLabel(tree, "Estimated age").props.value).toBe("29");
     await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
-    expect(allText(tree)).toContain("Estimated age: Choose a time unit.");
-    expect(api.processDoris).not.toHaveBeenCalled();
-  });
-
-  it("blocks Process when a unit is picked without a number, and does not refill when a date changes", async () => {
-    const api = apiFor();
-    const { tree } = renderPanel(makeWorkspace({ seed: dated }), api);
-    await act(async () => byLabel(tree, "Estimated age unit").props.onPress());
-    await act(async () => byLabel(tree, "Estimated age unit: Years").props.onPress());
-    await act(async () => tree.root.findByProps({ label: "Date of death" }).props.onChange("2025-08-12"));
-    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
-    expect(allText(tree)).toContain("Estimated age: Enter a non-negative decimal number without an exponent.");
-    expect(api.processDoris).not.toHaveBeenCalled();
+    expect(api.processDoris).toHaveBeenCalled();
   });
 
   it("blocks Process with the demo's message for a value under Unknown, and for an exponent", async () => {
@@ -1932,5 +1920,56 @@ describe("demo mode (Collect Plus Try DORIS)", () => {
     expect(allText(tree)).toContain("Pneumonia");
     expect(allText(tree)).toContain("Certificate reset to the loaded example.");
     await act(async () => tree.unmount());
+  });
+});
+
+describe("Estimated age follows the dates and shows the interview age", () => {
+  const ageOf = async (api: WorkspaceApi, tree: ReactTestRenderer) => {
+    await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    const calls = (api.processDoris as jest.Mock).mock.calls;
+    return (processedCertificate(api, calls.length - 1).AdministrativeData as JsonObject).EstimatedAge;
+  };
+  const type = async (tree: ReactTestRenderer, label: string, value: string) => act(async () => tree.root.findByProps({ label }).props.onChange(value));
+  const render = (admin: JsonObject, prefill?: JsonObject, extra?: JsonObject) => {
+    const api = apiFor();
+    const workspace = makeWorkspace({ seed: { ...whoSeed, AdministrativeData: admin }, prefill });
+    if (extra) Object.assign(workspace.doris!, extra);
+    return { api, ...renderPanel(workspace, api) };
+  };
+
+  it("computes years, months and days, from either date", async () => {
+    const adult = render({ Sex: 1, DateBirth: "1990-05-06", DateDeath: "2020-05-05" });
+    await type(adult.tree, "Date of death", "2020-05-06");
+    expect(await ageOf(adult.api, adult.tree)).toBe("P30Y");
+    const infant = render({ Sex: 1, DateBirth: "2025-01-10", DateDeath: "2025-06-09" });
+    await type(infant.tree, "Date of death", "2025-06-10");
+    expect(await ageOf(infant.api, infant.tree)).toBe("P5M");
+    const neonate = render({ Sex: 1, DateBirth: "2025-01-10", DateDeath: "2025-01-12" });
+    await type(neonate.tree, "Date of death", "2025-01-13");
+    expect(await ageOf(neonate.api, neonate.tree)).toBe("P3D");
+    await type(neonate.tree, "Date of birth", "2025-01-11");
+    expect(await ageOf(neonate.api, neonate.tree)).toBe("P2D");
+  });
+
+  it("overwrites a coder-typed age when a date changes, and leaves it when a date is cleared", async () => {
+    const { api, tree } = render({ Sex: 1, DateBirth: "1990-05-06", DateDeath: "2020-05-06", EstimatedAge: "P99Y" });
+    expect(await ageOf(api, tree)).toBe("P99Y");
+    await type(tree, "Date of death", "2021-05-06");
+    expect(await ageOf(api, tree)).toBe("P31Y");
+    await act(async () => byLabel(tree, "Clear Date of death").props.onPress());
+    expect(await ageOf(api, tree)).toBe("P31Y");
+  });
+
+  it("shows the interview age, highlighted when it differs, and nothing when the interview had none", async () => {
+    const prefill = { "AdministrativeData.EstimatedAge": { sources: ["age_adult"] } };
+    const asked = { reset_certificate: { AdministrativeData: { EstimatedAge: "P45Y" } }, reset_prefill_provenance: prefill };
+    const differs = render({ Sex: 1, EstimatedAge: "P50Y" }, prefill, asked);
+    expect(allText(differs.tree)).toContain("Interview: 45 years. Differs from the age above.");
+    const same = render({ Sex: 1, EstimatedAge: "P45Y" }, prefill, asked);
+    expect(allText(same.tree)).toContain("Interview: 45 years");
+    expect(allText(same.tree)).not.toContain("Differs");
+    const none = render({ Sex: 1, EstimatedAge: "P50Y" });
+    expect(allText(none.tree)).toContain("Estimated age");
+    expect(allText(none.tree)).not.toContain("Interview:");
   });
 });

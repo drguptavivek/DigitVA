@@ -16,8 +16,9 @@ import { DateField } from "./DateField";
 import { todayIso } from "./dateFieldShared";
 import { IcdPickerModal } from "./IcdPickerModal";
 import type { PickerChoice, PickerInit } from "./pickerBridge";
-import { Alert, Badge, Body, Button, ButtonGlyph, Card, CardTitle, FieldHint, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, font, gap, uiRadius, useLayout, useUi, type ChartToken } from "./ui";
-import { applyVisibility, derivesAtLoad, deriveEstimatedAge, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
+import { Alert, Badge, Body, Button, ButtonGlyph, Card, CardTitle, FieldHint, FieldWarning, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, font, gap, uiRadius, useLayout, useUi, type ChartToken } from "./ui";
+import { parseInterval } from "./interval";
+import { applyVisibility, derivesAtLoad, deriveEstimatedAge, recomputeEstimatedAge, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
 import { AssociatedVaCodes, CodeDetailsSheet } from "./CodeDetailsSheet";
 import { SmartVaReference } from "../SmartVaReference";
 import { UCOD_CLUSTER_EXPLANATION, certificateTitle, collapseBlankLines, icd11Alternatives, summaryChecks, ucodClusterLines } from "./resultSummary";
@@ -104,6 +105,27 @@ function provenanceBadge(provenance: JsonObject, path: string): string | undefin
   const sources = array(entry.sources).filter((item): item is string => typeof item === "string");
   if (!sources.length) return undefined;
   return `from interview (${sources.join(", ")}${typeof entry.note === "string" && entry.note ? `; ${entry.note}` : ""})`;
+}
+
+const AGE_UNIT_NAMES: Record<string, string> = { Y: "year", M: "month", W: "week", D: "day", H: "hour" };
+
+/** "P45Y" -> "45 years"; an unreadable value is shown as stored. */
+function ageLabel(raw: string): string {
+  const { value, unit, representable } = parseInterval(raw);
+  const name = AGE_UNIT_NAMES[unit];
+  return representable && name && value ? `${value} ${name}${Number(value) === 1 ? "" : "s"}` : raw;
+}
+
+/**
+ * The age the interview gave, as the server prefill wrote it into EstimatedAge. New servers send the untouched prefill
+ * as reset_certificate; older ones only initial_certificate, which is the prefill itself until a certificate is saved.
+ * Undefined when the interview had no age (no provenance for it).
+ */
+function interviewAge(doris: WorkspacePayload["doris"]): string | undefined {
+  if (!doris || !provenanceBadge(object(doris.reset_prefill_provenance ?? doris.prefill_provenance), "AdministrativeData.EstimatedAge")) return undefined;
+  const seed = doris.reset_certificate ?? (doris.saved_processing ? undefined : doris.initial_certificate);
+  const age = object(object(seed).AdministrativeData).EstimatedAge;
+  return typeof age === "string" && age ? age : undefined;
 }
 
 function copy(value: JsonObject): JsonObject {
@@ -293,7 +315,6 @@ export function DorisPanel({
   const revision = state.revision;
   const [detailCode, setDetailCode] = useState<string | null>(null);
   // The Estimated age has a half-typed value (number without unit or unit without number): no date refill (rules.ts).
-  const [ageTyped, setAgeTyped] = useState(false);
   // Interval fields hold a pair they could not serialize (field label -> message); Process refuses until each is fixed.
   const intervalErrors = useRef<Record<string, string>>({});
   const reportIntervalError = useCallback((key: string, error: string) => {
@@ -329,9 +350,8 @@ export function DorisPanel({
     else target[key] = value;
     if (!Object.keys(target).length) delete next[section];
     if (section === "AdministrativeData" && (key === "DateBirth" || key === "DateDeath")) {
-      // A date change refills an empty or derived age; the value a user typed or cleared is left alone.
-      const dated = deriveEstimatedAge(next, state.derivedAge, ageTyped);
-      invalidate(dated.certificate, undefined, dated.derived);
+      // A date change overwrites the age (owner decision 2026-11-21), a coder-typed one included.
+      invalidate(recomputeEstimatedAge(next), undefined, null);
       return;
     }
     // Typing or clearing EstimatedAge makes it the user's value: no refill until a date changes.
@@ -731,7 +751,7 @@ export function DorisPanel({
       <EditorHeading title="DORIS certificate" subtitle={direct ? undefined : isInitial ? "Step 1" : "Final cause"} />
       {state.notice ? <Muted>{state.notice}</Muted> : null}
       {workspace.doris.saved_processing ? <ProcessingSummary processing={null} saved={workspace.doris.saved_processing} api={api} vaSid={identity.vaSid} /> : null}
-      {demo || state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} onAgeTyped={setAgeTyped} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}
+      {demo || state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} interviewAge={interviewAge(workspace.doris)} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}
       <SectionTitle style={{ marginTop: gap.xl }}>Frame A: Medical data</SectionTitle>
       <View style={[layout.nowrap, { marginTop: gap.md, paddingRight: gap.xs }]}>
         <SectionTitle style={{ flex: 1, minWidth: 0 }}>Part 1: Cause of death</SectionTitle>
@@ -1140,7 +1160,7 @@ function NotApplicable({ text }: { text: string }) {
   return <Alert variant="warning" testID="not-applicable">{text}</Alert>;
 }
 
-function AdministrativeFields({ certificate, provenance, warns, onChange, onAgeTyped }: { certificate: JsonObject; provenance: JsonObject; warns: Warnings; onChange: OnChange; onAgeTyped: (typed: boolean) => void }) {
+function AdministrativeFields({ certificate, provenance, warns, onChange, interviewAge }: { certificate: JsonObject; provenance: JsonObject; warns: Warnings; onChange: OnChange; interviewAge?: string }) {
   const layout = useLayout();
   const data = object(certificate.AdministrativeData);
   // A cleared field loses its "from interview" badge until it is answered again.
@@ -1164,8 +1184,11 @@ function AdministrativeFields({ certificate, provenance, warns, onChange, onAgeT
         {/* After the two dates: it is filled from them, so it reads as their result. */}
         <Cell>
           <FieldLabel text="Estimated age" badge={badge("EstimatedAge")} onClear={clear("EstimatedAge")} />
-          <IntervalField raw={text(data.EstimatedAge)} onChange={(value) => onChange("AdministrativeData", "EstimatedAge", value)} onTyped={onAgeTyped} inputLabel="Estimated age" unitLabel="Estimated age unit" placeholder="Age" unitPlaceholder="Age unit" />
+          <IntervalField raw={text(data.EstimatedAge)} onChange={(value) => onChange("AdministrativeData", "EstimatedAge", value)} inputLabel="Estimated age" unitLabel="Estimated age unit" placeholder="Age" unitPlaceholder="Age unit" />
           <Warn id="AdministrativeData.EstimatedAge" text={warns["AdministrativeData.EstimatedAge"]} />
+          {interviewAge ? (interviewAge === text(data.EstimatedAge)
+            ? <FieldHint testID="interview-age">{`Interview: ${ageLabel(interviewAge)}`}</FieldHint>
+            : <FieldWarning testID="interview-age">{`Interview: ${ageLabel(interviewAge)}. Differs from the age above.`}</FieldWarning>) : null}
         </Cell>
       </View>
     </Tile>

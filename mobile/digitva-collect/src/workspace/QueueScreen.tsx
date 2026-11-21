@@ -265,6 +265,9 @@ function RefreshIcon({ onPress, disabled }: { onPress: () => void; disabled: boo
  * Load and operate the coder or reviewer queue without reading the unbounded
  * coder pick/history routes. Requests are discarded when scope or app state changes.
  */
+/** Coder queue modes last seen per project, kept across remounts of the queue. */
+const knownCoderModes = new Map<string, { pick: boolean; random: boolean }>();
+
 export function QueueScreen({
   api,
   mode,
@@ -775,10 +778,15 @@ export function QueueScreen({
 
   // Random-only coders have nothing to pick by hand, so their list is the coded-case history.
   // lastPickMode (declared above load) keeps the tab row from flickering while page loads clear stats.
+  // Before this mount's first stats, the project's modes from the last visit: guessing drew a "Random allocation"
+  // card that the stats then swapped for "Pick a case" (a flash on every return to the Code tab).
+  const modesKey = `${mode}:${String(projectId)}`;
+  if (coderStats) knownCoderModes.set(modesKey, { pick: coderStats.has_pick_mode === true, random: coderStats.has_random_mode === true });
+  const knownModes = knownCoderModes.get(modesKey);
   if (coderStats) lastPickMode.current = coderStats.has_pick_mode === true;
-  const pickMode = coderStats ? coderStats.has_pick_mode === true : lastPickMode.current === true;
+  const pickMode = coderStats ? coderStats.has_pick_mode === true : lastPickMode.current ?? knownModes?.pick ?? false;
   if (coderStats) lastRandomMode.current = coderStats.has_random_mode === true;
-  const randomMode = coderStats ? coderStats.has_random_mode === true : lastRandomMode.current !== false;
+  const randomMode = coderStats ? coderStats.has_random_mode === true : lastRandomMode.current ?? knownModes?.random ?? true;
   // Random-only: Available is the random panel; the list, filters and pager belong to My coded cases.
   const showList = showHistory || pickMode || !randomMode;
   const pickReady = typeof coderStats?.pick_ready === "number" ? coderStats.pick_ready : undefined;

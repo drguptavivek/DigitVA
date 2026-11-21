@@ -4,14 +4,17 @@
  * password" posts the identifier (POST /auth/forgot-password) and shows the server's answer. Neither opens a server
  * page (docs/policy/mobile-sign-in.md, owner 2026-11-19).
  */
+import Constants from "expo-constants";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
 import { Text, View } from "react-native";
 
 import { ApiError } from "../api";
+import { APP_VERSION } from "../appVersion";
 import { useAppState } from "../AppState";
 import {
-  forgetDevice, loadActiveSlot, loadDevice, recoverSignOut, redeemSignInCode, requestPasswordReset, signIn, verifyPasswordForDelete,
+  forgetDevice, loadActiveSlot, loadDevice, passwordEnrolAndSignIn, recoverSignOut, redeemSignInCode, requestPasswordReset, signIn,
+  verifyPasswordForDelete,
   WrongAccountError, type Slot
 } from "../auth";
 import { normalizeUsername } from "../demoRules";
@@ -23,6 +26,7 @@ import { CodeAccepted, SignInCodeForm, signInCodeErrorText } from "../SignInCode
 import { Button, errorText, FieldLabel, Notice, PasswordInput, Screen, SegmentedControl, TextField, TextLink, useUiStyles } from "../ui";
 import { spacing } from "../theme";
 import { displayProjectName } from "../projectName";
+import { deviceFamilyLabel } from "../platformFamily";
 
 export default function SignIn() {
   const styles = useUiStyles();
@@ -43,6 +47,9 @@ export default function SignIn() {
   const [busy, setBusy] = useState(false);
   /** The account's phones after a `409 device_limit`: pick one to sign out and retry this sign-in. */
   const [limitPhones, setLimitPhones] = useState<LimitPhone[]>();
+  /** "Sign in again" found this phone no longer enrolled (revoked or removed): the password to re-enrol with once
+   * the person agrees, kept only while the prompt or its device-limit choice is open. */
+  const [reEnrolSecret, setReEnrolSecret] = useState<string>();
 
   /** The sign-in form, the sign-in code form (then Code accepted) or Forgot password. */
   const [view, setView] = useState<"form" | "code" | "forgot">("form");
@@ -58,7 +65,8 @@ export default function SignIn() {
     : mode === "mobile" ? normalizeMobileIdentifier(identifier) : identifier.trim();
   const identifierReady = !!identifier.trim() && (demo || mode !== "mobile" || !!normalizeMobileIdentifier(identifier));
   const requestError = (caught: unknown) => caught instanceof EnrolmentError ? t(caught.key) : errorText(caught);
-  const enrolledServer = async () => (await loadDevice())?.server ?? "";
+  // A forgotten (revoked) device has no server: the returning account keeps the one it signed in on.
+  const enrolledServer = async () => (await loadDevice())?.server ?? returning?.server ?? "";
   function showForm() {
     setView("form");
     setSignInCode("");
@@ -142,9 +150,15 @@ export default function SignIn() {
       router.dismissTo({ pathname: "/unlock", params: { userId: account.user_id, refresh: "1" } });
     } catch (caught) {
       // Only the plain sign-in can retry with a phone signed out; recovery and delete keep the plain message.
-      const phones = recover === "1" || deleteProfile === "1" ? undefined : deviceLimitPhones(caught);
+      const plainSignIn = recover !== "1" && deleteProfile !== "1";
+      const phones = plainSignIn ? deviceLimitPhones(caught) : undefined;
       setLimitPhones(phones);
       if (phones) return;
+      // Retrying cannot work without a device: offer to enrol this phone again on the account's own server.
+      if (plainSignIn && slot === "active" && returning?.server && caught instanceof Error && caught.message === "not_enrolled") {
+        setReEnrolSecret(secret);
+        return;
+      }
       // Forgetting the Demo device hands the phone back to Active, a slot change: lock first, or keep it.
       if (caught instanceof ApiError && caught.code === "device_revoked" && slot !== undefined
         && (slot === "active" || await lockNow())) {
@@ -157,8 +171,47 @@ export default function SignIn() {
     }
   }
 
+  /** Enrol this phone again for the returning account (the same password enrolment as the welcome screen's), then
+   * unlock. Enrolment stores a new device and this account's tokens; the account's encrypted store is keyed by its
+   * own store secret and PIN, not the device, so its unsent work opens as before. */
+  async function reEnrol(secret: string, replaceDeviceId?: string) {
+    const submittedIdentifier = typedIdentifier();
+    if (!returning?.server || !submittedIdentifier) return;
+    setBusy(true);
+    setError("");
+    try {
+      if (!(await lockNow())) return;
+      const enrolled = await passwordEnrolAndSignIn(returning.server, submittedIdentifier, secret,
+        Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION, replaceDeviceId);
+      setLimitPhones(undefined);
+      setReEnrolSecret(undefined);
+      await reload();
+      router.dismissTo({ pathname: "/unlock", params: { userId: enrolled.account.user_id, refresh: "1" } });
+    } catch (caught) {
+      const phones = deviceLimitPhones(caught);
+      setLimitPhones(phones);
+      if (phones) return;
+      setReEnrolSecret(undefined);
+      setError(caught instanceof EnrolmentError ? t(caught.key) : errorText(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (limitPhones) {
-    return <DeviceLimitChoice phones={limitPhones} busy={busy} onPick={(id) => void submit(id)} onCancel={() => setLimitPhones(undefined)} />;
+    return <DeviceLimitChoice phones={limitPhones} busy={busy}
+      onPick={(id) => void (reEnrolSecret !== undefined ? reEnrol(reEnrolSecret, id) : submit(id))}
+      onCancel={() => { setLimitPhones(undefined); setReEnrolSecret(undefined); }} />;
+  }
+
+  if (reEnrolSecret !== undefined) {
+    return (
+      <Screen title={t("notEnrolledTitle")}>
+        <Text style={styles.text}>{t("notEnrolledBody")}</Text>
+        <Button label={t("notEnrolledConfirm")} loading={busy} disabled={busy} onPress={() => void reEnrol(reEnrolSecret)} />
+        <TextLink label={t("cancel")} disabled={busy} onPress={() => setReEnrolSecret(undefined)} />
+      </Screen>
+    );
   }
 
   // Email | Mobile (or the demo's username) and its field: the sign-in form's, the code form's and Forgot password's.

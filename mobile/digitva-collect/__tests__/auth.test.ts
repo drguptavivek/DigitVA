@@ -1171,6 +1171,27 @@ describe("passwordEnrolAndSignIn", () => {
     expect(mockDeleteDb).not.toHaveBeenCalled();
   });
 
+  it("re-enrols a revoked phone for a returning account and leaves its encrypted store and unsent work alone", async () => {
+    // A revoked device was forgotten: accounts and their stores stay, the device and its secret are gone.
+    mockSecure.set("accounts", JSON.stringify([{ user_id: USER, name: "Asha", server: SERVER, needs_sign_in: true }]));
+    mockSecure.set("store_secret_h", "per-user-store-secret");
+    mockSecure.set("store_key_pin_h", "wrapped-data-key");
+    mockSecure.set("store_key_reset_h", "reset-copy");
+    const storeKeys = ["store_secret_h", "store_key_pin_h", "store_key_reset_h"].map((key) => mockSecure.get(key));
+    expect(storeKeys.every(Boolean)).toBe(true);
+    await expect(signIn("asha@example.org", "pw", "active")).rejects.toThrow("not_enrolled");
+
+    mockServer(() => json(201, reply));
+    const { account } = await passwordEnrolAndSignIn(SERVER, "asha@example.org", "pw", "Pixel", "1.2.3", "d-old");
+
+    expect(account).toMatchObject({ user_id: USER, server: SERVER });
+    expect(JSON.parse(calls[0].body!)).toMatchObject({ replace_device_id: "d-old" });
+    expect(JSON.parse(mockSecure.get("device")!)).toMatchObject({ device_id: "manual-device", server: SERVER });
+    expect(["store_secret_h", "store_key_pin_h", "store_key_reset_h"].map((key) => mockSecure.get(key))).toEqual(storeKeys);
+    expect((await loadAccounts()).map((entry) => entry.user_id)).toEqual([USER]);
+    expect(mockDeleteDb).not.toHaveBeenCalled();
+  });
+
   it("lists the eligible projects, drops malformed entries, and a pick posts to the device and waits for the worklist", async () => {
     const projects = [{ project_id: "P1", name: "One" }, { project_id: "", name: "Blank" }, { name: "No id" }, { project_id: "P2", name: "Two" }];
     mockServer(() => json(201, { ...reply, projects }));

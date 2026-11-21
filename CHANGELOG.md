@@ -25,6 +25,9 @@ What landed, newest first. Details live in the commits and the linked docs;
 - Phone NQA tab no longer shows the symptoms card (`digitva-70nl`); PIN
   backspace steps back a box (`892a040dd`).
 - Bead audit: closed verified-done beads; remainders filed as new beads.
+- Staging deployed at `2549743` with web `expo-web-v2026.11.21.1`
+  (`DEPLOY_STAGING_OK`, previous `c622782`). CI's --runInBand run had
+  failed on a long-menu test's late FlatList log (`e76af1702`).
 
 ## 2026-11-20
 

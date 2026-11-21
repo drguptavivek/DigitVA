@@ -2,13 +2,12 @@
 
 ## Start here
 
-Staging runs `c622782` (deployed 2026-11-20; rollback:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh f2333a29e8b35c330f1463e2228bff36a2304947`).
-`main` is ahead with the 2026-11-21 Collect work (CHANGELOG.md). Its only
-server change is the COD form's "Coded by" name and title (no migration).
-Collect is 0.3.28 (`64005b4`); its CI builds were cancelled and must be
-rebuilt from `main` (APK, Collect Plus, Play AAB), then device-checked.
-0.3.27 builds on CI are stale: do not publish.
+Staging runs `2549743` (deployed 2026-11-21 on the owner's go; web
+`expo-web-v2026.11.21.1`; no migration; rollback:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh c6227827882be8e02bce6722845c795864ef5ecb`).
+Collect 0.3.28 APK, Collect Plus APK and Play AAB were built on CI from
+`e76af17`; device-check them before any publish or Play upload (owner's
+command). 0.3.27 builds are stale: do not publish.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect

@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-18
+last_updated: 2026-11-23
 ---
 
 # Web Intake Policy
@@ -914,6 +914,16 @@ browser had saved in that section beat the phone's copy).
   managers in scope, are supervisors of the cases in their scope.
 - A supervisor may **view** the case, **confirm or reject** duplicate and
   cancel flags, and **reopen** terminal cases. A supervisor never assigns.
+- **The supervision screen edits the death report and shows the village**
+  (owner, 2026-11-23, `digitva-76de`, not built). The server already lets a
+  supervisor correct a case's register details (see "Correcting a registered
+  death"); the supervision case gets an "Edit death report" entry to the
+  existing register form while that edit is open. The supervision list shows
+  the village or ward and filters by it, only where the caller sees personal
+  data in the project.
+- **A supervisor whose cadre may edit interviews corrects the interview
+  itself** (owner, 2026-11-23, `digitva-6dh9`, `digitva-5izv`, not built):
+  [Interview Revisions](interview-revisions.md), "Supervisor correction".
 - **A supervisor chooses between two complete interviews** (owner, 2026-10-05,
   `digitva-bqzm`). On a `submitted` case with a candidate (see "Parallel
   interviews") a supervisor, data manager or admin whose reach covers the case

@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-23
 ---
 
 # Organization Model Policy
@@ -104,7 +104,12 @@ and keep working exactly as they did.
 - **Cadres** (`mas_cadre`) are defined per project. The level × cadre grid
   (`map_org_level_cadre`) records which cadres exist at a level and whether
   that cadre `can_fill_va_form`, `can_code_va_form`,
-  `can_supervise_interviews` and `can_report_deaths`.
+  `can_supervise_interviews`, `can_edit_interviews` and `can_report_deaths`.
+  `can_edit_interviews` ("Can edit interviews", owner 2026-11-23,
+  `digitva-6dh9`, not built) can only be set where `can_supervise_interviews`
+  is set. It is the one flag read at runtime against a grant's cadre: a
+  supervisor of a ticked cadre may correct interviews
+  ([Interview Revisions](interview-revisions.md), "Supervisor correction").
 - **Workers** (`mas_org_unit_worker`) are people attached to a unit with a
   cadre; they may or may not have a DigitVA login. A worker's cadre must be
   defined at the unit's level.

@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-23
 ---
 
 # Access Control Model
@@ -545,6 +545,12 @@ May:
 - view the web intake cases in its unit subtree, confirm or reject
   duplicate and cancel flags, and reopen terminal cases; a supervisor never
   assigns
+- correct the death report of a case in its subtree until an interview of
+  it is completed
+- where its cadre has "Can edit interviews" ticked on the level x cadre grid,
+  correct a submitted interview in its subtree until the coder finalises
+  (owner 2026-11-23, `digitva-6dh9`, not built; see [Interview
+  Revisions](interview-revisions.md), "Supervisor correction")
 
 May not:
 

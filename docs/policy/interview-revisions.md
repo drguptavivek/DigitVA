@@ -3,7 +3,7 @@ title: Interview Revisions Policy (editing submitted interviews)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-09
+last_updated: 2026-11-23
 ---
 
 # Interview Revisions Policy
@@ -151,7 +151,8 @@ Decisions made while building part A:
 1. **Before upload.** The interviewer edits freely, including after marking
    the interview complete.
 2. **After upload, until the coder finalises.** Only the interviewer who did
-   the interview may revise it. A reason is required. There is no approval
+   the interview may revise it, or a supervisor whose cadre may edit
+   interviews (see "Supervisor correction"). A reason is required. There is no approval
    step, no supervisor gate and no time window (owner: friction free). A
    revision during active coding drops the coder's unfinished work and sends
    the case back to `smartva_pending`, as an ODK edit does (owner,
@@ -193,6 +194,44 @@ Guards").
   back with a fixed reason code, and the data then changes under the existing
   upstream-change handling (`finalized_upstream_changed`). The revision
   re-enters the case at `smartva_pending`; the earlier COD is kept as history.
+
+## Supervisor correction (owner, 2026-11-23, `digitva-6dh9`, `digitva-5izv`)
+
+Not built. Where interviewers (ANMs, for example) need their supervisors'
+help to correct mistakes, a supervisor may edit the interview themselves.
+
+- **Who.** A person holding an `interview_supervisor` grant whose cadre has
+  **"Can edit interviews"** (`can_edit_interviews`) ticked on the level x
+  cadre grid at the grant unit's level, and whose supervision reach covers
+  the case. The tick sits next to "can supervise interviews" and can only be
+  set where that one is set. An admin or project PI ticks it, for example
+  for health visitors and health supervisors. Data managers, In-charges,
+  project PIs and admins do not get this power through their own roles.
+  Cadres without the tick work as before: only the interviewer revises.
+- **This consults the cadre at runtime.** Elsewhere the cadre on a grant is
+  descriptive and checked only when the grant is written
+  ([Organization Model](organization-model.md)). Here the supervisor grant's
+  cadre is read against the grid when the edit is made, so unticking the
+  cadre withdraws the power at once.
+- **When.** The window of rule 2: whatever the interviewer could revise at
+  that moment ("Where the lock starts"). After the coder finalises, rules 3
+  and 4 are unchanged. Web and device interviews only; ODK interviews are
+  corrected in ODK.
+- **How.** The supervisor opens the stored answers in the WHO VA form, edits
+  and saves. The save is a revision like the interviewer's: a new version,
+  the no-change rule, the coding release, the earlier versions kept in
+  history. Its reason code is `supervisor_correction`, its audit reason
+  `supervisor_revision`, so the correction-loop KPIs tell it apart from
+  `interviewer_revision`.
+- **Same limits as the interviewer.** Locked identity answers stay locked; no
+  change to or from a refusal; a closed or consent-withdrawn case is refused.
+- **Attribution.** The interviewer stays the case's data collector
+  (`va_data_collector`). The version records who made it, and the case
+  screens show **"Last edited by"** (name and time) from the latest version.
+  No notification is sent.
+- **Concurrency: last update wins.** No edit lock. The supervisor can only edit
+  after the upload, so a clash needs the interviewer revising at the same
+  time; that is rare, and the losing version stays in history.
 
 ## What a revision is
 

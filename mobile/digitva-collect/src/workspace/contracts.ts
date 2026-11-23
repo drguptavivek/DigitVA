@@ -238,6 +238,8 @@ export interface WorkspacePayload {
     history_available?: boolean;
     /** True in a read-only view of a coded organization-project case: the printable certificate exists. */
     certificate_available?: boolean;
+    /** The death report's date of death (ISO) when the interview was started from one. */
+    reported_date_of_death?: string | null;
   };
   categories: WorkspaceCategoryNav[];
   default_category: string;
@@ -679,6 +681,7 @@ export function parseWorkspace(value: unknown, mode: WorkspaceMode): WorkspacePa
       narrative_qa_enabled: boolean(caseSource.narrative_qa_enabled, "workspace.case.narrative_qa_enabled"),
       social_autopsy_enabled: boolean(caseSource.social_autopsy_enabled, "workspace.case.social_autopsy_enabled"),
       ...(caseSource.history_available !== undefined ? { history_available: boolean(caseSource.history_available, "workspace.case.history_available") } : {}),
+      ...(caseSource.reported_date_of_death !== undefined ? { reported_date_of_death: nullableString(caseSource.reported_date_of_death, "workspace.case.reported_date_of_death") } : {}),
       ...(caseSource.certificate_available !== undefined ? { certificate_available: boolean(caseSource.certificate_available, "workspace.case.certificate_available") } : {}),
     },
     categories: array(source.categories, "workspace.categories", (item, field) => {

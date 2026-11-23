@@ -29,6 +29,7 @@ from app import db
 from app.decorators import role_required
 from app.models.mas_icd10_2019_2 import MasIcd1020192
 from app.models import (
+    VaDeathRegister,
     VaAllocation,
     VaAllocations,
     VaFinalAssessments,
@@ -151,6 +152,15 @@ class _Case:
         """The case's project, for per-project PII (digitva-ssg7.3); None redacts."""
         return getattr(self.project, "project_id", None)
 
+
+def _reported_date_of_death(va_sid: str) -> str | None:
+    """The date of death on the death report this interview was started from (ISO), else None."""
+    found = db.session.scalar(
+        sa.select(VaDeathRegister.date_of_death)
+        .where(VaDeathRegister.va_sid == va_sid, VaDeathRegister.date_of_death.is_not(None))
+        .limit(1)
+    )
+    return found.isoformat() if found else None
 
 def _private(response):
     """``private, no-store``: PHI on a shared browser is never cached."""
@@ -747,6 +757,8 @@ def workspace(va_sid):
             # A coded org-project case in a read-only view has a printable
             # certificate (/coding/area/<sid>/certificate); the page re-checks.
             "certificate_available": bool(view and not case.intake_only and is_coded_tree_case(va_sid, case.project_id)),
+            # The date of death on the death report this interview was started from (ISO), for DORIS to compare.
+            "reported_date_of_death": _reported_date_of_death(va_sid),
         },
         "categories": [
             {

@@ -98,9 +98,9 @@ export function FieldHint({ children, testID }: { children: ReactNode; testID?: 
 }
 
 /** 12px error text under a field; announced as an alert. */
-export function FieldError({ children }: { children: ReactNode }) {
+export function FieldError({ children, testID }: { children: ReactNode; testID?: string }) {
   const { t } = useUi();
-  return <Text accessibilityRole="alert" style={{ fontSize: font.caption, lineHeight: 16, color: t.destructiveText }}>{children}</Text>;
+  return <Text testID={testID} accessibilityRole="alert" style={{ fontSize: font.caption, lineHeight: 16, color: t.destructiveText }}>{children}</Text>;
 }
 
 /** Soft rule warning under the field it concerns; never blocks anything. */

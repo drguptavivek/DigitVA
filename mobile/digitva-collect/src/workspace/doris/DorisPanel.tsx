@@ -16,7 +16,7 @@ import { DateField } from "./DateField";
 import { todayIso } from "./dateFieldShared";
 import { IcdPickerModal } from "./IcdPickerModal";
 import type { PickerChoice, PickerInit } from "./pickerBridge";
-import { Alert, Badge, Body, Button, ButtonGlyph, Card, CardTitle, FieldHint, FieldWarning, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, font, gap, uiRadius, useLayout, useUi, type ChartToken } from "./ui";
+import { Alert, Badge, Body, Button, ButtonGlyph, Card, CardTitle, FieldError, FieldHint, FieldWarning, Input, Label, Muted, ReportBox, SectionTitle, Separator, Textarea, chartFor, font, gap, uiRadius, useLayout, useUi, type ChartToken } from "./ui";
 import { parseInterval } from "./interval";
 import { applyVisibility, derivesAtLoad, deriveEstimatedAge, recomputeEstimatedAge, reportedAge, visibility, warnings, type Age, type Visibility, type Warnings } from "./rules";
 import { AssociatedVaCodes, CodeDetailsSheet } from "./CodeDetailsSheet";
@@ -121,11 +121,30 @@ function ageLabel(raw: string): string {
  * as reset_certificate; older ones only initial_certificate, which is the prefill itself until a certificate is saved.
  * Undefined when the interview had no age (no provenance for it).
  */
-function interviewAge(doris: WorkspacePayload["doris"]): string | undefined {
-  if (!doris || !provenanceBadge(object(doris.reset_prefill_provenance ?? doris.prefill_provenance), "AdministrativeData.EstimatedAge")) return undefined;
+function interviewValue(doris: WorkspacePayload["doris"], key: "EstimatedAge" | "DateDeath"): string | undefined {
+  if (!doris || !provenanceBadge(object(doris.reset_prefill_provenance ?? doris.prefill_provenance), `AdministrativeData.${key}`)) return undefined;
   const seed = doris.reset_certificate ?? (doris.saved_processing ? undefined : doris.initial_certificate);
-  const age = object(object(seed).AdministrativeData).EstimatedAge;
-  return typeof age === "string" && age ? age : undefined;
+  const value = object(object(seed).AdministrativeData)[key];
+  return typeof value === "string" && value ? value : undefined;
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "2026-11-03" as "03 Nov 2026"; a year or year-month as given. */
+function dayLabel(iso: string): string {
+  const [year, month, day] = iso.slice(0, 10).split("-");
+  return day && MONTHS[Number(month) - 1] ? `${day} ${MONTHS[Number(month) - 1]} ${year}` : iso;
+}
+
+/** The interview's and the death report's dates of death under DORIS's own: plain when equal, red when not. */
+function OtherDeathDates({ doris, interview, reported }: { doris: string; interview?: string; reported?: string | null }) {
+  const line = (label: string, value: string | null | undefined, testID: string) => {
+    if (!value) return null;
+    const textLine = `${label}: ${dayLabel(value)}`;
+    return doris && value.slice(0, 10) !== doris.slice(0, 10)
+      ? <FieldError key={testID} testID={testID}>{`${textLine}. Differs from the date above.`}</FieldError>
+      : <FieldHint key={testID} testID={testID}>{textLine}</FieldHint>;
+  };
+  return <>{line("Interview", interview, "interview-death-date")}{line("Reported", reported, "reported-death-date")}</>;
 }
 
 function copy(value: JsonObject): JsonObject {
@@ -754,7 +773,7 @@ export function DorisPanel({
       <EditorHeading title="DORIS" subtitle={direct ? undefined : isInitial ? "Step 1" : "Final cause"} />
       {state.notice ? <Muted>{state.notice}</Muted> : null}
       {workspace.doris.saved_processing ? <ProcessingSummary processing={null} saved={workspace.doris.saved_processing} api={api} vaSid={identity.vaSid} /> : null}
-      {demo || state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} interviewAge={interviewAge(workspace.doris)} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}
+      {demo || state.adminSeen || hasAdministrativeData(certificate) ? <AdministrativeFields certificate={certificate} provenance={provenance} warns={warns} onChange={setField} interviewAge={interviewValue(workspace.doris, "EstimatedAge")} interviewDeathDate={interviewValue(workspace.doris, "DateDeath")} reportedDeathDate={workspace.case.reported_date_of_death} /> : <Muted>Administrative data was not supplied for this certificate.</Muted>}
       <SectionTitle style={{ marginTop: gap.xl }}>Frame A: Medical data</SectionTitle>
       <View style={[layout.nowrap, { marginTop: gap.md, paddingRight: gap.xs }]}>
         <SectionTitle style={{ flex: 1, minWidth: 0 }}>Part 1: Cause of death</SectionTitle>
@@ -1171,7 +1190,7 @@ function NotApplicable({ text }: { text: string }) {
   return <Alert variant="warning" testID="not-applicable">{text}</Alert>;
 }
 
-function AdministrativeFields({ certificate, provenance, warns, onChange, interviewAge }: { certificate: JsonObject; provenance: JsonObject; warns: Warnings; onChange: OnChange; interviewAge?: string }) {
+function AdministrativeFields({ certificate, provenance, warns, onChange, interviewAge, interviewDeathDate, reportedDeathDate }: { certificate: JsonObject; provenance: JsonObject; warns: Warnings; onChange: OnChange; interviewAge?: string; interviewDeathDate?: string; reportedDeathDate?: string | null }) {
   const layout = useLayout();
   const data = object(certificate.AdministrativeData);
   // A cleared field loses its "from interview" badge until it is answered again.
@@ -1191,6 +1210,7 @@ function AdministrativeFields({ certificate, provenance, warns, onChange, interv
           <FieldLabel text="Date of death" badge={badge("DateDeath")} onClear={clear("DateDeath")} />
           <DateField label="Date of death" value={text(data.DateDeath)} onChange={(value) => onChange("AdministrativeData", "DateDeath", value)} />
           <Warn id="AdministrativeData.DateDeath" text={warns["AdministrativeData.DateDeath"]} />
+          <OtherDeathDates doris={text(data.DateDeath)} interview={interviewDeathDate} reported={reportedDeathDate} />
         </Cell>
         {/* After the two dates: it is filled from them, so it reads as their result. */}
         <Cell>

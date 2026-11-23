@@ -1939,10 +1939,11 @@ describe("Estimated age follows the dates and shows the interview age", () => {
     return (processedCertificate(api, calls.length - 1).AdministrativeData as JsonObject).EstimatedAge;
   };
   const type = async (tree: ReactTestRenderer, label: string, value: string) => act(async () => tree.root.findByProps({ label }).props.onChange(value));
-  const render = (admin: JsonObject, prefill?: JsonObject, extra?: JsonObject) => {
+  const render = (admin: JsonObject, prefill?: JsonObject, extra?: JsonObject, reported?: string) => {
     const api = apiFor();
     const workspace = makeWorkspace({ seed: { ...whoSeed, AdministrativeData: admin }, prefill });
     if (extra) Object.assign(workspace.doris!, extra);
+    if (reported) workspace.case.reported_date_of_death = reported;
     return { api, ...renderPanel(workspace, api) };
   };
 
@@ -1980,5 +1981,20 @@ describe("Estimated age follows the dates and shows the interview age", () => {
     const none = render({ Sex: 1, EstimatedAge: "P50Y" });
     expect(allText(none.tree)).toContain("Estimated age");
     expect(allText(none.tree)).not.toContain("Interview:");
+  });
+
+  it("shows the interview's and the death report's dates of death, in red where they differ from DORIS's", async () => {
+    const prefill = { "AdministrativeData.DateDeath": { sources: ["Id10023"] } };
+    const asked = { reset_certificate: { AdministrativeData: { DateDeath: "2026-11-03" } }, reset_prefill_provenance: prefill };
+    const differs = render({ Sex: 1, DateDeath: "2026-11-20" }, prefill, asked, "2026-11-03");
+    expect(allText(differs.tree)).toContain("Interview: 03 Nov 2026. Differs from the date above.");
+    expect(allText(differs.tree)).toContain("Reported: 03 Nov 2026. Differs from the date above.");
+    const same = render({ Sex: 1, DateDeath: "2026-11-03" }, prefill, asked, "2026-11-03");
+    expect(allText(same.tree)).toContain("Interview: 03 Nov 2026");
+    expect(allText(same.tree)).toContain("Reported: 03 Nov 2026");
+    expect(allText(same.tree)).not.toContain("Differs from the date above");
+    const none = render({ Sex: 1, DateDeath: "2026-11-20" });
+    expect(allText(none.tree)).toContain("Date of death");
+    expect(allText(none.tree)).not.toContain("Reported:");
   });
 });

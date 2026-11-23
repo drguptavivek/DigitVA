@@ -214,6 +214,8 @@ class CodCertificateTests(BaseTestCase):
         self._login(str(self.plain_viewer.user_id))
         body = self.client.get(f"/api/v1/va/{sid}/workspace?mode=view").get_json()
         self.assertIs(body["case"]["certificate_available"], True)
+        # The death report's date, for DORIS to compare with its own date of death.
+        self.assertEqual(body["case"]["reported_date_of_death"], datetime.now(UTC).date().isoformat())
         uncoded = self._case(state="ready_for_coding")
         body = self.client.get(f"/api/v1/va/{uncoded}/workspace?mode=view").get_json()
         self.assertIs(body["case"]["certificate_available"], False)

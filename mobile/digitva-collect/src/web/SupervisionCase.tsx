@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 import { Text, View } from "react-native";
 import { WhoVaQuestionControls } from "../whoControls";
 
@@ -47,6 +48,7 @@ export function CaseSummary({ row, variant = "card" }: { row: SupervisedCase; va
     t("supervisionDied", { date: row.date_of_death ?? t("emptyDash") }),
     t("supervisionReported", { date: whenText(row.created_at) }),
     row.unit_name ?? t("supervisionNoUnit"),
+    ...(row.village_ward ? [row.village_ward] : []),
   ].join(" · ");
   return (
     <View style={{ gap: 4 }}>
@@ -63,6 +65,11 @@ export function CaseSummary({ row, variant = "card" }: { row: SupervisedCase; va
           updated: whenText(row.updated_at),
         })}
       </Text>
+      {row.last_edited_by_name ? (
+        <Text style={styles.muted}>
+          {t("supervisionLastEdited", { name: row.last_edited_by_name, date: whenText(row.last_edited_at) })}
+        </Text>
+      ) : null}
       {row.pending_flag ? (
         <Text style={styles.error}>
           {t(row.pending_flag === "duplicate" ? "supervisionPendingDuplicate" : "supervisionPendingCancel")}
@@ -85,6 +92,7 @@ export function SupervisionCaseDetail({
   onDone: (message: string) => void;
 }) {
   const styles = useUiStyles();
+  const router = useRouter();
   const [detail, setDetail] = useState<SupervisedCaseDetail | undefined>();
   const [duplicates, setDuplicates] = useState<PossibleDuplicate[]>([]);
   const [chooseReason, setChooseReason] = useState<string | undefined>();
@@ -119,7 +127,7 @@ export function SupervisionCaseDetail({
     );
   }
 
-  const { case: row, candidates, visit_note: note } = detail;
+  const { case: row, candidates, visit_note: note, edit_interview: editInterview } = detail;
   const submitted = row.state === "submitted";
 
   async function choose(draftId: string) {
@@ -153,6 +161,29 @@ export function SupervisionCaseDetail({
       <View style={styles.card}>
         <CaseSummary row={row} variant="detail" />
         <SupervisionActions request={request} row={row} onDone={onDone} />
+        {editInterview ? (
+          <Button
+            kind="secondary"
+            label={t("supervisionEditInterview")}
+            onPress={() => router.push({
+              pathname: "/interview",
+              params: {
+                revisionDraftId: editInterview.draft_id,
+                revisionProjectId: editInterview.project_id,
+                revisionSiteId: editInterview.site_id,
+                revisionVaSid: editInterview.va_sid,
+                revisionBy: "supervisor",
+              },
+            } as never)}
+          />
+        ) : null}
+        {row.can_edit_death ? (
+          <Button
+            kind="secondary"
+            label={t("supervisionEditDeath")}
+            onPress={() => router.push({ pathname: "/death-registration", params: { deathId: row.death_id, from: "supervisor" } } as never)}
+          />
+        ) : null}
         <AddIdentifierAction row={row} onChanged={() => setReloads((count) => count + 1)} />
       </View>
 

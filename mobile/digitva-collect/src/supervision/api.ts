@@ -22,6 +22,11 @@ export interface SupervisedCase {
   age_years: number | null;
   date_of_death: string | null;
   unit_name: string | null;
+  village_ward?: string | null;
+  last_edited_by_name?: string | null;
+  last_edited_at?: string | null;
+  /** The caller may still edit the death report (supervisor correction window open). */
+  can_edit_death?: boolean;
   registered_by_name: string | null;
   started_by_name: string | null;
   /** When the death was reported (registered). */
@@ -81,6 +86,8 @@ export interface SupervisedCaseDetail {
   case: SupervisedCase;
   candidates: InterviewCandidate[];
   visit_note: VisitNote | null;
+  /** Set when the caller's cadre may correct the interview. */
+  edit_interview?: { draft_id: string; va_sid: string; project_id: string; site_id: string } | null;
 }
 
 export interface PossibleDuplicate {

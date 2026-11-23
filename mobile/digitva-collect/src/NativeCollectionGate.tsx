@@ -20,6 +20,7 @@ const REGISTRATION_ROUTES = new Set(["/death-registration", "/register"]);
 export default function NativeCollectionGate({
   children,
   routeName,
+  routeParams,
 }: { children: ReactNode; routeName?: string; routeParams?: unknown }) {
   const currentPathname = usePathname().replace(/\/$/, "") || "/";
   const pathname = routeName === undefined
@@ -35,6 +36,10 @@ export default function NativeCollectionGate({
   if (!ready) return <ActivityIndicator style={{ flex: 1 }} />;
   if (!bootstrap) return <Redirect href="/" />;
   if (COLLECTION_ROUTES.has(pathname) && bootstrap.capabilities.intake) return children;
+  // A supervisor correcting an interview (docs/policy/interview-revisions.md, "Supervisor correction"); the server
+  // decides whether this supervisor may edit it.
+  if (pathname === "/interview" && bootstrap.capabilities.supervision
+    && (routeParams as { revisionBy?: unknown } | undefined)?.revisionBy === "supervisor") return children;
   if (REGISTRATION_ROUTES.has(pathname) && (bootstrap.capabilities.registerDeath || bootstrap.capabilities.registeredDeaths || bootstrap.capabilities.supervision)) return children;
   const hasOtherActiveRole = (bootstrap.access?.roles?.length ?? 0) > 0 || Boolean(bootstrap.access?.is_admin);
   // An interviewer of direct-only projects: deaths are not registered, the interview starts in VA Interview.

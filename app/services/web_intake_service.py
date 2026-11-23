@@ -37,6 +37,7 @@ from app.models import (
     VaProjectSites,
     VaSiteMaster,
     VaStatuses,
+    VaSubmissionPayloadVersion,
     VaSubmissions,
     VaSubmissionsAuditlog,
     VaSubmissionWorkflow,
@@ -54,13 +55,12 @@ from app.models.va_web_intake import (
     WEB_INTAKE_MODES,
 )
 from app.services import case_transition_service as cases
-from app.services import project_clock
-from app.services import death_identifier_service as death_identifiers
 from app.services import (
     collection_gate,
     collection_hold,
     notification_service,
     org_grant_service,
+    project_clock,
     public_demo_service,
     register_duplicate_service,
     register_pii_accessor,
@@ -68,8 +68,8 @@ from app.services import (
     smartva_service,
     training_scope,
 )
+from app.services import death_identifier_service as death_identifiers
 from app.services import org_unit_routing_service as org_routing
-from app.services.project_country_service import project_country
 from app.services import organization_service as org
 from app.services import web_intake_attachment_service as attachments
 from app.services.authz import Action, can, resolve_grants, subtree_select, supervision
@@ -79,10 +79,17 @@ from app.services.case_transition_service import WebIntakeError
 from app.services.coding_release_service import (
     SOURCE_INTERVIEWER_REVISION,
     SOURCE_SUPERVISOR_CHOICE,
+    SOURCE_SUPERVISOR_REVISION,
     release_coding_for_changed_payload,
     reopen_coding_after_revision,
 )
 from app.services.duplicate_exclusion import DUPLICATE_CASE_STATUS, EXCLUDED_HOLDS, is_withdrawn
+from app.services.intake_revision_access import (
+    EDITOR_OWNER,
+    EDITOR_SUPERVISOR,
+    find_revisable_submission,
+)
+from app.services.project_country_service import project_country
 from app.services.register_duplicate_service import DUPLICATE_CANDIDATES_MAX
 from app.services.runtime_form_sync_service import ensure_web_runtime_form
 from app.services.submission_payload_version_service import (
@@ -118,14 +125,6 @@ from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
 )
 from app.services.workflow.state_store import get_submission_workflow_state
-from app.services.workflow_timeline_service import (
-    CODING_TIMELINE_EVENTS,
-    INTERVIEW_TIMELINE_EVENTS,
-    WorkflowTimelineError,
-    merge_timeline,
-    parse_timeline,
-    server_event,
-)
 from app.services.workflow.transitions import (
     INTERVIEW_CHOSEN_REASON,
     WorkflowTransitionError,
@@ -141,6 +140,14 @@ from app.services.workflow.upstream_changes import (
     UPSTREAM_CHANGE_STATUS_REJECTED,
     get_open_revision_request,
     resolve_pending_upstream_change,
+)
+from app.services.workflow_timeline_service import (
+    CODING_TIMELINE_EVENTS,
+    INTERVIEW_TIMELINE_EVENTS,
+    WorkflowTimelineError,
+    merge_timeline,
+    parse_timeline,
+    server_event,
 )
 from app.utils.national_id import redact_national_id_digits, redact_payload_national_ids
 from app.utils.phone import normalise_phone
@@ -3093,6 +3100,12 @@ REVISION_REASONS = ("interviewer_correction", "respondent_correction", "more_inf
 #: a second upload, a browser submit of an already submitted draft). Internal:
 #: never accepted from a client (``REVISION_REASONS`` is the public list).
 RESUBMITTED_REASON = "resubmitted"
+#: The reason of a supervisor's correction (docs/policy/interview-revisions.md
+#: "Supervisor correction"). Set by the server whenever the caller revises as
+#: a supervisor; never accepted from a client (not in ``REVISION_REASONS``).
+SUPERVISOR_CORRECTION_REASON = "supervisor_correction"
+#: The reason a supervisor's correction rejects a pending upstream version.
+SUPERSEDED_BY_SUPERVISOR_REVISION = "superseded_by_supervisor_revision"
 
 
 def revision_unlocked(submission: VaSubmissions) -> bool:
@@ -3142,6 +3155,20 @@ def may_read_submitted_answers(user: VaUsers, va_sid: str) -> bool:
     return death is not None and cases.is_interview_supervisor_for(user, death)
 
 
+def _revisable_now(death: VaDeathRegister) -> bool:
+    """Whether ``revise_submission`` would take a revision of *death*'s
+    submission now: the case is not closed or consent-withdrawn, and its
+    workflow is not in a protected state unless sent back or reopened
+    (docs/policy/interview-revisions.md "Where the lock starts")."""
+    if death.status in ("duplicate", "cancelled") or death.consent_withdrawn_at is not None:
+        return False
+    state = get_submission_workflow_state(death.va_sid)
+    if state not in PROTECTED_WORKFLOW_STATES:
+        return True
+    submission = db.session.get(VaSubmissions, death.va_sid)
+    return state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED and submission is not None and revision_unlocked(submission)
+
+
 def case_submission_view(user: VaUsers, death: VaDeathRegister, my_submission: bool) -> dict:
     """The case detail's submitted interview (docs/policy/interview-revisions.md).
 
@@ -3176,22 +3203,31 @@ def case_submission_view(user: VaUsers, death: VaDeathRegister, my_submission: b
         **({"draft_id": str(draft.draft_id)} if mine else {}),
     }
     view["can_view_answers"] = True
-    if mine and death.status not in ("duplicate", "cancelled") and death.consent_withdrawn_at is None:
-        # Mirrors revise_submission's lock check.
-        state = get_submission_workflow_state(death.va_sid)
-        submission = db.session.get(VaSubmissions, death.va_sid)
-        reopening = state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED and submission is not None and revision_unlocked(submission)
-        view["can_revise"] = state not in PROTECTED_WORKFLOW_STATES or reopening
+    # Mirrors revise_submission's lock check.
+    view["can_revise"] = mine and _revisable_now(death)
     return view
 
 
-def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dict, answers_sha256: str | None, completion: dict, envelope: dict, resubmit: bool = False) -> dict:
-    """Revise the submitted interview *va_sid* as its interviewer; returns the
-    reply ``{changed, va_sid, payload_version_id, answers_sha256, outcome,
-    workflow_state}`` (plus ``kept`` and ``locked`` with *resubmit*).
+def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dict, answers_sha256: str | None, completion: dict, envelope: dict, resubmit: bool = False, found: tuple | None = None) -> dict:
+    """Revise the submitted interview *va_sid* as its interviewer, or as a
+    supervisor who may correct it; returns the reply ``{changed, va_sid,
+    payload_version_id, answers_sha256, outcome, workflow_state}`` (plus
+    ``kept`` and ``locked`` with *resubmit*).
 
-    Only the user whose draft became the submission may (else 404, never
-    revealing it exists). Done under the case lock with a lock on the
+    Only the user whose draft became the submission (``find_own_submission``)
+    or a supervisor whose cadre may edit interviews and whose reach covers
+    the case (``find_supervised_submission``: the case's completed current
+    submission, in a project where they see personal data) may; *found*:
+    the caller's ``find_revisable_submission`` result, when it already looked; else 404, never revealing it exists. The owner wins when
+    both apply. A supervisor's *reason_code* is ignored: the server records
+    ``SUPERVISOR_CORRECTION_REASON``, audits ``supervisor_revision`` and
+    refuses turning the completed interview incomplete (409
+    ``case_state_conflict``; that move is its interviewer's). The interviewer
+    stays the interview's: the payload is built as the draft owner's
+    (``SubmitterID``, so ``va_data_collector``, and the timezone), and the
+    caller is only the version's ``created_by`` and the audit actor.
+
+    Done under the case lock with a lock on the
     submission, so a concurrent submit, revision or sync serialises with it.
     The payload is rebuilt from the new raw answers exactly as ``submit_draft``
     builds it, on the original submit time, ``intake_source`` and
@@ -3253,9 +3289,29 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     ``invalid_reason``, the missing identity of a finished partial and
     ``_interview_outcome``'s own.
     """
-    if not resubmit and reason_code not in REVISION_REASONS:
-        raise WebIntakeError("reason_code must be one of: " + ", ".join(REVISION_REASONS) + ".", 422, "invalid_reason")
-    draft = find_own_submission(user, va_sid)
+    # *found*: the route's one lookup. A resubmit is always the owner's.
+    if found is None:
+        found = (find_own_submission(user, va_sid), EDITOR_OWNER) if resubmit else find_revisable_submission(user, va_sid)
+    draft, editor = found
+    by_supervisor = editor == EDITOR_SUPERVISOR
+    if by_supervisor:
+        # The interview stays its interviewer's whoever corrects it.
+        interviewer = db.session.get(VaUsers, draft.user_id)
+        reason_code = SUPERVISOR_CORRECTION_REASON
+        audit_role = interview_supervisor_actor(user.user_id).audit_role
+        audit_action = "va_submission_revised_by_supervisor"
+        source = SOURCE_SUPERVISOR_REVISION
+        superseded_reason = SUPERSEDED_BY_SUPERVISOR_REVISION
+        smartva_reason = SOURCE_SUPERVISOR_REVISION
+    else:
+        if not resubmit and reason_code not in REVISION_REASONS:
+            raise WebIntakeError("reason_code must be one of: " + ", ".join(REVISION_REASONS) + ".", 422, "invalid_reason")
+        interviewer = user
+        audit_role = AUDIT_ROLE
+        audit_action = "va_submission_revised_by_interviewer"
+        source = SOURCE_INTERVIEWER_REVISION
+        superseded_reason = "superseded_by_interviewer_revision"
+        smartva_reason = "interview_revision"
     if draft is None:
         raise WebIntakeError("Submission not found.", 404)
     death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
@@ -3266,6 +3322,9 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     # this one compares against.
     db.session.refresh(draft)
     if submission is None or draft.status != "submitted":
+        raise WebIntakeError("Submission not found.", 404)
+    # Under the lock: the owner's regression may have taken the case's submission meanwhile.
+    if by_supervisor and (death is None or death.va_sid != va_sid):
         raise WebIntakeError("Submission not found.", 404)
     if ((draft.meta or {}).get("interviewOutcome") == "refused" or
             str(data.get("Id10013") or "").strip().lower() == "no"):
@@ -3310,6 +3369,11 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     outcome = _interview_outcome(picked, completion)
     regressing = previous == "completed" and outcome != "completed"
     completing = outcome == "completed" and previous != "completed"
+    if by_supervisor and outcome != previous:
+        raise WebIntakeError(
+            "A supervisor correction keeps the interview's outcome; its interviewer changes that.",
+            409, "case_state_conflict",
+        )
     # Locked answers keep the value the interview was submitted with; one the
     # submit never held is filled from the case and the interviewer, as on a
     # submit. Recomputing them all would turn a renamed interviewer or a
@@ -3375,9 +3439,9 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     # The original submit time and source: SubmissionDate, the masked id and
     # the default end time stay as they were, so they never read as a change.
     submitted_at = datetime.fromisoformat(prior["SubmissionDate"]) if prior.get("SubmissionDate") else draft.submitted_at
-    expression_now = _device_time(meta.get("completedAt")) or _expression_now(user, submitted_at)
+    expression_now = _device_time(meta.get("completedAt")) or _expression_now(interviewer, submitted_at)
     payload, references, validation_err = build_final_payload(
-        draft, user, raw, submitted_at=submitted_at, expression_now=expression_now, visit_note={},
+        draft, interviewer, raw, submitted_at=submitted_at, expression_now=expression_now, visit_note={},
         intake_source=prior.get("intake_source") or "web", meta=meta, carry=prior if active is not None else None,
     )
     # The form's own start answer (Id10011) is pinned the same way. A revision
@@ -3427,6 +3491,7 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
     draft.meta = {**meta, "attachmentReferences": references, "interviewOutcome": outcome, "effectiveSavedAt": completed_at.isoformat()}
 
     enters_coding = outcome == "completed" and consent_is_valid(normalize_consent(raw.get("Id10013")))
+    # *source* is also the workflow reason ("interviewer_revision" / "supervisor_revision").
     try:
         if reopening:
             # The revision is the new payload: no pending upstream version may
@@ -3434,20 +3499,20 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
             # routing below puts the case where any revision would be.
             pending = get_latest_pending_upstream_payload_version(va_sid)
             if pending is not None:
-                reject_pending_upstream_payload_version(pending, reason="superseded_by_interviewer_revision")
+                reject_pending_upstream_payload_version(pending, reason=superseded_reason)
             resolve_pending_upstream_change(
-                va_sid, resolution_status=UPSTREAM_CHANGE_STATUS_REJECTED, resolved_by=user.user_id, resolved_by_role=AUDIT_ROLE,
+                va_sid, resolution_status=UPSTREAM_CHANGE_STATUS_REJECTED, resolved_by=user.user_id, resolved_by_role=audit_role,
             )
-            reopen_coding_after_revision(va_sid, audit_by=user.user_id)
+            reopen_coding_after_revision(va_sid, audit_by=user.user_id, source=source)
         else:
-            release_coding_for_changed_payload(va_sid, source=SOURCE_INTERVIEWER_REVISION, audit_by=user.user_id)
-        route_synced_submission(va_sid, consent_valid=enters_coding, reason="interviewer_revision", actor=system_actor())
+            release_coding_for_changed_payload(va_sid, source=source, audit_by=user.user_id)
+        route_synced_submission(va_sid, consent_valid=enters_coding, reason=source, actor=system_actor())
     except WorkflowTransitionError as exc:
         # A coder finalised between the check above and here; the route rolls back.
         raise WebIntakeError("Coding has finished on this interview; it can no longer be revised.", 409, "revision_locked") from exc
     if enters_coding and not references:
         mark_attachment_sync_completed(va_sid, reason="web_intake_no_attachments", actor=system_actor())
-        smartva_service.queue_smartva_after_commit(va_sid, "interview_revision")
+        smartva_service.queue_smartva_after_commit(va_sid, smartva_reason)
     if death is not None and outcome != previous:
         target = OUTCOME_CASE_STATES[outcome]
         if completing or death.status != target:
@@ -3463,10 +3528,10 @@ def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dic
             death.va_sid = None
     db.session.add(VaSubmissionsAuditlog(
         va_sid=va_sid,
-        va_audit_byrole=AUDIT_ROLE,
+        va_audit_byrole=audit_role,
         va_audit_by=user.user_id,
         va_audit_operation="u",
-        va_audit_action="va_submission_revised_by_interviewer",
+        va_audit_action=audit_action,
         va_audit_entityid=version.payload_version_id,
     ))
     db.session.flush()
@@ -5043,6 +5108,70 @@ def get_supervised_case(user: VaUsers, death_id: object) -> VaDeathRegister:
     return death
 
 
+def get_case_for_supervisor(user: VaUsers, death_id: object) -> VaDeathRegister:
+    """A case *user* supervises (``is_interview_supervisor_for``: no admin
+    bypass) in a project where they see personal data (``pii_scope``), for
+    ``GET /cases/<id>``'s death-report edit form; else 404. A
+    consent-withdrawn case is sealed; a training case stays in training
+    mode."""
+    try:
+        death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
+    except ValueError:
+        death = None
+    if (death is None or death.consent_withdrawn_at is not None
+            or not training_scope.keeps_project(death.project_id)
+            or not pii_scope(user).sees(death.project_id)
+            or not cases.is_interview_supervisor_for(user, death)):
+        raise WebIntakeError("Case not found.", 404)
+    return death
+
+
+def supervised_row_facts(user: VaUsers, deaths: list[VaDeathRegister]) -> dict:
+    """``{death_id: {last_edited_by_name, last_edited_at, can_edit_death}}``
+    for a page of supervision rows, in two queries whatever its size.
+
+    ``last_edited_*``: who made the case submission's active payload version
+    and when, when that version is a revision (``revision_reason_code`` set);
+    else null. The name is null where *user* has no personal-data access in
+    the case's project, like ``registered_by_name``. ``can_edit_death``: the
+    death report edit (``update_death``) is open now: not ``draft_identity``,
+    not cancelled, duplicate or consent-withdrawn, and no interview of the
+    case completed (``_interview_completed``)."""
+    if not deaths:
+        return {}
+    pii = pii_scope(user)
+    sids = {d.va_sid for d in deaths if d.va_sid}
+    edited = {}
+    if sids:
+        edited = {row.va_sid: row for row in db.session.execute(
+            sa.select(VaSubmissionPayloadVersion.va_sid, VaSubmissionPayloadVersion.version_created_at,
+                      VaUsers.name)
+            .outerjoin(VaUsers, VaUsers.user_id == VaSubmissionPayloadVersion.created_by)
+            .where(VaSubmissionPayloadVersion.va_sid.in_(sids),
+                   VaSubmissionPayloadVersion.version_status == "active",
+                   VaSubmissionPayloadVersion.revision_reason_code.is_not(None))
+        )}
+    open_ids = [d.death_id for d in deaths if not d.va_sid]
+    completed = set(db.session.scalars(sa.select(VaWebIntakeDraft.death_id).distinct().where(
+        VaWebIntakeDraft.death_id.in_(open_ids),
+        VaWebIntakeDraft.status.in_(("submitted", "superseded")),
+        VaWebIntakeDraft.meta["interviewOutcome"].astext == "completed",
+    ))) if open_ids else set()
+    facts = {}
+    for death in deaths:
+        version = edited.get(death.va_sid)
+        facts[death.death_id] = {
+            "last_edited_by_name": version.name if version is not None and pii.sees(death.project_id) else None,
+            "last_edited_at": version.version_created_at.isoformat() if version is not None else None,
+            "can_edit_death": (
+                death.status not in ("draft_identity", "cancelled", DUPLICATE_CASE_STATUS)
+                and death.consent_withdrawn_at is None
+                and not death.va_sid and death.death_id not in completed
+            ),
+        }
+    return facts
+
+
 def supervised_case_row(death: VaDeathRegister) -> tuple:
     """``(case, unit_name, registered_by_name, started_by_name,
     other_complete_interview)`` for a case the caller supervises
@@ -5409,6 +5538,10 @@ def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str 
     }
 
 
+#: The sealed attributes a supervision row opens (where the caller sees PII).
+SUPERVISED_ROW_PII = ("deceased_name", "address_village_ward")
+
+
 def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
                              registered_by_name: str | None, started_by_name: str | None,
                              other_complete_interview: bool = False, register: dict | None = None) -> dict:
@@ -5416,11 +5549,16 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     decision 13), without the informant's phones: the supervisor list does not
     contact families. ``other_complete_interview``: a candidate to choose
     exists (``choose_interview``). The deceased, registrant and starter names
-    are null where *user* has no personal-data access in the case's project
-    (``pii_scope``; web-intake.md item 14), and the name is then never opened."""
+    and the household's ``village_ward`` are null where *user* has no
+    personal-data access in the case's project (``pii_scope``; web-intake.md
+    item 14), and are then never opened. *register*: the row's opened
+    ``deceased_name`` and ``address_village_ward`` when the caller opened the
+    page; else opened here."""
     named = pii_scope(user).sees(death.project_id)
     if not named:
-        register = {"deceased_name": None}
+        register = {"deceased_name": None, "address_village_ward": None}
+    elif register is None:
+        register = register_pii_accessor.current_values(death, SUPERVISED_ROW_PII)
     row = serialize_worklist_row(user, death, unit_name, None, other_complete_interview=other_complete_interview,
                                  register=register)
     for key in ("my_draft_id", "has_informant_phone", "has_informant_phone_2",
@@ -5429,6 +5567,7 @@ def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: s
     # Supervisors oversee every interview in scope, so they keep every va_sid
     # (the submitter-only rule is the interviewer lists').
     row["va_sid"] = death.va_sid
+    row["village_ward"] = register.get("address_village_ward") or None
     row["registered_by_name"] = registered_by_name if named else None
     row["started_by_name"] = started_by_name if named else None
     row["duplicate_of_death_id"] = str(death.duplicate_of_death_id) if death.duplicate_of_death_id else None

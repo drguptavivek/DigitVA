@@ -282,6 +282,8 @@ export default function InterviewScreen() {
     revisionProjectId?: string;
     revisionSiteId?: string;
     revisionVaSid?: string;
+    /** "supervisor": a supervisor correcting the interview; the server records the reason itself. */
+    revisionBy?: string;
     deathId?: string;
     projectId?: string;
     siteId?: string;
@@ -301,8 +303,10 @@ export default function InterviewScreen() {
   const [draft, setDraft] = useState<DraftResponse>();
   const [revision, setRevision] = useState<RevisionDetail>();
   // A training interview returns to the Training menu's Interview list, not to the real Interview list.
-  const collectionPath = isTrainingProject(bootstrap?.access, draft?.draft.project_id ?? params.revisionProjectId ?? params.projectId)
-    ? TRAINING_INTERVIEW_HOME : "/collection";
+  const bySupervisor = params.revisionBy === "supervisor";
+  const collectionPath = bySupervisor ? "/supervision"
+    : isTrainingProject(bootstrap?.access, draft?.draft.project_id ?? params.revisionProjectId ?? params.projectId)
+      ? TRAINING_INTERVIEW_HOME : "/collection";
   const [instrument, setInstrument] = useState<InstrumentDefinition>();
   const [resolvedInstrument, setResolvedInstrument] = useState<ResolvedInstrument>();
   const [locale, setLocale] = useState("en");
@@ -336,7 +340,7 @@ export default function InterviewScreen() {
   // The draft's own form could not be recovered and it now uses the current one.
   const [formAdopted, setFormAdopted] = useState(false);
   const [message, setMessage] = useState("");
-  const [revisionReason, setRevisionReason] = useState<RevisionReasonCode>();
+  const [revisionReason, setRevisionReason] = useState<Exclude<RevisionReasonCode, "supervisor_correction">>();
   const [needsNewSnapshot, setNeedsNewSnapshot] = useState(false);
   const [caseStripHeight, setCaseStripHeight] = useState(0);
   const [formOptions, setFormOptions] = useState<FormOptions>();
@@ -917,7 +921,8 @@ export default function InterviewScreen() {
       if (store instanceof RevisionMemoryStore) {
         let snapshot = pendingRevisionRef.current;
         if (!snapshot) {
-          if (!revision || !revisionReason) {
+          const reason: RevisionReasonCode | undefined = bySupervisor ? "supervisor_correction" : revisionReason;
+          if (!revision || !reason) {
             setMessage(t("revisionInvalidReason"));
             return;
           }
@@ -929,14 +934,14 @@ export default function InterviewScreen() {
             setMessage(result.valid ? t("revisionConsentRequired") : t("serverValidation"));
             return;
           }
-          if ((wasPartial && nextOutcome === "completed" && revisionReason !== "finish_partial") ||
-              (revisionReason === "finish_partial" && (!wasPartial || nextOutcome !== "completed"))) {
+          if (!bySupervisor && ((wasPartial && nextOutcome === "completed" && reason !== "finish_partial") ||
+              (reason === "finish_partial" && (!wasPartial || nextOutcome !== "completed")))) {
             setMessage(t("revisionInvalidReason"));
             return;
           }
           snapshot = await createRevisionSnapshot({
             vaSid: revision.draft.va_sid,
-            reasonCode: revisionReason,
+            reasonCode: reason,
             data: current.data,
             completion: { valid: result.valid, issues: result.issues },
             draft: {
@@ -1355,7 +1360,7 @@ export default function InterviewScreen() {
               <Button kind="secondary" label={t("backToCollection")} onPress={leaveToCollection} />
             </View>
           )}
-          {revision ? (
+          {revision && !bySupervisor ? (
             <View>
               <Text style={styles.headline}>{t("revisionReason")}</Text>
               <View accessibilityRole="radiogroup" accessibilityLabel={t("revisionReason")}>
@@ -1366,7 +1371,7 @@ export default function InterviewScreen() {
                 ...(isPartialOutcome(revision.envelope.data.interview_outcome)
                   ? [["finish_partial", "revisionReasonFinishPartial", "revisionReasonMessageFinishPartial"]]
                   : [])
-              ] as Array<[RevisionReasonCode, StringKey, StringKey]>).map(([code, labelKey]) => (
+              ] as Array<[Exclude<RevisionReasonCode, "supervisor_correction">, StringKey, StringKey]>).map(([code, labelKey]) => (
                 <MenuChoiceRow
                   key={code}
                   label={t(labelKey)}

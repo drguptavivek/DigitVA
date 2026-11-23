@@ -16,7 +16,8 @@ export type RevisionReasonCode =
   | "interviewer_correction"
   | "respondent_correction"
   | "more_information"
-  | "finish_partial";
+  | "finish_partial"
+  | "supervisor_correction";
 
 export interface RevisionDetail extends DraftResponse {
   draft: SubmittedRevisionSummary;

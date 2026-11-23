@@ -488,8 +488,10 @@ def upstream_changes():
                  ('upstream_change_accepted', 'admin_override_to_recode') in window,
                  minus the interviewer's revision restarts and a supervisor's
                  chosen interview (transition_reason ``interviewer_revision`` /
-                 ``interview_chosen``), which are not data-manager reopens.
-                 Those restarts are ``d_wt_04_revision_restarts_7d``.
+                 ``supervisor_revision`` / ``interview_chosen``), which are not
+                 data-manager reopens. The interviewer's restarts are
+                 ``d_wt_04_revision_restarts_7d``, a supervisor correction's
+                 ``d_wt_04_supervisor_revision_restarts_7d``.
       Denominator: COUNT of coder_finalized events in window.
       Rate: N / D × 100.
       Scope: CODED.
@@ -582,6 +584,10 @@ def upstream_changes():
                         WHERE e.transition_id = 'upstream_change_accepted'
                           AND e.transition_reason = 'interviewer_revision'
                     ) AS revision_restarts,
+                    COUNT(*) FILTER (
+                        WHERE e.transition_id = 'upstream_change_accepted'
+                          AND e.transition_reason = 'supervisor_revision'
+                    ) AS supervisor_revision_restarts,
                     COUNT(*) FILTER (WHERE e.transition_id = 'coder_finalized') AS finalized
                 FROM va_submission_workflow_events e
                 JOIN va_submissions s ON s.va_sid = e.va_sid
@@ -598,6 +604,7 @@ def upstream_changes():
         reopened = reopen["reopened"] or 0 if reopen else 0
         finalized = reopen["finalized"] or 0 if reopen else 0
         revision_restarts = reopen["revision_restarts"] or 0 if reopen else 0
+        supervisor_revision_restarts = reopen["supervisor_revision_restarts"] or 0 if reopen else 0
         reopen_rate = round(reopened / finalized * 100, 1) if finalized > 0 else 0.0
 
         return {
@@ -611,6 +618,7 @@ def upstream_changes():
             "d_wt_04_finalized_7d": finalized,
             "d_wt_04_reopen_rate": reopen_rate,
             "d_wt_04_revision_restarts_7d": revision_restarts,
+            "d_wt_04_supervisor_revision_restarts_7d": supervisor_revision_restarts,
         }
 
     return jsonify(cached_kpi("upstream_changes", compute))

@@ -549,7 +549,7 @@ May:
   it is completed
 - where its cadre has "Can edit interviews" ticked on the level x cadre grid,
   correct a submitted interview in its subtree until the coder finalises
-  (owner 2026-11-23, `digitva-6dh9`, not built; see [Interview
+  (owner 2026-11-23, `digitva-6dh9`, built; see [Interview
   Revisions](interview-revisions.md), "Supervisor correction")
 
 May not:

@@ -470,6 +470,7 @@ def serialize_level_cadre(row: MapOrgLevelCadre, *, level: MasOrgLevel, cadre: M
         "can_code_va_form": row.can_code_va_form,
         "can_supervise_interviews": row.can_supervise_interviews,
         "can_report_deaths": row.can_report_deaths,
+        "can_edit_interviews": row.can_edit_interviews,
         "default_roles": list(row.default_roles or []),
         "is_active": row.is_active,
     }
@@ -1640,14 +1641,18 @@ def upsert_level_cadre(
     can_code_va_form: bool,
     can_supervise_interviews: bool | None = None,
     can_report_deaths: bool | None = None,
+    can_edit_interviews: bool | None = None,
     default_roles: Iterable[str] | None = None,
     is_active: bool = True,
 ) -> MapOrgLevelCadre:
     """Create or update one level x cadre row.
 
-    ``can_supervise_interviews``, ``can_report_deaths`` and ``default_roles``
-    of ``None`` keep the row's current value (false or empty on a new row), so
-    callers and workbooks that predate a column cannot clear it. Default roles
+    ``can_supervise_interviews``, ``can_report_deaths``,
+    ``can_edit_interviews`` and ``default_roles`` of ``None`` keep the row's
+    current value (false or empty on a new row), so callers and workbooks that
+    predate a column cannot clear it. ``can_edit_interviews`` lives only under
+    ``can_supervise_interviews``: true while supervise ends up false is
+    refused, and a kept true is cleared with supervise. Default roles
     that are supplied are checked against the row's resulting flags
     (``normalize_default_roles``) and refused if the flags do not allow one;
     kept ones that a cleared flag no longer allows are dropped, so a caller
@@ -1670,6 +1675,12 @@ def upsert_level_cadre(
         row.can_supervise_interviews = bool(can_supervise_interviews)
     if can_report_deaths is not None:
         row.can_report_deaths = bool(can_report_deaths)
+    if can_edit_interviews is not None:
+        if can_edit_interviews and not row.can_supervise_interviews:
+            raise OrganizationError("can_edit_interviews needs can_supervise_interviews.")
+        row.can_edit_interviews = bool(can_edit_interviews)
+    elif not row.can_supervise_interviews:
+        row.can_edit_interviews = False
     row.default_roles = normalize_default_roles(
         row.default_roles if default_roles is None else default_roles,
         row, level=level, cadre=cadre, drop_disallowed=default_roles is None,
@@ -2113,6 +2124,8 @@ def district_reference_model() -> dict:
                 "can_code_va_form": can_code,
                 "can_supervise_interviews": can_supervise,
                 "can_report_deaths": can_report,
+                # Never seeded: an admin or project PI ticks it per project.
+                "can_edit_interviews": False,
                 "typical_roles": list(roles),
             }
         )
@@ -2138,7 +2151,7 @@ _UNIT_HEADERS = (
 _CADRE_HEADERS = ("cadre_code", "cadre_name", "is_active")
 _LEVEL_CADRE_HEADERS = (
     "level_code", "cadre_code", "can_fill_va_form", "can_code_va_form", "can_supervise_interviews",
-    "can_report_deaths", "default_roles", "is_active",
+    "can_report_deaths", "default_roles", "is_active", "can_edit_interviews",
 )
 # Separates the role names in the default_roles cell of the level_cadres sheet.
 _DEFAULT_ROLES_SEPARATOR = "|"
@@ -2524,6 +2537,10 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
                     None if row.get("can_report_deaths") in (None, "")
                     else _to_bool(row["can_report_deaths"], what="can_report_deaths")
                 ),
+                can_edit_interviews=(
+                    None if row.get("can_edit_interviews") in (None, "")
+                    else _to_bool(row["can_edit_interviews"], what="can_edit_interviews")
+                ),
                 # Blank or absent keeps the current defaults; the grid editor clears them.
                 default_roles=(
                     None if str(row.get("default_roles") or "").strip() == ""
@@ -2550,6 +2567,7 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
                         can_code_va_form=lc["can_code_va_form"],
                         can_supervise_interviews=lc["can_supervise_interviews"],
                         can_report_deaths=lc["can_report_deaths"],
+                        can_edit_interviews=lc["can_edit_interviews"],
                         default_roles=lc["default_roles"],
                         is_active=False,
                     ),

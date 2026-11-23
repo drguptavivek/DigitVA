@@ -66,7 +66,7 @@
     <div class="mb-2"><a href="{{ roles_help_url }}">What each role can do</a></div>
     <div class="table-responsive">
       <table class="table table-sm table-bordered mb-0">
-        <thead><tr><th>Level</th><th>Cadre</th><th>Fill VA</th><th>Code VA</th><th>Supervise</th><th>Report deaths</th><th>Default roles</th></tr></thead>
+        <thead><tr><th>Level</th><th>Cadre</th><th>Fill VA</th><th>Code VA</th><th>Supervise</th><th>Edit interviews</th><th>Report deaths</th><th>Default roles</th></tr></thead>
         <tbody>
           {%- for row in ref_model.grid %}
           <tr>
@@ -75,6 +75,7 @@
             <td>{{ '✓' if row.can_fill_va_form else '–' }}</td>
             <td>{{ '✓' if row.can_code_va_form else '–' }}</td>
             <td>{{ '✓' if row.can_supervise_interviews else '–' }}</td>
+            <td>{{ '✓' if row.can_edit_interviews else '–' }}</td>
             <td>{{ '✓' if row.can_report_deaths else '–' }}</td>
             <td>
               {%- if row.typical_roles -%}
@@ -677,7 +678,7 @@
             <label class="form-label small mb-1" for="org-import-sheet">This CSV holds</label>
             <select id="org-import-sheet" class="form-select form-select-sm">
               <option value="cadres">cadres: cadre_code, cadre_name</option>
-              <option value="level_cadres">level_cadres: level_code, cadre_code, can_fill_va_form, can_code_va_form, can_supervise_interviews, can_report_deaths, default_roles (role names separated by |; blank keeps the current ones)</option>
+              <option value="level_cadres">level_cadres: level_code, cadre_code, can_fill_va_form, can_code_va_form, can_supervise_interviews, can_report_deaths, can_edit_interviews (needs can_supervise_interviews), default_roles (role names separated by |; blank keeps the current ones)</option>
               <option value="units">units</option>
               <option value="workers">workers: worker_name, unit_code, cadre_code, phone, user_email, remarks (worker_code optional)</option>
               <option value="levels">levels</option>
@@ -1757,7 +1758,7 @@
       if (!here.length) {
         tableRows.push(
           '<tr>' + levelCellHtml
-          + '<td colspan="7" class="text-muted small py-2">No cadres placed at this level yet. Choose <em>+ Add cadre…</em> on the left or click <strong>Populate district defaults</strong>.</td></tr>'
+          + '<td colspan="8" class="text-muted small py-2">No cadres placed at this level yet. Choose <em>+ Add cadre…</em> on the left or click <strong>Populate district defaults</strong>.</td></tr>'
         );
       } else {
         here.forEach(function (c, idx) {
@@ -1770,6 +1771,7 @@
             + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May hold a death_reporter grant at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="report" ' + (lc.can_report_deaths ? 'checked' : '') + '></label></td>'
             + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May fill VA forms at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="fill" ' + (lc.can_fill_va_form ? 'checked' : '') + '></label></td>'
             + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May hold an interview_supervisor grant at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="supervise" ' + (lc.can_supervise_interviews ? 'checked' : '') + '></label></td>'
+            + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="Its interview supervisors may correct submitted interviews (needs Supervise)"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="edit" ' + (lc.can_edit_interviews ? 'checked' : '') + (lc.can_supervise_interviews ? '' : ' disabled') + '></label></td>'
             + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May hold a coder grant at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="code" ' + (lc.can_code_va_form ? 'checked' : '') + '></label></td>'
             + '<td>' + defaultRolesHtml(lc, attrs) + '</td>'
             + '<td class="text-center" style="width:52px;"><button type="button" class="btn btn-sm btn-link text-danger p-0 perm-remove"' + attrs + ' title="Remove ' + esc(c.cadre_code) + ' from ' + esc(l.level_name) + '"><i class="fa-solid fa-xmark"></i></button></td>'
@@ -1787,6 +1789,7 @@
       + '<th class="text-center" style="width:92px;" title="Required for death_reporter grant">Report Deaths<div class="fw-normal text-muted" style="font-size:.68rem;">Own Reg PII</div></th>'
       + '<th class="text-center" style="width:92px;" title="Allows filling VA form">Fill VA<div class="fw-normal text-muted" style="font-size:.68rem;">Full PII</div></th>'
       + '<th class="text-center" style="width:92px;" title="Required for interview_supervisor grant">Supervise<div class="fw-normal text-muted" style="font-size:.68rem;">Intake PII</div></th>'
+      + '<th class="text-center" style="width:92px;" title="Its interview supervisors may correct submitted interviews; needs Supervise">Edit Interviews<div class="fw-normal text-muted" style="font-size:.68rem;">Intake PII</div></th>'
       + '<th class="text-center" style="width:92px;" title="Required for coder grant">Code VA<div class="fw-normal text-muted" style="font-size:.68rem;">Non-PII</div></th>'
       + '<th>Default Unit Roles (Click to Toggle — Pre-ticked When Enrolling Workers)</th>'
       + '<th class="text-center" style="width:52px;"></th>'
@@ -1794,8 +1797,9 @@
       + '</thead>'
       + '<tbody>' + tableRows.join('') + '</tbody></table>';
     // defaults omitted (undefined) keeps the row's current default roles.
-    function save(l, c, fill, code, supervise, report, active, defaults) {
-      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, can_supervise_interviews: supervise, can_report_deaths: report, default_roles: defaults, is_active: active })
+    // Edit interviews lives under Supervise: unticking Supervise unticks it in the same PUT.
+    function save(l, c, fill, code, supervise, report, edit, active, defaults) {
+      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, can_supervise_interviews: supervise, can_report_deaths: report, can_edit_interviews: !!(edit && supervise), default_roles: defaults, is_active: active })
         .then(function (res) { if (!res.ok) fail(res); else alertBox(); loadAll(); });
     }
     if (qWrap) {
@@ -1819,7 +1823,7 @@
           if (flag === 'can_code_va_form') code = turningOn;
           if (flag === 'can_supervise_interviews') supervise = turningOn;
           if (flag === 'can_report_deaths') report = turningOn;
-          save(l, c, fill, code, supervise, report, true, roles);
+          save(l, c, fill, code, supervise, report, lc.can_edit_interviews, true, roles);
         });
       });
     }
@@ -1829,7 +1833,8 @@
       var code = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="code"]').checked;
       var supervise = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="supervise"]').checked;
       var report = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="report"]').checked;
-      save(l, c, fill, code, supervise, report, true);
+      var edit = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="edit"]').checked;
+      save(l, c, fill, code, supervise, report, edit, true);
     }); });
     document.querySelectorAll('.perm-role').forEach(function (box) { box.addEventListener('change', function () {
       var l = box.dataset.l, c = box.dataset.c, lc = lookup[l + '|' + c];
@@ -1838,16 +1843,16 @@
       var code = lc.can_code_va_form || roles.indexOf('coder') >= 0;
       var supervise = lc.can_supervise_interviews || roles.indexOf('interview_supervisor') >= 0;
       var report = lc.can_report_deaths || roles.indexOf('death_reporter') >= 0;
-      save(l, c, fill, code, supervise, report, true, roles);
+      save(l, c, fill, code, supervise, report, lc.can_edit_interviews, true, roles);
     }); });
     document.querySelectorAll('.perm-add').forEach(function (sel) { sel.addEventListener('change', function () {
-      if (sel.value) save(sel.dataset.l, sel.value, false, false, false, false, true);
+      if (sel.value) save(sel.dataset.l, sel.value, false, false, false, false, false, true);
     }); });
     document.querySelectorAll('.perm-remove').forEach(function (btn) { btn.addEventListener('click', function () {
       var lc = lookup[btn.dataset.l + '|' + btn.dataset.c];
       var cadre = findBy(cadres, 'cadre_id', btn.dataset.c), level = findBy(levels, 'org_level_id', btn.dataset.l);
       askConfirm('Remove ' + cadre.cadre_code + ' from ' + level.level_name + '? No new ' + cadre.cadre_code + ' workers can then be added at this level; removal only succeeds once no active ' + cadre.cadre_code + ' worker remains at this level.', function () {
-        save(btn.dataset.l, btn.dataset.c, lc.can_fill_va_form, lc.can_code_va_form, lc.can_supervise_interviews, lc.can_report_deaths, false);
+        save(btn.dataset.l, btn.dataset.c, lc.can_fill_va_form, lc.can_code_va_form, lc.can_supervise_interviews, lc.can_report_deaths, lc.can_edit_interviews, false);
       });
     }); });
   }
@@ -2147,7 +2152,7 @@
       return;
     }
     var roles = (lc.default_roles || []).map(function (role) { return WORKER_ROLE_LABELS[role] || role; });
-    hint.textContent = 'At ' + u.level_name + ': ' + (lc.can_fill_va_form ? 'can fill VA' : 'cannot fill VA') + ' · ' + (lc.can_code_va_form ? 'can code VA' : 'cannot code VA') + (lc.can_supervise_interviews ? ' · can supervise interviews' : '') + (lc.can_report_deaths ? ' · can report deaths' : '') + '.';
+    hint.textContent = 'At ' + u.level_name + ': ' + (lc.can_fill_va_form ? 'can fill VA' : 'cannot fill VA') + ' · ' + (lc.can_code_va_form ? 'can code VA' : 'cannot code VA') + (lc.can_supervise_interviews ? ' · can supervise interviews' : '') + (lc.can_edit_interviews ? ' · can edit interviews' : '') + (lc.can_report_deaths ? ' · can report deaths' : '') + '.';
     if (roles.length) hint.textContent += ' Default access: ' + roles.join(', ') + '.';
     else hint.textContent += ' No default roles: this will remain a roster-only worker unless an existing account is linked.';
     updateWorkerOnboardingNote();

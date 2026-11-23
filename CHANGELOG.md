@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-23
 
+- Supervisor corrections, server and browser (`digitva-6dh9`,
+  `digitva-5izv`, `digitva-76de`; policy `3e969f49f`): "Can edit
+  interviews" tick on the level x cadre grid (migration `a7d3e9c5b2f1`); a
+  supervisor of a ticked cadre with personal-data access corrects a
+  completed interview in reach until the coder finalises (reason
+  `supervisor_correction`, "Last edited by" on the case); any supervisor
+  edits the death report from the supervision case; supervision rows show
+  the village. Phone screens and supervisor sign-in on the phone follow
+  (`digitva-hftq`).
 - Collect coding screen (`dd805322c`, `758fe5b8d`, `05bece88b`): DORIS shows
   the interview's and the death report's dates of death under its own, red
   when the day differs (workspace adds `reported_date_of_death`); the case

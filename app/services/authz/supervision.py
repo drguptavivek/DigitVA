@@ -24,6 +24,7 @@ from sqlalchemy.orm import aliased
 
 from app import db
 from app.models import (
+    MapOrgLevelCadre,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -211,3 +212,28 @@ def dm_shaped_grant(user_id: uuid.UUID, case):
     if has_request_context() and g.get("bearer_auth"):
         return None
     return _grant_for(user_id, case, _DM_SHAPED_ROLES)
+
+
+def edits_interviews(user_id: uuid.UUID, case) -> bool:
+    """Whether *user_id* may correct the interviews of *case* as a supervisor
+    (docs/policy/interview-revisions.md "Supervisor correction"): some live
+    ``interview_supervisor`` unit grant of theirs reaches *case* and its
+    cadre is ticked ``can_edit_interviews`` on an active grid row at the
+    grant unit's level. Every reaching grant counts, not only the narrowest;
+    the grid is read now, so unticking withdraws the power at once. Data
+    manager, In-charge, project PI and admin confer nothing here. One EXISTS
+    query."""
+    if has_request_context() and g.get("bearer_auth"):
+        return False
+    covering = sa.union_all(*_covering_grants(
+        user_id, (VaAccessRoles.interview_supervisor,), case.project_id, case.site_id, case.org_unit_id,
+    )).subquery()
+    granted = aliased(MasOrgUnit, name="edit_granted_unit")
+    return bool(db.session.scalar(sa.select(sa.exists().where(
+        VaUserAccessGrants.grant_id == covering.c.grant_id,
+        granted.org_unit_id == VaUserAccessGrants.org_unit_id,
+        MapOrgLevelCadre.org_level_id == granted.org_level_id,
+        MapOrgLevelCadre.cadre_id == covering.c.cadre_id,
+        MapOrgLevelCadre.is_active.is_(True),
+        MapOrgLevelCadre.can_edit_interviews.is_(True),
+    ))))

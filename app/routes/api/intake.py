@@ -50,6 +50,7 @@ from app.services import death_identifier_service as identifiers_svc
 from app.services import death_identifier_write as identifier_write_svc
 from app.services import device_auth_service as devices
 from app.services import identifier_type_service as identifier_types_svc
+from app.services import intake_revision_access as revision_access
 from app.services import interview_send_back_service as send_back_svc
 from app.services import offline_coding_import_service as offline_import
 from app.services import web_intake_attachment_service as attachments_svc
@@ -475,7 +476,9 @@ def _identifier_reply(death, warnings):
 
 
 @bp.get("/cases/<death_id>")
-@role_required("interviewer")
+# A supervisor or data manager opens the death-report edit form here (the
+# roles update_death takes, but the reporter, who has its own list).
+@role_required("interviewer", "interview_supervisor", "data_manager")
 # A device downloads its active cases one detail call each after the list, so
 # the budget covers a large worklist; each call is one indexed case read
 # (digitva-p6fs.33).
@@ -485,9 +488,13 @@ def case_detail(death_id):
     start or resume it), visible exactly as
     the worklist would list it (any project of the caller's, any state);
     otherwise 404. Starting or resuming the interview is
-    ``POST links.start_interview`` with the case's project, site and id."""
+    ``POST links.start_interview`` with the case's project, site and id.
+    A supervisor of the case who sees personal data in its project
+    (``get_case_for_supervisor``) gets the same detail without the
+    interview's prefill and links, to correct the death report
+    (``PATCH /deaths/<id>``)."""
     training_scope.resolve("interview")
-    row = intake_svc.get_case_detail(current_user, death_id, context=interviewer_context())
+    row = revision_access.case_row_reachable_by(current_user, death_id, context=interviewer_context())
     return jsonify({"case": _case_body(*row)})
 
 
@@ -810,10 +817,13 @@ def start_draft():
 
 
 @bp.get("/drafts/<draft_id>")
-@role_required("interviewer")
+@role_required("interviewer", "interview_supervisor")
 def get_draft(draft_id):
+    """The caller's own draft, or the submitted draft of a case whose
+    interview the caller may correct as a supervisor
+    (``draft_reachable_by``: the case's current submission only)."""
     training_scope.resolve("interview")
-    draft = intake_svc.get_draft(current_user, draft_id)
+    draft = revision_access.draft_reachable_by(current_user, draft_id)
     return jsonify(
         {
             "draft": intake_svc.serialize_draft(draft),
@@ -1384,9 +1394,13 @@ def submit_interview():
 
 
 @bp.post("/submissions/<va_sid>/revisions")
-@role_required("interviewer")
+@role_required("interviewer", "interview_supervisor")
 def revise_submission(va_sid):
-    """Revise the caller's own submitted interview (docs/policy/interview-revisions.md).
+    """Revise the caller's own submitted interview, or correct one as a
+    supervisor whose cadre may edit interviews (docs/policy/interview-revisions.md,
+    "Supervisor correction": ``reason_code`` is then ignored and recorded as
+    ``supervisor_correction``; the outcome cannot change, 409
+    ``case_state_conflict``; a ``consent`` sent is not recorded).
 
     Body: ``reason_code`` (``interviewer_correction``, ``respondent_correction``,
     ``more_information`` or ``finish_partial``), ``answers_json`` +
@@ -1421,26 +1435,29 @@ def revise_submission(va_sid):
     except intake_svc.WebIntakeError as exc:
         return error(str(exc), "invalid_interview", 422)
     # Before the revision writes (it queues SmartVA); not the caller's own
-    # submission: the service's 404, never a consent refusal.
-    draft = intake_svc.find_own_submission(current_user, va_sid)
+    # submission nor one they may correct: the service's 404, never a consent
+    # refusal. A supervisor did not interview anyone, so records no consent.
+    found = revision_access.find_revisable_submission(current_user, va_sid)
+    draft, editor = found
+    consent = p.get("consent") if editor == revision_access.EDITOR_OWNER else None
     if draft is not None:
         if (draft.meta or {}).get("interviewOutcome") == "refused":
             return error("A submitted refusal cannot be changed here.", "consent_refused", 422)
         death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
         if consent_svc.interview_refused(death=death, client_draft_id=draft.client_draft_id,
-                                         answers=data, consent=p.get("consent")):
+                                         answers=data, consent=consent):
             return error("A submitted interview cannot be changed to a refusal here.", "consent_refused", 422)
         consent_svc.apply_interview_consent(
             current_user, project_id=draft.project_id,
             death=db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None,
-            client_draft_id=draft.client_draft_id, consent=p.get("consent"), answers=data,
+            client_draft_id=draft.client_draft_id, consent=consent, answers=data,
             channel=_consent_channel(),
         )
     reply = intake_svc.revise_submission(
         current_user, va_sid, reason_code=reason_code, data=data, answers_sha256=answers_sha256,
         completion={"valid": completion.get("valid") is True,
                     "issues": completion.get("issues") if isinstance(completion.get("issues"), list) else []},
-        envelope=envelope,
+        envelope=envelope, found=found,
     )
     db.session.commit()
     return jsonify(reply)
@@ -1496,6 +1513,7 @@ def _reason(p):
 def _supervised_body(*row) -> dict:
     """A supervisor row with its ``identifiers`` (one case: ``identifier_payloads``)."""
     body = intake_svc.serialize_supervised_row(current_user, *row)
+    body.update(intake_svc.supervised_row_facts(current_user, [row[0]])[row[0].death_id])
     body["identifiers"] = identifiers_svc.identifier_payloads(current_user, [row[0]])[row[0].death_id]
     body["can_edit_identifiers"] = intake_svc.can_edit_identifiers(current_user, [row[0]])[row[0].death_id]
     body["can_record_consent_withdrawal"] = withdrawal_svc.can_record(current_user, row[0])
@@ -1522,9 +1540,11 @@ def _supervised_rows(rows) -> list[dict]:
     # Names open only where the caller sees PII (``serialize_supervised_row``).
     pii = pii_scope(current_user)
     names = register_pii_accessor.open_register_pii(
-        [row[0] for row in rows if pii.sees(row[0].project_id)], only=("deceased_name",)
+        [row[0] for row in rows if pii.sees(row[0].project_id)], only=intake_svc.SUPERVISED_ROW_PII
     )
+    facts = intake_svc.supervised_row_facts(current_user, [row[0] for row in rows])
     return [dict(intake_svc.serialize_supervised_row(current_user, *row, register=names.get(row[0].death_id)),
+                 **facts[row[0].death_id],
                  identifiers=identifiers[row[0].death_id],
                  can_edit_identifiers=editable[row[0].death_id],
                  can_record_consent_withdrawal=row[0].death_id in recordable)
@@ -1592,7 +1612,10 @@ def supervised_case_detail(death_id):
     complete interviews a supervisor may choose, each ``{draft_id,
     interviewer_name, completed_at, outcome}``. Interviewers never see these
     names. ``visit_note``: the case's visit note as the viewer may see it
-    (``visit_note_for_viewer``), or null. 404 outside the caller's reach."""
+    (``visit_note_for_viewer``), or null. ``edit_interview``:
+    ``{draft_id, va_sid, project_id, site_id}`` when the caller may correct
+    the interview now (``revision_access.supervisor_edit_target``), else null; list rows and
+    action replies do not carry it. 404 outside the caller's reach."""
     training_scope.resolve("interview")
     death = intake_svc.get_supervised_case(current_user, death_id)
     withdrawal_svc.record_admin_view(current_user, death)
@@ -1600,6 +1623,7 @@ def supervised_case_detail(death_id):
     note = visit_notes_for([death.va_sid] if death.va_sid else [], redact_pii=redact_pii).get(death.va_sid)
     reply = {
         "case": _supervised_body(*intake_svc.supervised_case_row(death)),
+        "edit_interview": revision_access.supervisor_edit_target(current_user, death),
         "candidates": intake_svc.list_candidates(death, redact_names=redact_pii),
         "visit_note": visit_note_for_viewer(note, redact_pii=redact_pii),
     }

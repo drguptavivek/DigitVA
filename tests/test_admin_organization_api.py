@@ -570,6 +570,28 @@ class AdminOrganizationApiTests(BaseTestCase):
         again = self.client.put(self._url("/level-cadres"), json=body, headers=headers)
         self.assertFalse(again.get_json()["level_cadre"]["can_report_deaths"])  # absent keeps the cleared value
 
+    def test_put_level_cadres_edit_interviews_needs_supervise(self):
+        self._login(str(self.base_admin_id))
+        headers = self._csrf_headers()
+        self.client.post(self._url("/seed-template"), json={}, headers=headers)
+        levels = {lv["level_code"]: lv for lv in self.client.get(self._url("/levels")).get_json()["levels"]}
+        cadres = {c["cadre_code"]: c for c in self.client.get(self._url()).get_json()["cadres"]}
+        body = {"org_level_id": levels["phc"]["org_level_id"], "cadre_id": cadres["MO"]["cadre_id"],
+                "can_fill_va_form": False, "can_code_va_form": True, "can_supervise_interviews": True}
+        ticked = self.client.put(self._url("/level-cadres"), json={**body, "can_edit_interviews": True}, headers=headers)
+        self.assertEqual(ticked.status_code, 200, ticked.get_json())
+        self.assertTrue(ticked.get_json()["level_cadre"]["can_edit_interviews"])
+        kept = self.client.put(self._url("/level-cadres"), json=body, headers=headers)
+        self.assertTrue(kept.get_json()["level_cadre"]["can_edit_interviews"])
+        # Unticking supervise unticks edit; edit alone is refused.
+        unticked = self.client.put(self._url("/level-cadres"), json={**body, "can_supervise_interviews": False}, headers=headers)
+        self.assertEqual(unticked.status_code, 200, unticked.get_json())
+        self.assertFalse(unticked.get_json()["level_cadre"]["can_edit_interviews"])
+        refused = self.client.put(self._url("/level-cadres"), json={
+            **body, "can_supervise_interviews": False, "can_edit_interviews": True}, headers=headers)
+        self.assertEqual(refused.status_code, 400)
+        self.assertIn("can_edit_interviews", refused.get_json()["error"])
+
     def _seed_one_unit(self, headers):
         self.client.post(self._url("/seed-template"), json={}, headers=headers)
         levels = {lv["level_code"]: lv for lv in self.client.get(self._url("/levels")).get_json()["levels"]}

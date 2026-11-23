@@ -64,6 +64,10 @@ INTERVIEW_CHOSEN_ACTOR_KINDS = frozenset({ACTOR_DATA_MANAGER, ACTOR_INTERVIEW_SU
 #: of the other interview, restarts coding with a system actor;
 #: ``accept_upstream_change`` admits it for these two reasons only.
 REVISION_RESTART_REASON = "interviewer_revision"
+#: The same restart when a supervisor whose cadre may edit interviews
+#: corrects the case (docs/policy/interview-revisions.md "Supervisor
+#: correction"); kept apart so the KPIs tell the two loops apart.
+SUPERVISOR_REVISION_RESTART_REASON = "supervisor_revision"
 SYNC_SOURCE_STATES = (
     None,
     wd.WORKFLOW_CONSENT_REFUSED,
@@ -644,7 +648,7 @@ def accept_upstream_change(
         allowed_from=(wd.WORKFLOW_FINALIZED_UPSTREAM_CHANGED,),
         allowed_actor_kinds=(
             DATA_MANAGER_ACTOR_KINDS | {ACTOR_SYSTEM}
-            if reason in (REVISION_RESTART_REASON, INTERVIEW_CHOSEN_REASON)
+            if reason in (REVISION_RESTART_REASON, SUPERVISOR_REVISION_RESTART_REASON, INTERVIEW_CHOSEN_REASON)
             else DATA_MANAGER_ACTOR_KINDS
         ),
         reason=reason,

@@ -171,6 +171,20 @@ describe("browser submitted interview revisions", () => {
     expect(body.draft).toMatchObject({ deviceClockAt: expect.stringMatching(/T.*[+-]\d{2}:\d{2}$/) });
   });
 
+  it("sends the supervisor_correction reason code for a supervisor's revision", async () => {
+    const snapshot = await createRevisionSnapshot({
+      vaSid: "va-1", reasonCode: "supervisor_correction", data: { Id10007: "x" } as SubmissionData,
+      completion: { valid: true, issues: [] }, draft: { instrumentVersion: "served-2" }, generation: 0,
+    });
+    jest.spyOn(globalThis, "fetch").mockResolvedValue(response(200, {
+      changed: true, va_sid: "va-1", payload_version_id: "version-2", answers_sha256: snapshot.answersSha256,
+      outcome: "completed", workflow_state: "smartva_pending",
+    }));
+    await postRevision(csrf, snapshot);
+    const [, options] = (globalThis.fetch as jest.Mock).mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(options.body))).toMatchObject({ reason_code: "supervisor_correction" });
+  });
+
   it("retains mismatched acknowledgements and safe refusals as failures", async () => {
     const snapshot = await createRevisionSnapshot({
       vaSid: "va-1", reasonCode: "more_information", data: {} as SubmissionData,

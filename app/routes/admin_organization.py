@@ -557,6 +557,9 @@ def admin_org_upsert_level_cadre(project_id):
             can_report_deaths=(
                 None if p.get("can_report_deaths") is None else bool(p["can_report_deaths"])
             ),
+            can_edit_interviews=(
+                None if p.get("can_edit_interviews") is None else bool(p["can_edit_interviews"])
+            ),
             default_roles=p.get("default_roles"),
             is_active=bool(p.get("is_active", True)),
         )

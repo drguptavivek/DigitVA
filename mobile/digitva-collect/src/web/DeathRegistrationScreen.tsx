@@ -147,11 +147,13 @@ function draftIssueFor(key: keyof RegistrationInput, message: string): DraftIssu
 
 export default function DeathRegistrationScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ view?: string | string[]; preset?: string | string[]; deathId?: string | string[]; registered?: string | string[] }>();
+  const params = useLocalSearchParams<{ view?: string | string[]; preset?: string | string[]; deathId?: string | string[]; registered?: string | string[]; from?: string | string[] }>();
   const { bootstrap } = useAppState();
   const styles = useUiStyles();
   // Inside the Training screens (training scope) this screen lives under /training and returns to the Training list.
   const training = bootstrap?.scope === "training";
+  // Opened from a supervisor's case detail: go back to supervision after.
+  const fromSupervision = (Array.isArray(params.from) ? params.from[0] : params.from) === "supervisor";
   const registerPath = training ? TRAINING_REPORTING_ROUTE : "/death-registration";
   const collectionPath = training ? TRAINING_INTERVIEW_HOME : "/collection";
   const [intake, setIntake] = useState<IntakeBootstrap>();
@@ -304,7 +306,7 @@ export default function DeathRegistrationScreen() {
       });
       return () => { active = false; };
     }
-    if (!bootstrap.capabilities.intake && bootstrap.capabilities.registeredDeaths) {
+    if (!fromSupervision && !bootstrap.capabilities.intake && bootstrap.capabilities.registeredDeaths) {
       registrationGeneration.current += 1;
       setProjectId("");
       setSiteId("");
@@ -355,7 +357,7 @@ export default function DeathRegistrationScreen() {
       if (active && generation === registrationGeneration.current) setBusy(false);
     });
     return () => { active = false; };
-  }, [bootstrap, params.deathId, params.registered]);
+  }, [bootstrap, params.deathId, params.registered, fromSupervision]);
 
   useEffect(() => {
     setIdTypesFailed(false);
@@ -396,7 +398,9 @@ export default function DeathRegistrationScreen() {
     () => intake?.context.find((entry) => entry.project_id === projectId && entry.site_id === siteId),
     [intake, projectId, siteId]
   );
-  const showRegisteredDeaths = (listMode || (canSupervise && !hasOwnDeaths)) && canList;
+  // A supervisor-only user lands on the list, except when the supervision case opened one death's edit form.
+  const supervisorEditing = fromSupervision && Boolean(editingDeathId);
+  const showRegisteredDeaths = (listMode || (canSupervise && !hasOwnDeaths && !supervisorEditing)) && canList;
   const privateUiReady = Boolean(bootstrap && privateBootstrap === bootstrap && isVisible && activeRef.current);
 
   const ageDisplay = calculateRegistrationAge({
@@ -708,7 +712,8 @@ export default function DeathRegistrationScreen() {
         const idChanges = idShown ? identifierChanges(Object.fromEntries(idTypes.map((type) => [type.code, idBase.current[type.code]])), typed) : {};
         if (!Object.keys(changes).length && !Object.keys(locationChanges).length && !Object.keys(idChanges).length) {
           dirtyRef.current = false;
-          if (bootstrap.capabilities.registeredDeaths) showList(true);
+          if (fromSupervision) router.replace("/supervision" as never);
+          else if (bootstrap.capabilities.registeredDeaths) showList(true);
           else router.replace(collectionPath as never);
           return;
         }
@@ -724,7 +729,9 @@ export default function DeathRegistrationScreen() {
         }
         registrationUpdatedAt.current = result.case.updated_at;
         const finishEdit = () => {
-          if (bootstrap.capabilities.registeredDeaths) {
+          if (fromSupervision) {
+            router.replace("/supervision" as never);
+          } else if (bootstrap.capabilities.registeredDeaths) {
             setEditingDeathId(undefined);
             setFields({}); setLocation(null); setWebConsent(null);
             setSex("");

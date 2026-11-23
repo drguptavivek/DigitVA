@@ -106,7 +106,7 @@ and keep working exactly as they did.
   that cadre `can_fill_va_form`, `can_code_va_form`,
   `can_supervise_interviews`, `can_edit_interviews` and `can_report_deaths`.
   `can_edit_interviews` ("Can edit interviews", owner 2026-11-23,
-  `digitva-6dh9`, not built) can only be set where `can_supervise_interviews`
+  `digitva-6dh9`, built) can only be set where `can_supervise_interviews`
   is set. It is the one flag read at runtime against a grant's cadre: a
   supervisor of a ticked cadre may correct interviews
   ([Interview Revisions](interview-revisions.md), "Supervisor correction").

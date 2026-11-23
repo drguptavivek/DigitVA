@@ -366,6 +366,62 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertFalse(self._report_flags()[("subcentre", "ANM")])
         self.assertTrue(self._report_flags()[("village", "ASHA")])
 
+    # -- the Edit interviews flag (digitva-6dh9) -------------------------------
+
+    def test_edit_interviews_lives_only_under_supervise(self):
+        org.seed_default_organization(self.PROJECT)
+        lv = self._levels()
+        cadres = {c.cadre_code: c for c in org.list_cadres(self.PROJECT)}
+        args = dict(org_level_id=lv["phc"].org_level_id, cadre_id=cadres["MO"].cadre_id,
+                    can_fill_va_form=False, can_code_va_form=True)
+        # Seeded supervising but never editing.
+        self.assertTrue(org.upsert_level_cadre(self.PROJECT, **args).can_supervise_interviews)
+        self.assertFalse(org.upsert_level_cadre(self.PROJECT, **args).can_edit_interviews)
+        self.assertTrue(org.upsert_level_cadre(self.PROJECT, **args, can_edit_interviews=True).can_edit_interviews)
+        self.assertTrue(org.upsert_level_cadre(self.PROJECT, **args).can_edit_interviews)  # absent keeps it
+        # Clearing supervise clears it; setting it without supervise is refused.
+        row = org.upsert_level_cadre(self.PROJECT, **args, can_supervise_interviews=False)
+        self.assertEqual((row.can_supervise_interviews, row.can_edit_interviews), (False, False))
+        with self.assertRaises(org.OrganizationError):
+            org.upsert_level_cadre(self.PROJECT, **args, can_edit_interviews=True)
+
+    def test_the_edit_interviews_flag_goes_through_csv_export_and_import(self):
+        import csv
+
+        org.seed_default_organization(self.PROJECT)
+        text = org.export_organization_csv(self.PROJECT, "level_cadres")
+        reader = csv.DictReader(io.StringIO(text))
+        self.assertIn("can_edit_interviews", reader.fieldnames)
+        self.assertEqual(
+            {(r["level_code"], r["cadre_code"]): r for r in reader}[("phc", "MO")]["can_edit_interviews"], "False")
+        sheet = org.parse_organization_workbook(io.BytesIO(org.export_organization_xlsx(self.PROJECT)))["level_cadres"]
+        self.assertIn("can_edit_interviews", sheet[0])
+        # Through the CSV parser: the MO at a PHC gains it.
+        edited = io.StringIO()
+        writer = csv.DictWriter(edited, fieldnames=reader.fieldnames)
+        writer.writeheader()
+        for row in csv.DictReader(io.StringIO(text)):
+            if (row["level_code"], row["cadre_code"]) == ("phc", "MO"):
+                row["can_edit_interviews"] = "True"
+            writer.writerow(row)
+        plan = org.import_organization(
+            self.PROJECT, org.parse_organization_csv(io.BytesIO(edited.getvalue().encode()), "level_cadres"),
+            dry_run=False)
+        self.assertEqual(plan.errors, [])
+        rows = {(r["level_code"], r["cadre_code"]): r for r in csv.DictReader(io.StringIO(text))}
+        flags = {(r["level_code"], r["cadre_code"]): r["can_edit_interviews"] for r in org.list_level_cadres(self.PROJECT)}
+        self.assertEqual((flags[("phc", "MO")], flags[("phc", "CHO")]), (True, False))
+        # A blank cell keeps the stored value; true without supervise is a row error.
+        rows[("phc", "MO")]["can_edit_interviews"] = ""
+        rows[("phc", "CHO")]["can_edit_interviews"] = "True"
+        plan = org.import_organization(self.PROJECT, {"level_cadres": list(rows.values())}, dry_run=False)
+        self.assertTrue(any("can_edit_interviews" in e for e in plan.errors), plan.errors)
+        rows[("phc", "CHO")]["can_edit_interviews"] = ""
+        plan = org.import_organization(self.PROJECT, {"level_cadres": list(rows.values())}, dry_run=False)
+        self.assertEqual(plan.errors, [])
+        flags = {(r["level_code"], r["cadre_code"]): r["can_edit_interviews"] for r in org.list_level_cadres(self.PROJECT)}
+        self.assertTrue(flags[("phc", "MO")])
+
     def test_deactivating_a_level_cadre_by_import_keeps_its_report_deaths_flag(self):
         from app.models import MapOrgLevelCadre
 

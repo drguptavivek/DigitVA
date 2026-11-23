@@ -57,11 +57,16 @@ def dm_reopen_event_sql(alias: str) -> str:
     """Per-event predicate: *alias* is a data manager reopening an ODK change.
 
     An accept event restarting coding is that unless its reason is the
-    interviewer's revision or a supervisor's chosen interview (D-WT-04).
+    interviewer's revision, a supervisor's correction or a supervisor's
+    chosen interview (D-WT-04).
     """
-    from app.services.workflow.transitions import INTERVIEW_CHOSEN_REASON, REVISION_RESTART_REASON
+    from app.services.workflow.transitions import (
+        INTERVIEW_CHOSEN_REASON,
+        REVISION_RESTART_REASON,
+        SUPERVISOR_REVISION_RESTART_REASON,
+    )
 
-    reasons = sorted({REVISION_RESTART_REASON, INTERVIEW_CHOSEN_REASON})
+    reasons = sorted({REVISION_RESTART_REASON, SUPERVISOR_REVISION_RESTART_REASON, INTERVIEW_CHOSEN_REASON})
     return f"COALESCE({alias}.transition_reason, '') NOT IN (" + ", ".join(f"'{r}'" for r in reasons) + ")"
 
 

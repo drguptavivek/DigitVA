@@ -361,6 +361,7 @@ class NoteRedactionRoutingTests(SplitReaderBase):
                 mock.patch.object(intake.intake_svc, "get_supervised_case", return_value=death),
                 mock.patch.object(intake.intake_svc, "supervised_case_row", return_value=()),
                 mock.patch.object(intake.intake_svc, "list_candidates", return_value=[]),
+                mock.patch.object(intake.revision_access, "supervisor_edit_target", return_value=None),
                 mock.patch.object(intake, "_supervised_body", return_value={}),
                 mock.patch.object(intake, "should_redact_pii", return_value=redact),
                 mock.patch.object(intake, "visit_notes_for", wraps=intake.visit_notes_for) as notes,

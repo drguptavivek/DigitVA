@@ -7,6 +7,9 @@ import en from "../src/strings/en.json";
 import hi from "../src/strings/hi.json";
 
 const mockRequest = jest.fn();
+const mockPush = jest.fn();
+
+jest.mock("expo-router", () => ({ useRouter: () => ({ push: mockPush }) }));
 
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockBootstrap }) }));
 jest.mock("../src/workspace/transport.web", () => ({ createWebWorkspaceTransport: () => mockRequest }));
@@ -366,6 +369,35 @@ describe("SupervisionPanel", () => {
     const odk = await render();
     await press(odk, en.viewDetails);
     expect(buttons(odk, en.supervisionReopenRevision)).toHaveLength(0);
+  });
+
+  it("shows the village and the last editor, and offers the edit buttons only where the server allows them", async () => {
+    const row = caseRow({
+      state: "submitted", source: "register", village_ward: "Rampur", last_edited_by_name: "Sup Visor",
+      last_edited_at: "2026-10-02T10:00:00Z", can_edit_death: true,
+    });
+    const edit = { draft_id: "DR1", va_sid: "VA1", project_id: "P1", site_id: "S1" };
+    fakeApi({ list: () => page([row]), detail: { case: row, candidates: [], visit_note: null, edit_interview: edit } });
+    const tree = await render();
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain("Rampur");
+    expect(text).toContain("Last edited by Sup Visor");
+
+    await press(tree, en.viewDetails);
+    await press(tree, en.supervisionEditInterview);
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: "/interview",
+      params: { revisionDraftId: "DR1", revisionProjectId: "P1", revisionSiteId: "S1", revisionVaSid: "VA1", revisionBy: "supervisor" },
+    });
+    await press(tree, en.supervisionEditDeath);
+    expect(mockPush).toHaveBeenLastCalledWith({ pathname: "/death-registration", params: { deathId: "D1", from: "supervisor" } });
+
+    const plain = caseRow({ state: "submitted", source: "register" });
+    fakeApi({ list: () => page([plain]), detail: { case: plain, candidates: [], visit_note: null, edit_interview: null } });
+    const none = await render();
+    await press(none, en.viewDetails);
+    expect(buttons(none, en.supervisionEditInterview)).toHaveLength(0);
+    expect(buttons(none, en.supervisionEditDeath)).toHaveLength(0);
   });
 
   it.each([

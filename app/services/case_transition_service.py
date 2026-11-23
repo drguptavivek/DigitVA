@@ -165,6 +165,14 @@ def is_interview_supervisor_for(user: VaUsers, case: VaDeathRegister) -> bool:
     return supervising_grant(user, case) is not None
 
 
+def may_supervisor_edit_interview(user: VaUsers, case: VaDeathRegister) -> bool:
+    """Whether *user* may correct *case*'s submitted interview as a
+    supervisor: an ``interview_supervisor`` grant reaching it whose cadre may
+    edit interviews (``authz.supervision.edits_interviews``). The window and
+    the refusals are ``revise_submission``'s."""
+    return case.death_id is not None and supervision.edits_interviews(user.user_id, case)
+
+
 def _needs_data_manager(case: VaDeathRegister, to_state: str) -> bool:
     """Confirming a duplicate whose submission is already coded (decisions 10, 14).
 

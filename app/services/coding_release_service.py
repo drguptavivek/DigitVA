@@ -42,6 +42,7 @@ from app.services.payload_bound_coding_artifact_service import (
 from app.services.workflow.transitions import (
     INTERVIEW_CHOSEN_REASON,
     REVISION_RESTART_REASON,
+    SUPERVISOR_REVISION_RESTART_REASON,
     WorkflowActor,
     accept_upstream_change,
     system_actor,
@@ -53,6 +54,7 @@ from app.services.workflow.transitions import (
 SOURCE_DATASYNC = "datasync"
 SOURCE_INTERVIEWER_REVISION = "interviewer_revision"
 SOURCE_SUPERVISOR_CHOICE = "supervisor_choice"
+SOURCE_SUPERVISOR_REVISION = "supervisor_revision"
 _SOURCES = {
     SOURCE_DATASYNC: {
         "trigger": "datasync",
@@ -75,6 +77,19 @@ _SOURCES = {
         "authority_reason": "interview_chosen_by_supervisor",
         "recode_action": "recode episode abandoned due to supervisor interview choice",
     },
+    SOURCE_SUPERVISOR_REVISION: {
+        "trigger": "supervisor_revision",
+        "role": "interview_supervisor",
+        "allocation_action": "supervisor_revision",
+        "authority_reason": "submission_revised_by_supervisor",
+        "recode_action": "recode episode abandoned due to supervisor correction",
+    },
+}
+#: The workflow reason a restart of a sent-back or reopened case records, by source.
+_RESTART_REASONS = {
+    SOURCE_INTERVIEWER_REVISION: REVISION_RESTART_REASON,
+    SOURCE_SUPERVISOR_REVISION: SUPERVISOR_REVISION_RESTART_REASON,
+    SOURCE_SUPERVISOR_CHOICE: INTERVIEW_CHOSEN_REASON,
 }
 
 
@@ -211,13 +226,15 @@ def reopen_coding_after_revision(va_sid: str, *, audit_by, source: str = SOURCE_
     interviewer's revision arrives (owner, 2026-10-04: no data-manager accept
     step), or as a supervisor chooses the other interview (``source``
     ``SOURCE_SUPERVISOR_CHOICE``, whose caller has just moved the case to
-    ``finalized_upstream_changed``): drop the coding as a data manager's accept
-    does, move ``finalized_upstream_changed`` to ``smartva_pending`` and clear
-    the final COD authority, all under a system actor and the reason
-    ``interviewer_revision`` (``interview_chosen`` for the supervisor's
-    choice). The earlier COD stays as inactive history."""
+    ``finalized_upstream_changed``), or as a supervisor corrects it
+    (``SOURCE_SUPERVISOR_REVISION``): drop the coding as a data manager's
+    accept does, move ``finalized_upstream_changed`` to ``smartva_pending`` and
+    clear the final COD authority, all under a system actor and the source's
+    reason (``_RESTART_REASONS``: ``interviewer_revision``,
+    ``supervisor_revision`` or ``interview_chosen``). The earlier COD stays as
+    inactive history."""
     actor = system_actor()
-    reason = INTERVIEW_CHOSEN_REASON if source == SOURCE_SUPERVISOR_CHOICE else REVISION_RESTART_REASON
+    reason = _RESTART_REASONS[source]
     # The audited release first (a row per deactivated COD, review, note and
     # allocation, the recode episode abandoned), as any changed revision
     # gets; then the accept block for what only it covers (SmartVA results,

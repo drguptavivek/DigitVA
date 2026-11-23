@@ -915,14 +915,22 @@ browser had saved in that section beat the phone's copy).
 - A supervisor may **view** the case, **confirm or reject** duplicate and
   cancel flags, and **reopen** terminal cases. A supervisor never assigns.
 - **The supervision screen edits the death report and shows the village**
-  (owner, 2026-11-23, `digitva-76de`, not built). The server already lets a
+  (owner, 2026-11-23, `digitva-76de`, built in the browser). The server already lets a
   supervisor correct a case's register details (see "Correcting a registered
   death"); the supervision case gets an "Edit death report" entry to the
-  existing register form while that edit is open. The supervision list shows
-  the village or ward and filters by it, only where the caller sees personal
-  data in the project.
+  existing register form while that edit is open. To fill that form a
+  supervisor of the case reads the full register (`GET
+  /api/v1/intake/cases/<id>`, informant details included) where they see
+  personal data in the project; the supervision list itself still carries
+  no informant contact details. The supervision list shows the village or
+  ward, only where the caller sees personal data in the project. There is no
+  village filter: the column is sealed (encrypted at rest), so it cannot be
+  searched.
+- **Supervision in the Collect app** (owner, 2026-11-23, `digitva-hftq`, not
+  built). The phone gets the supervision list and case screen with the same
+  actions as the browser, online only.
 - **A supervisor whose cadre may edit interviews corrects the interview
-  itself** (owner, 2026-11-23, `digitva-6dh9`, `digitva-5izv`, not built):
+  itself** (owner, 2026-11-23, `digitva-6dh9`, `digitva-5izv`, built in the browser):
   [Interview Revisions](interview-revisions.md), "Supervisor correction".
 - **A supervisor chooses between two complete interviews** (owner, 2026-10-05,
   `digitva-bqzm`). On a `submitted` case with a candidate (see "Parallel

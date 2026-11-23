@@ -31,6 +31,15 @@ and maps stay in the browser).
   per import only. 86 staging users whose 21 Nov invitations failed still
   need a resend from Users if the owner wants it; find unsent ones by
   grepping celery_tasks.log / errors.log for "gave up".
+- Supervisor corrections (`digitva-hftq` open; policy interview-revisions.md
+  "Supervisor correction", mobile-sign-in.md "Interview supervisors on the
+  phone"): server, browser and phone list/case/death edit landed
+  (`3a14cce2d`, `2aec4f0b9`; migration `a7d3e9c5b2f1` since staging). Left:
+  phone Edit interview, built on the audit session's revision-sync rewrite
+  (`digitva-r8nh.1`) once it merges; owner design review of the new phone
+  screens with emulator screenshots, then a CI APK device check. Before a
+  staging deploy, audit for old APKs: interviewer+supervisor phones now get
+  `supervises_deaths` true. Dev test DB `minerva_test_sup` kept for this.
 0. Consent withdrawal landed (`digitva-4gu7`); erasure of a withdrawn case
    is not built (owner to decide). Migrations since staging:
    `e3b7c9d1f5a2`, `f4c2a8e6b1d9`. Follow-ups: phone SA panel
@@ -61,6 +70,11 @@ and maps stay in the browser).
 
 ## Open owner decisions
 
+- Supervisors: should `interview_supervisor` count as privileged for
+  data-manager-issued mobile codes (`mobile_sign_in_service._PRIVILEGED_ROLES`)
+  now that it yields a phone credential? `data_manager` on the phone: not
+  done, needs a decision and policy. Phone death edit leaves out informant,
+  phones, ABHA, GPS and registration numbers (browser has them).
 - Golden postcoordination fixtures: 12 re-recorded on 2026-11-19 then the
   change reverted; the corpus is unchanged and approved.
 - `kkdb` step 2 (on-device Dictate button); `wawz` start.

@@ -14,6 +14,7 @@ import { isPlusVariant } from "./appVariant";
 import { canUseOfflineCoding, canUseOnlineCoding } from "./codingCapabilities";
 import { Button, errorText, Screen, useUiStyles } from "./ui";
 import { CodingCaseChips } from "./ui/CodingCaseChips";
+import { SUPERVISION_ROUTE, SupervisionEntry } from "./nativeRoutes/supervisionEntry";
 import { TrainingCodingEntry } from "./nativeRoutes/trainingOnboarding";
 
 const COLLECTION_ROUTES = new Set([
@@ -103,6 +104,9 @@ function NativePendingWorkspace({ userId }: { userId: string }) {
       {trainingEntry ? (
         <TrainingCodingEntry userId={userId} />
       ) : null}
+      {account?.supervision_access && unlocked && !account.needs_sign_in && !account.access_blocked && !account.terms_required ? (
+        <SupervisionEntry userId={userId} />
+      ) : null}
       {account && canUseOnlineCoding(account) && unlocked && !account.needs_sign_in && !account.access_blocked && !account.terms_required ? (
         <CodingCaseChips userId={userId} canLocal={isPlusVariant() && canUseOfflineCoding(account)} offline={offline} />
       ) : trainingEntry ? null : (
@@ -125,7 +129,7 @@ export default function NativeCollectionGate({
     // The full route path, not its last segment: "training/coding/case" is the training workspace (it checks its own
     // participation), not the collection route "/case". Group folders like "(tabs)" are not part of the path.
     : `/${routeName.split("/").filter((segment) => segment && !/^\(.*\)$/.test(segment)).join("/")}`;
-  const params = useGlobalSearchParams<{ userId?: string | string[]; mode?: string | string[]; view?: string | string[] }>();
+  const params = useGlobalSearchParams<{ userId?: string | string[]; mode?: string | string[]; view?: string | string[]; by?: string | string[] }>();
   const router = useRouter();
   const state = useAppState();
   const styles = useUiStyles();
@@ -147,6 +151,7 @@ export default function NativeCollectionGate({
   const registrationAccess = account?.registration_access;
   const codingAccess = account?.coding_access;
   const reviewingAccess = account?.reviewing_access;
+  const supervisionAccess = account?.supervision_access;
   const routeMode = typeof (routeParams as { mode?: unknown } | undefined)?.mode === "string"
     ? (routeParams as { mode: string }).mode
     : firstParam(params.mode);
@@ -179,11 +184,12 @@ export default function NativeCollectionGate({
     const needsWorkspace = pathname === WORKLIST_ROUTE;
     if (hasAccount && ((needsCollection && collectionAccess === undefined) ||
         (needsRegistration && registrationAccess === undefined) ||
-        (needsWorkspace && (codingAccess === undefined || reviewingAccess === undefined)) ||
+        (needsWorkspace && (codingAccess === undefined || reviewingAccess === undefined || supervisionAccess === undefined)) ||
+        (pathname === SUPERVISION_ROUTE && supervisionAccess === undefined) ||
         (needsCoding && codingAccess === undefined) || (needsReviewing && reviewingAccess === undefined))) {
       void checkAccess();
     }
-  }, [account?.standalone, checkAccess, codingAccess, collectionAccess, hasAccount, pathname, registrationAccess, reviewingAccess]);
+  }, [account?.standalone, checkAccess, codingAccess, collectionAccess, hasAccount, pathname, registrationAccess, reviewingAccess, supervisionAccess]);
 
   const guarded = (screen: ReactNode) => !standaloneAccountRoute && level === "block" && ENTRY_ROUTES.has(pathname)
     ? <View style={{ flex: 1 }}>{screen}<ClockBlock /></View>
@@ -199,7 +205,7 @@ export default function NativeCollectionGate({
     );
   }
   if (!COLLECTION_ROUTES.has(pathname) && !REGISTRATION_ROUTES.has(pathname) && pathname !== WORKLIST_ROUTE &&
-      pathname !== OFFLINE_CODING_ROUTE && pathname !== ENGINE_CHECK_ROUTE && !needsCoding && !needsReviewing) return children;
+      pathname !== OFFLINE_CODING_ROUTE && pathname !== ENGINE_CHECK_ROUTE && pathname !== SUPERVISION_ROUTE && !needsCoding && !needsReviewing) return children;
   if (!userId || !account) return <RedirectHome />;
   // An account screen reached by Back after a lock, sign-out or revoke must not show its data. The gate re-renders
   // with the app state, so a lock (lockVersion bump) re-checks it.
@@ -222,6 +228,16 @@ export default function NativeCollectionGate({
     return <RedirectHome />;
   }
   if (account.needs_sign_in || account.terms_required || account.access_blocked) return <NativePendingWorkspace userId={userId} />;
+  if (pathname === SUPERVISION_ROUTE) return account.supervision_access === true ? open(children) : <RedirectHome />;
+  // A supervisor's death-report correction rides /register (src/nativeRoutes/registerRoute.tsx); it needs the supervision grant, not registration access.
+  if (pathname === "/register" && (firstParam((routeParams as { by?: string | string[] } | undefined)?.by) ?? firstParam(params.by)) === "supervisor") {
+    return account.supervision_access === true ? open(guarded(children)) : <RedirectHome />;
+  }
+  // A supervisor-only account has no interviews or registrations: Home is its supervision list, not the pending page.
+  if (pathname === WORKLIST_ROUTE && account.supervision_access === true && account.collection_access !== true &&
+      account.registration_access !== true && !account.coding_access && !account.reviewing_access) {
+    return open(<Redirect href={{ pathname: SUPERVISION_ROUTE, params: { userId } }} />);
+  }
   if (pathname === WORKLIST_ROUTE && (account.coding_access || account.reviewing_access) &&
       account.collection_access !== true && account.registration_access !== true) return <NativePendingWorkspace userId={userId} />;
   if (COLLECTION_ROUTES.has(pathname) && account.collection_access === true) return open(guarded(children));

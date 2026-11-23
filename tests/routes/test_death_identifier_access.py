@@ -266,7 +266,7 @@ class IdentifierAccessTests(IdentifierFixture):
 
     # -- device credentials ----------------------------------------------------
 
-    def test_a_device_may_write_as_reporter_or_interviewer_but_not_as_a_supervisor(self):
+    def test_a_device_writes_as_reporter_interviewer_or_supervisor_never_as_in_charge_or_dm(self):
         mine = self._submitted_case(self.rita)
         allowed = self._as_device(self.rita, "put", f"{API}/cases/{mine.death_id}/identifiers",
                                   json={"identifiers": {"crs": "70707070"}})
@@ -277,18 +277,23 @@ class IdentifierAccessTests(IdentifierFixture):
         allowed = self._as_device(self.ian, "put", f"{API}/cases/{started.death_id}/identifiers",
                                   json={"identifiers": {"crs": "70707071"}})
         self.assertEqual(allowed.status_code, 200, allowed.get_json())
-        # Supervisor and data manager roles are not device roles.
+        # Only the explicit interview supervisor supervises on a device
+        # (docs/policy/mobile-sign-in.md, "Interview supervisors on the phone").
         other = self._submitted_case()
-        for name, user in (("supervisor", self.sam), ("data_manager", self.dana), ("in_charge", self.incharge)):
+        number = _number()
+        written = self._as_device(self.sam, "put", f"{API}/cases/{other.death_id}/identifiers",
+                                  json={"identifiers": {"crs": number}})
+        self.assertEqual(written.status_code, 200, written.get_json())
+        self.assertEqual(self._crs_value(other.death_id), number)
+        for name, user in (("data_manager", self.dana), ("in_charge", self.incharge)):
             refused = self._as_device(user, "put", f"{API}/cases/{other.death_id}/identifiers",
                                       json={"identifiers": {"crs": _number()}})
             self.assertEqual(refused.status_code, 403, name)
-        # An account that is an interviewer AND a supervisor writes a case it
-        # did not interview from the browser, not from a device.
-        self.assertEqual(self._write(self.mix, other.death_id, crs=_number()).status_code, 200)
+        self.assertEqual(self._crs_value(other.death_id), number)
+        # An interviewer who also supervises writes a case it did not interview from a device too.
         again = self._as_device(self.mix, "put", f"{API}/cases/{other.death_id}/identifiers",
                                 json={"identifiers": {"crs": _number()}})
-        self.assertEqual(again.status_code, 403)
+        self.assertEqual(again.status_code, 200, again.get_json())
 
     # -- CSRF, shape, concurrency ----------------------------------------------
 

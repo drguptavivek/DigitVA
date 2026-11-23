@@ -12,6 +12,12 @@ Decisions 15-17 (.tasks/2026-09-28-interviewer-worklist.md): an
 its own scope; so does an In-charge (``site_pi`` at a unit) through its
 subtree and a ``project_pi`` on a tree project through the whole project
 (digitva-0wc). No other role confers supervision, and admin has no bypass.
+
+Under a device credential only the roles in ``NATIVE_DEVICE_ROLES`` count
+(``_covering_grants``, the one place): an explicit ``interview_supervisor``
+grant supervises and, with its cadre ticked, edits interviews; the In-charge,
+project PI and data manager powers stay browser-only
+(docs/policy/mobile-sign-in.md, "Interview supervisors on the phone").
 """
 
 from __future__ import annotations
@@ -35,6 +41,7 @@ from app.models import (
     VaUserAccessGrants,
 )
 from app.services.authz.actions import SUPERVISING_ROLES
+from app.services.authz.grants import NATIVE_DEVICE_ROLES
 from app.services.org_grant_service import active_project_condition
 
 # SUPERVISING_ROLES (site_pi counts at a unit only: the In-charge), plus
@@ -65,9 +72,15 @@ def _covering_grants(
     ``interview_supervisor`` at equal depth; a ``site_pi`` held by an active
     mentoring-institute member confers nothing (``ResolvedGrants.oversees``).
     Active grants, units, project sites and projects only (closed-project
-    dormancy via ``active_project_condition``).
+    dormancy via ``active_project_condition``). Under a device credential
+    *roles* narrow to ``NATIVE_DEVICE_ROLES``; ``[]`` when none is left.
     """
     from app.services.mentor_institute_service import active_member_ids_select
+
+    if has_request_context() and g.get("bearer_auth"):
+        roles = tuple(role for role in roles if role in NATIVE_DEVICE_ROLES)
+        if not roles:
+            return []
 
     granted = aliased(MasOrgUnit, name="sup_granted_unit")
     covered = aliased(MasOrgUnit, name="sup_covered_unit")
@@ -163,11 +176,7 @@ def supervised_case_condition(user, roles: tuple[VaAccessRoles, ...] = _SUPERVIS
     """SQL condition on ``VaDeathRegister``: the cases *user* supervises
     through grants of *roles* (default: every supervising role; a narrower set
     asks "supervises as ..." for a rule that excludes the data manager)."""
-    if has_request_context() and g.get("bearer_auth"):
-        # Native credentials do not carry the browser-only supervisor or
-        # data-manager roles, even when the account also has collection work.
-        return sa.false()
-    return sa.or_(*(
+    return sa.or_(sa.false(), *(
         select.exists()
         for select in _covering_grants(
             user.user_id, roles,
@@ -185,9 +194,10 @@ def _grant_for(user_id: uuid.UUID, case, roles: tuple[VaAccessRoles, ...]):
     depth ``interview_supervisor`` or ``site_pi`` before ``data_manager`` or
     ``project_pi``, then the lowest grant id, so the choice is deterministic.
     """
-    covering = sa.union_all(
-        *_covering_grants(user_id, roles, case.project_id, case.site_id, case.org_unit_id)
-    ).subquery()
+    selects = _covering_grants(user_id, roles, case.project_id, case.site_id, case.org_unit_id)
+    if not selects:
+        return None
+    covering = sa.union_all(*selects).subquery()
     return db.session.execute(
         sa.select(covering.c.grant_id, covering.c.cadre_id)
         .order_by(covering.c.depth.desc(), covering.c.role_rank, covering.c.grant_id)
@@ -199,8 +209,6 @@ def supervising_grant(user_id: uuid.UUID, case):
     """The grant *user_id* supervises *case* through, as ``(grant_id,
     cadre_id)``, or None. What a supervisor action's audit row names
     (decision 15); ``can(SUPERVISE_INTAKE)`` allows exactly when it exists."""
-    if has_request_context() and g.get("bearer_auth"):
-        return None
     return _grant_for(user_id, case, _SUPERVISING_ROLES)
 
 
@@ -209,8 +217,6 @@ def dm_shaped_grant(user_id: uuid.UUID, case):
     None: what confirming an already coded duplicate relies on (decisions
     10, 14). An In-charge and a project_pi on a tree project hold every
     data-manager power (access-control-model.md, "In-charge")."""
-    if has_request_context() and g.get("bearer_auth"):
-        return None
     return _grant_for(user_id, case, _DM_SHAPED_ROLES)
 
 
@@ -223,11 +229,12 @@ def edits_interviews(user_id: uuid.UUID, case) -> bool:
     the grid is read now, so unticking withdraws the power at once. Data
     manager, In-charge, project PI and admin confer nothing here. One EXISTS
     query."""
-    if has_request_context() and g.get("bearer_auth"):
-        return False
-    covering = sa.union_all(*_covering_grants(
+    selects = _covering_grants(
         user_id, (VaAccessRoles.interview_supervisor,), case.project_id, case.site_id, case.org_unit_id,
-    )).subquery()
+    )
+    if not selects:
+        return False
+    covering = sa.union_all(*selects).subquery()
     granted = aliased(MasOrgUnit, name="edit_granted_unit")
     return bool(db.session.scalar(sa.select(sa.exists().where(
         VaUserAccessGrants.grant_id == covering.c.grant_id,

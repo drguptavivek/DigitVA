@@ -60,6 +60,7 @@ from app.models import (
     AuthStationConfig,
     AuthStationCustodian,
     VaAccessRoles,
+    VaAccessScopeTypes,
     VaBundleIngest,
     VaProjectMaster,
     VaStatuses,
@@ -204,6 +205,30 @@ _DEVICE_CODING_ROLES = frozenset(
 )
 
 
+def _native_grants(resolved):
+    """The explicit grants besides interviewing and death register that open
+    the app: coder, coding_tester or reviewer, and an ``interview_supervisor``
+    unit grant (docs/policy/mobile-sign-in.md, "Interview supervisors on the
+    phone"; supervision reaches through unit grants only). Gate open, never
+    demo-training virtual. A supervisor grant on a project whose web intake is
+    off does not count, as for an interviewer: there is nothing to supervise."""
+    grants = [
+        grant for grant in resolved.of(_DEVICE_CODING_ROLES | {VaAccessRoles.interview_supervisor}, virtual=False)
+        if grant.opens_gate and (
+            grant.role != VaAccessRoles.interview_supervisor or grant.scope_type == VaAccessScopeTypes.org_unit
+        )
+    ]
+    supervised = {g.project_id for g in grants if g.role == VaAccessRoles.interview_supervisor}
+    intake_off = set(db.session.scalars(
+        sa.select(VaProjectMaster.project_id).where(
+            VaProjectMaster.project_id.in_(supervised), VaProjectMaster.web_intake_mode == "off",
+        )
+    )) if supervised else set()
+    for grant in grants:
+        if grant.role != VaAccessRoles.interview_supervisor or grant.project_id not in intake_off:
+            yield grant
+
+
 def has_device_access(
     user: VaUsers,
     context: list[dict] | None = None,
@@ -216,7 +241,8 @@ def has_device_access(
     skips a project whose ``web_intake_mode`` is ``off``, so a session never
     opens with nothing to collect in), may register a death in one (a
     death_reporter, ``register_death_context``), or holds an explicit coder,
-    coding_tester or reviewer grant whose gate is open. Demo-training
+    coding_tester or reviewer grant whose gate is open, or an
+    ``interview_supervisor`` unit grant (``_native_grants``). Demo-training
     virtual grants never count. Route authorization is separate: each route
     still checks its own role. The enrolment project is not required.
 
@@ -228,7 +254,7 @@ def has_device_access(
     if (interviewer_context(user) if context is None else context):
         return True
     resolved = _grants if _grants is not None else resolve_grants(user)
-    if any(g.opens_gate for g in resolved.of(_DEVICE_CODING_ROLES, virtual=False)):
+    if any(_native_grants(resolved)):
         return True
     return bool(register_death_context(user, []) if register_context is None else register_context)
 
@@ -405,16 +431,13 @@ def enrol_device(
     return _add_device(consumed.project_id, name, platform, version, consumed.id, client_device_uuid)
 
 
-def _coding_projects(resolved) -> set[str]:
-    return {
-        grant.project_id for grant in resolved.of(_DEVICE_CODING_ROLES, virtual=False)
-        if grant.opens_gate
-    }
+def _native_grant_projects(resolved) -> set[str]:
+    return {grant.project_id for grant in _native_grants(resolved)}
 
 
 def _eligible_projects(context, register_context, resolved) -> list[dict]:
     ids = {e["project_id"] for e in context} | {e["project_id"] for e in register_context}
-    ids |= _coding_projects(resolved)
+    ids |= _native_grant_projects(resolved)
     if not ids:
         return []
     rows = db.session.execute(
@@ -428,9 +451,9 @@ def _eligible_projects(context, register_context, resolved) -> list[dict]:
 def _default_home_project(context, register_context, resolved, eligible: list[dict]) -> str:
     """The home an app that sends no choice gets (old APKs): the lowest
     project id across interviewing and death register, else across native
-    coding/review. Kept to the active *eligible* projects when there are any,
+    coding/review and supervision. Kept to the active *eligible* projects when there are any,
     so the default is always one the picker lists."""
-    pool = {e["project_id"] for e in context + register_context} or _coding_projects(resolved)
+    pool = {e["project_id"] for e in context + register_context} or _native_grant_projects(resolved)
     active = {p["project_id"] for p in eligible}
     if active:
         pool = (pool & active) or active
@@ -440,7 +463,7 @@ def _default_home_project(context, register_context, resolved, eligible: list[di
 def eligible_device_projects(user: VaUsers) -> list[dict]:
     """Every active project *user* may make a device's home
     (docs/policy/mobile-sign-in.md, home project): interviewing, death
-    register or native coding/review. ``[{project_id, name}]`` sorted by id;
+    register, native coding/review or supervision. ``[{project_id, name}]`` sorted by id;
     the app asks the user to pick when there is more than one."""
     from app.services.web_intake_service import interviewer_context, register_death_context
 

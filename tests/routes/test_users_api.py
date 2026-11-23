@@ -279,8 +279,10 @@ class UsersApiTests(AuthzFixtureMixin, BaseTestCase):
     def test_issue_refusals(self):
         # Outside the DM's subtree: not visible at all.
         self.assertEqual(self._issue("dm_c1", "coder_ta").status_code, 404)
-        # Visible, but no device role (a supervisor) there.
-        self.assertEqual(self._issue("dm_c1", "supervisor_c1").get_json()["code"], "no_device_role")
+        # Visible, but no device role (an In-charge) there; an interview supervisor has one
+        # (docs/policy/mobile-sign-in.md, "Interview supervisors on the phone").
+        self.assertEqual(self._issue("dm_c1", "incharge_c1").get_json()["code"], "no_device_role")
+        self.assertEqual(self._issue("dm_c1", "supervisor_c1").status_code, 201)
         # Inactive account.
         self.assertEqual(self._issue("pi_ta", "reviewer_p1").get_json()["code"], "user_inactive")
         # A project the device role is not in.

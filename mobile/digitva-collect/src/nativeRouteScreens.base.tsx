@@ -18,6 +18,7 @@ export const Standalone = BrowserNativeRoute;
 export const StandaloneSetup = BrowserNativeRoute;
 export const Worklist = BrowserNativeRoute;
 export const Revision = BrowserNativeRoute;
+export const Supervision = BrowserNativeRoute;
 export const Settings = BrowserNativeRoute;
 export const ProfileAccess = BrowserNativeRoute;
 export const OpenSourceLicenses = BrowserNativeRoute;

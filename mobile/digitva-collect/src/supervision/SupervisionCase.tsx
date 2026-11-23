@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useRouter } from "expo-router";
 import { Text, View } from "react-native";
 import { WhoVaQuestionControls } from "../whoControls";
 
@@ -13,12 +12,12 @@ import {
   type PossibleDuplicate,
   type SupervisedCase,
   type SupervisedCaseDetail,
-} from "../supervision/api";
+} from "./api";
 import { t, type StringKey } from "../i18n";
-import type { JsonRequester } from "../workspace/api";
 import { choiceQuestion } from "../workspace/QualityPanels";
 import { Button, stateLabel, useUiStyles } from "../ui";
-import { AddIdentifierAction, IdentifierFacts } from "./CaseIdentifiers";
+import { IdentifierFacts } from "../IdentifierFacts";
+import type { SupervisionHost } from "./host";
 import { SupervisionActions, supervisionErrorText } from "./SupervisionActions";
 
 /** Reason labels, keyed by the API's reason codes. */
@@ -81,18 +80,18 @@ export function CaseSummary({ row, variant = "card" }: { row: SupervisedCase; va
 
 /** A case's detail: visit note, possible duplicates, and the submitted-case choices (choose interview, reopen for revision). */
 export function SupervisionCaseDetail({
-  request,
+  host,
   deathId,
   onBack,
   onDone,
 }: {
-  request: JsonRequester;
+  host: SupervisionHost;
   deathId: string;
   onBack: () => void;
   onDone: (message: string) => void;
 }) {
   const styles = useUiStyles();
-  const router = useRouter();
+  const { request } = host;
   const [detail, setDetail] = useState<SupervisedCaseDetail | undefined>();
   const [duplicates, setDuplicates] = useState<PossibleDuplicate[]>([]);
   const [chooseReason, setChooseReason] = useState<string | undefined>();
@@ -111,7 +110,7 @@ export function SupervisionCaseDetail({
         setDuplicates(possible);
       })
       .catch((caught) => {
-        if (active) setError(supervisionErrorText(caught));
+        if (active) setError(supervisionErrorText(caught, host.errorText));
       });
     return () => {
       active = false;
@@ -137,7 +136,7 @@ export function SupervisionCaseDetail({
       await chooseInterview(request, row.death_id, draftId, chooseReason ?? "");
       onDone(t("supervisionSaved", { unique_id: row.unique_id }));
     } catch (caught) {
-      setError(supervisionErrorText(caught));
+      setError(supervisionErrorText(caught, host.errorText));
       setBusy(false);
     }
   }
@@ -149,7 +148,7 @@ export function SupervisionCaseDetail({
       await reopenForRevision(request, row.va_sid ?? "", revisionReason ?? "");
       onDone(t("supervisionRevisionDone"));
     } catch (caught) {
-      setError(supervisionErrorText(caught));
+      setError(supervisionErrorText(caught, host.errorText));
       setBusy(false);
     }
   }
@@ -160,31 +159,18 @@ export function SupervisionCaseDetail({
       <Text style={styles.headline}>{t("supervisionCaseDetail")}</Text>
       <View style={styles.card}>
         <CaseSummary row={row} variant="detail" />
-        <SupervisionActions request={request} row={row} onDone={onDone} />
-        {editInterview ? (
-          <Button
-            kind="secondary"
-            label={t("supervisionEditInterview")}
-            onPress={() => router.push({
-              pathname: "/interview",
-              params: {
-                revisionDraftId: editInterview.draft_id,
-                revisionProjectId: editInterview.project_id,
-                revisionSiteId: editInterview.site_id,
-                revisionVaSid: editInterview.va_sid,
-                revisionBy: "supervisor",
-              },
-            } as never)}
-          />
+        <SupervisionActions host={host} row={row} onDone={onDone} />
+        {editInterview && host.openInterviewEdit ? (
+          <Button kind="secondary" label={t("supervisionEditInterview")} onPress={() => host.openInterviewEdit?.(editInterview)} />
         ) : null}
         {row.can_edit_death ? (
           <Button
             kind="secondary"
             label={t("supervisionEditDeath")}
-            onPress={() => router.push({ pathname: "/death-registration", params: { deathId: row.death_id, from: "supervisor" } } as never)}
+            onPress={() => host.openDeathEdit(row.death_id)}
           />
         ) : null}
-        <AddIdentifierAction row={row} onChanged={() => setReloads((count) => count + 1)} />
+        {host.identifierAction?.(row, () => setReloads((count) => count + 1))}
       </View>
 
       <View style={styles.card}>

@@ -808,6 +808,7 @@ it("clears the sign-in-again flag when the interviewer signs in again", async ()
     registered_deaths_access: false,
     coding_access: false,
     reviewing_access: false,
+    supervision_access: false,
     offline_coding_access: [],
     coding_history_access: historyAccessHash(ACCESS),
   });
@@ -837,7 +838,7 @@ it("forwards the normalized mobile in the existing email field and ignores nulla
   const account = await signIn("+919876543210", "pw");
   expect(JSON.parse(calls[0].body!)).toMatchObject({ email: "+919876543210" });
   expect(account).toEqual({ user_id: USER, name: "A", server: SERVER });
-  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", server: SERVER, collection_access: false, registration_access: false, registered_deaths_access: false, coding_access: false, reviewing_access: false, offline_coding_access: [], coding_history_access: historyAccessHash(ACCESS) }]);
+  expect(await loadAccounts()).toEqual([{ user_id: USER, name: "A", server: SERVER, collection_access: false, registration_access: false, registered_deaths_access: false, coding_access: false, reviewing_access: false, supervision_access: false, offline_coding_access: [], coding_history_access: historyAccessHash(ACCESS) }]);
 });
 
 it("stores training coding and Start pending only for a typed training session (legacy or older server: none)", async () => {
@@ -865,6 +866,20 @@ it("stores training coding and Start pending only for a typed training session (
   }
 });
 
+it("keeps the supervision flag from /me/access (a project the user supervises deaths in) as a display cache", async () => {
+  mockSecure.set("device_secret", "dev-secret");
+  mockSecure.set("device", JSON.stringify({ device_id: "d1", server: SERVER, project_id: "P", project_name: "P" }));
+  const access = { ...ACCESS, roles: ["interview_supervisor"], projects: [{ project_id: "P1", project_name: "P", has_tree: false, grants: [], sites: [], supervises_deaths: true, actions: { interview: [], register_death: [] } }] };
+  const login = { access_token: "a", access_expires_at: "", refresh_token: "r", refresh_expires_at: "", user: { user_id: USER, name: "A" }, access };
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, access) : json(201, login));
+  await signIn("a@example.org", "pw");
+  expect((await loadAccounts())[0]).toMatchObject({ supervision_access: true, collection_access: false, registration_access: false });
+
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, ACCESS) : json(200, {}));
+  await refreshAccessSummary(USER);
+  expect((await loadAccounts())[0].supervision_access).toBe(false);
+});
+
 it("persists only explicit coder and reviewer roles, never admin demo coding", async () => {
   mockSecure.set("device_secret", "dev-secret");
   mockSecure.set("device", JSON.stringify({ device_id: "d1", server: SERVER, project_id: "P", project_name: "P" }));
@@ -889,6 +904,7 @@ it("persists only explicit coder and reviewer roles, never admin demo coding", a
     registered_deaths_access: false,
     coding_access: true,
     reviewing_access: true,
+    supervision_access: false,
     offline_coding_access: [],
     coding_history_access: historyAccessHash(login.access),
   }]);
@@ -906,6 +922,7 @@ it("persists only explicit coder and reviewer roles, never admin demo coding", a
     registered_deaths_access: false,
     coding_access: false,
     reviewing_access: false,
+    supervision_access: false,
     offline_coding_access: [],
     coding_history_access: historyAccessHash(ACCESS),
   }]);

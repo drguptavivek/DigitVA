@@ -18,6 +18,8 @@ from datetime import UTC, date, datetime, timedelta
 from unittest.mock import patch
 
 import sqlalchemy as sa
+from flask import g
+from flask.testing import FlaskClient
 
 from app import db, limiter
 from app.models import (
@@ -42,6 +44,7 @@ from app.models import (
     VaWebIntakeDraft,
 )
 from app.services import organization_service as org
+from app.services import sign_in_qr_service
 from app.services.runtime_form_sync_service import _ensure_legacy_project_site_rows
 from app.services.viewer_pii_service import PiiScope
 from app.services.workflow.definition import WORKFLOW_CODER_FINALIZED, WORKFLOW_CODING_IN_PROGRESS
@@ -70,6 +73,17 @@ def _text(answers):
 
 def _sha(text):
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+class _FreshGClient(FlaskClient):
+    """A fresh ``g`` per request, as production has (test_device_api): the
+    suite keeps one app context, so a bearer request would otherwise reuse
+    the previous request's user."""
+
+    def open(self, *args, **kwargs):
+        g.pop("_login_user", None)
+        g.pop("device_session", None)
+        return super().open(*args, **kwargs)
 
 
 class SupervisorCorrectionTests(BaseTestCase):
@@ -156,11 +170,17 @@ class SupervisorCorrectionTests(BaseTestCase):
         db.session.add(MapMentorInstituteUser(institute_id=institute.institute_id, user_id=cls.mento.user_id))
         # One person who is both an interviewer and a ticked supervisor over PH1.
         cls.both = user("both", (R.interviewer, cls.ph1, None), (R.interview_supervisor, cls.ph1, "MO"))
+        # Phone accounts: an In-charge and a data manager over PH1 who interview elsewhere (PH2),
+        # and an In-charge with nothing else.
+        cls.icx = user("icx", (R.interviewer, cls.ph2, None), (R.site_pi, cls.ph1, None))
+        cls.dmx = user("dmx", (R.interviewer, cls.ph2, None), (R.data_manager, cls.dst, None))
+        cls.incharge = user("incharge", (R.site_pi, cls.ph1, None))
         db.session.commit()
 
     def setUp(self):
         super().setUp()
         limiter.reset()
+        self.client = _FreshGClient(self.app, self.app.response_class, use_cookies=True)
         self._tick(True)
 
     # ── helpers ────────────────────────────────────────────────────────────
@@ -454,3 +474,178 @@ class SupervisorCorrectionTests(BaseTestCase):
         db.session.commit()
         self.assertEqual(self._get_draft(self.hv, draft.draft_id).status_code, 404)
         self.assertEqual(self._revise(self.hv, va_sid, _answers(Id10017="Binita")).status_code, 404)
+
+    # ── on the phone (docs/policy/mobile-sign-in.md, "Interview supervisors on the phone") ──
+
+    def _enrol(self, user):
+        return self.client.post("/api/v1/auth/password-enroll", json={
+            "identifier": user.email, "password": "SupCorr123", "device_name": "Supervisor phone",
+            "platform": "android", "app_version": "0.3.30",
+        })
+
+    def _phone(self, user):
+        response = self._enrol(user)
+        self.assertEqual(response.status_code, 201, response.get_json())
+        body = response.get_json()
+        return body, {"Authorization": f"Bearer {body['access_token']}"}
+
+    def test_a_supervisor_only_account_enrols_signs_in_and_refreshes(self):
+        body, headers = self._phone(self.hv)
+        self.assertEqual(body["project"]["project_id"], PROJECT)
+        self.assertTrue(body["access"]["projects"][0]["supervises_deaths"])
+        self.assertEqual([p["project_id"] for p in body["projects"]], [PROJECT])
+        refreshed = self.client.post("/api/v1/auth/sessions/refresh", json={
+            "refresh_token": body["refresh_token"], "device_id": body["device_id"],
+            "device_secret": body["device_secret"]})
+        self.assertEqual(refreshed.status_code, 200, refreshed.get_json())
+        self.assertTrue(refreshed.get_json()["access"]["projects"][0]["supervises_deaths"])
+        signed_in = self.client.post("/api/v1/auth/sessions", json={
+            "device_id": body["device_id"], "device_secret": body["device_secret"],
+            "email": self.hv.email, "password": "SupCorr123"})
+        self.assertEqual(signed_in.status_code, 201, signed_in.get_json())
+
+    def test_a_supervisor_gets_no_phone_while_project_intake_is_off(self):
+        self.assertEqual(self._enrol(self.hv).status_code, 201)  # subject: allowed with intake on
+        project = db.session.get(VaProjectMaster, PROJECT)
+        project.web_intake_mode = "off"
+        db.session.commit()
+        try:
+            response = self._enrol(self.hv)
+            self.assertEqual(response.status_code, 403, response.get_json())
+        finally:
+            project.web_intake_mode = "both"
+            db.session.commit()
+
+    def test_data_manager_or_in_charge_alone_still_gets_no_phone(self):
+        for user in (self.dana, self.incharge):
+            response = self._enrol(user)
+            self.assertEqual((response.status_code, response.get_json()["code"]), (403, "no_interviewer_grant"))
+
+    def test_me_access_reports_supervision_to_a_supervisor_phone(self):
+        _body, headers = self._phone(self.hv)
+        access = self.client.get("/api/v1/me/access", headers=headers).get_json()
+        self.assertIn("interview_supervisor", access["roles"])
+        self.assertTrue(access["account"]["device_access"])
+        project = next(p for p in access["projects"] if p["project_id"] == PROJECT)
+        self.assertTrue(project["supervises_deaths"])
+        self.assertEqual((project["actions"]["interview"], project["actions"]["register_death"]), ([], []))
+        # An interviewer's phone does not.
+        _body, headers = self._phone(self.icx)
+        access = self.client.get("/api/v1/me/access", headers=headers).get_json()
+        self.assertNotIn("interview_supervisor", access["roles"])
+        self.assertFalse(any(p["supervises_deaths"] for p in access["projects"]))
+
+    def test_a_supervisor_phone_lists_opens_and_acts_on_supervised_cases(self):
+        death_id = self._case()
+        _body, headers = self._phone(self.hv)
+        listed = self.client.get(f"{API}/supervision/cases?limit=100", headers=headers)
+        self.assertEqual(listed.status_code, 200, listed.get_json())
+        self.assertIn(death_id, {row["death_id"] for row in listed.get_json()["cases"]})
+        for path in (f"supervision/cases/{death_id}", f"supervision/cases/{death_id}/possible-duplicates",
+                     f"cases/{death_id}", "identifier-types", "consent-config"):
+            response = self.client.get(f"{API}/{path}", headers=headers, query_string={"project_id": PROJECT})
+            self.assertEqual(response.status_code, 200, (path, response.get_json()))
+        edited = self.client.patch(f"{API}/deaths/{death_id}", headers=headers, json={"deceased_name": "Bina Devi"})
+        self.assertEqual(edited.status_code, 200, edited.get_json())
+        self.assertEqual(edited.get_json()["case"]["deceased_name"], "Bina Devi")
+        cancelled = self.client.post(f"{API}/supervision/cases/{death_id}/cancel", headers=headers,
+                                     json={"reason": "Phone test"})
+        self.assertEqual(cancelled.status_code, 200, cancelled.get_json())
+        self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(death_id)).status, "cancelled")
+        reopened = self.client.post(f"{API}/supervision/cases/{death_id}/reopen", headers=headers,
+                                    json={"reason": "Phone test"})
+        self.assertEqual(reopened.status_code, 200, reopened.get_json())
+
+    def test_a_ticked_supervisor_phone_corrects_the_interview(self):
+        _death_id, va_sid, draft = self._submitted()
+        _body, headers = self._phone(self.hv)
+        opened = self.client.get(f"{API}/drafts/{draft.draft_id}", headers=headers)
+        self.assertEqual(opened.status_code, 200, opened.get_json())
+        text = _text({**opened.get_json()["envelope"]["data"], "Id10017": "Binita"})
+        revised = self.client.post(f"{API}/submissions/{va_sid}/revisions", headers=headers, json={
+            "reason_code": "interviewer_correction", "draft": {}, "completion": {"valid": True, "issues": []},
+            "answers_json": text, "answers_sha256": _sha(text)})
+        self.assertEqual(revised.status_code, 200, revised.get_json())
+        self.assertEqual((self._active(va_sid).revision_reason_code, self._active(va_sid).created_by),
+                         ("supervisor_correction", self.hv.user_id))
+        self._tick(False)
+        self.assertEqual(self.client.get(f"{API}/drafts/{draft.draft_id}", headers=headers).status_code, 404)
+
+    def test_in_charge_and_data_manager_powers_stay_off_the_phone(self):
+        death_id, va_sid, draft = self._submitted()
+        for user in (self.icx, self.dmx):
+            # Present first: the browser session supervises the PH1 case.
+            self.assertEqual(self._supervised(user, death_id)["case"]["death_id"], death_id)
+            _body, headers = self._phone(user)
+            for path in ("supervision/cases", f"supervision/cases/{death_id}"):
+                self.assertEqual(self.client.get(f"{API}/{path}", headers=headers).status_code, 403, path)
+            self.assertEqual(self.client.post(f"{API}/supervision/cases/{death_id}/cancel", headers=headers,
+                                              json={"reason": "x"}).status_code, 403)
+            self.assertEqual(self.client.get(f"{API}/cases/{death_id}", headers=headers).status_code, 404)
+            self.assertEqual(self.client.patch(f"{API}/deaths/{death_id}", headers=headers,
+                                               json={"deceased_name": "X"}).status_code, 404)
+            self.assertEqual(self.client.get(f"{API}/drafts/{draft.draft_id}", headers=headers).status_code, 404)
+        self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(death_id)).deceased_name, "Bina Sahu")
+
+    def test_a_supervisor_phone_carries_only_the_supervisor_grant_of_a_wider_account(self):
+        # boss supervises PH1 (CHO, not ticked) and, in the browser, PH2 as data manager,
+        # In-charge and project PI. A PH2 case is the discriminating one.
+        self._as(self.icx)
+        registered = self.client.post(f"{API}/deaths", headers=self._csrf_headers(), json={
+            "project_id": PROJECT, "site_id": SITE, "org_unit_id": str(self.ph2.org_unit_id),
+            "deceased_name": "Asha Rao", "deceased_sex": "female",
+            "date_of_death": (date.today() - timedelta(days=5)).isoformat(), "age_years": 60})
+        self.assertEqual(registered.status_code, 201, registered.get_json())
+        ph2_case = registered.get_json()["case"]["death_id"]
+        ph1_case = self._case()
+        self.assertEqual(self._supervised(self.boss, ph2_case)["case"]["death_id"], ph2_case)  # browser: present
+        _body, headers = self._phone(self.boss)
+        access = self.client.get("/api/v1/me/access", headers=headers).get_json()
+        self.assertEqual(access["roles"], ["interview_supervisor"])
+        self.assertFalse(access["account"]["privileged"])
+        listed = {row["death_id"] for row in self.client.get(
+            f"{API}/supervision/cases?limit=100", headers=headers).get_json()["cases"]}
+        self.assertIn(ph1_case, listed)
+        self.assertNotIn(ph2_case, listed)
+        self.assertEqual(self.client.get(f"{API}/supervision/cases/{ph2_case}", headers=headers).status_code, 404)
+        self.assertEqual(self.client.post(f"{API}/supervision/cases/{ph2_case}/cancel", headers=headers,
+                                          json={"reason": "x"}).status_code, 404)
+        self.assertEqual(self.client.patch(f"{API}/deaths/{ph2_case}", headers=headers,
+                                           json={"deceased_name": "X"}).status_code, 404)
+        self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(ph2_case)).status, "registered")
+
+    def test_a_supervisor_phone_reopens_a_finalised_interview_as_the_supervisor(self):
+        _death_id, va_sid, _draft = self._submitted()
+        set_submission_workflow_state(va_sid, WORKFLOW_CODER_FINALIZED, reason="test", by_role="test")
+        db.session.commit()
+        _body, headers = self._phone(self.hv)
+        response = self.client.post(f"{API}/supervision/submissions/{va_sid}/reopen-for-revision", headers=headers,
+                                    json={"reason_code": "data_correction"})
+        self.assertEqual(response.status_code, 200, response.get_json())
+        db.session.expire_all()
+        kind = db.session.scalar(sa.select(VaSubmissionWorkflowEvent.actor_kind).where(
+            VaSubmissionWorkflowEvent.va_sid == va_sid).order_by(VaSubmissionWorkflowEvent.event_created_at.desc())
+            .limit(1))
+        self.assertEqual(kind, "interview_supervisor")
+
+    def test_an_interviewer_phone_still_cannot_supervise(self):
+        death_id = self._case()
+        _body, headers = self._phone(self.ian)
+        self.assertEqual(self.client.get(f"{API}/supervision/cases", headers=headers).status_code, 403)
+        self.assertEqual(self.client.post(f"{API}/supervision/cases/{death_id}/cancel", headers=headers,
+                                          json={"reason": "x"}).status_code, 403)
+
+    def test_consent_withdrawal_is_refused_to_every_phone(self):
+        death_id, _va_sid, _draft = self._submitted()
+        for user in (self.hv, self.boss):
+            _body, headers = self._phone(user)
+            response = self.client.post(f"{API}/supervision/cases/{death_id}/consent-withdrawal", headers=headers,
+                                        json={"requested_by": "Ravi", "requested_on": date.today().isoformat(),
+                                              "channel": "phone"})
+            self.assertEqual(response.status_code, 403, response.get_json())
+        self.assertIsNone(db.session.get(VaDeathRegister, uuid.UUID(death_id)).consent_withdrawn_at)
+
+    def test_a_supervisor_grant_keeps_the_sign_in_qr_away(self):
+        self.assertIsNotNone(sign_in_qr_service.eligible_project(self.ian))  # an interviewer alone: eligible
+        for user in (self.hv, self.both):
+            self.assertIsNone(sign_in_qr_service.eligible_project(user))

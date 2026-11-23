@@ -5,7 +5,8 @@ either credential. Gated by ``login_required`` on purpose: any grant reaches
 some cases, and a caller with none gets an empty list (200), not a 403. Scope
 and field visibility are decided per row in the service
 (``app.services.case_list_service``); nothing here changes state, so there is
-no CSRF surface. The supervision preset is empty under device credentials.
+no CSRF surface. Under a device credential the supervision preset holds only
+an explicit interview supervisor's cases (``authz.supervision``).
 """
 from functools import wraps
 

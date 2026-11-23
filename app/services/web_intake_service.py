@@ -1073,8 +1073,8 @@ def identifier_write_parts(user: VaUsers, scopes: tuple | None = None) -> tuple:
     (``open_ok``) and including them (``closed_ok``).
 
     Admin: every case. A supervisor, In-charge, project PI or data manager
-    (``supervised_case_condition``; browser only, it is false under a device
-    credential) and the death_reporter on a death they reported, and the
+    (``supervised_case_condition``; under a device credential only an
+    explicit interview supervisor) and the death_reporter on a death they reported, and the
     interviewer on a case they registered, started or interviewed, write open cases; only
     a supervisor, In-charge, project PI or admin write closed ones. *scopes*:
     ``identifier_field_scopes(user)``, when the caller already has it.

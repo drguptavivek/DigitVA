@@ -3,7 +3,7 @@ title: Case List Views Policy
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-04
+last_updated: 2026-11-23
 ---
 
 # Case List Views Policy
@@ -146,9 +146,10 @@ on its own screen.
   with supervision scope; `/supervision` redirects to the Deaths tab with this
   preset applied; there is no Supervision menu item. A data manager keeps
   Data management.
-- **Web only today:** `supervised_case_condition` returns no rows under
-  device (bearer) credentials, so the preset is served to the browser shell
-  only.
+- **Phones (2026-11-23, `digitva-hftq`):** under device (bearer)
+  credentials `supervised_case_condition` counts only explicit
+  `interview_supervisor` grants; In-charge, project PI and data manager
+  supervision stays browser-only.
 
 ## Row contract
 
@@ -537,10 +538,10 @@ the has / missing filter and the exact number search. Defaults applied, **owner-
    `registered_by = me` and `source = 'register'`; this list's Deaths preset
    counts the caller's whole scope across every source. Home's query is
    untouched; the two numbers are not expected to match.
-12. Native-token caveat: `supervised_case_condition` returns nothing under
-   bearer (device) credentials, so the supervision preset and the tiles are
-   web-session only. A client must not show the supervisor view from browser
-   roles when the token is native.
+12. Native-token rule (2026-11-23, `digitva-hftq`): under bearer (device)
+   credentials `supervised_case_condition` counts only explicit
+   `interview_supervisor` grants. A client must not show the supervisor view
+   from browser roles (In-charge, PI, data manager) when the token is native.
 
 ## Rollout
 

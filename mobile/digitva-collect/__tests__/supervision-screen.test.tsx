@@ -567,7 +567,7 @@ describe("SupervisionPanel", () => {
 
   it("has an English and a Hindi string for every supervision key it uses", () => {
     const sources = ["SupervisionPanel.tsx", "SupervisionCase.tsx", "SupervisionActions.tsx"]
-      .map((name) => readFileSync(join(__dirname, "../src/web", name), "utf8"))
+      .map((name) => readFileSync(join(__dirname, "../src/supervision", name), "utf8"))
       .join("\n");
     const keys = new Set(sources.match(/"(supervision[A-Za-z_]*|state_[a-z_]+|emptyDash|viewDetails|loadMore|serverForbidden|loading)"/g) ?? []);
     expect(keys.size).toBeGreaterThan(20);

@@ -529,13 +529,18 @@ class CaseListTests(BaseTestCase):
         self.assertNotIn("tiles", self._get(self.ian))
         self.assertEqual(self._get(self.ian, "?preset=supervision")["cases"], [])
 
-    def test_supervision_preset_is_empty_under_device_credentials(self):
-        with self.app.test_request_context("/"):
-            g.bearer_auth = True
-            page = case_list.list_cases(
-                self.sam, preset="supervision", filters=case_list.CaseFilters(attention="total"))
-        self.assertEqual(page["cases"], [])
-        self.assertTrue(self._in(self.a, self._ids(self.sam, "?preset=supervision&attention=total")))
+    def test_under_device_credentials_only_the_interview_supervisor_supervises(self):
+        # docs/policy/mobile-sign-in.md, "Interview supervisors on the phone".
+        def native(user):
+            with self.app.test_request_context("/"):
+                g.bearer_auth = True
+                return case_list.list_cases(
+                    user, preset="supervision", filters=case_list.CaseFilters(attention="total"))["cases"]
+
+        self.assertTrue(self._in(self.a, self._ids(self.dana, "?preset=supervision&attention=total")))
+        self.assertTrue(self._in(self.a, [str(r["death_id"]) for r in native(self.sam)]))
+        self.assertEqual(native(self.dana), [])
+        self.assertEqual(native(self.pip), [])
 
     # -- paging -----------------------------------------------------------------
 

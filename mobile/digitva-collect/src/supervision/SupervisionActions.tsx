@@ -15,13 +15,12 @@ import {
   WITHDRAWAL_CHANNELS,
   type PossibleDuplicate,
   type SupervisedCase,
-} from "../supervision/api";
+} from "./api";
 import { ApiError } from "../api";
 import { t, type StringKey } from "../i18n";
-import type { JsonRequester } from "../workspace/api";
 import { choiceQuestion } from "../workspace/QualityPanels";
 import { Button, useUiStyles } from "../ui";
-import { browserErrorText } from "./common";
+import type { SupervisionHost } from "./host";
 
 // Mirror the Flask page (app/static/js/intake/intake_supervision.js) and the
 // server's transitions, only to decide which buttons to show.
@@ -51,25 +50,26 @@ const NOTE_MAX = 2000;
 const UNDO_REASON_MAX = 200;
 
 /** The server's reason for a refused supervision call, in words; never the server's English text. */
-export function supervisionErrorText(error: unknown): string {
+export function supervisionErrorText(error: unknown, fallback: (error: unknown) => string): string {
   const key = error instanceof ApiError && error.code ? SUPERVISION_ERROR_KEYS.get(error.code) : undefined;
-  return key ? t(key) : browserErrorText(error);
+  return key ? t(key) : fallback(error);
 }
 
 /** The supervisor's row actions; the server decides again on every call. */
 export function SupervisionActions({
-  request,
+  host,
   row,
   onDone,
 }: {
-  request: JsonRequester;
+  host: SupervisionHost;
   row: SupervisedCase;
   onDone: (message: string) => void;
 }) {
   const styles = useUiStyles();
+  const { request } = host;
   const [form, setForm] = useState<Form | undefined>();
   // Only an admin reaches a withdrawn case: the banner and the undo.
-  if (row.consent_withdrawn) return <WithdrawnBanner request={request} row={row} onDone={onDone} />;
+  if (row.consent_withdrawn) return <WithdrawnBanner host={host} row={row} onDone={onDone} />;
   const actions: Array<{ form: Form; label: StringKey }> = [];
   if (row.pending_flag) {
     actions.push({ form: "confirm", label: "supervisionConfirmFlag" }, { form: "reject", label: "supervisionRejectFlag" });
@@ -78,7 +78,7 @@ export function SupervisionActions({
   }
   if (CANCELLABLE.includes(row.state)) actions.push({ form: "cancel", label: "supervisionCancelCase" });
   if (TERMINAL.includes(row.state)) actions.push({ form: "reopen", label: "supervisionReopen" });
-  if (row.state === "submitted" && row.can_record_consent_withdrawal) {
+  if (row.state === "submitted" && row.can_record_consent_withdrawal && host.consentWithdrawal) {
     actions.push({ form: "withdraw", label: "supervisionRecordWithdrawal" });
   }
   if (actions.length === 0) return null;
@@ -97,11 +97,11 @@ export function SupervisionActions({
         ))}
       </View>
       {active?.form === "withdraw" ? (
-        <WithdrawalForm request={request} row={row} onDone={onDone} onClose={() => setForm(undefined)} />
+        <WithdrawalForm host={host} row={row} onDone={onDone} onClose={() => setForm(undefined)} />
       ) : active ? (
         <ActionForm
           key={active.form}
-          request={request}
+          host={host}
           row={row}
           form={active.form}
           label={t(active.label)}
@@ -115,14 +115,14 @@ export function SupervisionActions({
 
 /** Inline form under the row (no modal: easier on a phone). */
 function ActionForm({
-  request,
+  host,
   row,
   form,
   label,
   onDone,
   onClose,
 }: {
-  request: JsonRequester;
+  host: SupervisionHost;
   row: SupervisedCase;
   form: Form;
   label: string;
@@ -130,6 +130,7 @@ function ActionForm({
   onClose: () => void;
 }) {
   const styles = useUiStyles();
+  const { request } = host;
   const required = form === "cancel" || form === "reopen";
   const [reason, setReason] = useState("");
   const [keep, setKeep] = useState<string | undefined>();
@@ -150,7 +151,7 @@ function ActionForm({
         setKeepOptions(keepChoices(row, possible, page.cases));
       })
       .catch((caught) => {
-        if (active) setError(supervisionErrorText(caught));
+        if (active) setError(supervisionErrorText(caught, host.errorText));
       })
       .finally(() => {
         if (active) setBusy(false);
@@ -174,7 +175,7 @@ function ActionForm({
           : t("supervisionSaved", { unique_id: row.unique_id }),
       );
     } catch (caught) {
-      setError(supervisionErrorText(caught));
+      setError(supervisionErrorText(caught, host.errorText));
       setBusy(false);
     }
   }
@@ -238,17 +239,18 @@ function today(): string {
 
 /** Record a respondent's consent withdrawal, behind a confirmation (the case then leaves every use). */
 function WithdrawalForm({
-  request,
+  host,
   row,
   onDone,
   onClose,
 }: {
-  request: JsonRequester;
+  host: SupervisionHost;
   row: SupervisedCase;
   onDone: (message: string) => void;
   onClose: () => void;
 }) {
   const styles = useUiStyles();
+  const { request } = host;
   const [requestedBy, setRequestedBy] = useState("");
   const [requestedOn, setRequestedOn] = useState(today());
   const [channel, setChannel] = useState<(typeof WITHDRAWAL_CHANNELS)[number] | undefined>();
@@ -273,7 +275,7 @@ function WithdrawalForm({
       });
       onDone(t("supervisionWithdrawalSaved", { unique_id: row.unique_id }));
     } catch (caught) {
-      setError(supervisionErrorText(caught));
+      setError(supervisionErrorText(caught, host.errorText));
       setBusy(false);
     }
   }
@@ -329,8 +331,9 @@ function WithdrawalForm({
 }
 
 /** The sealed case's banner; the admin who sees it may undo a mistaken record with a reason. */
-function WithdrawnBanner({ request, row, onDone }: { request: JsonRequester; row: SupervisedCase; onDone: (message: string) => void }) {
+function WithdrawnBanner({ host, row, onDone }: { host: SupervisionHost; row: SupervisedCase; onDone: (message: string) => void }) {
   const styles = useUiStyles();
+  const { request } = host;
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -344,7 +347,7 @@ function WithdrawnBanner({ request, row, onDone }: { request: JsonRequester; row
       await undoConsentWithdrawal(request, row.death_id, reason.trim());
       onDone(t("supervisionSaved", { unique_id: row.unique_id }));
     } catch (caught) {
-      setError(supervisionErrorText(caught));
+      setError(supervisionErrorText(caught, host.errorText));
       setBusy(false);
     }
   }

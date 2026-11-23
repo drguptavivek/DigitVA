@@ -8,6 +8,7 @@ export {
   Register,
   Revision,
   Settings,
+  Supervision,
   ProfileAccess,
   OpenSourceLicenses,
   SignIn,

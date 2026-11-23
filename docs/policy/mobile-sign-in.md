@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-20
+last_updated: 2026-11-23
 ---
 
 # Sign-in by Mobile Number
@@ -76,6 +76,35 @@ everything not said here.
   and response shape are unchanged. Phones on Collect 0.3.19 and older do
   not know the code and show their generic "Something went wrong. Try
   again."; nothing is lost or wiped.
+
+### Interview supervisors on the phone (owner 2026-11-23, `digitva-hftq`; built except the phone's Edit interview)
+
+- **Who.** A user holding an active `interview_supervisor` unit grant may
+  enrol a phone and sign in on it, like an interviewer. `has_device_access`
+  admits that grant, and the device credential carries the
+  `interview_supervisor` role (`NATIVE_DEVICE_ROLES`). As for an interviewer,
+  a grant on a project whose web intake is `off` does not count: there is
+  nothing to supervise there.
+- **How.** Password enrolment and password sign-in only. The sign-in QR
+  (section 8) stays limited to interviewer, death reporter and coder
+  accounts, and a supervisor grant still makes an account ineligible for it.
+- **What the phone may do with it.** Online only, and the same rules as the
+  browser:
+  - the supervision list and case screen, with their actions;
+  - editing the death report;
+  - correcting interviews where the supervisor's cadre has "Can edit
+    interviews" ticked ([Interview Revisions](interview-revisions.md),
+    "Supervisor correction").
+  A supervisor's interview correction is sent at once and never queued on
+  the phone. The answers stay in memory only while the screen is open.
+- **Only the explicit supervisor grant counts on the phone.** The powers an
+  In-charge, project PI or data manager holds as supervisors stay
+  browser-only. A device credential never carries `data_manager`, `site_pi`
+  or `project_pi`. Putting `data_manager` on the phone would be a separate
+  owner decision.
+- **Older apps.** A supervisor-only account on an app version without the
+  supervision screens enrols, but sees the "no collection work" home and
+  has nothing to do. Nothing is stored and nothing can be lost.
 
 ### Manual native device enrolment
 

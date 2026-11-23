@@ -84,6 +84,8 @@ export interface Account {
   /** Digest of the last validated coding scope; display cache only, never authorization. */
   coding_history_access?: string;
   reviewing_access?: boolean;
+  /** The supervision list is offered (/me/access capabilities.supervision); display cache only, the server decides each call. */
+  supervision_access?: boolean;
   /** Training mode: a typed training session gives the training project's coding queue (`/training/coding`). */
   training_coding_access?: boolean;
   /** Training mode: the trainee has not pressed Start yet (`/me/access` `training.pending`). */
@@ -412,6 +414,7 @@ async function publishAccessSummary(userId: string, value: unknown): Promise<Acc
       pending: hasTypedTrainingSession(access) && access.training?.pending === true,
     },
     offlineCodingQuality(access),
+    capabilities.supervision,
   );
   for (const listener of accessListeners) await listener(userId, access);
   return access;
@@ -428,13 +431,14 @@ async function setAccountAccess(
   codingHistoryAccess?: string,
   training: { coding: boolean; pending: boolean } = { coding: false, pending: false },
   offlineQuality: OfflineCodingQuality = {},
+  supervision = false,
 ): Promise<void> {
   const changed = await updateAccountsOf(userId, (accounts) => {
     if (!accounts.some((account) => account.user_id === userId &&
         ((account.training_coding_access ?? false) !== training.coding || (account.training_pending ?? false) !== training.pending ||
           account.collection_access !== collection || account.registration_access !== registration ||
           account.registered_deaths_access !== registeredDeaths || account.coding_access !== coding ||
-          account.reviewing_access !== reviewing ||
+          account.reviewing_access !== reviewing || account.supervision_access !== supervision ||
           account.coding_history_access !== codingHistoryAccess ||
           JSON.stringify(account.offline_coding_access ?? []) !== JSON.stringify(offlineCoding) ||
           JSON.stringify(account.offline_coding_quality ?? {}) !== JSON.stringify(offlineQuality)))) return undefined;
@@ -443,7 +447,7 @@ async function setAccountAccess(
       // The training flags and offline NQA/SA switches are stored only while set, so other accounts keep their shape.
       const { training_coding_access: _coding, training_pending: _pending, offline_coding_quality: _quality, ...rest } = account;
       return { ...rest, collection_access: collection, registration_access: registration,
-        registered_deaths_access: registeredDeaths, coding_access: coding, reviewing_access: reviewing,
+        registered_deaths_access: registeredDeaths, coding_access: coding, reviewing_access: reviewing, supervision_access: supervision,
         offline_coding_access: offlineCoding, coding_history_access: codingHistoryAccess,
         ...(Object.keys(offlineQuality).length ? { offline_coding_quality: offlineQuality } : {}),
         ...(training.coding ? { training_coding_access: true } : {}), ...(training.pending ? { training_pending: true } : {}) };

@@ -742,7 +742,7 @@ def put_identifiers(death_id):
     the trimmed supervisor row for a caller who reaches the case only by
     supervision or as admin, ``_identifier_reply``); the case
     state does not change. Who: admin; a supervisor, In-charge, project PI or
-    data manager of the case (browser only); the death_reporter on a death
+    data manager of the case (on a device, an interview supervisor only); the death_reporter on a death
     they reported; the interviewer on a case they registered or interviewed. Cancelled and
     confirmed-duplicate cases: supervisor, In-charge, project PI and admin
     only. 400 ``invalid_request`` (``fields``: ``identifiers.<code>``);

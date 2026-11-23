@@ -81,12 +81,16 @@ SITES_MODE_PII_ROLES = frozenset({
     VaAccessRoles.collaborator_pii,
 })
 
-# A device bearer credential is a collection/coding credential.  Keeping this
-# projection here means every authz predicate, including the admin bypasses,
-# sees the same credential-scoped grants.  Browser sessions continue to use
-# the complete resolved set.
+# A device bearer credential is a collection/coding credential, plus an
+# explicit interview supervisor (docs/policy/mobile-sign-in.md, "Interview
+# supervisors on the phone"); data_manager, site_pi and project_pi never ride
+# on it. Keeping this projection here means every authz predicate, including
+# the admin bypasses and supervision (authz.supervision), sees the same
+# credential-scoped grants. Browser sessions continue to use the complete
+# resolved set.
 NATIVE_DEVICE_ROLES = frozenset({
     VaAccessRoles.interviewer,
+    VaAccessRoles.interview_supervisor,
     VaAccessRoles.death_reporter,
     VaAccessRoles.coder,
     VaAccessRoles.coding_tester,

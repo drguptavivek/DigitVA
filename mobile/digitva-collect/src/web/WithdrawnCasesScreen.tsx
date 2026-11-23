@@ -3,24 +3,22 @@
  * consent, newest first. A row opens the sealed case detail, where the banner and Undo live (SupervisionActions).
  * The list carries no respondent text; the server refuses anyone but an admin.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Text, TextInput, View } from "react-native";
 
-import { useAppState } from "../AppState";
 import { t, type StringKey } from "../i18n";
 import { listConsentWithdrawals, type WithdrawnCaseRow } from "../supervision/api";
 import { Button, useUiStyles } from "../ui";
-import type { JsonRequester } from "../workspace/api";
-import { createWebWorkspaceTransport } from "../workspace/transport.web";
 import { browserErrorText, WebShell } from "./common";
-import { SupervisionCaseDetail } from "./SupervisionCase";
+import { SupervisionCaseDetail } from "../supervision/SupervisionCase";
+import { useWebSupervisionHost } from "./supervisionHost";
 
 const day = (iso: string) => iso.slice(0, 10);
 
 export default function WithdrawnCasesScreen() {
-  const { bootstrap } = useAppState();
   const styles = useUiStyles();
-  const request: JsonRequester | undefined = useMemo(() => (bootstrap ? createWebWorkspaceTransport(bootstrap.csrf) : undefined), [bootstrap]);
+  const host = useWebSupervisionHost();
+  const request = host?.request;
   const [draftProject, setDraftProject] = useState("");
   const [projectId, setProjectId] = useState("");
   const [includeUndone, setIncludeUndone] = useState(false);
@@ -79,8 +77,8 @@ export default function WithdrawnCasesScreen() {
 
   return (
     <WebShell title={t("navWithdrawnCases")}>
-      {selected && request ? (
-        <SupervisionCaseDetail request={request} deathId={selected} onBack={() => setSelected(undefined)} onDone={finish} />
+      {selected && host ? (
+        <SupervisionCaseDetail host={host} deathId={selected} onBack={() => setSelected(undefined)} onDone={finish} />
       ) : (
         <View style={{ gap: 12 }}>
           <Text style={styles.muted}>{t("withdrawnCasesIntro")}</Text>

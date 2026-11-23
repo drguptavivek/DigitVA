@@ -869,7 +869,7 @@ per hour per identifier (canonical mobile for a number). Checks, in order:
 | unknown identifier (timing equalised), wrong password, inactive account, or mobile-only account that never redeemed a code | 401 `invalid_credentials` "Invalid email or password." |
 | not `sign_in_verified` | 403 `email_unverified` |
 | non-admin after the maintenance cutoff | 403 `maintenance` |
-| no device access (`has_device_access`: `interviewer_context` non-empty, which skips projects with web intake off, or an explicit coder, coding_tester or reviewer grant whose gate is open) | 403 `no_interviewer_grant`, "You have no access in any project." |
+| no device access (`has_device_access`: `interviewer_context` non-empty, which skips projects with web intake off, or an explicit coder, coding_tester, reviewer or (unit-scope) interview_supervisor grant whose gate is open) | 403 `no_interviewer_grant`, "You have no access in any project." |
 | no device access, but an active `interviewer` grant on an active project whose web intake is `off` (no other grant) | 403 `project_intake_off`, "Data collection is switched off for your project. Ask your project administrator." |
 | three other live phones on the account (`check_device_slot`, under the account row lock) | 409 `device_limit` with `devices` `[{device_id, label, last_seen_at, unsent_count}]`, the account's live phones |
 

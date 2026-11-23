@@ -182,8 +182,8 @@ def enroll():
 @limiter.limit("10 per minute", key_func=_body_key("device_id"))
 @limiter.limit("20 per hour", key_func=_keyed_digest(_body_key("email")))
 def open_session():
-    """Worker sign-in on an enrolled device (interviewer, coder, coding tester or
-    reviewer, ``has_device_access``); the ``email`` field takes an
+    """Worker sign-in on an enrolled device (interviewer, death reporter, coder,
+    coding tester, reviewer or interview supervisor, ``has_device_access``); the ``email`` field takes an
     email or a mobile number (docs/policy/mobile-sign-in.md), and on a
     ``PUBLIC_DEMO_ENABLED`` deployment a public-demo username
     (``user_account_service.sign_in_identifier``). Rate limits match the web

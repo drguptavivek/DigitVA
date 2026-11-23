@@ -103,10 +103,10 @@ import { PhoneNumbers } from "../PhoneInput";
 import { NativeLocationCapture } from "../NativeLocationCapture";
 import type { GpsFix } from "../web/LocationCapture";
 
-type Field = Exclude<keyof RegistrationFields, "identifiers">;
-type BirthMode = "exact" | "month-year" | "year" | "unknown";
+export type Field = Exclude<keyof RegistrationFields, "identifiers">;
+export type BirthMode = "exact" | "month-year" | "year" | "unknown";
 
-const REGISTRATION_FIELDS: Field[] = [
+export const REGISTRATION_FIELDS: Field[] = [
   "deceased_name", "deceased_sex", "date_of_death", "date_of_birth",
   "date_of_birth_partial", "age_years", "abha_number", "abha_address",
   "place_of_death", "address", "address_house_street", "address_village_ward",
@@ -114,7 +114,7 @@ const REGISTRATION_FIELDS: Field[] = [
   "father_name", "mother_name", "remarks",
 ];
 
-function registrationFieldsFromCase(value: RegistrationCase | CaseRow): RegistrationFields {
+export function registrationFieldsFromCase(value: RegistrationCase | CaseRow): RegistrationFields {
   const source = value as unknown as Record<string, unknown>;
   if (typeof source.death_id !== "string" || !source.death_id || typeof source.project_id !== "string" ||
       !source.project_id || typeof source.site_id !== "string" || !source.site_id) throw new Error("malformed_registration");
@@ -177,7 +177,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /** Text fields in the web form's order, with their label and the helper line under the field (format, example). */
-const TEXT_FIELDS: Array<{
+export const TEXT_FIELDS: Array<{
   name: Field;
   label: StringKey;
   help?: StringKey | ThemeStringKey;
@@ -290,7 +290,7 @@ function nativeQuestion(
  * ("Undetermined") never wraps inside a segment. The rows sit inside the section card's padding, in line with the
  * fields, as one rounded group (the selected tint and the hairlines stop where the fields do; no card inside a card).
  */
-function ChoiceList<T extends string>({ options, value, onChange, disabled, accessibilityLabel }: {
+export function ChoiceList<T extends string>({ options, value, onChange, disabled, accessibilityLabel }: {
   options: ReadonlyArray<{ value: T; label: string }>;
   value: T | undefined;
   onChange: (value: T) => void;
@@ -396,7 +396,7 @@ export function NativeRegistrationFieldControl({
   return <WhoVaQuestionControls.Text {...controlProps} />;
 }
 
-const SEX_LABELS: Record<(typeof SEX_VALUES)[number], StringKey> = {
+export const SEX_LABELS: Record<(typeof SEX_VALUES)[number], StringKey> = {
   male: "sexMale",
   female: "sexFemale",
   undetermined: "sexUndetermined",

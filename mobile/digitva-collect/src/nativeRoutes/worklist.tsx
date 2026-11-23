@@ -68,6 +68,7 @@ import { homeSummary } from "../ui/homeSummary";
 import { readRecentTarget, writeRecentTarget, type RecentTarget } from "../recentTarget";
 import type { PickerTarget } from "../ui/sitePicker";
 import RegisteredDeaths from "./RegisteredDeaths";
+import { SupervisionEntry } from "./supervisionEntry";
 import { TrainingCodingEntry, TrainingOnboarding } from "./trainingOnboarding";
 import { HomeView, InterviewsView, Notice, ProjectLine, ProjectSheet, SitePickerSheet } from "./worklistParts";
 
@@ -1025,6 +1026,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       {trainingMode ? <Notice>{`${t("trainingMode")} · ${t("trainingPractice")}`}</Notice> : null}
       {trainingMode && account.training_pending ? <TrainingOnboarding userId={account.user_id} /> : null}
       {trainingMode && account.training_coding_access ? <TrainingCodingEntry userId={account.user_id} /> : null}
+      {!trainingMode && account.supervision_access ? <SupervisionEntry userId={account.user_id} /> : null}
       {draftConflict ? <Notice>{t("draftConflictNotice")}</Notice> : null}
       {codingUploadNotices.length ? (
         <>

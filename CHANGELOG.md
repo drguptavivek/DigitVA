@@ -5,6 +5,16 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-23
 
+- Supervisors on the phone (`digitva-hftq`, policy mobile-sign-in.md
+  "Interview supervisors on the phone"): an explicit `interview_supervisor`
+  unit grant enrols and signs in (password only, no sign-in QR; intake-off
+  projects do not count); device credentials carry only that grant, so
+  In-charge, PI and data manager supervision stays browser-only (one bearer
+  rule in `authz.supervision._covering_grants`). Collect gets a Supervision
+  entry, the supervision list and case screen (components moved to
+  `src/supervision/`, shared with the web) and a supervisor death-report
+  edit. Phone Edit interview still to come; screens await design review and
+  a device check.
 - Supervisor corrections, server and browser (`digitva-6dh9`,
   `digitva-5izv`, `digitva-76de`; policy `3e969f49f`): "Can edit
   interviews" tick on the level x cadre grid (migration `a7d3e9c5b2f1`); a

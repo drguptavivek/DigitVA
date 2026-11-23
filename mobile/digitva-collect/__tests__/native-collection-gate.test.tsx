@@ -445,3 +445,39 @@ it.each([
   expect(tree.toJSON()).toMatchObject({ type: "redirect", props: { href: { pathname: "/unlock", params: { userId: "worker" } } } });
   await act(async () => tree.unmount());
 });
+
+describe("interview supervisors on the phone", () => {
+  const supervisor = { user_id: "worker", name: "Worker", collection_access: false, registration_access: false, coding_access: false, reviewing_access: false, supervision_access: true };
+
+  async function render(pathname: string, account: Record<string, unknown>, params: Record<string, string> = {}) {
+    mockPathname = pathname;
+    mockParams = { userId: "worker", ...params };
+    mockState.accounts = [account];
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<NativeCollectionGate>account data</NativeCollectionGate>); });
+    return tree;
+  }
+
+  it("sends a supervisor-only account's Home to its supervision list, not the pending page", async () => {
+    const tree = await render("/worklist", supervisor);
+    expect(tree.toJSON()).toMatchObject({ type: "redirect", props: { href: { pathname: "/supervision", params: { userId: "worker" } } } });
+  });
+
+  it("opens the supervision route for supervision access only", async () => {
+    expect(JSON.stringify((await render("/supervision", supervisor)).toJSON())).toContain("account data");
+    expect(JSON.stringify((await render("/supervision", { ...supervisor, supervision_access: false })).toJSON())).not.toContain("account data");
+  });
+
+  it("lets a supervisor's death-report correction through /register without registration access", async () => {
+    expect(JSON.stringify((await render("/register", supervisor, { by: "supervisor", deathId: "D1" })).toJSON())).toContain("account data");
+    // The same route without the supervisor flag still needs registration access.
+    expect(JSON.stringify((await render("/register", supervisor)).toJSON())).not.toContain("account data");
+    // And a non-supervisor cannot use the flag.
+    expect(JSON.stringify((await render("/register", { ...supervisor, supervision_access: false }, { by: "supervisor" })).toJSON())).not.toContain("account data");
+  });
+
+  it("offers a coder who also supervises the Supervision entry on the pending page", async () => {
+    const tree = await render("/worklist", { ...supervisor, coding_access: true });
+    expect(tree.root.findAllByProps({ label: "homeBlockSupervisor" }).length).toBeGreaterThan(0);
+  });
+});

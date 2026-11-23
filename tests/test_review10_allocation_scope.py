@@ -199,16 +199,17 @@ class TesterInactivePairTests(AuthzFixtureMixin, BaseTestCase):
             ))
         db.session.commit()
 
-    def test_tester_forms_skip_a_deactivated_pair_and_keep_demo(self):
+    def test_tester_forms_skip_a_deactivated_pair_and_the_ungranted_demo(self):
         forms = self.user("tester_sp").get_coding_tester_va_forms()
         self.assertIn(FORMS["sp3"][0], forms)
-        self.assertIn(FORMS["dm1"][0], forms)
+        # No grant on the demo project, so no demo forms (owner 2026-11-23).
+        self.assertNotIn(FORMS["dm1"][0], forms)
         self.assertNotIn(FORMS["sp4"][0], forms)
 
     def test_tester_cannot_allocate_on_a_deactivated_pair(self):
         self._ready("sp-3", "sp-4")
         tester = self.user("tester_sp")
-        self.assertTrue(can(tester, Action.CODE, "dm-1"))
+        self.assertTrue(can(tester, Action.CODE, "sp-3"))
         self.assertEqual(can(tester, Action.CODE, "sp-4").reason, Reason.OUT_OF_SCOPE)
         with self.assertRaises(AllocationError):
             allocate_pick_form(tester, "sp-4")

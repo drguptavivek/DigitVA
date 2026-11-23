@@ -157,14 +157,20 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         self.assertEqual([p["project_id"] for p in body["projects"]], [SP])
         self.assertNotIn(TB, [p["project_id"] for p in body["projects"]])
 
-    def test_demo_coding_is_reported_but_virtual_grants_are_not_listed(self):
+    def test_demo_coding_needs_an_explicit_grant_on_the_demo_project(self):
+        # Owner 2026-11-23: a coder elsewhere gets no demo practice.
         body = self._body("coder_sp")
-        self.assertEqual(body["demo_coding"], {"available": True, "project_ids": [DM]})
+        self.assertEqual(body["demo_coding"], {"available": False, "project_ids": []})
         self.assertEqual([p["project_id"] for p in body["projects"]], [SP])
         self.assertEqual(body["projects"][0]["grants"], [{"role": "coder", "scope": "project", "codes": True, "active": True, "source": "assigned"}])
-        # An interviewer is not demo-eligible.
-        self.assertEqual(self._body("interviewer_p1")["demo_coding"],
-                         {"available": False, "project_ids": []})
+        # An explicit coder grant on the demo project opens it.
+        user = self.users["coder_sp"]
+        row = self._grant_row(user, R.coder, P, DM)
+        db.session.add(row)
+        db.session.commit()
+        invalidate(user.user_id)
+        self.assertEqual(self._body("coder_sp")["demo_coding"],
+                         {"available": True, "project_ids": [DM]})
 
     def test_a_user_with_no_grants_gets_an_empty_summary(self):
         body = self._body("nobody")
@@ -383,10 +389,9 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         db.session.delete(unit_grant)
         db.session.commit()
         invalidate(user.user_id)
-        # Demo practice stays under demo_coding, never in roles.
-        self.assertEqual(body["demo_coding"], {"available": True, "project_ids": [DM]})
-        self.assertIn("reviewer", role_flags(user))
-        self.assertEqual(sorted(role_flags(user, virtual=False)), [])
+        # No demo practice without a demo-project grant (owner 2026-11-23).
+        self.assertEqual(body["demo_coding"], {"available": False, "project_ids": []})
+        self.assertEqual(sorted(role_flags(user)), [])
 
     def test_the_implied_interviewer_grant_says_it_is_self_coding(self):
         db.session.get(VaProjectMaster, TB).web_intake_mode = "both"

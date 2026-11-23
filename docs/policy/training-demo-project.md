@@ -3,7 +3,7 @@ title: Training and Demo Project (TRN01)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-17
+last_updated: 2026-11-23
 ---
 
 # Training and demo project (TRN01)
@@ -45,9 +45,8 @@ Sessions without a type (S001, S002) keep everything below unchanged.
   existing one; migration `c8e4a2f6b1d3` sets it on a TRN01 row that exists
   when it runs. See docs/policy/coding-workflow-state-machine.md ("Recode
   Window").
-- It is not a `demo_training_enabled` project and is never reset: the demo
-  virtual coder/reviewer grants do not apply to it, and nothing deletes its
-  data. Training is on by default: `DIGITVA_TRAINING_PROJECT_ID` defaults to
+- It is not a `demo_training_enabled` project and is never reset: nothing
+  deletes its data. Training is on by default: `DIGITVA_TRAINING_PROJECT_ID` defaults to
   `TRN01` (owner 2026-10-22); an empty value turns it off. Setup requires the
   value `TRN01`.
 

@@ -478,21 +478,9 @@ def _resolve(user_id: uuid.UUID) -> ResolvedGrants:
     is_admin, grants, public_demo = _load_grants(user_id)
     projects = _load_projects({g.project_id for g in grants})
     implied, is_mentor_member = _implied_interviewer_grants(user_id, grants, projects)
-    # Demo coding and reviewing only for people who code or review somewhere
-    # (owner 2026-10-03): an interviewer, ASHA or viewer never sees coding.
     grants.extend(implied)
-    # A public-demo account never gets the demo-training grants: they would
-    # widen it past its own project (docs/policy/public-demo.md section 3).
-    demo_eligible = not public_demo and (
-        is_admin or any(g.role in DEMO_VIRTUAL_ROLES for g in grants)
-    )
-    for settings in projects.values():
-        if not settings.demo_training or not demo_eligible:
-            continue
-        grants.extend(
-            Grant(role=role, scope_type=_P, project_id=settings.project_id, virtual=True)
-            for role in sorted(DEMO_VIRTUAL_ROLES, key=lambda r: r.value)
-        )
+    # demo_training_enabled grants no access: demo projects open only through
+    # explicit grants (owner 2026-11-23, docs/policy/demo-coding-retention.md).
     return ResolvedGrants(
         user_id=user_id,
         is_admin=is_admin,

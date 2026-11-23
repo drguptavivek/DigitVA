@@ -201,6 +201,18 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
             scope_type=VaAccessScopeTypes.project, project_id=cls.DEMO_PROJECT_ID,
             grant_status=VaStatuses.active,
         ))
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.demo_plain_user.user_id, role=VaAccessRoles.reviewer,
+            scope_type=VaAccessScopeTypes.project, project_id=cls.DEMO_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
+        # The demo flag grants no access (owner 2026-11-23): the base coder
+        # needs an explicit grant on the training project too.
+        db.session.add(VaUserAccessGrants(
+            user_id=cls.base_coder_user.user_id, role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project, project_id=cls.DEMO_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
         cls.demo_no_role_user = VaUsers(
             name="field worker",
             email="demo.fieldworker@test.local",
@@ -259,7 +271,7 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
         )
         db.session.commit()
 
-    def test_coder_can_start_demo_project_without_specific_project_grant(self):
+    def test_coder_with_a_demo_project_grant_can_start_demo_project(self):
         self._login(self.base_coder_id)
 
         response = self.client.post(f"/coding/start?project_id={self.DEMO_PROJECT_ID}", headers=self._csrf_headers())
@@ -267,7 +279,7 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self._active_allocation_sid(), self.DEMO_SID)
 
-    def test_a_user_who_codes_nowhere_cannot_reach_the_demo_project(self):
+    def test_a_user_without_a_demo_grant_cannot_reach_the_demo_project(self):
         no_role = db.session.get(VaUsers, self.demo_no_role_user.user_id)
         self.assertFalse(can(no_role, Action.CODE, self.DEMO_SID))
         self.assertFalse(can(no_role, Action.REVIEW, self.DEMO_SID))
@@ -275,7 +287,7 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
         response = self.client.post(f"/coding/start?project_id={self.DEMO_PROJECT_ID}", headers=self._csrf_headers())
         self.assertNotEqual(response.status_code, 200)
 
-    def test_plain_user_can_start_demo_project_without_any_grant(self):
+    def test_trainee_with_a_demo_grant_can_start_demo_project(self):
         self._login(self.demo_plain_user_id)
 
         response = self.client.post(f"/coding/start?project_id={self.DEMO_PROJECT_ID}", headers=self._csrf_headers())
@@ -414,7 +426,7 @@ class TestDemoTrainingProjectRoute(BaseTestCase):
 
         self.assertEqual(self._workflow_state(self.DEMO_SID), "reviewer_eligible")
 
-    def test_plain_user_can_start_reviewing_demo_case_without_grant(self):
+    def test_trainee_with_a_reviewer_grant_can_start_reviewing_demo_case(self):
         self._demo_final_save()
         plain_user = db.session.get(VaUsers, self.demo_plain_user.user_id)
         self.assertTrue(can(plain_user, Action.REVIEW, self.DEMO_SID))

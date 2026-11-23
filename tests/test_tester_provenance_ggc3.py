@@ -218,9 +218,14 @@ class TesterProvenanceTests(BaseTestCase):
         self.assertTrue(codes_as_tester(self.tester, sid))
         project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
         project.demo_training_enabled = True
+        # An explicit coder grant on the demo project: demo, not tester.
+        db.session.add(VaUserAccessGrants(
+            user_id=self.tester.user_id, role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project, project_id=self.BASE_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
         db.session.commit()
         invalidate(self.tester.user_id)
-        # The demo-training virtual grant reaches it: demo, not tester.
         self.assertFalse(codes_as_tester(self.tester, sid))
 
     # -- tester finalize -----------------------------------------------------

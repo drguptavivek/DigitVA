@@ -500,7 +500,6 @@ class VaUsers(UserMixin, db.Model):
             VaAccessScopeTypes,
             VaStatuses,
         )
-        from app.services.demo_project_service import get_coder_demo_project_form_ids
         from app.services.org_grant_service import (
             active_project_condition,
             scope_unit_ids_select,
@@ -582,21 +581,11 @@ class VaUsers(UserMixin, db.Model):
             )
         )
         # A tester waives coding gates, never scope: both resolve only forms
-        # on an active (project, site) pair. Demo forms are added below.
+        # on an active (project, site) pair..
         if role in ("coder", "coding_tester"):
             stmt = stmt.where(active_project_site_exists)
         granted_form_ids = set(db.session.scalars(stmt).all())
-        if role in ("coder", "coding_tester", "reviewer") and self._demo_eligible():
-            return granted_form_ids | get_coder_demo_project_form_ids()
         return granted_form_ids
-
-    def _demo_eligible(self) -> bool:
-        """Whether demo projects are open to this user: authz adds the demo
-        grants only for admins and people who code or review somewhere
-        (owner 2026-10-03), so the answer is whether any were added."""
-        from app.services.authz import resolve_grants
-
-        return any(g.virtual for g in resolve_grants(self).grants)
 
     # -- grant resolvers behind the getters above ----------------------------
 

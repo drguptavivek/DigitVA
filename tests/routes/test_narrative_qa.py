@@ -407,10 +407,17 @@ class TestNarrativeQaRoute(BaseTestCase):
         self.assertEqual(self._nqa_count(coder.user_id), 1)
 
     def test_coder_demo_save_on_a_demo_submission_passes_the_scope_check(self):
-        # Coding on a demo-training project comes from the virtual demo grant.
+        # Demo coding needs an explicit grant on the demo project (owner 2026-11-23).
         coder = self._coder(in_scope=False)
         project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
         project.demo_training_enabled = True
+        db.session.add(VaUserAccessGrants(
+            user_id=coder.user_id,
+            role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project,
+            project_id=self.BASE_PROJECT_ID,
+            grant_status=VaStatuses.active,
+        ))
         db.session.commit()
         self._login(str(coder.user_id))
 

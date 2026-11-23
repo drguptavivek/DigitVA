@@ -1495,9 +1495,8 @@ def mark_reviewer_eligible_after_recode_window_submissions(
 def start_demo_allocation(user, project_id: str | None = None) -> AllocationResult:
     """Start a demo coding session, releasing any existing allocation first.
 
-    Accessible to admins, coding_testers, and data_managers in addition to
-    regular coders.  All three role types automatically include demo project
-    forms via get_coder_demo_project_form_ids() in _get_granted_va_forms.
+    Accessible to coders, coding_testers and data_managers. Demo project forms
+    come only from explicit grants on the demo project (owner 2026-11-23).
 
     Raises AllocationError if no forms are available.
     """

@@ -44,14 +44,14 @@ class ResolveGrantsTests(AuthzFixtureMixin, BaseTestCase):
             {(R.coder, TA), (R.collaborator, "AZSP01")},
         )
 
-    def test_closed_project_grants_are_absent_and_demo_is_virtual(self):
-        # A coder grant on a closed project counts for nothing, including the
-        # demo eligibility (owner 2026-10-03: demo only for active coders).
+    def test_closed_project_grants_are_absent_and_demo_grants_nothing(self):
+        # A coder grant on a closed project counts for nothing, and a demo
+        # project adds no virtual grants (owner 2026-11-23).
         self.assertEqual(resolve_grants(self.users["closed_coder"]).grants, ())
         resolved = resolve_grants(self.users["coder_sp1"])
-        virtual = {g.role for g in resolved.grants if g.virtual}
-        self.assertEqual(virtual, {R.coder, R.coding_tester, R.reviewer})
-        self.assertTrue(all(g.project_id == DM for g in resolved.grants if g.virtual))
+        self.assertTrue(resolved.grants)
+        self.assertFalse([g for g in resolved.grants if g.virtual])
+        self.assertFalse([g for g in resolved.grants if g.project_id == DM])
 
     def test_admin_is_the_global_grant(self):
         self.assertTrue(resolve_grants(self.users["admin"]).is_admin)
@@ -74,10 +74,9 @@ class ResolveGrantsTests(AuthzFixtureMixin, BaseTestCase):
 class EffectiveRolesTests(AuthzFixtureMixin, BaseTestCase):
 
     def test_roles(self):
-        demo = {"coder", "coding_tester", "reviewer"}
         cases = {
-            # demo roles only for admin and people who code or review somewhere
-            "admin": {"admin"} | demo,
+            # a demo-training project adds no roles (owner 2026-11-23)
+            "admin": {"admin"},
             "nobody": set(),
             "dm_c1": {"data_manager"},
             "pi_ta": {"project_pi", "data_manager", "interview_supervisor"},
@@ -87,7 +86,7 @@ class EffectiveRolesTests(AuthzFixtureMixin, BaseTestCase):
             "collab_c1": {"collaborator", "collaborator_pii"},
             "supervisor_c1": {"interview_supervisor"},
             "closed_coder": set(),
-            "reviewer_sp1": {"reviewer"} | demo,
+            "reviewer_sp1": {"reviewer"},
         }
         for key, expected in cases.items():
             with self.subTest(user=key):

@@ -3,7 +3,7 @@ title: Workflow And Permissions
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-23
 ---
 
 # Workflow And Permissions
@@ -31,11 +31,9 @@ Current demo/training access rule:
 
 - a project may be marked as a training pool using
   `va_project_master.demo_training_enabled`
-- active forms in those projects are treated as coder-accessible without any
-  project-specific coder grant
-- in practice, any active authenticated user can enter the coder flow for
-  those demo/training project forms
-- non-demo projects still require ordinary coder grants
+- the flag grants no access (owner 2026-11-23): only users with an explicit
+  grant on the demo/training project reach its forms, at that grant's scope,
+  as on any project; the flag drives demo retention and KPI exclusion only
 - the coder dashboard now exposes a dedicated `DEMO-CODING` shortcut when at
   least one demo/training project is available to the current user
 - that shortcut preselects the first demo/training project on the page and
@@ -118,8 +116,7 @@ Current coding tester output rule (`digitva-ggc3`, security review 10 #12):
 
 - a save is tester output when it is not a demo save (no `demo_expires_at`)
   and `authz.codes_as_tester(user, va_sid)` holds: a real `coding_tester`
-  grant reaches the submission and neither a real `coder` grant nor a
-  demo-training virtual grant does. A user holding both codes as a coder; an
+  grant reaches the submission and no real `coder` grant does. A user holding both codes as a coder; an
   admin with no grant is never a tester
 - the tester's final COD or not-codeable report is stored deactive with
   `is_tester`; their Step 1, NQA and social autopsy rows are deactivated, the

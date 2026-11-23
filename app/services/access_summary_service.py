@@ -38,7 +38,7 @@ from app.models import (
 )
 from app.services import training_demo_service
 from app.services.authz import action_reach, resolve_grants, role_flags
-from app.services.authz.actions import ADMIN_BYPASS
+from app.services.authz.actions import ADMIN_BYPASS, DEMO_VIRTUAL_ROLES
 from app.services.authz.consulted import mark_consulted
 from app.services.cod_entry_mode import project_mode
 from app.services.viewer_pii_service import sees_pii_in_any_project
@@ -155,7 +155,12 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
     projects = [entry for project_id, entry in built.items() if project_id != training_pid]
     real_grants = dataclasses.replace(
         resolved, grants=tuple(g for g in resolved.grants if g.project_id != training_pid))
-    demo_projects = sorted({g.project_id for g in resolved.grants if g.virtual})
+    # Demo practice: explicit coding grants on a demo_training_enabled project
+    # (owner 2026-11-23, docs/policy/demo-coding-retention.md "Access").
+    demo_projects = sorted({
+        g.project_id for g in resolved.of(DEMO_VIRTUAL_ROLES)
+        if g.opens_gate and (p := resolved.projects.get(g.project_id)) and p.demo_training
+    })
     return {
         "user": {
             "user_id": str(user.user_id),

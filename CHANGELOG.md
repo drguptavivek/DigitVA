@@ -3,6 +3,13 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-23
+
+- Demo/training projects open only through explicit grants: the flag no
+  longer gives admins and coders/reviewers elsewhere automatic access; it
+  still drives demo retention and KPI exclusion
+  (docs/policy/demo-coding-retention.md "Access", `digitva-sssq`).
+
 ## 2026-11-21
 
 - Collect 0.3.28 coding screen: tablet rail with the phone panel's rows

@@ -1072,10 +1072,10 @@ class TestCodingAllocationService(BaseTestCase):
 
     def test_start_recode_allocation_returns_demo_reset_message_for_ready_demo_form(self):
         recode_user = self._make_user("demo.reset.recode@test.local", "DemoReset123")
-        # Demo is for people who code somewhere (owner 2026-10-03).
+        # Demo access needs an explicit grant (owner 2026-11-23).
         db.session.add(VaUserAccessGrants(
             user_id=recode_user.user_id, role=VaAccessRoles.coder,
-            scope_type=VaAccessScopeTypes.project, project_id=self.BASE_PROJECT_ID,
+            scope_type=VaAccessScopeTypes.project, project_id="DMR015",
             grant_status=VaStatuses.active,
         ))
         demo_project = VaProjectMaster(

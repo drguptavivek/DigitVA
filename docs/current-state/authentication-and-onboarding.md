@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-19
+last_updated: 2026-11-23
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -320,7 +320,6 @@ answer 404 and a username never resolves at sign-in.
   (`authz.grant_cache._guard_public_demo_grants`) raises
   `PublicDemoGrantRefused` for any new, reactivated or reshaped active grant
   of a demo account other than those three; routes answer 403 `forbidden`.
-  Demo accounts get no demo-training virtual grants (`authz.grants._resolve`).
   Every submission predicate (`scope_filter`, `lens_filter`, `reaches`,
   `codes_as_tester`, so `can` too) is ANDed with the account's own submitted
   drafts (`ix_va_web_intake_drafts_user_submitted`); `get_death` and the

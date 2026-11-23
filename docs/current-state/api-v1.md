@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-20
+last_updated: 2026-11-23
 ---
 
 # API v1 Reference
@@ -1476,8 +1476,8 @@ The signed-in user's whole access in one body. Rate limit 120 per minute; `Cache
 Policy: `docs/policy/api-v1.md`, "Access summary". Every value is the output of
 the predicate the server enforces. `grants[]` lists every resolved grant with
 `active`; every other list (`roles`, `sites[].roles`, `units[].roles`,
-`actions`) counts active grants only. Explicit grants only: demo-training
-virtual grants are never listed.
+`actions`) counts active grants only. Explicit grants only (demo-training
+projects open only through explicit grants, owner 2026-11-23).
 
 ```json
 {
@@ -1549,8 +1549,7 @@ site or unit.
 - `roles`: the roles whose screen gates the user opens, sorted:
   `role_flags(user, virtual=False)`, so derived roles are included (an
   In-charge, `site_pi` at a unit, and a `project_pi` on a tree project also
-  hold `data_manager` and `interview_supervisor`; `admin` for an admin) and
-  demo-training virtual grants are not. A grant whose gate is shut (below) is
+  hold `data_manager` and `interview_supervisor`; `admin` for an admin). A grant whose gate is shut (below) is
   not counted. `collaborator` and `collaborator_pii` open the same screens, so
   either lists both; whether personal details show is `account.pii_visible`.
 - `admin_actions`: for an admin, the actions the bypass reaches on any
@@ -1570,8 +1569,9 @@ site or unit.
   - `mentor`: `member` of an active mentoring institute
     (`mentor_institute_service.member_user_ids`) and `admin_of`, the active
     institutes the user administers (`administered_institutes`).
-- `demo_coding`: where demo coding practice is open to the user (same rule
-  as the virtual grants in `resolve_grants`); `available` is true when
+- `demo_coding`: the `demo_training_enabled` projects where the user holds an
+  explicit coder, coding_tester or reviewer grant whose gate is open (owner
+  2026-11-23: no automatic demo access); `available` is true when
   `project_ids` is not empty.
 - `projects[]`, sorted by `project_id`: only active projects with an active
   grant row. Closed projects and inactive project-sites and units never

@@ -165,17 +165,15 @@ class ViewAuthzStageTwoTests(CodingScopeFixtureMixin, BaseTestCase):
         db.session.commit()
         self.assertEqual(self._get(nobody, "/api/v1/workflow/events/csc-s2-phc-a"), 403)
 
-    def test_a_demo_trainee_without_a_grant_keeps_view(self):
-        # Demo coding sessions read attachments, events and notes through
-        # VIEW; the virtual demo grants must count for it (design 2.6).
+    def test_a_demo_flag_gives_no_view_without_an_explicit_grant(self):
+        # demo_training_enabled grants no access (owner 2026-11-23): VIEW on a
+        # demo project needs a real grant there.
         from app.models import VaProjectMaster
         from app.services.authz import Action, can
 
         from app.models import VaAccessRoles, VaAccessScopeTypes, VaStatuses, VaUserAccessGrants
 
         trainee = self._make_user("stage2.demo.trainee@test.local", "Stage2Test123")
-        # Demo is for people who code somewhere (owner 2026-10-03): a coder
-        # grant on another project, none here.
         db.session.add(VaUserAccessGrants(
             user_id=trainee.user_id, role=VaAccessRoles.coder,
             scope_type=VaAccessScopeTypes.project, project_id=self.BASE_PROJECT_ID,
@@ -184,5 +182,12 @@ class ViewAuthzStageTwoTests(CodingScopeFixtureMixin, BaseTestCase):
         db.session.commit()
         self.assertFalse(can(trainee, Action.VIEW, "csc-s2-phc-a"))
         db.session.get(VaProjectMaster, self.PROJECT).demo_training_enabled = True
+        db.session.commit()
+        self.assertFalse(can(trainee, Action.VIEW, "csc-s2-phc-a"))
+        db.session.add(VaUserAccessGrants(
+            user_id=trainee.user_id, role=VaAccessRoles.coder,
+            scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT,
+            grant_status=VaStatuses.active,
+        ))
         db.session.commit()
         self.assertTrue(can(trainee, Action.VIEW, "csc-s2-phc-a"))

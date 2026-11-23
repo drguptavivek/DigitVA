@@ -3,7 +3,7 @@ title: Public Demo
 doc_type: policy
 status: approved baseline
 owner: engineering
-last_updated: 2026-11-16
+last_updated: 2026-11-23
 ---
 
 # Public demo
@@ -76,9 +76,6 @@ rule in [web-intake.md](web-intake.md). Nothing else in those policies changes.
   code path writes it (admin pages, imports, CLI, seeds). This is enforced
   server-side, not in the UI. A demo account can never be made admin,
   PI, data manager or anything else, and holds no grant on any other project.
-- Such accounts are excluded from the `demo_training_enabled` virtual
-  coder/reviewer grants (`app/services/authz/grants.py`, `_resolve`), so those
-  grants cannot widen what a demo account can do.
 - **Isolation.** On the public demo project a user codes and reviews only
   submissions they submitted themselves. The restriction sits in the shared
   submission scope filter, so it covers viewing a case, its attachments,

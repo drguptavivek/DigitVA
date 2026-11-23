@@ -41,9 +41,9 @@ MATRIX = [
     ("admin", A.CODE, "ta-p1", NO_ROLE),             # D 2.2: admin codes demo only
     ("admin", A.REVIEW, "ta-p1", NO_ROLE),
     ("admin", A.SUPERVISE_INTAKE, "case:P1", NO_ROLE),  # D 9.9: no intake bypass
-    ("admin", A.CODE, "dm-1", True),                 # admins may use the demo project
+    ("admin", A.CODE, "dm-1", False),                # owner 2026-11-23: demo needs a grant
 
-    # -- no grant at all: only the demo-training project
+    # -- no grant at all
     ("nobody", A.VIEW, "ta-p1", NO_ROLE),
     ("nobody", A.TRIAGE, "sp-1", NO_ROLE),
     ("nobody", A.LIST_DATA, "sp-1", False),
@@ -58,11 +58,12 @@ MATRIX = [
     ("collab_c1", A.CODE, "dm-1", NO_ROLE),
     ("collab_c1", A.REVIEW, "dm-1", NO_ROLE),
     ("dm_sp", A.CODE, "dm-1", NO_ROLE),
-    ("coder_sp1", A.CODE, "dm-1", True),             # a coder anywhere practises on demo
-    ("coder_sp1", A.REVIEW, "dm-1", True),           # owner 2026-10-02: reviewing too
-    ("coder_sp1", A.VIEW, "dm-1", True),
-    ("reviewer_sp1", A.CODE, "dm-1", True),
-    ("tester_sp", A.REVIEW, "dm-1", True),
+    # owner 2026-11-23: a grant elsewhere no longer opens the demo project.
+    ("coder_sp1", A.CODE, "dm-1", False),
+    ("coder_sp1", A.REVIEW, "dm-1", False),
+    ("coder_sp1", A.VIEW, "dm-1", False),
+    ("reviewer_sp1", A.CODE, "dm-1", False),
+    ("tester_sp", A.REVIEW, "dm-1", False),
     ("nobody", A.SYNC_FORM, "form:dm1", NO_ROLE),
     ("nobody", A.LIST_UNROUTED, "proj:AZTA01", NO_ROLE),
 

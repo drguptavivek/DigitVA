@@ -366,18 +366,19 @@ class GrantGuardTests(PublicDemoBase):
 
 
 class VirtualGrantTests(PublicDemoBase):
-    def test_demo_training_grants_skip_public_demo_accounts(self):
+    def test_demo_training_flag_gives_no_account_virtual_grants(self):
         user = self._account("demo.virtual")
         # Any active demo-training project with an active form: this one will do.
         project = db.session.get(VaProjectMaster, PROJECT)
         project.demo_training_enabled = True
         db.session.commit()
 
-        def virtual_projects(account):
-            return {g.project_id for g in resolve_grants(account).grants if g.virtual}
+        def virtual_grants(account):
+            return [g for g in resolve_grants(account).grants if g.virtual]
 
-        self.assertIn(PROJECT, virtual_projects(self.base_coder_user))
-        self.assertNotIn(PROJECT, virtual_projects(user))
+        self.assertTrue(resolve_grants(self.base_coder_user).grants)
+        self.assertEqual(virtual_grants(self.base_coder_user), [])
+        self.assertEqual(virtual_grants(user), [])
 
 
 class IsolationTests(PublicDemoBase):

@@ -3,7 +3,7 @@ title: Demo Coding Retention Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-09-27
+last_updated: 2026-11-23
 ---
 
 # Demo Coding Retention Policy
@@ -93,6 +93,18 @@ Current intended baseline:
 - the retention timer starts from the persisted demo coding artifact timestamps
 - cleanup may run asynchronously; the system does not need to delete records at
   the exact second the 6-hour mark is crossed
+
+## Access (owner 2026-11-23)
+
+- `demo_training_enabled` grants no access. Only users with an explicit grant
+  on the demo/training project (coder, coding tester, reviewer, or any other
+  role) see or code its cases, at that grant's scope, as on any project.
+- The automatic coder/reviewer grants that every admin and every coder or
+  reviewer elsewhere received on each demo/training project (owner 2026-10-03)
+  are withdrawn: the TRN01 training workflow
+  (docs/policy/training-demo-project.md) now covers practice.
+- The flag still drives demo retention (this document) and KPI exclusion
+  (docs/policy/kpis.md).
 
 ## Dashboard Entry
 

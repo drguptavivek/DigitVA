@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-23
 ---
 
 # Device Collection API (Path B server side)
@@ -107,8 +107,7 @@ values). The device secret is compared with `hmac.compare_digest`.
   the worker needs access in at least one project (`has_device_access`:
   `interviewer_context` non-empty, so a project whose `web_intake_mode` is
   off does not count there, or an explicit coder, coding_tester or reviewer
-  grant whose gate is open; demo-training virtual grants never count; owner
-  2026-10-05). Routes still check their own role. Losing the last one ends
+  grant whose gate is open; owner 2026-10-05). Routes still check their own role. Losing the last one ends
   the session at the next refresh (`session_revoked`), within the 15-minute
   access lifetime. The enrolment project (`AuthDevice.project_id`) is not
   required: it is the device's admin home (listed, revoked and closed

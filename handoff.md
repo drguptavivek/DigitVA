@@ -2,12 +2,17 @@
 
 ## Start here
 
-Staging runs `2549743` (deployed 2026-11-21 on the owner's go; web
-`expo-web-v2026.11.21.1`; no migration; rollback:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh c6227827882be8e02bce6722845c795864ef5ecb`).
-Collect 0.3.28 APK, Collect Plus APK and Play AAB were built on CI from
-`e76af17`; device-check them before any publish or Play upload (owner's
-command). 0.3.27 builds are stale: do not publish.
+Staging runs `1dc8322` (deployed 2026-11-23 on the owner's go; web
+`expo-web-v2026.11.23.1`; no migration; rollback:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 2549743b06d2ed2b44ac0e8e2afbf524708bc923`).
+Collect 0.3.29 APK, Collect Plus APK and Play AAB were built on CI from
+`30b1578`; device-check them before any publish or Play upload (owner's
+command). 0.3.28 and older builds are stale: do not publish.
+
+In progress in other sessions, uncommitted, not landed: interview supervisor
+corrections (`.tasks/2026-11-23-supervisor-corrections.md`, policy docs,
+mobile web screens, migration `a7d3e9c5b2f1`) and the spaghetti code audit.
+Leave their files alone.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect
@@ -18,9 +23,14 @@ and maps stay in the browser).
 
 ## Ranked next steps
 
-- Build 0.3.28 from `main` on CI and device-check: re-enrol from Sign in
-  again (`digitva-dbcw`), tablet rail, DORIS dates and year menu, COD form
-  PDF, coded-case Copy details. Flaky under `-n 4`: `digitva-9czl`.
+- Device-check 0.3.29: re-enrol from Sign in again (`digitva-dbcw`), DORIS
+  interview/report death dates, case summary, Reset DORIS dialog, COD form
+  PDF on staging. Flaky under `-n 4`: `digitva-9czl`, `digitva-wd09`.
+- Bulk invitations: owner gets the mail host's SMTP limits and relay logs
+  for 21 and 23 Nov, then tune pace and backoff (`digitva-povs`). Pacing is
+  per import only. 86 staging users whose 21 Nov invitations failed still
+  need a resend from Users if the owner wants it; find unsent ones by
+  grepping celery_tasks.log / errors.log for "gave up".
 0. Consent withdrawal landed (`digitva-4gu7`); erasure of a withdrawn case
    is not built (owner to decide). Migrations since staging:
    `e3b7c9d1f5a2`, `f4c2a8e6b1d9`. Follow-ups: phone SA panel
@@ -79,8 +89,9 @@ and maps stay in the browser).
   database; rebuildable cache was cleared and `.dockerignore` now drops local
   APK build folders. Rebuilding `doris_public_service` (`--profile icd11`)
   still costs several GB; run `docker builder prune -f` after.
-- Full-suite noise under `-n 4`: `digitva-6igh`, and the export streaming
-  tests (`digitva-jaea`) that pass serially.
+- Full-suite noise under `-n 4`: `digitva-6igh`, contact form
+  (`digitva-wd09`). The export streaming failures were a leaked
+  `DB_BACKUP_TMP_DIR`, fixed in `f34093911`.
 - Untracked on purpose: the orientation deck files under `docs/manuscript/`,
   `.claude/launch.json`, the Play screenshots.
 - Dev DB: DEMO01 has narration languages enabled (english, hindi).

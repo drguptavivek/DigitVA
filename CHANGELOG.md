@@ -18,7 +18,12 @@ What landed, newest first. Details live in the commits and the linked docs;
   `digitva-koe3`, `digitva-hbvz`); Set PIN clears both rows on a mismatch
   (`digitva-eqy8`); Coding languages clears the status bar.
 - COD form PDF checked on the dev emulator: `COD-form-<case id>.pdf`, Coded
-  by shown. Staging is still `2549743`; these need the next build and deploy.
+  by shown.
+- Deployed `1dc8322` to staging (web `expo-web-v2026.11.23.1`), carrying the
+  Collect fixes above and the bulk invitation pacing; Collect 0.3.29 APK,
+  Plus and Play AAB built on CI from `30b1578`.
+- Test isolation: the S3 checksum test restores `DB_BACKUP_TMP_DIR`, which
+  had broken the export streaming tests under `-n 4` (`f34093911`).
 - Bulk invitation email: project-user imports queue invitations 2 s apart
   (`INVITE_PACE_SECONDS`); `email.send` retries transient SMTP failures up
   to 6 times with capped (10 min) jittered backoff and logs one masked line

@@ -55,7 +55,7 @@ from flask_login import current_user
 from app import cache, db, limiter
 from app.decorators import role_required
 from app.models import VaProjectMaster
-from app.services import project_clock
+from app.services import dm_dashboard_cache, project_clock
 from app.services.authz import grant_cache
 from app.services.data_management_service import dm_grant_scope
 from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
@@ -475,7 +475,7 @@ def _cache_key(suffix: str) -> str | None:
     qs = request.query_string.decode()
     return (
         f"dm_kpi:{current_user.user_id}:{dm_scope().digest()}"
-        f":{version}:{suffix}:{qs}"
+        f":{version}:{dm_dashboard_cache.generation()}:{suffix}:{qs}"
     )
 
 

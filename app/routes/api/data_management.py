@@ -63,6 +63,7 @@ from app.services.data_management_service import (
 )
 from app.services import collection_hold, smartva_service, training_scope
 from app.services.authz import Action, AuthzError, can, require, scope_filter
+from app.services import dm_dashboard_cache
 from app.services.authz import grant_cache
 from app.services.authz.grants import resolve_grants
 from app.services.viewer_pii_service import pii_scope
@@ -120,7 +121,10 @@ def _scope_cache_key() -> str | None:
 def _cache_key(suffix: str, scope: str) -> str:
     qs = request.query_string.decode()
     # Date filters are the user's local days, so the timezone is part of the key.
-    return f"dm_analytics:{current_user.user_id}:{scope}:{va_user_timezone_name(current_user)}:{suffix}:{qs}"
+    return (
+        f"dm_analytics:{current_user.user_id}:{scope}:{dm_dashboard_cache.generation()}"
+        f":{va_user_timezone_name(current_user)}:{suffix}:{qs}"
+    )
 
 
 def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
@@ -145,10 +149,7 @@ def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
 def _refresh_dm_dashboard_analytics() -> None:
     """Refresh dashboard analytics after workflow-mutating DM actions."""
     refresh_submission_analytics_mv(concurrently=False)
-    try:
-        cache.clear()
-    except Exception as exc:
-        log.warning("Data-manager cache clear failed after analytics refresh: %s", exc, exc_info=True)
+    dm_dashboard_cache.bump()
 
 
 # SmartVA reads these files directly; a BOM would corrupt its first header.
@@ -884,10 +885,7 @@ def collection_hold_decide(va_sid: str, action: str):
     except LookupError as exc:
         db.session.rollback()
         return api_error(str(exc), status_code=409)
-    try:
-        cache.clear()
-    except Exception as exc:  # noqa: BLE001 - a stale cached count is not a failed action
-        log.warning("Cache clear failed after collection hold %s: %s", action, exc)
+    dm_dashboard_cache.bump()
     return jsonify({"va_sid": va_sid, "collection_hold": "released" if action == "release" else "rejected"})
 
 

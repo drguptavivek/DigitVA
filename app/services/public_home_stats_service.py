@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from flask import current_app
 
 from app import cache, db
+from app.services import dm_dashboard_cache
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition, not_confirmed_duplicate_sql
 from app.services.submission_analytics_mv import CORE_MV_NAME, DEMOGRAPHICS_MV_NAME
 
@@ -131,7 +132,7 @@ def public_home_stats() -> dict | None:
     projects = included_projects()
     if not projects:
         return None
-    key = "public-home-stats:v2:" + ",".join(projects)
+    key = f"public-home-stats:v2:{dm_dashboard_cache.generation()}:" + ",".join(projects)
     stats = cache.get(key)
     if stats is None:
         stats = _compute(projects) or {}

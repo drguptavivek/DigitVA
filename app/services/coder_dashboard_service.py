@@ -22,7 +22,7 @@ from app.models import (
     VaSubmissionWorkflow,
     VaSubmissions,
 )
-from app.services import training_scope
+from app.services import dm_dashboard_cache, training_scope
 from app.services.demo_project_service import get_coder_demo_project_form_ids
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
@@ -60,7 +60,7 @@ def _dashboard_scope_hash(form_ids: Sequence[str]) -> str:
 
 def _dashboard_cache_key(user_id, suffix: str, form_ids: Sequence[str]) -> str:
     return (
-        f"{CODER_DASHBOARD_CACHE_PREFIX}{user_id}:{suffix}:"
+        f"{CODER_DASHBOARD_CACHE_PREFIX}{user_id}:{dm_dashboard_cache.generation()}:{suffix}:"
         f"{_dashboard_scope_hash(form_ids)}"
     )
 
@@ -84,7 +84,10 @@ def _cached_dashboard_value(user_id, suffix: str, form_ids: Sequence[str], compu
 
 def _cached_dashboard_project_value(user_id, suffix: str, project_id: str | None, compute_fn):
     scope = training_scope.current() or ""
-    cache_key = f"{CODER_DASHBOARD_CACHE_PREFIX}{user_id}:{suffix}:{project_id or 'ALL'}:{scope}"
+    cache_key = (
+        f"{CODER_DASHBOARD_CACHE_PREFIX}{user_id}:{dm_dashboard_cache.generation()}"
+        f":{suffix}:{project_id or 'ALL'}:{scope}"
+    )
     try:
         cached_value = cache.get(cache_key)
     except Exception:

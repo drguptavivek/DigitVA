@@ -25,6 +25,7 @@ from app import db, limiter, cache
 from app.decorators import role_required
 from app.routes.api.request_helpers import clamped_int_arg
 from app.routes.api.request_helpers import error as api_error
+from app.services import dm_dashboard_cache
 from app.services.data_management_service import dm_grant_scope
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
@@ -110,13 +111,26 @@ def _dm_scope_filter(*, include_retired: bool = False):
     )
 
 
-def _cache_key(suffix: str) -> str:
+def _cache_key(suffix: str) -> str | None:
+    """Per user, grant fingerprint (with the authz global version) and
+    dashboard generation, so an access change or a data-manager action shows
+    on the next request. None when the access projection cannot be versioned."""
+    from app.routes.api.data_management import _scope_cache_key
+
+    scope = _scope_cache_key()
+    if scope is None:
+        return None
     qs = request.query_string.decode()
-    return f"analytics:{current_user.user_id}:{suffix}:{qs}"
+    return (
+        f"analytics:{current_user.user_id}:{scope}:{dm_dashboard_cache.generation()}"
+        f":{suffix}:{qs}"
+    )
 
 
 def _cached(key: str, compute_fn, timeout: int = _CACHE_TTL):
     full_key = _cache_key(key)
+    if full_key is None:
+        return compute_fn()
     try:
         data = cache.get(full_key)
     except Exception:

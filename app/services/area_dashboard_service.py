@@ -57,7 +57,7 @@ from app.models import (
     VaUsers,
     VaWebIntakeDraft,
 )
-from app.services import authz, org_grant_service, project_clock, training_scope
+from app.services import authz, dm_dashboard_cache, org_grant_service, project_clock, training_scope
 from app.services.authz.consulted import mark_consulted
 from app.services.case_list_service import (
     CASE_SUBMISSION,
@@ -1181,7 +1181,7 @@ def area_summary(
     Raises AreaNotFound for a project, unit or site outside the user's area.
     """
     mark_consulted()
-    cache_key = f"{AREA_SUMMARY_CACHE_PREFIX}{user.user_id}:{project_id}:{unit_id}:{site_id}:{period}"
+    cache_key = f"{AREA_SUMMARY_CACHE_PREFIX}{user.user_id}:{dm_dashboard_cache.generation()}:{project_id}:{unit_id}:{site_id}:{period}"
     try:
         cached = cache.get(cache_key)
     except Exception:
@@ -1318,6 +1318,12 @@ def summary_csv(summary: dict) -> str:
 
 HOME_KPI_CACHE_PREFIX = "home_kpis:"
 AREA_SUMMARY_CACHE_PREFIX = "area_summary:"
+
+
+def home_kpi_cache_key(user_id) -> str:
+    """The Home KPI cache key; carries the data-manager dashboard generation so
+    a data-manager action refreshes it at once (digitva-r8nh.4)."""
+    return f"{HOME_KPI_CACHE_PREFIX}{user_id}:{dm_dashboard_cache.generation()}"
 #: Seconds a user's home strip may trail the live counts.
 HOME_KPI_CACHE_TTL = 60
 
@@ -1430,7 +1436,7 @@ def home_kpis(user) -> list[dict]:
     docs/policy/area-dashboard.md.
     """
     mark_consulted()
-    cache_key = f"{HOME_KPI_CACHE_PREFIX}{user.user_id}"
+    cache_key = home_kpi_cache_key(user.user_id)
     try:
         cached = cache.get(cache_key)
     except Exception:

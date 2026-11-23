@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-20
+last_updated: 2026-11-23
 ---
 
 # Data Manager Dashboard
@@ -389,6 +389,20 @@ the buffered query gave), each row's finished cells
 and filtered payload pickled into a second scratch file, then replayed once the
 payload column union and the org-unit labels are known. Memory is flat in the
 row count; the `dm_*_export_csv` string functions are thin wrappers for tests.
+
+### Dashboard response caches
+
+`analytics._cached`, `data_management._cached` and `dm_kpi_scope.cached_kpi`
+cache for five minutes per user. Keys carry the user, the grant fingerprint
+or digest with the authz global version, and the dashboard generation
+(`app/services/dm_dashboard_cache.py`, one Redis key). A DM action that changes
+dashboard figures (`_refresh_dm_dashboard_analytics`, the collection-hold
+decision) calls `dm_dashboard_cache.bump()`: one write, no key scan, nothing
+else in the cache is cleared. The coder dashboard, area summary
+(`area_summary:`), Home KPI (`home_kpi_cache_key`) and public home figures
+(`public-home-stats:v2:`) keys carry it too; the public-demo dashboard
+(`public_demo:dashboard:v1`) does not and may lag one five-minute TTL. Policy:
+`docs/policy/data-manager-workflow.md`, "Dashboard caches".
 
 ### The export cache
 

@@ -634,7 +634,7 @@ class HomeCountsTests(TrainingScopeBase):
 
     def test_kpis_leave_training_out_and_the_cache_does_not_leak(self):
         self._two_deaths()
-        cache_keys = [f"{area_dashboard_service.HOME_KPI_CACHE_PREFIX}{self.trainee.user_id}"]
+        cache_keys = [area_dashboard_service.home_kpi_cache_key(self.trainee.user_id)]
         from app import cache
         for _ in range(2):  # the second read is served from the cache
             projects = self.get("/api/v1/me/kpis").get_json()["projects"]

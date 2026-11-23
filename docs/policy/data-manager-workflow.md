@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-10
+last_updated: 2026-11-23
 ---
 
 # Data Manager Workflow Policy
@@ -145,6 +145,23 @@ Export policy:
   (`map_identifier_audit`, `export_with_identifiers`). No other direct
   identifier is added, and the stored data management CSV exports (which are
   cached in the export store) never carry registration numbers.
+- **Dashboard caches** (owner decision 2026-11-23, digitva-r8nh.4). The
+  data-manager dashboard responses (`/analytics/*`, `/data-management/kpi`,
+  the `dm-kpi` family) are cached for five minutes, per user:
+  - a user's access change shows on their next request: every cache key
+    carries the user's grant fingerprint and the authz global version, the
+    way the data-management and `dm-kpi` caches already did; the analytics
+    cache keyed on user and query only and kept the old scope for up to five
+    minutes;
+  - a data-manager action that changes dashboard figures (collection-hold
+    decision, accepting or rejecting an upstream change, cancelling a
+    revision request) invalidates the dashboard data only, by bumping one
+    dashboard generation that the dashboard keys carry (coder dashboard, area
+    summary, Home KPIs and public home figures included; the public-demo
+    dashboard keeps its own five-minute cache). It no longer clears the whole
+    cache, which also dropped unrelated entries (SmartVA run markers, captcha
+    and passkey challenges).
+    Anything that cannot be versioned (Redis down) is computed fresh.
 - exports may retain non-PII narrative text needed for operational review
 - SmartVA-specific exports must not include the full raw VA payload when a
   narrower SmartVA-specific shape is sufficient

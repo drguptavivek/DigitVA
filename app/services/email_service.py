@@ -332,7 +332,9 @@ def send_factor_reset_link_email(user, token: str) -> None:
     )
 
 
-def send_verification_email(user, token: str, *, actor_user_id=None, commit: bool = True) -> bool:
+def send_verification_email(
+    user, token: str, *, actor_user_id=None, commit: bool = True, countdown: int = 0
+) -> bool:
     """Queue an email-verification email via Celery. Returns False, sending
     nothing, when there is no address, delivery is off or the recipient is
     suppressed; callers must not report a send then.
@@ -341,7 +343,8 @@ def send_verification_email(user, token: str, *, actor_user_id=None, commit: boo
     address or token), committed before the email is queued so a send never
     goes unrecorded. Every caller sends after its own commit, and the public
     resend form commits nothing else; a batch caller passes ``commit=False``
-    and commits once after its loop.
+    and commits once after its loop. ``countdown`` (seconds) delays the send so
+    a bulk caller can pace invitations; 0 queues immediately.
     """
     verify_url = f"{_email_link_base_url()}/vaauth/verify-email/{token}"
 
@@ -357,12 +360,16 @@ def send_verification_email(user, token: str, *, actor_user_id=None, commit: boo
     )
     if commit:
         db.session.commit()
-    _dispatch_email.delay(
-        to=to,
-        subject="Verify Your DigitVA Email",
-        template_name="emails/verify_email",
-        context={"name": name, "verify_url": verify_url},
-    )
+    kwargs = {
+        "to": to,
+        "subject": "Verify Your DigitVA Email",
+        "template_name": "emails/verify_email",
+        "context": {"name": name, "verify_url": verify_url},
+    }
+    if countdown > 0:
+        _dispatch_email.apply_async(kwargs=kwargs, countdown=countdown)
+    else:
+        _dispatch_email.delay(**kwargs)
     return True
 
 
@@ -476,13 +483,13 @@ def _is_permanent_email_failure(exc: Exception) -> bool:
 
 try:
     from celery import shared_task
+    from celery.utils.time import get_exponential_backoff_interval
 
     @shared_task(
         name="email.send",
         time_limit=60,
         soft_time_limit=45,
-        max_retries=3,
-        default_retry_delay=30,
+        max_retries=6,
     )
     def _dispatch_email(
         to: str, subject: str, template_name: str, context: dict, reply_to: str | None = None
@@ -502,8 +509,28 @@ try:
                     exc,
                 )
                 return
-            log.exception("Email send failed for %s: %s", _masked_recipients(to), exc)
-            raise _dispatch_email.retry(exc=exc)
+            # One line per attempt: error class and errno/SMTP code only, so a
+            # relay outage is greppable without tracebacks or server text.
+            attempt = _dispatch_email.request.retries + 1
+            attempts = _dispatch_email.max_retries + 1
+            code = getattr(exc, "smtp_code", None) or getattr(exc, "errno", None)
+            error = f"{type(exc).__name__}({code})" if code else type(exc).__name__
+            if attempt >= attempts:
+                log.error(
+                    "Email send gave up for %s after %d attempts (%s): %s",
+                    _masked_recipients(to), attempt, subject, error,
+                )
+                raise exc
+            # Capped exponential backoff with full jitter: an SMTP outage
+            # must not burn every retry within seconds.
+            countdown = get_exponential_backoff_interval(
+                factor=30, retries=attempt - 1, maximum=600, full_jitter=True
+            )
+            log.warning(
+                "Email send failed for %s, attempt %d of %d, retry in %ds (%s): %s",
+                _masked_recipients(to), attempt, attempts, countdown, subject, error,
+            )
+            raise _dispatch_email.retry(exc=exc, countdown=countdown)
 
 except ImportError:
     # Celery not available (e.g. in tests) — fall back to sync

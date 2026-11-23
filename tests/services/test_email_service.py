@@ -111,6 +111,113 @@ class TestEmailService(BaseTestCase):
 
         retry_mock.assert_called_once()
 
+    def _refused_dispatch(self, retries):
+        """Run _dispatch_email against a refused SMTP connection; return the retry mock."""
+        from app.services.email_service import _dispatch_email
+
+        with self.app.app_context(), patch(
+            "app.services.email_service._actually_send_email",
+            side_effect=ConnectionRefusedError(111, "Connection refused"),
+        ), patch(
+            "app.services.email_service._is_suppressed_recipient", return_value=False
+        ), patch(
+            "app.services.email_service._dispatch_email.retry",
+            side_effect=RuntimeError("retry-called"),
+        ) as retry_mock, patch.object(
+            type(_dispatch_email.request),
+            "retries",
+            retries,
+            create=True,
+        ):
+            with self.assertRaises(RuntimeError):
+                _dispatch_email(
+                    to="user@example.com",
+                    subject="Verify",
+                    template_name="emails/verify_email",
+                    context={"name": "User", "verify_url": "https://example.test"},
+                )
+        return retry_mock
+
+    def test_connection_refused_retries_with_jittered_capped_backoff(self):
+        first = self._refused_dispatch(0).call_args.kwargs["countdown"]
+        late = self._refused_dispatch(5).call_args.kwargs["countdown"]
+        self.assertTrue(0 <= first <= 30)
+        self.assertTrue(0 <= late <= 600)
+
+    def test_each_failed_attempt_logs_one_masked_line(self):
+        with self.assertLogs("app.services.email_service", level="WARNING") as logs:
+            self._refused_dispatch(0)
+        line = "\n".join(logs.output)
+        self.assertIn("attempt 1 of 7", line)
+        self.assertIn("ConnectionRefusedError(111)", line)
+        self.assertIn("u***@example.com", line)
+        self.assertNotIn("user@example.com", line)
+        self.assertNotIn("Traceback", line)
+
+    def test_last_attempt_logs_give_up_and_does_not_retry(self):
+        from app.services.email_service import _dispatch_email
+
+        with self.app.app_context(), patch(
+            "app.services.email_service._actually_send_email",
+            side_effect=ConnectionRefusedError(111, "Connection refused"),
+        ), patch(
+            "app.services.email_service._is_suppressed_recipient", return_value=False
+        ), patch(
+            "app.services.email_service._dispatch_email.retry"
+        ) as retry_mock, patch.object(
+            type(_dispatch_email.request), "retries", 6, create=True
+        ), self.assertLogs("app.services.email_service", level="ERROR") as logs:
+            with self.assertRaises(ConnectionRefusedError):
+                _dispatch_email(
+                    to="user@example.com",
+                    subject="Verify",
+                    template_name="emails/verify_email",
+                    context={"name": "User", "verify_url": "https://example.test"},
+                )
+        retry_mock.assert_not_called()
+        self.assertIn("gave up for u***@example.com after 7 attempts", "\n".join(logs.output))
+
+    def test_dispatch_email_allows_six_retries(self):
+        from app.services.email_service import _dispatch_email
+
+        self.assertEqual(_dispatch_email.max_retries, 6)
+
+    def test_send_verification_email_paces_with_countdown(self):
+        user = SimpleNamespace(user_id=1, email="paced@example.com", name="Paced")
+        from app.services.email_service import send_verification_email
+
+        with self.app.app_context(), patch(
+            "app.services.email_service._dispatch_email.apply_async"
+        ) as apply_async, patch(
+            "app.services.email_service._dispatch_email.delay"
+        ) as delay, patch(
+            "app.services.email_service._is_suppressed_recipient", return_value=False
+        ), patch("app.services.security_event_service.record_security_event"):
+            self.assertTrue(send_verification_email(user, "t", commit=False, countdown=7))
+            apply_async.assert_called_once()
+            self.assertEqual(apply_async.call_args.kwargs["countdown"], 7)
+            self.assertEqual(apply_async.call_args.kwargs["kwargs"]["to"], "paced@example.com")
+            delay.assert_not_called()
+            apply_async.reset_mock()
+            self.assertTrue(send_verification_email(user, "t", commit=False))
+            apply_async.assert_not_called()
+            delay.assert_called_once()
+
+    def test_password_reset_email_is_not_paced(self):
+        user = SimpleNamespace(email="reset@example.com", name="Reset")
+        from app.services.email_service import send_password_reset_email
+
+        with self.app.app_context(), patch(
+            "app.services.email_service._dispatch_email.apply_async"
+        ) as apply_async, patch(
+            "app.services.email_service._dispatch_email.delay"
+        ) as delay, patch(
+            "app.services.email_service._is_suppressed_recipient", return_value=False
+        ):
+            send_password_reset_email(user, "tok")
+        delay.assert_called_once()
+        apply_async.assert_not_called()
+
     def test_send_verification_email_skips_suppressed_recipient(self):
         user = SimpleNamespace(email="suppressed@example.com", name="Suppressed User")
         with self.app.app_context(), patch(

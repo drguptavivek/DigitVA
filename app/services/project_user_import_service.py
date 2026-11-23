@@ -8,6 +8,7 @@ import secrets
 from types import SimpleNamespace
 
 import sqlalchemy as sa
+from flask import current_app
 
 from app import db
 from app.models import (
@@ -886,6 +887,9 @@ def finalize_apply(
                 "Resend from Users after configuring email."
             )
         else:
+            pace = current_app.config.get("INVITE_PACE_SECONDS", 2)
+            # ponytail: pacing is per import; concurrent imports or extra workers
+            # are not paced against each other - a shared Redis limiter if that matters.
             for user in invitations:
                 try:
                     if send_verification_email(
@@ -893,6 +897,7 @@ def finalize_apply(
                         generate_token(user.user_id, "email_verify"),
                         actor_user_id=actor_user_id,
                         commit=False,
+                        countdown=invitations_queued * pace,
                     ):
                         invitations_queued += 1
                     else:

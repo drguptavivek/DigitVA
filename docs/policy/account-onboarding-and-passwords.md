@@ -3,7 +3,7 @@ title: Account Onboarding and Password Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-19
+last_updated: 2026-11-23
 ---
 
 # Account Onboarding and Password Policy
@@ -158,6 +158,10 @@ fixed in the file; logs carry counts and ids only.
 
 1. The creator saves the account. The server sends a **verification email**
    with a single-use link (the existing `email_verify` token).
+   Invitations from a bulk import are sent paced (`INVITE_PACE_SECONDS`,
+   default 2 s apart); transient SMTP failures retry with capped, jittered
+   backoff (up to 6 retries, at most 10 minutes apart); permanent failures
+   are not retried.
 2. The person opens the link and presses "Verify my email" (opening the
    link alone changes nothing, so a mail scanner that prefetches it cannot).
    The server marks the email verified, generates the password and **sends

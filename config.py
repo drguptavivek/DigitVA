@@ -378,6 +378,9 @@ class Config:
     MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "false").lower() in ("true", "1", "yes")
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME", "")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", "")
+    # Provisional: 1 bulk invitation per 2 s; MAX_ROWS 1000 x 2 s = 2000 s stays under
+    # the broker's 1 h visibility timeout (beyond it delayed tasks are redelivered as duplicates).
+    INVITE_PACE_SECONDS = int(os.environ.get("INVITE_PACE_SECONDS", "2"))
     MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@digitva.org")
     # Public base URL: email links, and in production the only trusted host
     # (see trusted_hosts_for). Development and tests accept any host.

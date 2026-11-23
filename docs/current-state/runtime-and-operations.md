@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-23
 ---
 
 # Runtime And Operations
@@ -1228,6 +1228,9 @@ What exists today:
 - Redis/cache-backed recipient suppression after permanent SMTP failures
   (configured via `EMAIL_SUPPRESSION_*`)
 - explicit delivery kill switch via `EMAIL_DELIVERY_ENABLED`
+- `email.send` retries transient failures up to 6 times with capped (10 min)
+  jittered exponential backoff; bulk project-user import invitations are
+  queued with a `countdown` of `INVITE_PACE_SECONDS` (default 2) per mail
 - test config enforces `MAIL_SUPPRESS_SEND=True` so tests do not send real SMTP
 - email link base URL resolves `PUBLIC_BASE_URL`, then `SERVER_NAME`, then
   `localhost:5000`, and is always given an `https://` scheme if it lacks one

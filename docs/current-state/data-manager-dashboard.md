@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-24
 ---
 
 # Data Manager Dashboard
@@ -65,7 +65,8 @@ The coded COD snapshot export currently includes:
 C-01 is computed live for every day (owner decision 2026-10-27, `digitva-0hul`,
 step 2): `va_daily_kpi_aggregates` is not read, written or refreshed, and the
 `flask kpi` commands and the duplicate-change recount are gone.
-`compute_c01` in `app/routes/api/dm_kpi/dm_kpi_grid.py` runs three queries
+`compute_c01` in `app/services/kpi/grid.py` (route in
+`app/routes/api/dm_kpi/dm_kpi_grid.py`) runs three queries
 whatever the window: created submissions (Total, New), workflow events
 (Coded, Not analysable, Not Codeable) and `bucket_flow_by_day`
 (`app/routes/api/dm_kpi/dm_kpi_scope.py`) for Pending. Every day of the window

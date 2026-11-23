@@ -1,0 +1,3652 @@
+{
+ "admin": {
+  "burndown/": {
+   "json": {
+    "c16_mean_daily_rate": 0.1,
+    "c16_per_coder": [
+     {
+      "coded_7d": 1,
+      "coder_id": "<uuid>",
+      "coder_name": "base.coder@test.local",
+      "daily_rate": 0.1
+     }
+    ],
+    "c16_per_language": [
+     {
+      "coded_7d": 1,
+      "daily_rate": 0.1,
+      "language": "English"
+     }
+    ],
+    "c16_total_coded_7d": 1,
+    "c17_pending": 1,
+    "c17_predicted_days": 10.0,
+    "c18_achieved": [],
+    "c18_burndown_available": false,
+    "c18_projected": [],
+    "c18_target_date": null
+   },
+   "status": 200
+  },
+  "coders/disagreement": {
+   "json": {
+    "disagreements": 0,
+    "rate": null,
+    "reviewed": 0
+   },
+   "status": 200
+  },
+  "coders/output": {
+   "json": {
+    "heatmap": [
+     {
+      "coder_id": "<uuid>",
+      "coder_name": "base.coder@test.local",
+      "count": 1,
+      "language": "English"
+     }
+    ],
+    "per_coder": [
+     {
+      "by_language": {
+       "English": 1
+      },
+      "coder_id": "<uuid>",
+      "coder_name": "base.coder@test.local",
+      "total": 1
+     }
+    ],
+    "range": "cumulative",
+    "total": 1
+   },
+   "status": 200
+  },
+  "coders/output?range=today": {
+   "json": {
+    "heatmap": [
+     {
+      "coder_id": "<uuid>",
+      "coder_name": "base.coder@test.local",
+      "count": 1,
+      "language": "English"
+     }
+    ],
+    "per_coder": [
+     {
+      "by_language": {
+       "English": 1
+      },
+      "coder_id": "<uuid>",
+      "coder_name": "base.coder@test.local",
+      "total": 1
+     }
+    ],
+    "range": "today",
+    "total": 1
+   },
+   "status": 200
+  },
+  "coders/roster": {
+   "json": {
+    "coders": [
+     {
+      "active_allocations": 0,
+      "active_since": "T-0 <time>",
+      "email": "base.coder@test.local",
+      "languages": [
+       "English"
+      ],
+      "name": "base.coder@test.local",
+      "project_id": "BASE01",
+      "total_coded": 1,
+      "user_id": "<uuid>"
+     }
+    ]
+   },
+   "status": 200
+  },
+  "coders/utilization": {
+   "json": {
+    "active_count": 0,
+    "rate": 0.0,
+    "total_coders": 1
+   },
+   "status": 200
+  },
+  "critical-path/": {
+   "json": {
+    "bottleneck": null,
+    "dominant": null,
+    "end_segments": {
+     "death_to_interview_days": null,
+     "death_to_interview_n": 0,
+     "interview_to_final_cod_days": null,
+     "interview_to_final_cod_n": 0
+    },
+    "period_days": 30,
+    "stages": [
+     {
+      "label": "DM Screening",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "screening_pending"
+     },
+     {
+      "label": "Attachment Sync",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "attachment_sync_pending"
+     },
+     {
+      "label": "SmartVA Processing",
+      "n": 2,
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "stage": "smartva_pending"
+     },
+     {
+      "label": "Ready for Coding",
+      "n": 1,
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "stage": "ready_for_coding"
+     },
+     {
+      "label": "Coding in Progress",
+      "n": 1,
+      "p50_hours": 1.0,
+      "p90_hours": 1.0,
+      "stage": "coding_in_progress"
+     },
+     {
+      "label": "Step 1 Saved",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "coder_step1_saved"
+     },
+     {
+      "label": "Upstream Changed",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "finalized_upstream_changed"
+     },
+     {
+      "label": "Sent Back for Revision",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "sent_back_for_revision"
+     }
+    ],
+    "units": []
+   },
+   "status": 200
+  },
+  "critical-path/?days=7": {
+   "json": {
+    "bottleneck": null,
+    "dominant": null,
+    "end_segments": {
+     "death_to_interview_days": null,
+     "death_to_interview_n": 0,
+     "interview_to_final_cod_days": null,
+     "interview_to_final_cod_n": 0
+    },
+    "period_days": 7,
+    "stages": [
+     {
+      "label": "DM Screening",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "screening_pending"
+     },
+     {
+      "label": "Attachment Sync",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "attachment_sync_pending"
+     },
+     {
+      "label": "SmartVA Processing",
+      "n": 2,
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "stage": "smartva_pending"
+     },
+     {
+      "label": "Ready for Coding",
+      "n": 1,
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "stage": "ready_for_coding"
+     },
+     {
+      "label": "Coding in Progress",
+      "n": 1,
+      "p50_hours": 1.0,
+      "p90_hours": 1.0,
+      "stage": "coding_in_progress"
+     },
+     {
+      "label": "Step 1 Saved",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "coder_step1_saved"
+     },
+     {
+      "label": "Upstream Changed",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "finalized_upstream_changed"
+     },
+     {
+      "label": "Sent Back for Revision",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "sent_back_for_revision"
+     }
+    ],
+    "units": []
+   },
+   "status": 200
+  },
+  "exclusions/blocked": {
+   "json": {
+    "breakdown": [
+     {
+      "age_max_hours": -0.0,
+      "age_p50_hours": -0.0,
+      "blockage_reason": "language_gap",
+      "count": 1,
+      "dm_action": "Recruit or reassign coders",
+      "intake_source": {
+       "odk": 1,
+       "web": 0
+      },
+      "label": "Language gap",
+      "owner": "coder supervisor or in-charge"
+     },
+     {
+      "age_max_hours": -0.0,
+      "age_p50_hours": -0.0,
+      "blockage_reason": "odk_has_issues",
+      "count": 1,
+      "dm_action": "Coordinate with field team",
+      "intake_source": {
+       "odk": 1,
+       "web": 0
+      },
+      "label": "ODK flagged",
+      "owner": "field team, through the in-charge"
+     }
+    ],
+    "soft_gate_not_codeable": 0,
+    "soft_gate_owner": "data manager",
+    "total_blocked": 1
+   },
+   "status": 200
+  },
+  "exclusions/breakdown": {
+   "json": {
+    "by_actor": {
+     "coder": 0,
+     "data_manager": 0,
+     "screening_rejected": 0
+    },
+    "coder_reasons": [],
+    "dm_reasons": []
+   },
+   "status": 200
+  },
+  "exclusions/not-analysable": {
+   "json": {
+    "all_synced": 2,
+    "by_reason": {
+     "partially_completed": 0,
+     "refused": 0,
+     "respondent_unavailable": 0
+    },
+    "count": 0,
+    "rate": 0.0
+   },
+   "status": 200
+  },
+  "exclusions/not-codeable": {
+   "json": {
+    "all_synced": 2,
+    "coder": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "coding_pool": 2,
+    "count": 0,
+    "dm": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "rate": 0.0
+   },
+   "status": 200
+  },
+  "exclusions/nqa-sa": {
+   "json": {
+    "nqa": {
+     "denominator": 0,
+     "enabled": true,
+     "numerator": 0,
+     "rate": 0.0
+    },
+    "social_autopsy": {
+     "denominator": 1,
+     "enabled": true,
+     "numerator": 0,
+     "rate": 0.0
+    }
+   },
+   "status": 200
+  },
+  "exclusions/odk-issues": {
+   "json": {
+    "count": 2,
+    "rate": 100.0,
+    "total": 2
+   },
+   "status": 200
+  },
+  "exclusions/rates": {
+   "json": {
+    "all_synced": 2,
+    "coder_not_codeable": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "coding_pool": 2,
+    "consent_refused": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "dm_not_codeable": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "not_analysable": {
+     "by_reason": {
+      "partially_completed": 0,
+      "refused": 0,
+      "respondent_unavailable": 0
+     },
+     "count": 0,
+     "rate": 0.0
+    },
+    "not_codeable_overall": {
+     "count": 0,
+     "rate": 0.0
+    }
+   },
+   "status": 200
+  },
+  "grid/": {
+   "json": {
+    "data": [
+     {
+      "coded": 1,
+      "consent_refused": 0,
+      "date": "T-0",
+      "new_from_odk": 2,
+      "not_codeable": 0,
+      "pending": 1,
+      "total": 2,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-1",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-2",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-3",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-4",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-5",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-6",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-7",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     }
+    ],
+    "source": "live"
+   },
+   "status": 200
+  },
+  "grid/?days=3": {
+   "json": {
+    "data": [
+     {
+      "coded": 1,
+      "consent_refused": 0,
+      "date": "T-0",
+      "new_from_odk": 2,
+      "not_codeable": 0,
+      "pending": 1,
+      "total": 2,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-1",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-2",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     }
+    ],
+    "source": "live"
+   },
+   "status": 200
+  },
+  "language/distribution": {
+   "json": {
+    "distribution": [
+     {
+      "count": 1,
+      "language": "English"
+     },
+     {
+      "count": 1,
+      "language": "Hindi"
+     }
+    ],
+    "monthly": [
+     {
+      "count": 1,
+      "language": "English",
+      "month": "2026-11"
+     },
+     {
+      "count": 1,
+      "language": "Hindi",
+      "month": "2026-11"
+     }
+    ]
+   },
+   "status": 200
+  },
+  "language/gap": {
+   "json": {
+    "bottleneck": {
+     "coders_available": 0,
+     "daily_coding_rate": 0,
+     "gap": true,
+     "language": "Hindi",
+     "pending_count": 1,
+     "predicted_days_to_clear": "infinite"
+    },
+    "by": "language",
+    "gap_cases": 1,
+    "gap_languages": [
+     {
+      "coders_available": 0,
+      "daily_coding_rate": 0,
+      "gap": true,
+      "language": "Hindi",
+      "pending_count": 1,
+      "predicted_days_to_clear": "infinite"
+     }
+    ],
+    "languages": [
+     {
+      "coders_available": 0,
+      "daily_coding_rate": 0,
+      "gap": true,
+      "language": "Hindi",
+      "pending_count": 1,
+      "predicted_days_to_clear": "infinite"
+     }
+    ],
+    "ready_pool": 1
+   },
+   "status": 200
+  },
+  "language/missing": {
+   "json": {
+    "missing_count": 0,
+    "rate": 100.0,
+    "total_coding_pool": 2,
+    "total_missing_unmapped": 2,
+    "unmapped_count": 2
+   },
+   "status": 200
+  },
+  "language/pendency": {
+   "json": {
+    "bottleneck": {
+     "coders_available": 0,
+     "daily_coding_rate": 0,
+     "gap": true,
+     "language": "Hindi",
+     "pending_count": 1,
+     "predicted_days_to_clear": "infinite"
+    },
+    "gap_languages": [
+     {
+      "coders_available": 0,
+      "daily_coding_rate": 0,
+      "gap": true,
+      "language": "Hindi",
+      "pending_count": 1,
+      "predicted_days_to_clear": "infinite"
+     }
+    ],
+    "languages": [
+     {
+      "coders_available": 0,
+      "daily_coding_rate": 0,
+      "gap": true,
+      "language": "Hindi",
+      "pending_count": 1,
+      "predicted_days_to_clear": "infinite"
+     }
+    ]
+   },
+   "status": 200
+  },
+  "outcomes/disagreement": {
+   "json": {
+    "disagreements": 0,
+    "rate": null,
+    "reviewed": 0
+   },
+   "status": 200
+  },
+  "outcomes/female-final-gap": {
+   "json": {
+    "gap_pp": null,
+    "register": null,
+    "rows": [
+     {
+      "codeable": 2,
+      "final": 0,
+      "rate": null,
+      "sex": "female"
+     },
+     {
+      "codeable": 0,
+      "final": 0,
+      "rate": null,
+      "sex": "male"
+     },
+     {
+      "codeable": 0,
+      "final": 0,
+      "rate": null,
+      "sex": "unknown"
+     }
+    ]
+   },
+   "status": 200
+  },
+  "outcomes/female-share": {
+   "json": {
+    "female": 2,
+    "male": 0,
+    "share": null,
+    "units": [],
+    "unknown": 0
+   },
+   "status": 200
+  },
+  "outcomes/final-cause-coverage": {
+   "json": {
+    "codeable": 2,
+    "final": 0,
+    "rate": null
+   },
+   "status": 200
+  },
+  "outcomes/register-coverage": {
+   "json": {
+    "applicable": false
+   },
+   "status": 200
+  },
+  "outcomes/unknown-cause": {
+   "json": {
+    "finals": 0,
+    "rate": null,
+    "unknown": 0,
+    "unmapped": 0
+   },
+   "status": 200
+  },
+  "pipeline/aging": {
+   "json": {
+    "gt_30d": 0,
+    "gt_48h": 0,
+    "gt_7d": 0
+   },
+   "status": 200
+  },
+  "pipeline/backlog-trend": {
+   "json": {
+    "data": [
+     {
+      "date": "T-89",
+      "pending": 0
+     },
+     {
+      "date": "T-88",
+      "pending": 0
+     },
+     {
+      "date": "T-87",
+      "pending": 0
+     },
+     {
+      "date": "T-86",
+      "pending": 0
+     },
+     {
+      "date": "T-85",
+      "pending": 0
+     },
+     {
+      "date": "T-84",
+      "pending": 0
+     },
+     {
+      "date": "T-83",
+      "pending": 0
+     },
+     {
+      "date": "T-82",
+      "pending": 0
+     },
+     {
+      "date": "T-81",
+      "pending": 0
+     },
+     {
+      "date": "T-80",
+      "pending": 0
+     },
+     {
+      "date": "T-79",
+      "pending": 0
+     },
+     {
+      "date": "T-78",
+      "pending": 0
+     },
+     {
+      "date": "T-77",
+      "pending": 0
+     },
+     {
+      "date": "T-76",
+      "pending": 0
+     },
+     {
+      "date": "T-75",
+      "pending": 0
+     },
+     {
+      "date": "T-74",
+      "pending": 0
+     },
+     {
+      "date": "T-73",
+      "pending": 0
+     },
+     {
+      "date": "T-72",
+      "pending": 0
+     },
+     {
+      "date": "T-71",
+      "pending": 0
+     },
+     {
+      "date": "T-70",
+      "pending": 0
+     },
+     {
+      "date": "T-69",
+      "pending": 0
+     },
+     {
+      "date": "T-68",
+      "pending": 0
+     },
+     {
+      "date": "T-67",
+      "pending": 0
+     },
+     {
+      "date": "T-66",
+      "pending": 0
+     },
+     {
+      "date": "T-65",
+      "pending": 0
+     },
+     {
+      "date": "T-64",
+      "pending": 0
+     },
+     {
+      "date": "T-63",
+      "pending": 0
+     },
+     {
+      "date": "T-62",
+      "pending": 0
+     },
+     {
+      "date": "T-61",
+      "pending": 0
+     },
+     {
+      "date": "T-60",
+      "pending": 0
+     },
+     {
+      "date": "T-59",
+      "pending": 0
+     },
+     {
+      "date": "T-58",
+      "pending": 0
+     },
+     {
+      "date": "T-57",
+      "pending": 0
+     },
+     {
+      "date": "T-56",
+      "pending": 0
+     },
+     {
+      "date": "T-55",
+      "pending": 0
+     },
+     {
+      "date": "T-54",
+      "pending": 0
+     },
+     {
+      "date": "T-53",
+      "pending": 0
+     },
+     {
+      "date": "T-52",
+      "pending": 0
+     },
+     {
+      "date": "T-51",
+      "pending": 0
+     },
+     {
+      "date": "T-50",
+      "pending": 0
+     },
+     {
+      "date": "T-49",
+      "pending": 0
+     },
+     {
+      "date": "T-48",
+      "pending": 0
+     },
+     {
+      "date": "T-47",
+      "pending": 0
+     },
+     {
+      "date": "T-46",
+      "pending": 0
+     },
+     {
+      "date": "T-45",
+      "pending": 0
+     },
+     {
+      "date": "T-44",
+      "pending": 0
+     },
+     {
+      "date": "T-43",
+      "pending": 0
+     },
+     {
+      "date": "T-42",
+      "pending": 0
+     },
+     {
+      "date": "T-41",
+      "pending": 0
+     },
+     {
+      "date": "T-40",
+      "pending": 0
+     },
+     {
+      "date": "T-39",
+      "pending": 0
+     },
+     {
+      "date": "T-38",
+      "pending": 0
+     },
+     {
+      "date": "T-37",
+      "pending": 0
+     },
+     {
+      "date": "T-36",
+      "pending": 0
+     },
+     {
+      "date": "T-35",
+      "pending": 0
+     },
+     {
+      "date": "T-34",
+      "pending": 0
+     },
+     {
+      "date": "T-33",
+      "pending": 0
+     },
+     {
+      "date": "T-32",
+      "pending": 0
+     },
+     {
+      "date": "T-31",
+      "pending": 0
+     },
+     {
+      "date": "T-30",
+      "pending": 0
+     },
+     {
+      "date": "T-29",
+      "pending": 0
+     },
+     {
+      "date": "T-28",
+      "pending": 0
+     },
+     {
+      "date": "T-27",
+      "pending": 0
+     },
+     {
+      "date": "T-26",
+      "pending": 0
+     },
+     {
+      "date": "T-25",
+      "pending": 0
+     },
+     {
+      "date": "T-24",
+      "pending": 0
+     },
+     {
+      "date": "T-23",
+      "pending": 0
+     },
+     {
+      "date": "T-22",
+      "pending": 0
+     },
+     {
+      "date": "T-21",
+      "pending": 0
+     },
+     {
+      "date": "T-20",
+      "pending": 0
+     },
+     {
+      "date": "T-19",
+      "pending": 0
+     },
+     {
+      "date": "T-18",
+      "pending": 0
+     },
+     {
+      "date": "T-17",
+      "pending": 0
+     },
+     {
+      "date": "T-16",
+      "pending": 0
+     },
+     {
+      "date": "T-15",
+      "pending": 0
+     },
+     {
+      "date": "T-14",
+      "pending": 0
+     },
+     {
+      "date": "T-13",
+      "pending": 0
+     },
+     {
+      "date": "T-12",
+      "pending": 0
+     },
+     {
+      "date": "T-11",
+      "pending": 0
+     },
+     {
+      "date": "T-10",
+      "pending": 0
+     },
+     {
+      "date": "T-9",
+      "pending": 0
+     },
+     {
+      "date": "T-8",
+      "pending": 0
+     },
+     {
+      "date": "T-7",
+      "pending": 0
+     },
+     {
+      "date": "T-6",
+      "pending": 0
+     },
+     {
+      "date": "T-5",
+      "pending": 0
+     },
+     {
+      "date": "T-4",
+      "pending": 0
+     },
+     {
+      "date": "T-3",
+      "pending": 0
+     },
+     {
+      "date": "T-2",
+      "pending": 0
+     },
+     {
+      "date": "T-1",
+      "pending": 0
+     },
+     {
+      "date": "T-0",
+      "pending": 1
+     }
+    ],
+    "source": "live"
+   },
+   "status": 200
+  },
+  "pipeline/inflow-outflow": {
+   "json": {
+    "data": [
+     {
+      "date": "T-0",
+      "inflow": 2,
+      "net_delta": 1,
+      "outflow": 1,
+      "outflow_coded": 1,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-1",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-2",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-3",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-4",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-5",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-6",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     }
+    ],
+    "does_not_clear": true,
+    "net_28d": 1
+   },
+   "status": 200
+  },
+  "pipeline/inflow-outflow?days=3": {
+   "json": {
+    "data": [
+     {
+      "date": "T-0",
+      "inflow": 2,
+      "net_delta": 1,
+      "outflow": 1,
+      "outflow_coded": 1,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-1",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-2",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     }
+    ],
+    "does_not_clear": true,
+    "net_28d": 1
+   },
+   "status": 200
+  },
+  "pipeline/pending": {
+   "json": {
+    "coding_pool": 2,
+    "days_to_clear": 28.0,
+    "mean_daily_outflow_28d": 0.0,
+    "outflow_28d": 1,
+    "pending": 1,
+    "rate": 50.0
+   },
+   "status": 200
+  },
+  "pipeline/reviewed": {
+   "json": {
+    "eligible": 0,
+    "rate": 0.0,
+    "reviewed": 0
+   },
+   "status": 200
+  },
+  "pipeline/reviewer-throughput": {
+   "json": {
+    "cumulative": 0,
+    "last_7d": 0,
+    "today": 0
+   },
+   "status": 200
+  },
+  "pipeline/site-bottleneck": {
+   "json": {
+    "sites": [
+     {
+      "pct_uncoded": 50.0,
+      "pending": 1,
+      "site_id": "BS01",
+      "total_coding_pool": 2
+     }
+    ]
+   },
+   "status": 200
+  },
+  "pipeline/time-to-code": {
+   "json": {
+    "count": 1,
+    "max_seconds": 3600.0,
+    "min_seconds": 3600.0,
+    "p50_seconds": 3600.0,
+    "p90_seconds": 3600.0,
+    "range": "7d"
+   },
+   "status": 200
+  },
+  "pipeline/time-to-code?range=today": {
+   "json": {
+    "count": 1,
+    "max_seconds": 3600.0,
+    "min_seconds": 3600.0,
+    "p50_seconds": 3600.0,
+    "p90_seconds": 3600.0,
+    "range": "today"
+   },
+   "status": 200
+  },
+  "pipeline/upstream-changes": {
+   "json": {
+    "c10_queue_count": 0,
+    "c10_sent_back_count": 0,
+    "c11_rate": 0.0,
+    "c11_total_coded": 1,
+    "c11_with_upstream": 0,
+    "d_wt_02_resolution_p50_seconds": null,
+    "d_wt_04_finalized_7d": 1,
+    "d_wt_04_reopen_rate": 0.0,
+    "d_wt_04_reopened_7d": 0,
+    "d_wt_04_revision_restarts_7d": 0,
+    "d_wt_04_supervisor_revision_restarts_7d": 0
+   },
+   "status": 200
+  },
+  "sync/attachment-health": {
+   "json": {
+    "c14": {
+     "missing_attachments": 2,
+     "rate": 100.0,
+     "total_past_smartva": 2
+    },
+    "d_sh_01": null
+   },
+   "status": 200
+  },
+  "sync/latency": {
+   "json": {
+    "count": 2,
+    "p50_seconds": 0.0,
+    "p90_seconds": 0.0,
+    "p99_seconds": 0.0,
+    "range": "7d"
+   },
+   "status": 200
+  },
+  "sync/latency?range=today": {
+   "json": {
+    "count": 2,
+    "p50_seconds": 0.0,
+    "p90_seconds": 0.0,
+    "p99_seconds": 0.0,
+    "range": "today"
+   },
+   "status": 200
+  },
+  "sync/smartva-failure-rate": {
+   "json": {
+    "rate_7d": 0.0,
+    "rate_cumulative": 0.0,
+    "runs_7d": {
+     "failed": 0,
+     "total": 0
+    },
+    "runs_cumulative": {
+     "failed": 0,
+     "total": 0
+    }
+   },
+   "status": 200
+  },
+  "sync/status": {
+   "json": {
+    "error_rate_7d": 0.0,
+    "error_rate_cumulative": 0.0,
+    "errors": 0,
+    "last_status": null,
+    "latest_run": null,
+    "period": "7d",
+    "rate": 0.0,
+    "runs": 0,
+    "runs_7d": {
+     "errors": 0,
+     "total": 0
+    },
+    "runs_cumulative": {
+     "errors": 0,
+     "total": 0
+    }
+   },
+   "status": 200
+  },
+  "sync/status?period=7d": {
+   "json": {
+    "error_rate_7d": 0.0,
+    "error_rate_cumulative": 0.0,
+    "errors": 0,
+    "last_status": null,
+    "latest_run": null,
+    "period": "7d",
+    "rate": 0.0,
+    "runs": 0,
+    "runs_7d": {
+     "errors": 0,
+     "total": 0
+    },
+    "runs_cumulative": {
+     "errors": 0,
+     "total": 0
+    }
+   },
+   "status": 200
+  },
+  "workflow/daily-transitions": {
+   "json": {
+    "days": [
+     {
+      "date": "T-0",
+      "total": 6,
+      "transitions": {
+       "coder_finalized": 1,
+       "coding_in_progress": 1,
+       "ready_for_coding": 2,
+       "smartva_pending": 2
+      }
+     }
+    ]
+   },
+   "status": 200
+  },
+  "workflow/daily-transitions?days=3": {
+   "json": {
+    "days": [
+     {
+      "date": "T-0",
+      "total": 6,
+      "transitions": {
+       "coder_finalized": 1,
+       "coding_in_progress": 1,
+       "ready_for_coding": 2,
+       "smartva_pending": 2
+      }
+     }
+    ]
+   },
+   "status": 200
+  },
+  "workflow/flowchart": {
+   "json": {
+    "conversion": {
+     "coding_rate": 0.5,
+     "eligible_rate": 1.0,
+     "review_rate": 0.0
+    },
+    "stages": {
+     "all_synced": 2,
+     "coded": 1,
+     "coder_finalized": {
+      "beyond_24h": 0,
+      "beyond_window": 0,
+      "total": 1,
+      "within_24h": 1,
+      "within_window": 1
+     },
+     "eligible_for_coding": 2,
+     "excluded_coding": {
+      "not_codeable_coder": 0
+     },
+     "excluded_entry": {
+      "consent_refused": 0,
+      "not_codeable_dm": 0,
+      "total": 0
+     },
+     "reviewed": 0,
+     "sent_back": 0,
+     "uncoded_eligible": 1,
+     "upstream_changed": 0
+    },
+    "total_synced": 2
+   },
+   "status": 200
+  },
+  "workflow/stagnation": {
+   "json": {
+    "alerts": [
+     {
+      "alert_count": 0,
+      "alert_level": "normal",
+      "critical_count": 0,
+      "dm_action": "Allocate coders or check capacity",
+      "gt_30d": 0,
+      "gt_48h": 0,
+      "gt_7d": 0,
+      "label": "Ready for Coding",
+      "max_age_hours": -0.0,
+      "p50_age_hours": -0.0,
+      "state": "ready_for_coding",
+      "total": 1
+     },
+     {
+      "alert_count": 0,
+      "alert_level": "normal",
+      "beyond_window": 0,
+      "critical_count": 0,
+      "dm_action": "Auto-progresses to reviewer_eligible after the recode window",
+      "gt_24h": 0,
+      "gt_30d": 0,
+      "gt_48h": 0,
+      "gt_7d": 0,
+      "label": "Coder Finalized",
+      "max_age_hours": -0.0,
+      "p50_age_hours": -0.0,
+      "state": "coder_finalized",
+      "total": 1,
+      "within_24h": 1,
+      "within_window": 1
+     }
+    ],
+    "total_stagnant_gt_48h": 0,
+    "total_stagnant_gt_7d": 0
+   },
+   "status": 200
+  },
+  "workflow/state-velocity": {
+   "json": {
+    "range_days": 30,
+    "states": [
+     {
+      "avg_hours": 1.0,
+      "label": "Coding in Progress",
+      "p50_hours": 1.0,
+      "p90_hours": 1.0,
+      "state": "coding_in_progress",
+      "transition_count": 1
+     },
+     {
+      "avg_hours": 0.5,
+      "label": "Ready for Coding",
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "state": "ready_for_coding",
+      "transition_count": 1
+     },
+     {
+      "avg_hours": 0.5,
+      "label": "SmartVA Processing",
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "state": "smartva_pending",
+      "transition_count": 2
+     }
+    ]
+   },
+   "status": 200
+  },
+  "workflow/state-velocity?days=7": {
+   "json": {
+    "range_days": 7,
+    "states": [
+     {
+      "avg_hours": 1.0,
+      "label": "Coding in Progress",
+      "p50_hours": 1.0,
+      "p90_hours": 1.0,
+      "state": "coding_in_progress",
+      "transition_count": 1
+     },
+     {
+      "avg_hours": 0.5,
+      "label": "Ready for Coding",
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "state": "ready_for_coding",
+      "transition_count": 1
+     },
+     {
+      "avg_hours": 0.5,
+      "label": "SmartVA Processing",
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "state": "smartva_pending",
+      "transition_count": 2
+     }
+    ]
+   },
+   "status": 200
+  }
+ },
+ "cache_keys": [
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:attachment_health:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:backlog_trend:90:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:blocked_forms:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:burndown:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:coder_output:cumulative:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:coder_output:today:range=today",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:coder_roster:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:coder_utilization:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:critical_path:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:critical_path:days=7",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:daily_transitions:3:days=3",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:daily_transitions:7:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:exclusion_breakdown:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:exclusion_rates:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:flowchart:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:grid:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:grid:days=3",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:inflow_outflow:3:days=3",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:inflow_outflow:7:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:language_distribution:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:language_gap:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:language_missing:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:language_pendency:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:not_analysable:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:not_codeable:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:nqa_sa_rates:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:odk_issues:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:outcomes:AD-COV:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:outcomes:AD-FCOD:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:outcomes:D-QG-09:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:outcomes:D-QG-09:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:outcomes:EQ-01:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:outcomes:EQ-02:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:outcomes:O-UNK:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:pending_rate:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:pipeline_aging:None:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:review_rate:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:reviewer_throughput:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:site_bottleneck:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:smartva_failure_rate:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:stagnation:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:state_velocity:30:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:state_velocity:7:days=7",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:sync_latency:7d:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:sync_latency:today:range=today",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:sync_status:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:sync_status:period=7d",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:time_to_code:7d:",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:time_to_code:today:range=today",
+  "dm_kpi:<uid>:d273a3a040262780:v1:7:upstream_changes:"
+ ],
+ "dm": {
+  "burndown/": {
+   "json": {
+    "c16_mean_daily_rate": 0.1,
+    "c16_per_coder": [
+     {
+      "coded_7d": 1,
+      "coder_id": "<uuid>",
+      "coder_name": "base.coder@test.local",
+      "daily_rate": 0.1
+     }
+    ],
+    "c16_per_language": [
+     {
+      "coded_7d": 1,
+      "daily_rate": 0.1,
+      "language": "English"
+     }
+    ],
+    "c16_total_coded_7d": 1,
+    "c17_pending": 1,
+    "c17_predicted_days": 10.0,
+    "c18_achieved": [],
+    "c18_burndown_available": false,
+    "c18_projected": [],
+    "c18_target_date": null
+   },
+   "status": 200
+  },
+  "coders/disagreement": {
+   "json": {
+    "disagreements": 0,
+    "rate": null,
+    "reviewed": 0
+   },
+   "status": 200
+  },
+  "coders/output": {
+   "json": {
+    "heatmap": [
+     {
+      "coder_id": "<uuid>",
+      "coder_name": "base.coder@test.local",
+      "count": 1,
+      "language": "English"
+     }
+    ],
+    "per_coder": [
+     {
+      "by_language": {
+       "English": 1
+      },
+      "coder_id": "<uuid>",
+      "coder_name": "base.coder@test.local",
+      "total": 1
+     }
+    ],
+    "range": "cumulative",
+    "total": 1
+   },
+   "status": 200
+  },
+  "coders/output?range=today": {
+   "json": {
+    "heatmap": [
+     {
+      "coder_id": "<uuid>",
+      "coder_name": "base.coder@test.local",
+      "count": 1,
+      "language": "English"
+     }
+    ],
+    "per_coder": [
+     {
+      "by_language": {
+       "English": 1
+      },
+      "coder_id": "<uuid>",
+      "coder_name": "base.coder@test.local",
+      "total": 1
+     }
+    ],
+    "range": "today",
+    "total": 1
+   },
+   "status": 200
+  },
+  "coders/roster": {
+   "json": {
+    "coders": [
+     {
+      "active_allocations": 0,
+      "active_since": "T-0 <time>",
+      "email": "base.coder@test.local",
+      "languages": [
+       "English"
+      ],
+      "name": "base.coder@test.local",
+      "project_id": "BASE01",
+      "total_coded": 1,
+      "user_id": "<uuid>"
+     }
+    ]
+   },
+   "status": 200
+  },
+  "coders/utilization": {
+   "json": {
+    "active_count": 0,
+    "rate": 0.0,
+    "total_coders": 1
+   },
+   "status": 200
+  },
+  "critical-path/": {
+   "json": {
+    "bottleneck": null,
+    "dominant": null,
+    "end_segments": {
+     "death_to_interview_days": null,
+     "death_to_interview_n": 0,
+     "interview_to_final_cod_days": null,
+     "interview_to_final_cod_n": 0
+    },
+    "period_days": 30,
+    "stages": [
+     {
+      "label": "DM Screening",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "screening_pending"
+     },
+     {
+      "label": "Attachment Sync",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "attachment_sync_pending"
+     },
+     {
+      "label": "SmartVA Processing",
+      "n": 2,
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "stage": "smartva_pending"
+     },
+     {
+      "label": "Ready for Coding",
+      "n": 1,
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "stage": "ready_for_coding"
+     },
+     {
+      "label": "Coding in Progress",
+      "n": 1,
+      "p50_hours": 1.0,
+      "p90_hours": 1.0,
+      "stage": "coding_in_progress"
+     },
+     {
+      "label": "Step 1 Saved",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "coder_step1_saved"
+     },
+     {
+      "label": "Upstream Changed",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "finalized_upstream_changed"
+     },
+     {
+      "label": "Sent Back for Revision",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "sent_back_for_revision"
+     }
+    ],
+    "units": []
+   },
+   "status": 200
+  },
+  "critical-path/?days=7": {
+   "json": {
+    "bottleneck": null,
+    "dominant": null,
+    "end_segments": {
+     "death_to_interview_days": null,
+     "death_to_interview_n": 0,
+     "interview_to_final_cod_days": null,
+     "interview_to_final_cod_n": 0
+    },
+    "period_days": 7,
+    "stages": [
+     {
+      "label": "DM Screening",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "screening_pending"
+     },
+     {
+      "label": "Attachment Sync",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "attachment_sync_pending"
+     },
+     {
+      "label": "SmartVA Processing",
+      "n": 2,
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "stage": "smartva_pending"
+     },
+     {
+      "label": "Ready for Coding",
+      "n": 1,
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "stage": "ready_for_coding"
+     },
+     {
+      "label": "Coding in Progress",
+      "n": 1,
+      "p50_hours": 1.0,
+      "p90_hours": 1.0,
+      "stage": "coding_in_progress"
+     },
+     {
+      "label": "Step 1 Saved",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "coder_step1_saved"
+     },
+     {
+      "label": "Upstream Changed",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "finalized_upstream_changed"
+     },
+     {
+      "label": "Sent Back for Revision",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "sent_back_for_revision"
+     }
+    ],
+    "units": []
+   },
+   "status": 200
+  },
+  "exclusions/blocked": {
+   "json": {
+    "breakdown": [
+     {
+      "age_max_hours": -0.0,
+      "age_p50_hours": -0.0,
+      "blockage_reason": "language_gap",
+      "count": 1,
+      "dm_action": "Recruit or reassign coders",
+      "intake_source": {
+       "odk": 1,
+       "web": 0
+      },
+      "label": "Language gap",
+      "owner": "coder supervisor or in-charge"
+     },
+     {
+      "age_max_hours": -0.0,
+      "age_p50_hours": -0.0,
+      "blockage_reason": "odk_has_issues",
+      "count": 1,
+      "dm_action": "Coordinate with field team",
+      "intake_source": {
+       "odk": 1,
+       "web": 0
+      },
+      "label": "ODK flagged",
+      "owner": "field team, through the in-charge"
+     }
+    ],
+    "soft_gate_not_codeable": 0,
+    "soft_gate_owner": "data manager",
+    "total_blocked": 1
+   },
+   "status": 200
+  },
+  "exclusions/breakdown": {
+   "json": {
+    "by_actor": {
+     "coder": 0,
+     "data_manager": 0,
+     "screening_rejected": 0
+    },
+    "coder_reasons": [],
+    "dm_reasons": []
+   },
+   "status": 200
+  },
+  "exclusions/not-analysable": {
+   "json": {
+    "all_synced": 2,
+    "by_reason": {
+     "partially_completed": 0,
+     "refused": 0,
+     "respondent_unavailable": 0
+    },
+    "count": 0,
+    "rate": 0.0
+   },
+   "status": 200
+  },
+  "exclusions/not-codeable": {
+   "json": {
+    "all_synced": 2,
+    "coder": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "coding_pool": 2,
+    "count": 0,
+    "dm": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "rate": 0.0
+   },
+   "status": 200
+  },
+  "exclusions/nqa-sa": {
+   "json": {
+    "nqa": {
+     "denominator": 0,
+     "enabled": true,
+     "numerator": 0,
+     "rate": 0.0
+    },
+    "social_autopsy": {
+     "denominator": 1,
+     "enabled": true,
+     "numerator": 0,
+     "rate": 0.0
+    }
+   },
+   "status": 200
+  },
+  "exclusions/odk-issues": {
+   "json": {
+    "count": 2,
+    "rate": 100.0,
+    "total": 2
+   },
+   "status": 200
+  },
+  "exclusions/rates": {
+   "json": {
+    "all_synced": 2,
+    "coder_not_codeable": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "coding_pool": 2,
+    "consent_refused": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "dm_not_codeable": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "not_analysable": {
+     "by_reason": {
+      "partially_completed": 0,
+      "refused": 0,
+      "respondent_unavailable": 0
+     },
+     "count": 0,
+     "rate": 0.0
+    },
+    "not_codeable_overall": {
+     "count": 0,
+     "rate": 0.0
+    }
+   },
+   "status": 200
+  },
+  "grid/": {
+   "json": {
+    "data": [
+     {
+      "coded": 1,
+      "consent_refused": 0,
+      "date": "T-0",
+      "new_from_odk": 2,
+      "not_codeable": 0,
+      "pending": 1,
+      "total": 2,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-1",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-2",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-3",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-4",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-5",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-6",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-7",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     }
+    ],
+    "source": "live"
+   },
+   "status": 200
+  },
+  "grid/?days=3": {
+   "json": {
+    "data": [
+     {
+      "coded": 1,
+      "consent_refused": 0,
+      "date": "T-0",
+      "new_from_odk": 2,
+      "not_codeable": 0,
+      "pending": 1,
+      "total": 2,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-1",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     },
+     {
+      "coded": 0,
+      "consent_refused": 0,
+      "date": "T-2",
+      "new_from_odk": 0,
+      "not_codeable": 0,
+      "pending": 0,
+      "total": 0,
+      "updated_from_odk": 0
+     }
+    ],
+    "source": "live"
+   },
+   "status": 200
+  },
+  "language/distribution": {
+   "json": {
+    "distribution": [
+     {
+      "count": 1,
+      "language": "English"
+     },
+     {
+      "count": 1,
+      "language": "Hindi"
+     }
+    ],
+    "monthly": [
+     {
+      "count": 1,
+      "language": "English",
+      "month": "2026-11"
+     },
+     {
+      "count": 1,
+      "language": "Hindi",
+      "month": "2026-11"
+     }
+    ]
+   },
+   "status": 200
+  },
+  "language/gap": {
+   "json": {
+    "bottleneck": {
+     "coders_available": 0,
+     "daily_coding_rate": 0,
+     "gap": true,
+     "language": "Hindi",
+     "pending_count": 1,
+     "predicted_days_to_clear": "infinite"
+    },
+    "by": "language",
+    "gap_cases": 1,
+    "gap_languages": [
+     {
+      "coders_available": 0,
+      "daily_coding_rate": 0,
+      "gap": true,
+      "language": "Hindi",
+      "pending_count": 1,
+      "predicted_days_to_clear": "infinite"
+     }
+    ],
+    "languages": [
+     {
+      "coders_available": 0,
+      "daily_coding_rate": 0,
+      "gap": true,
+      "language": "Hindi",
+      "pending_count": 1,
+      "predicted_days_to_clear": "infinite"
+     }
+    ],
+    "ready_pool": 1
+   },
+   "status": 200
+  },
+  "language/missing": {
+   "json": {
+    "missing_count": 0,
+    "rate": 100.0,
+    "total_coding_pool": 2,
+    "total_missing_unmapped": 2,
+    "unmapped_count": 2
+   },
+   "status": 200
+  },
+  "language/pendency": {
+   "json": {
+    "bottleneck": {
+     "coders_available": 0,
+     "daily_coding_rate": 0,
+     "gap": true,
+     "language": "Hindi",
+     "pending_count": 1,
+     "predicted_days_to_clear": "infinite"
+    },
+    "gap_languages": [
+     {
+      "coders_available": 0,
+      "daily_coding_rate": 0,
+      "gap": true,
+      "language": "Hindi",
+      "pending_count": 1,
+      "predicted_days_to_clear": "infinite"
+     }
+    ],
+    "languages": [
+     {
+      "coders_available": 0,
+      "daily_coding_rate": 0,
+      "gap": true,
+      "language": "Hindi",
+      "pending_count": 1,
+      "predicted_days_to_clear": "infinite"
+     }
+    ]
+   },
+   "status": 200
+  },
+  "outcomes/disagreement": {
+   "json": {
+    "disagreements": 0,
+    "rate": null,
+    "reviewed": 0
+   },
+   "status": 200
+  },
+  "outcomes/female-final-gap": {
+   "json": {
+    "gap_pp": null,
+    "register": null,
+    "rows": [
+     {
+      "codeable": 2,
+      "final": 0,
+      "rate": null,
+      "sex": "female"
+     },
+     {
+      "codeable": 0,
+      "final": 0,
+      "rate": null,
+      "sex": "male"
+     },
+     {
+      "codeable": 0,
+      "final": 0,
+      "rate": null,
+      "sex": "unknown"
+     }
+    ]
+   },
+   "status": 200
+  },
+  "outcomes/female-share": {
+   "json": {
+    "female": 2,
+    "male": 0,
+    "share": null,
+    "units": [],
+    "unknown": 0
+   },
+   "status": 200
+  },
+  "outcomes/final-cause-coverage": {
+   "json": {
+    "codeable": 2,
+    "final": 0,
+    "rate": null
+   },
+   "status": 200
+  },
+  "outcomes/register-coverage": {
+   "json": {
+    "applicable": false
+   },
+   "status": 200
+  },
+  "outcomes/unknown-cause": {
+   "json": {
+    "finals": 0,
+    "rate": null,
+    "unknown": 0,
+    "unmapped": 0
+   },
+   "status": 200
+  },
+  "pipeline/aging": {
+   "json": {
+    "gt_30d": 0,
+    "gt_48h": 0,
+    "gt_7d": 0
+   },
+   "status": 200
+  },
+  "pipeline/backlog-trend": {
+   "json": {
+    "data": [
+     {
+      "date": "T-89",
+      "pending": 0
+     },
+     {
+      "date": "T-88",
+      "pending": 0
+     },
+     {
+      "date": "T-87",
+      "pending": 0
+     },
+     {
+      "date": "T-86",
+      "pending": 0
+     },
+     {
+      "date": "T-85",
+      "pending": 0
+     },
+     {
+      "date": "T-84",
+      "pending": 0
+     },
+     {
+      "date": "T-83",
+      "pending": 0
+     },
+     {
+      "date": "T-82",
+      "pending": 0
+     },
+     {
+      "date": "T-81",
+      "pending": 0
+     },
+     {
+      "date": "T-80",
+      "pending": 0
+     },
+     {
+      "date": "T-79",
+      "pending": 0
+     },
+     {
+      "date": "T-78",
+      "pending": 0
+     },
+     {
+      "date": "T-77",
+      "pending": 0
+     },
+     {
+      "date": "T-76",
+      "pending": 0
+     },
+     {
+      "date": "T-75",
+      "pending": 0
+     },
+     {
+      "date": "T-74",
+      "pending": 0
+     },
+     {
+      "date": "T-73",
+      "pending": 0
+     },
+     {
+      "date": "T-72",
+      "pending": 0
+     },
+     {
+      "date": "T-71",
+      "pending": 0
+     },
+     {
+      "date": "T-70",
+      "pending": 0
+     },
+     {
+      "date": "T-69",
+      "pending": 0
+     },
+     {
+      "date": "T-68",
+      "pending": 0
+     },
+     {
+      "date": "T-67",
+      "pending": 0
+     },
+     {
+      "date": "T-66",
+      "pending": 0
+     },
+     {
+      "date": "T-65",
+      "pending": 0
+     },
+     {
+      "date": "T-64",
+      "pending": 0
+     },
+     {
+      "date": "T-63",
+      "pending": 0
+     },
+     {
+      "date": "T-62",
+      "pending": 0
+     },
+     {
+      "date": "T-61",
+      "pending": 0
+     },
+     {
+      "date": "T-60",
+      "pending": 0
+     },
+     {
+      "date": "T-59",
+      "pending": 0
+     },
+     {
+      "date": "T-58",
+      "pending": 0
+     },
+     {
+      "date": "T-57",
+      "pending": 0
+     },
+     {
+      "date": "T-56",
+      "pending": 0
+     },
+     {
+      "date": "T-55",
+      "pending": 0
+     },
+     {
+      "date": "T-54",
+      "pending": 0
+     },
+     {
+      "date": "T-53",
+      "pending": 0
+     },
+     {
+      "date": "T-52",
+      "pending": 0
+     },
+     {
+      "date": "T-51",
+      "pending": 0
+     },
+     {
+      "date": "T-50",
+      "pending": 0
+     },
+     {
+      "date": "T-49",
+      "pending": 0
+     },
+     {
+      "date": "T-48",
+      "pending": 0
+     },
+     {
+      "date": "T-47",
+      "pending": 0
+     },
+     {
+      "date": "T-46",
+      "pending": 0
+     },
+     {
+      "date": "T-45",
+      "pending": 0
+     },
+     {
+      "date": "T-44",
+      "pending": 0
+     },
+     {
+      "date": "T-43",
+      "pending": 0
+     },
+     {
+      "date": "T-42",
+      "pending": 0
+     },
+     {
+      "date": "T-41",
+      "pending": 0
+     },
+     {
+      "date": "T-40",
+      "pending": 0
+     },
+     {
+      "date": "T-39",
+      "pending": 0
+     },
+     {
+      "date": "T-38",
+      "pending": 0
+     },
+     {
+      "date": "T-37",
+      "pending": 0
+     },
+     {
+      "date": "T-36",
+      "pending": 0
+     },
+     {
+      "date": "T-35",
+      "pending": 0
+     },
+     {
+      "date": "T-34",
+      "pending": 0
+     },
+     {
+      "date": "T-33",
+      "pending": 0
+     },
+     {
+      "date": "T-32",
+      "pending": 0
+     },
+     {
+      "date": "T-31",
+      "pending": 0
+     },
+     {
+      "date": "T-30",
+      "pending": 0
+     },
+     {
+      "date": "T-29",
+      "pending": 0
+     },
+     {
+      "date": "T-28",
+      "pending": 0
+     },
+     {
+      "date": "T-27",
+      "pending": 0
+     },
+     {
+      "date": "T-26",
+      "pending": 0
+     },
+     {
+      "date": "T-25",
+      "pending": 0
+     },
+     {
+      "date": "T-24",
+      "pending": 0
+     },
+     {
+      "date": "T-23",
+      "pending": 0
+     },
+     {
+      "date": "T-22",
+      "pending": 0
+     },
+     {
+      "date": "T-21",
+      "pending": 0
+     },
+     {
+      "date": "T-20",
+      "pending": 0
+     },
+     {
+      "date": "T-19",
+      "pending": 0
+     },
+     {
+      "date": "T-18",
+      "pending": 0
+     },
+     {
+      "date": "T-17",
+      "pending": 0
+     },
+     {
+      "date": "T-16",
+      "pending": 0
+     },
+     {
+      "date": "T-15",
+      "pending": 0
+     },
+     {
+      "date": "T-14",
+      "pending": 0
+     },
+     {
+      "date": "T-13",
+      "pending": 0
+     },
+     {
+      "date": "T-12",
+      "pending": 0
+     },
+     {
+      "date": "T-11",
+      "pending": 0
+     },
+     {
+      "date": "T-10",
+      "pending": 0
+     },
+     {
+      "date": "T-9",
+      "pending": 0
+     },
+     {
+      "date": "T-8",
+      "pending": 0
+     },
+     {
+      "date": "T-7",
+      "pending": 0
+     },
+     {
+      "date": "T-6",
+      "pending": 0
+     },
+     {
+      "date": "T-5",
+      "pending": 0
+     },
+     {
+      "date": "T-4",
+      "pending": 0
+     },
+     {
+      "date": "T-3",
+      "pending": 0
+     },
+     {
+      "date": "T-2",
+      "pending": 0
+     },
+     {
+      "date": "T-1",
+      "pending": 0
+     },
+     {
+      "date": "T-0",
+      "pending": 1
+     }
+    ],
+    "source": "live"
+   },
+   "status": 200
+  },
+  "pipeline/inflow-outflow": {
+   "json": {
+    "data": [
+     {
+      "date": "T-0",
+      "inflow": 2,
+      "net_delta": 1,
+      "outflow": 1,
+      "outflow_coded": 1,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-1",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-2",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-3",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-4",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-5",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-6",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     }
+    ],
+    "does_not_clear": true,
+    "net_28d": 1
+   },
+   "status": 200
+  },
+  "pipeline/inflow-outflow?days=3": {
+   "json": {
+    "data": [
+     {
+      "date": "T-0",
+      "inflow": 2,
+      "net_delta": 1,
+      "outflow": 1,
+      "outflow_coded": 1,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-1",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     },
+     {
+      "date": "T-2",
+      "inflow": 0,
+      "net_delta": 0,
+      "outflow": 0,
+      "outflow_coded": 0,
+      "outflow_other": 0
+     }
+    ],
+    "does_not_clear": true,
+    "net_28d": 1
+   },
+   "status": 200
+  },
+  "pipeline/pending": {
+   "json": {
+    "coding_pool": 2,
+    "days_to_clear": 28.0,
+    "mean_daily_outflow_28d": 0.0,
+    "outflow_28d": 1,
+    "pending": 1,
+    "rate": 50.0
+   },
+   "status": 200
+  },
+  "pipeline/reviewed": {
+   "json": {
+    "eligible": 0,
+    "rate": 0.0,
+    "reviewed": 0
+   },
+   "status": 200
+  },
+  "pipeline/reviewer-throughput": {
+   "json": {
+    "cumulative": 0,
+    "last_7d": 0,
+    "today": 0
+   },
+   "status": 200
+  },
+  "pipeline/site-bottleneck": {
+   "json": {
+    "sites": [
+     {
+      "pct_uncoded": 50.0,
+      "pending": 1,
+      "site_id": "BS01",
+      "total_coding_pool": 2
+     }
+    ]
+   },
+   "status": 200
+  },
+  "pipeline/time-to-code": {
+   "json": {
+    "count": 1,
+    "max_seconds": 3600.0,
+    "min_seconds": 3600.0,
+    "p50_seconds": 3600.0,
+    "p90_seconds": 3600.0,
+    "range": "7d"
+   },
+   "status": 200
+  },
+  "pipeline/time-to-code?range=today": {
+   "json": {
+    "count": 1,
+    "max_seconds": 3600.0,
+    "min_seconds": 3600.0,
+    "p50_seconds": 3600.0,
+    "p90_seconds": 3600.0,
+    "range": "today"
+   },
+   "status": 200
+  },
+  "pipeline/upstream-changes": {
+   "json": {
+    "c10_queue_count": 0,
+    "c10_sent_back_count": 0,
+    "c11_rate": 0.0,
+    "c11_total_coded": 1,
+    "c11_with_upstream": 0,
+    "d_wt_02_resolution_p50_seconds": null,
+    "d_wt_04_finalized_7d": 1,
+    "d_wt_04_reopen_rate": 0.0,
+    "d_wt_04_reopened_7d": 0,
+    "d_wt_04_revision_restarts_7d": 0,
+    "d_wt_04_supervisor_revision_restarts_7d": 0
+   },
+   "status": 200
+  },
+  "sync/attachment-health": {
+   "json": {
+    "c14": {
+     "missing_attachments": 2,
+     "rate": 100.0,
+     "total_past_smartva": 2
+    },
+    "d_sh_01": null
+   },
+   "status": 200
+  },
+  "sync/latency": {
+   "json": {
+    "count": 2,
+    "p50_seconds": 0.0,
+    "p90_seconds": 0.0,
+    "p99_seconds": 0.0,
+    "range": "7d"
+   },
+   "status": 200
+  },
+  "sync/latency?range=today": {
+   "json": {
+    "count": 2,
+    "p50_seconds": 0.0,
+    "p90_seconds": 0.0,
+    "p99_seconds": 0.0,
+    "range": "today"
+   },
+   "status": 200
+  },
+  "sync/smartva-failure-rate": {
+   "json": {
+    "rate_7d": 0.0,
+    "rate_cumulative": 0.0,
+    "runs_7d": {
+     "failed": 0,
+     "total": 0
+    },
+    "runs_cumulative": {
+     "failed": 0,
+     "total": 0
+    }
+   },
+   "status": 200
+  },
+  "sync/status": {
+   "json": {
+    "error_rate_7d": 0.0,
+    "error_rate_cumulative": 0.0,
+    "errors": 0,
+    "last_status": null,
+    "latest_run": null,
+    "period": "7d",
+    "rate": 0.0,
+    "runs": 0,
+    "runs_7d": {
+     "errors": 0,
+     "total": 0
+    },
+    "runs_cumulative": {
+     "errors": 0,
+     "total": 0
+    }
+   },
+   "status": 200
+  },
+  "sync/status?period=7d": {
+   "json": {
+    "error_rate_7d": 0.0,
+    "error_rate_cumulative": 0.0,
+    "errors": 0,
+    "last_status": null,
+    "latest_run": null,
+    "period": "7d",
+    "rate": 0.0,
+    "runs": 0,
+    "runs_7d": {
+     "errors": 0,
+     "total": 0
+    },
+    "runs_cumulative": {
+     "errors": 0,
+     "total": 0
+    }
+   },
+   "status": 200
+  },
+  "workflow/daily-transitions": {
+   "json": {
+    "days": [
+     {
+      "date": "T-0",
+      "total": 6,
+      "transitions": {
+       "coder_finalized": 1,
+       "coding_in_progress": 1,
+       "ready_for_coding": 2,
+       "smartva_pending": 2
+      }
+     }
+    ]
+   },
+   "status": 200
+  },
+  "workflow/daily-transitions?days=3": {
+   "json": {
+    "days": [
+     {
+      "date": "T-0",
+      "total": 6,
+      "transitions": {
+       "coder_finalized": 1,
+       "coding_in_progress": 1,
+       "ready_for_coding": 2,
+       "smartva_pending": 2
+      }
+     }
+    ]
+   },
+   "status": 200
+  },
+  "workflow/flowchart": {
+   "json": {
+    "conversion": {
+     "coding_rate": 0.5,
+     "eligible_rate": 1.0,
+     "review_rate": 0.0
+    },
+    "stages": {
+     "all_synced": 2,
+     "coded": 1,
+     "coder_finalized": {
+      "beyond_24h": 0,
+      "beyond_window": 0,
+      "total": 1,
+      "within_24h": 1,
+      "within_window": 1
+     },
+     "eligible_for_coding": 2,
+     "excluded_coding": {
+      "not_codeable_coder": 0
+     },
+     "excluded_entry": {
+      "consent_refused": 0,
+      "not_codeable_dm": 0,
+      "total": 0
+     },
+     "reviewed": 0,
+     "sent_back": 0,
+     "uncoded_eligible": 1,
+     "upstream_changed": 0
+    },
+    "total_synced": 2
+   },
+   "status": 200
+  },
+  "workflow/stagnation": {
+   "json": {
+    "alerts": [
+     {
+      "alert_count": 0,
+      "alert_level": "normal",
+      "critical_count": 0,
+      "dm_action": "Allocate coders or check capacity",
+      "gt_30d": 0,
+      "gt_48h": 0,
+      "gt_7d": 0,
+      "label": "Ready for Coding",
+      "max_age_hours": -0.0,
+      "p50_age_hours": -0.0,
+      "state": "ready_for_coding",
+      "total": 1
+     },
+     {
+      "alert_count": 0,
+      "alert_level": "normal",
+      "beyond_window": 0,
+      "critical_count": 0,
+      "dm_action": "Auto-progresses to reviewer_eligible after the recode window",
+      "gt_24h": 0,
+      "gt_30d": 0,
+      "gt_48h": 0,
+      "gt_7d": 0,
+      "label": "Coder Finalized",
+      "max_age_hours": -0.0,
+      "p50_age_hours": -0.0,
+      "state": "coder_finalized",
+      "total": 1,
+      "within_24h": 1,
+      "within_window": 1
+     }
+    ],
+    "total_stagnant_gt_48h": 0,
+    "total_stagnant_gt_7d": 0
+   },
+   "status": 200
+  },
+  "workflow/state-velocity": {
+   "json": {
+    "range_days": 30,
+    "states": [
+     {
+      "avg_hours": 1.0,
+      "label": "Coding in Progress",
+      "p50_hours": 1.0,
+      "p90_hours": 1.0,
+      "state": "coding_in_progress",
+      "transition_count": 1
+     },
+     {
+      "avg_hours": 0.5,
+      "label": "Ready for Coding",
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "state": "ready_for_coding",
+      "transition_count": 1
+     },
+     {
+      "avg_hours": 0.5,
+      "label": "SmartVA Processing",
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "state": "smartva_pending",
+      "transition_count": 2
+     }
+    ]
+   },
+   "status": 200
+  },
+  "workflow/state-velocity?days=7": {
+   "json": {
+    "range_days": 7,
+    "states": [
+     {
+      "avg_hours": 1.0,
+      "label": "Coding in Progress",
+      "p50_hours": 1.0,
+      "p90_hours": 1.0,
+      "state": "coding_in_progress",
+      "transition_count": 1
+     },
+     {
+      "avg_hours": 0.5,
+      "label": "Ready for Coding",
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "state": "ready_for_coding",
+      "transition_count": 1
+     },
+     {
+      "avg_hours": 0.5,
+      "label": "SmartVA Processing",
+      "p50_hours": 0.5,
+      "p90_hours": 0.5,
+      "state": "smartva_pending",
+      "transition_count": 2
+     }
+    ]
+   },
+   "status": 200
+  }
+ },
+ "empty": {
+  "burndown/": {
+   "json": {
+    "achieved": [],
+    "burndown_available": false,
+    "mean_daily_rate": 0,
+    "predicted_days": null,
+    "projected": []
+   },
+   "status": 200
+  },
+  "coders/disagreement": {
+   "json": {
+    "disagreements": 0,
+    "rate": null,
+    "reviewed": 0
+   },
+   "status": 200
+  },
+  "coders/output": {
+   "json": {
+    "heatmap": [],
+    "per_coder": [],
+    "total": 0
+   },
+   "status": 200
+  },
+  "coders/output?range=today": {
+   "json": {
+    "heatmap": [],
+    "per_coder": [],
+    "total": 0
+   },
+   "status": 200
+  },
+  "coders/roster": {
+   "json": {
+    "coders": []
+   },
+   "status": 200
+  },
+  "coders/utilization": {
+   "json": {
+    "active_count": 0,
+    "rate": 0.0,
+    "total_coders": 0
+   },
+   "status": 200
+  },
+  "critical-path/": {
+   "json": {
+    "bottleneck": null,
+    "dominant": null,
+    "end_segments": null,
+    "period_days": 30,
+    "stages": [
+     {
+      "label": "DM Screening",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "screening_pending"
+     },
+     {
+      "label": "Attachment Sync",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "attachment_sync_pending"
+     },
+     {
+      "label": "SmartVA Processing",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "smartva_pending"
+     },
+     {
+      "label": "Ready for Coding",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "ready_for_coding"
+     },
+     {
+      "label": "Coding in Progress",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "coding_in_progress"
+     },
+     {
+      "label": "Step 1 Saved",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "coder_step1_saved"
+     },
+     {
+      "label": "Upstream Changed",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "finalized_upstream_changed"
+     },
+     {
+      "label": "Sent Back for Revision",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "sent_back_for_revision"
+     }
+    ],
+    "units": []
+   },
+   "status": 200
+  },
+  "critical-path/?days=7": {
+   "json": {
+    "bottleneck": null,
+    "dominant": null,
+    "end_segments": null,
+    "period_days": 7,
+    "stages": [
+     {
+      "label": "DM Screening",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "screening_pending"
+     },
+     {
+      "label": "Attachment Sync",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "attachment_sync_pending"
+     },
+     {
+      "label": "SmartVA Processing",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "smartva_pending"
+     },
+     {
+      "label": "Ready for Coding",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "ready_for_coding"
+     },
+     {
+      "label": "Coding in Progress",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "coding_in_progress"
+     },
+     {
+      "label": "Step 1 Saved",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "coder_step1_saved"
+     },
+     {
+      "label": "Upstream Changed",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "finalized_upstream_changed"
+     },
+     {
+      "label": "Sent Back for Revision",
+      "n": 0,
+      "p50_hours": null,
+      "p90_hours": null,
+      "stage": "sent_back_for_revision"
+     }
+    ],
+    "units": []
+   },
+   "status": 200
+  },
+  "exclusions/blocked": {
+   "json": {
+    "breakdown": [],
+    "soft_gate_not_codeable": 0,
+    "total_blocked": 0
+   },
+   "status": 200
+  },
+  "exclusions/breakdown": {
+   "json": {
+    "by_actor": {},
+    "coder_reasons": [],
+    "dm_reasons": []
+   },
+   "status": 200
+  },
+  "exclusions/not-analysable": {
+   "json": {
+    "all_synced": 0,
+    "by_reason": {
+     "partially_completed": 0,
+     "refused": 0,
+     "respondent_unavailable": 0
+    },
+    "count": 0,
+    "rate": 0.0
+   },
+   "status": 200
+  },
+  "exclusions/not-codeable": {
+   "json": {
+    "all_synced": 0,
+    "coder": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "coding_pool": 0,
+    "count": 0,
+    "dm": {
+     "count": 0,
+     "rate": 0.0
+    },
+    "rate": 0.0
+   },
+   "status": 200
+  },
+  "exclusions/nqa-sa": {
+   "json": {
+    "nqa": {},
+    "social_autopsy": {}
+   },
+   "status": 200
+  },
+  "exclusions/odk-issues": {
+   "json": {
+    "count": 0,
+    "rate": 0.0,
+    "total": 0
+   },
+   "status": 200
+  },
+  "exclusions/rates": {
+   "json": {},
+   "status": 200
+  },
+  "grid/": {
+   "json": {
+    "data": [],
+    "source": "none"
+   },
+   "status": 200
+  },
+  "grid/?days=3": {
+   "json": {
+    "data": [],
+    "source": "none"
+   },
+   "status": 200
+  },
+  "language/distribution": {
+   "json": {
+    "distribution": [],
+    "monthly": []
+   },
+   "status": 200
+  },
+  "language/gap": {
+   "json": {
+    "bottleneck": null,
+    "gap_cases": 0,
+    "gap_languages": [],
+    "languages": [],
+    "ready_pool": 0
+   },
+   "status": 200
+  },
+  "language/missing": {
+   "json": {
+    "missing_count": 0,
+    "rate": 0.0,
+    "total_coding_pool": 0,
+    "unmapped_count": 0
+   },
+   "status": 200
+  },
+  "language/pendency": {
+   "json": {
+    "bottleneck": null,
+    "gap_languages": [],
+    "languages": []
+   },
+   "status": 200
+  },
+  "outcomes/disagreement": {
+   "json": {
+    "disagreements": 0,
+    "rate": null,
+    "reviewed": 0
+   },
+   "status": 200
+  },
+  "outcomes/female-final-gap": {
+   "json": {
+    "gap_pp": null,
+    "register": null,
+    "rows": [
+     {
+      "codeable": 0,
+      "final": 0,
+      "rate": null,
+      "sex": "female"
+     },
+     {
+      "codeable": 0,
+      "final": 0,
+      "rate": null,
+      "sex": "male"
+     },
+     {
+      "codeable": 0,
+      "final": 0,
+      "rate": null,
+      "sex": "unknown"
+     }
+    ]
+   },
+   "status": 200
+  },
+  "outcomes/female-share": {
+   "json": {
+    "female": 0,
+    "male": 0,
+    "share": null,
+    "units": [],
+    "unknown": 0
+   },
+   "status": 200
+  },
+  "outcomes/final-cause-coverage": {
+   "json": {
+    "codeable": 0,
+    "final": 0,
+    "rate": null
+   },
+   "status": 200
+  },
+  "outcomes/register-coverage": {
+   "json": {
+    "applicable": false
+   },
+   "status": 200
+  },
+  "outcomes/unknown-cause": {
+   "json": {
+    "finals": 0,
+    "rate": null,
+    "unknown": 0,
+    "unmapped": 0
+   },
+   "status": 200
+  },
+  "pipeline/aging": {
+   "json": {
+    "gt_30d": 0,
+    "gt_48h": 0,
+    "gt_7d": 0
+   },
+   "status": 200
+  },
+  "pipeline/backlog-trend": {
+   "json": {
+    "data": [],
+    "source": "none"
+   },
+   "status": 200
+  },
+  "pipeline/inflow-outflow": {
+   "json": {
+    "data": [],
+    "does_not_clear": false,
+    "net_28d": 0
+   },
+   "status": 200
+  },
+  "pipeline/inflow-outflow?days=3": {
+   "json": {
+    "data": [],
+    "does_not_clear": false,
+    "net_28d": 0
+   },
+   "status": 200
+  },
+  "pipeline/pending": {
+   "json": {
+    "coding_pool": 0,
+    "days_to_clear": null,
+    "pending": 0,
+    "rate": 0.0
+   },
+   "status": 200
+  },
+  "pipeline/reviewed": {
+   "json": {
+    "eligible": 0,
+    "rate": 0.0,
+    "reviewed": 0
+   },
+   "status": 200
+  },
+  "pipeline/reviewer-throughput": {
+   "json": {
+    "cumulative": 0,
+    "last_7d": 0,
+    "today": 0
+   },
+   "status": 200
+  },
+  "pipeline/site-bottleneck": {
+   "json": {
+    "sites": []
+   },
+   "status": 200
+  },
+  "pipeline/time-to-code": {
+   "json": {
+    "count": 0,
+    "max_seconds": null,
+    "min_seconds": null,
+    "p50_seconds": null,
+    "p90_seconds": null,
+    "range": "7d"
+   },
+   "status": 200
+  },
+  "pipeline/time-to-code?range=today": {
+   "json": {
+    "count": 0,
+    "max_seconds": null,
+    "min_seconds": null,
+    "p50_seconds": null,
+    "p90_seconds": null,
+    "range": "today"
+   },
+   "status": 200
+  },
+  "pipeline/upstream-changes": {
+   "json": {},
+   "status": 200
+  },
+  "sync/attachment-health": {
+   "json": {
+    "c14": {},
+    "d_sh_01": {}
+   },
+   "status": 200
+  },
+  "sync/latency": {
+   "json": {
+    "count": 0,
+    "p50": null,
+    "p90": null,
+    "p99": null
+   },
+   "status": 200
+  },
+  "sync/latency?range=today": {
+   "json": {
+    "count": 0,
+    "p50": null,
+    "p90": null,
+    "p99": null
+   },
+   "status": 200
+  },
+  "sync/smartva-failure-rate": {
+   "json": {
+    "rate_7d": 0.0,
+    "rate_cumulative": 0.0,
+    "runs_7d": {
+     "failed": 0,
+     "total": 0
+    },
+    "runs_cumulative": {
+     "failed": 0,
+     "total": 0
+    }
+   },
+   "status": 200
+  },
+  "sync/status": {
+   "json": {
+    "error_rate_7d": 0.0,
+    "error_rate_cumulative": 0.0,
+    "errors": 0,
+    "last_status": null,
+    "latest_run": null,
+    "period": "7d",
+    "rate": 0.0,
+    "runs": 0,
+    "runs_7d": {
+     "errors": 0,
+     "total": 0
+    },
+    "runs_cumulative": {
+     "errors": 0,
+     "total": 0
+    }
+   },
+   "status": 200
+  },
+  "sync/status?period=7d": {
+   "json": {
+    "error_rate_7d": 0.0,
+    "error_rate_cumulative": 0.0,
+    "errors": 0,
+    "last_status": null,
+    "latest_run": null,
+    "period": "7d",
+    "rate": 0.0,
+    "runs": 0,
+    "runs_7d": {
+     "errors": 0,
+     "total": 0
+    },
+    "runs_cumulative": {
+     "errors": 0,
+     "total": 0
+    }
+   },
+   "status": 200
+  },
+  "workflow/daily-transitions": {
+   "json": {
+    "days": []
+   },
+   "status": 200
+  },
+  "workflow/daily-transitions?days=3": {
+   "json": {
+    "days": []
+   },
+   "status": 200
+  },
+  "workflow/flowchart": {
+   "json": {
+    "stages": {},
+    "total_synced": 0
+   },
+   "status": 200
+  },
+  "workflow/stagnation": {
+   "json": {
+    "alerts": [],
+    "total_stagnant_gt_48h": 0,
+    "total_stagnant_gt_7d": 0
+   },
+   "status": 200
+  },
+  "workflow/state-velocity": {
+   "json": {
+    "range_days": 30,
+    "states": []
+   },
+   "status": 200
+  },
+  "workflow/state-velocity?days=7": {
+   "json": {
+    "range_days": 30,
+    "states": []
+   },
+   "status": 200
+  }
+ }
+}

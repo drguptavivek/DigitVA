@@ -58,8 +58,9 @@ from app.models import VaProjectMaster
 from app.services import dm_dashboard_cache, project_clock
 from app.services.authz import grant_cache
 from app.services.data_management_service import dm_grant_scope
-from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
-from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
+from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
+from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
+from app.services.odk_retirement_service import IN_ODK_BIND
 from app.services.workflow.definition import (
     CODING_BUCKET_CODED,
     NOT_DEMO_EVENT_SQL,
@@ -86,12 +87,6 @@ GRANT_PROJECT_JOINS = """
 GRANT_PROJECT_SQL = "COALESCE(g.project_id, gps.project_id, gou.project_id)"
 
 bp = Blueprint("dm_kpi_cache", __name__)
-
-
-# Retired submissions are not counted (docs/policy/odk-retired-submissions.md).
-_IN_ODK_SQL = in_odk_sql("s")
-# Confirmed-duplicate web cases leave every count (app/services/duplicate_exclusion.py).
-_NOT_DUPLICATE_SQL = not_confirmed_duplicate_sql("s.va_sid")
 
 #: ``clock_pm``: the ``va_project_master`` row of form ``f``'s project, whose
 #: timezone is the project clock (docs/policy/kpis.md, "Days follow the

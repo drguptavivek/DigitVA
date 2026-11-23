@@ -1006,7 +1006,7 @@ def e2e_users_create(out_path):
     import json
     from datetime import UTC, datetime
 
-    from app.models import MasCadre, VaProjectMaster, VaUsers
+    from app.models import MapOrgLevelCadre, MasCadre, VaProjectMaster, VaUsers
     from app.services import organization_service as org
     from app.services import project_user_import_service as user_import
 
@@ -1069,6 +1069,13 @@ def e2e_users_create(out_path):
                     worker_name=f"E2E {run_id} {key}",
                     worker_code=f"E2E_{run_id}_{key[:3]}{key[-3:]}_{unit_code}".upper(), user=emails[key],
                 )
+                if key == "supervisor":
+                    # Flow 75 corrects an interview: the supervisor's cadre needs "Can edit interviews".
+                    db.session.execute(sa.update(MapOrgLevelCadre).where(
+                        MapOrgLevelCadre.org_level_id == unit.org_level_id,
+                        MapOrgLevelCadre.cadre_id == cadre.cadre_id,
+                        MapOrgLevelCadre.can_supervise_interviews.is_(True),
+                    ).values(can_edit_interviews=True))
             rows = [
                 {"_line_number": n, "email": emails[key], "name": "", "role": role,
                  "org_unit_code": unit_code or "", "cadre_code": cadre_code or "",

@@ -197,7 +197,7 @@ Guards").
 
 ## Supervisor correction (owner, 2026-11-23, `digitva-6dh9`, `digitva-5izv`)
 
-Built 2026-11-23 on the server and in the browser; phone screens `digitva-hftq`.
+Built 2026-11-23 on the server, in the browser and in the Collect app (`digitva-hftq`).
 Where interviewers (ANMs, for example) need their supervisors'
 help to correct mistakes, a supervisor may edit the interview themselves.
 
@@ -218,7 +218,7 @@ help to correct mistakes, a supervisor may edit the interview themselves.
   that moment ("Where the lock starts"). After the coder finalises, rules 3
   and 4 are unchanged; a case sent back or reopened under them is revisable
   again, so a supervisor who reopens a coded case may then correct it.
-  In the browser and in the Collect app (online; app screens `digitva-hftq`). Web and device interviews only; ODK interviews are
+  In the browser and in the Collect app (online; the app sends a correction at once and never queues it). Web and device interviews only; ODK interviews are
   corrected in ODK.
 - **How.** The supervisor opens the stored answers in the WHO VA form, edits
   and saves. The save is a revision like the interviewer's: a new version,

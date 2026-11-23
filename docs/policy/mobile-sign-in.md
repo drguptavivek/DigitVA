@@ -77,7 +77,7 @@ everything not said here.
   not know the code and show their generic "Something went wrong. Try
   again."; nothing is lost or wiped.
 
-### Interview supervisors on the phone (owner 2026-11-23, `digitva-hftq`; built except the phone's Edit interview)
+### Interview supervisors on the phone (owner 2026-11-23, `digitva-hftq`; built)
 
 - **Who.** A user holding an active `interview_supervisor` unit grant may
   enrol a phone and sign in on it, like an interviewer. `has_device_access`

@@ -1,0 +1,96 @@
+# S05: the interview supervisor (cadre ticked "Can edit interviews"; e2e-users create ticks it)
+# opens the case flow 70 sent from Supervision, edits the narrative in Edit interview and
+# Completes: the correction is sent at once (never queued) and the case shows "Last edited by".
+# A second edit left with Back asks "Discard changes?" and sends nothing.
+# Server side: checks/75-supervisor-edit-interview.sh. Env CASE overrides the case text to find.
+appId: com.causeofdeathindia.digitvacollect.plus
+env:
+  ROLE: supervisor
+  CASE: "E2E${MAESTRO_RUN_ID}regA.*"
+---
+- runFlow:
+    file: ../sub/open-profile.yaml
+- runFlow: ../sub/unlock.yaml
+- extendedWaitUntil:
+    visible: "Interview supervision"
+    timeout: 60000
+- tapOn: "Total in scope.*"
+- tapOn: "Submitted.*"
+- scrollUntilVisible:
+    element: ".*${CASE}.*"
+    centerElement: true
+- tapOn:
+    id: "supervision-view-details"
+    childOf:
+      id: "supervision-card"
+      containsDescendants:
+        - text: ".*${CASE}.*"
+- tapOn: "Edit interview"
+- extendedWaitUntil:
+    visible:
+      id: "section-drawer-toggle"
+    timeout: 60000
+- tapOn:
+    id: "section-drawer-toggle"
+- tapOn: "5. Open narrative"
+- scrollUntilVisible:
+    element:
+      id: "question-Id10476"
+    centerElement: true
+- tapOn:
+    id: "question-Id10476"
+- inputText: " Supervisor checked."
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "section-drawer-toggle"
+    direction: UP
+- tapOn:
+    id: "section-drawer-toggle"
+- scrollUntilVisible:
+    element: ".*Interview outcome.*"
+- tapOn: ".*Interview outcome.*"
+- tapOn: "Complete"
+- extendedWaitUntil:
+    visible: "Total in scope.*"
+    timeout: 60000
+- tapOn: "Total in scope.*"
+- tapOn: "Submitted.*"
+- scrollUntilVisible:
+    element: ".*${CASE}.*"
+    centerElement: true
+- assertVisible:
+    text: "Last edited by E2E ${MAESTRO_RUN_ID} supervisor.*"
+    childOf:
+      id: "supervision-card"
+      containsDescendants:
+        - text: ".*${CASE}.*"
+# Leaving an unsent edit asks first and sends nothing.
+- tapOn:
+    id: "supervision-view-details"
+    childOf:
+      id: "supervision-card"
+      containsDescendants:
+        - text: ".*${CASE}.*"
+- tapOn: "Edit interview"
+- extendedWaitUntil:
+    visible:
+      id: "section-drawer-toggle"
+    timeout: 60000
+- tapOn:
+    id: "section-drawer-toggle"
+- tapOn: "5. Open narrative"
+- scrollUntilVisible:
+    element:
+      id: "question-Id10476"
+    centerElement: true
+- tapOn:
+    id: "question-Id10476"
+- inputText: " not sent"
+- hideKeyboard
+- back
+- assertVisible: "Discard changes?"
+- tapOn: "Leave anyway"
+- extendedWaitUntil:
+    visible: "Total in scope.*"
+    timeout: 30000

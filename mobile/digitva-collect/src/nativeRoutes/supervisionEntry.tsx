@@ -5,6 +5,8 @@ import { icons } from "../Icon";
 import { Card, ListRow } from "../ui";
 
 export const SUPERVISION_ROUTE = "/supervision";
+/** A supervisor's online correction of one submitted interview. */
+export const SUPERVISOR_REVISION_ROUTE = "/supervisor-revision";
 
 /** Home's way in: one row, shown to accounts whose last /me/access answer reported supervision. */
 export function SupervisionEntry({ userId }: { userId: string }) {

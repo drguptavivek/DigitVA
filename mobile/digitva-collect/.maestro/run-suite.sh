@@ -130,7 +130,7 @@ for f in "$HERE"/flows/*.yaml; do
   sel="$sel $f"
 done
 need=$(cat /dev/null $sel | grep -oE 'ROLE: *[a-z0-9_]+|interviewer2' | sed 's/ROLE: *//' | sort -u)
-for r in interviewer interviewer2 reporter coder reporter_t2 interviewer_t2; do
+for r in interviewer interviewer2 reporter coder supervisor reporter_t2 interviewer_t2; do
   v=0; echo "$need" | grep -qx "$r" && v=1
   export "MAESTRO_ENROL_$(echo "$r" | tr a-z A-Z)=$v"
 done

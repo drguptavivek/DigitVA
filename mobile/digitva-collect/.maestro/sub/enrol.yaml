@@ -8,6 +8,13 @@ appId: com.causeofdeathindia.digitvacollect.plus
 - launchApp:
     stopApp: true
 - extendedWaitUntil:
+    visible: "Profiles on this phone|Enrol this device|Help improve the app\\?"
+    timeout: 60000
+# The usage-reporting prompt on a fresh install: decline it (privacy default).
+- tapOn:
+    text: "Not now"
+    optional: true
+- extendedWaitUntil:
     visible: "Profiles on this phone|Enrol this device"
     timeout: 60000
 - runFlow:
@@ -39,7 +46,19 @@ appId: com.causeofdeathindia.digitvacollect.plus
           retryTapIfNoChange: false
           waitToSettleTimeoutMs: 200
       - extendedWaitUntil:
-          visible: "Set a PIN|This device has been revoked. Enrol it again."
+          visible: "Set a PIN|This device has been revoked. Enrol it again.|This device is no longer enrolled.*"
+          timeout: 30000
+# Newer builds ask before forgetting a revoked device.
+- runFlow:
+    when:
+      visible: "This device is no longer enrolled.*"
+    commands:
+      - tapOn:
+          text: "Enrol again"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+      - extendedWaitUntil:
+          visible: "Enrol this device"
           timeout: 30000
 - runFlow:
     when:

@@ -481,6 +481,8 @@
   "supervisionReopen": "Reopen",
   "supervisionLastEdited": "Last edited by {name}, {date}",
   "supervisionEditInterview": "Edit interview",
+  "supervisionEditLeaveTitle": "Discard changes?",
+  "supervisionEditLeaveMessage": "Your changes to this interview have not been sent and will be lost.",
   "supervisionEditDeath": "Edit death report",
   "supervisionReopenRevision": "Reopen for revision",
   "supervisionChooseInterview": "Choose interview",

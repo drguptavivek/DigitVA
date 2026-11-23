@@ -14,7 +14,7 @@ import { isPlusVariant } from "./appVariant";
 import { canUseOfflineCoding, canUseOnlineCoding } from "./codingCapabilities";
 import { Button, errorText, Screen, useUiStyles } from "./ui";
 import { CodingCaseChips } from "./ui/CodingCaseChips";
-import { SUPERVISION_ROUTE, SupervisionEntry } from "./nativeRoutes/supervisionEntry";
+import { SUPERVISION_ROUTE, SUPERVISOR_REVISION_ROUTE, SupervisionEntry } from "./nativeRoutes/supervisionEntry";
 import { TrainingCodingEntry } from "./nativeRoutes/trainingOnboarding";
 
 const COLLECTION_ROUTES = new Set([
@@ -185,7 +185,7 @@ export default function NativeCollectionGate({
     if (hasAccount && ((needsCollection && collectionAccess === undefined) ||
         (needsRegistration && registrationAccess === undefined) ||
         (needsWorkspace && (codingAccess === undefined || reviewingAccess === undefined || supervisionAccess === undefined)) ||
-        (pathname === SUPERVISION_ROUTE && supervisionAccess === undefined) ||
+        ((pathname === SUPERVISION_ROUTE || pathname === SUPERVISOR_REVISION_ROUTE) && supervisionAccess === undefined) ||
         (needsCoding && codingAccess === undefined) || (needsReviewing && reviewingAccess === undefined))) {
       void checkAccess();
     }
@@ -205,7 +205,7 @@ export default function NativeCollectionGate({
     );
   }
   if (!COLLECTION_ROUTES.has(pathname) && !REGISTRATION_ROUTES.has(pathname) && pathname !== WORKLIST_ROUTE &&
-      pathname !== OFFLINE_CODING_ROUTE && pathname !== ENGINE_CHECK_ROUTE && pathname !== SUPERVISION_ROUTE && !needsCoding && !needsReviewing) return children;
+      pathname !== OFFLINE_CODING_ROUTE && pathname !== ENGINE_CHECK_ROUTE && pathname !== SUPERVISION_ROUTE && pathname !== SUPERVISOR_REVISION_ROUTE && !needsCoding && !needsReviewing) return children;
   if (!userId || !account) return <RedirectHome />;
   // An account screen reached by Back after a lock, sign-out or revoke must not show its data. The gate re-renders
   // with the app state, so a lock (lockVersion bump) re-checks it.
@@ -229,6 +229,8 @@ export default function NativeCollectionGate({
   }
   if (account.needs_sign_in || account.terms_required || account.access_blocked) return <NativePendingWorkspace userId={userId} />;
   if (pathname === SUPERVISION_ROUTE) return account.supervision_access === true ? open(children) : <RedirectHome />;
+  // A supervisor's interview correction (src/nativeRoutes/supervisorRevision.tsx) needs the supervision grant, not collection access.
+  if (pathname === SUPERVISOR_REVISION_ROUTE) return account.supervision_access === true ? open(children) : <RedirectHome />;
   // A supervisor's death-report correction rides /register (src/nativeRoutes/registerRoute.tsx); it needs the supervision grant, not registration access.
   if (pathname === "/register" && (firstParam((routeParams as { by?: string | string[] } | undefined)?.by) ?? firstParam(params.by)) === "supervisor") {
     return account.supervision_access === true ? open(guarded(children)) : <RedirectHome />;

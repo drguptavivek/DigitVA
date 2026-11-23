@@ -1537,7 +1537,7 @@ async function loadReferenceData(userId: string, db: Db): Promise<ReferencePack>
   };
 }
 
-async function fetchProjectFormOptions(userId: string, projectId: string): Promise<ProjectSettings["form_options"]> {
+export async function fetchProjectFormOptions(userId: string, projectId: string): Promise<ProjectSettings["form_options"]> {
   const { body } = await authedRequest<unknown>(userId, `/api/v1/organization/${encodeURIComponent(projectId)}/form-options`, { projectId });
   if (!isRecord(body)) throw new Error("invalid_form_options");
   return body as ProjectSettings["form_options"];

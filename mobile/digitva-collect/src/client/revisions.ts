@@ -1,3 +1,4 @@
+import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import type { SubmissionData } from "@drguptavivek/who-2022-va";
 
 import { ClientApiError, requestClientJson, type ClientCsrf, type DraftResponse } from "./api";
@@ -130,8 +131,13 @@ export async function createRevisionSnapshot(
 ): Promise<RevisionSnapshot> {
   const whoRuntime = await loadWhoCoreRuntime();
   const answersJson = JSON.stringify(whoRuntime.reduceNationalIdData(input.data));
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(answersJson));
-  const answersSha256 = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  // The phone's JS engine has no crypto.subtle; expo-crypto hashes the same UTF-8 text.
+  const answersSha256 = globalThis.crypto?.subtle
+    ? Array.from(
+        new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(answersJson))),
+        (byte) => byte.toString(16).padStart(2, "0"),
+      ).join("")
+    : (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
   return {
     vaSid: input.vaSid,
     reasonCode: input.reasonCode,

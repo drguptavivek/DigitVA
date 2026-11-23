@@ -3,7 +3,7 @@ title: End-to-end testing (Collect Plus on the emulator, supervisor on the web)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-13
+last_updated: 2026-11-24
 ---
 
 # End-to-end testing
@@ -54,6 +54,7 @@ screenshots.
 | 20, 30, 40, 50 | Draft reopen; media survives Home, kill, lock and profile switch; lock/unlock; switch profile |
 | 60 | Death reporter registers a death (TST001) |
 | 70 | Interviewer opens it from To do, consent, full questionnaire, Complete, sent |
+| 75 | Interview supervisor opens 70's case from Supervision, corrects the narrative (sent at once), sees "Last edited by"; a second edit left with Back asks first and sends nothing |
 | web supervisor | `web/supervisor-sees-case.spec.ts`: e2e supervisor sees the run's case in the supervision view |
 | 80 (three parts) | Queue offline, send online; the wrapper switches wifi and data between parts (`# wrapper:` markers) |
 | 81 | TST002: reporter registers, interviewer completes from To do |

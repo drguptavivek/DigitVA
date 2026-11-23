@@ -112,7 +112,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isPrefill(value: Record<string, unknown>): value is Record<string, unknown> & Prefill {
+export function isPrefill(value: Record<string, unknown>): value is Record<string, unknown> & Prefill {
   return (
     (value.interviewer === undefined || isRecord(value.interviewer)) &&
     (value.deceased === undefined || isRecord(value.deceased)) &&
@@ -123,7 +123,7 @@ function isPrefill(value: Record<string, unknown>): value is Record<string, unkn
   );
 }
 
-function configForRevision(row: RevisionRow, project: ProjectSettings): RevisionConfig {
+export function configForRevision(row: RevisionRow, project: ProjectSettings): RevisionConfig {
   if (row.config?.projectId && row.config.projectId !== project.project_id) {
     throw new Error("revision_project_mismatch");
   }
@@ -154,7 +154,7 @@ function configForRevision(row: RevisionRow, project: ProjectSettings): Revision
   };
 }
 
-function normalizeEnvelope(
+export function normalizeEnvelope(
   envelope: DeviceTimedDraft,
   instrument: InstrumentDefinition,
 ): DeviceTimedDraft {
@@ -177,7 +177,7 @@ function normalizeEnvelope(
 }
 
 /** Resolve the saved definition pin; failures leave the encrypted revision unchanged. */
-async function resolveRevisionInstrument(
+export async function resolveRevisionInstrument(
   userId: string,
   db: Db,
   row: RevisionRow,

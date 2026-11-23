@@ -20,6 +20,7 @@ export { default as Unlock } from "./nativeRoutes/unlock";
 export { default as Worklist } from "./nativeRoutes/worklist";
 export { default as Revision } from "./nativeRoutes/revision";
 export { default as Supervision } from "./nativeRoutes/supervision";
+export { default as SupervisorRevision } from "./nativeRoutes/supervisorRevision";
 export { default as Settings } from "./nativeRoutes/settings";
 export { default as ProfileAccess } from "./nativeRoutes/profileAccess";
 export { default as OpenSourceLicenses } from "./nativeRoutes/openSourceLicenses";

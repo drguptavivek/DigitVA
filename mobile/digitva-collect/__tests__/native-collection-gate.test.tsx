@@ -468,6 +468,11 @@ describe("interview supervisors on the phone", () => {
     expect(JSON.stringify((await render("/supervision", { ...supervisor, supervision_access: false })).toJSON())).not.toContain("account data");
   });
 
+  it("opens a supervisor's interview correction for supervision access only, without collection access", async () => {
+    expect(JSON.stringify((await render("/supervisor-revision", supervisor, { draftId: "D1" })).toJSON())).toContain("account data");
+    expect(JSON.stringify((await render("/supervisor-revision", { ...supervisor, supervision_access: false })).toJSON())).not.toContain("account data");
+  });
+
   it("lets a supervisor's death-report correction through /register without registration access", async () => {
     expect(JSON.stringify((await render("/register", supervisor, { by: "supervisor", deathId: "D1" })).toJSON())).toContain("account data");
     // The same route without the supervisor flag still needs registration access.

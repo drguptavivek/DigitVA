@@ -40,6 +40,13 @@ appId: com.causeofdeathindia.digitvacollect.plus
     file: ../sub/enrol.yaml
     env:
       EMAIL: ${MAESTRO_CODER_EMAIL}
+# The interview supervisor (75-supervisor-edit-interview).
+- runFlow:
+    when:
+      true: ${MAESTRO_ENROL_SUPERVISOR == '1'}
+    file: ../sub/enrol.yaml
+    env:
+      EMAIL: ${MAESTRO_SUPERVISOR_EMAIL}
 # The TST002 death reporter and interviewer (81-register-interview-tst002).
 - runFlow:
     when:

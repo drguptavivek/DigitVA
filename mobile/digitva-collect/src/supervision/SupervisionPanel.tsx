@@ -150,10 +150,10 @@ export function SupervisionList({ host }: { host: SupervisionHost }) {
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
       {rows.length === 0 && !busy ? <Text style={styles.muted}>{emptyText}</Text> : null}
       {rows.map((row) => (
-        <View key={row.death_id} style={styles.card}>
+        <View key={row.death_id} style={styles.card} testID="supervision-card">
           <CaseSummary row={row} />
           <SupervisionActions host={host} row={row} onDone={finish} />
-          <Button size="sm" kind="secondary" label={t("viewDetails")} onPress={() => setSelected(row.death_id)} />
+          <Button size="sm" kind="secondary" label={t("viewDetails")} onPress={() => setSelected(row.death_id)} testID="supervision-view-details" />
           {host.identifierAction?.(row, () => setReloads((count) => count + 1))}
         </View>
       ))}

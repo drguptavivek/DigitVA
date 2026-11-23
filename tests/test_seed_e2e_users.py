@@ -226,6 +226,24 @@ class SeedE2eUsersTests(BaseTestCase):
             self.app.testing = True
         self.assertFalse(os.path.exists(self.out))
 
+    def test_create_ticks_can_edit_interviews_for_the_supervisor_cadre(self):
+        from app.models import MapOrgLevelCadre, MasCadre
+
+        unit = db.session.scalar(sa.select(MasOrgUnit).where(
+            MasOrgUnit.project_id == TEST_PROJECT_ID, MasOrgUnit.unit_code == "PHC01"))
+        cadre = db.session.scalar(sa.select(MasCadre).where(
+            MasCadre.project_id == TEST_PROJECT_ID, MasCadre.cadre_code == "MO"))
+        tick = sa.select(MapOrgLevelCadre.can_edit_interviews).where(
+            MapOrgLevelCadre.org_level_id == unit.org_level_id, MapOrgLevelCadre.cadre_id == cadre.cadre_id)
+        db.session.execute(sa.update(MapOrgLevelCadre).where(
+            MapOrgLevelCadre.org_level_id == unit.org_level_id, MapOrgLevelCadre.cadre_id == cadre.cadre_id,
+        ).values(can_edit_interviews=False))
+        db.session.commit()
+        self.assertIs(db.session.scalar(tick), False)
+        self._create()
+        db.session.expire_all()
+        self.assertIs(db.session.scalar(tick), True)
+
 
 class SeedE2eUsersReleaseTests(CodingScopeFixtureMixin, BaseTestCase):
     """Teardown hands a run's unfinished coding allocations back to the queue."""
@@ -301,3 +319,4 @@ class SeedE2eUsersReleaseTests(CodingScopeFixtureMixin, BaseTestCase):
         self.assertIn("allocations 0 of 1 released", result.output)
         self.assertEqual(self._status(alloc), VaStatuses.active)
         self.assertEqual(self._state("csc-e2e-final"), "coder_finalized")
+

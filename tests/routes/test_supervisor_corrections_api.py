@@ -571,6 +571,23 @@ class SupervisorCorrectionTests(BaseTestCase):
         self._tick(False)
         self.assertEqual(self.client.get(f"{API}/drafts/{draft.draft_id}", headers=headers).status_code, 404)
 
+    def test_a_supervisor_phone_reads_the_form_it_needs_to_edit_an_interview(self):
+        # The phone has no cached reference data for a supervised project: it fetches these live.
+        _body, headers = self._phone(self.hv)
+        options = self.client.get(f"/api/v1/organization/{PROJECT}/form-options", headers=headers,
+                                  query_string={"project_id": PROJECT})
+        self.assertEqual(options.status_code, 200, options.get_json())
+        code = next((f["instrument_code"] for f in options.get_json().get("form_types", []) if f.get("is_default")),
+                    "WHO_2022_VA")
+        definition = self.client.get(f"/api/v1/instruments/{code}/definition", headers=headers,
+                                     query_string={"project_id": PROJECT})
+        self.assertEqual(definition.status_code, 200, definition.get_data(as_text=True)[:300])
+        translations = self.client.get(f"/api/v1/instruments/{code}/translations/hi", headers=headers,
+                                       query_string={"project_id": PROJECT})
+        # The test database holds no Hindi pack (404 "Translation not found"); the point is it is not a 403.
+        self.assertIn(translations.status_code, (200, 404), translations.get_data(as_text=True)[:300])
+        self.assertNotEqual(translations.get_json().get("code"), "forbidden")
+
     def test_in_charge_and_data_manager_powers_stay_off_the_phone(self):
         death_id, va_sid, draft = self._submitted()
         for user in (self.icx, self.dmx):

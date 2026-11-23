@@ -77,7 +77,7 @@ describe("native supervision screen", () => {
     expect(mockRequest.mock.calls[0][1]).toContain("/api/v1/intake/supervision/cases?");
   });
 
-  it("opens the death report edit in supervisor mode and offers neither Edit interview nor withdrawal", async () => {
+  it("opens the interview and death report edits in supervisor mode and offers no withdrawal", async () => {
     fakeApi();
     const tree = await render(<Supervision />);
     // The list row: no consent-withdrawal action on the phone.
@@ -85,7 +85,9 @@ describe("native supervision screen", () => {
     expect(labels(tree)).not.toContain("Record consent withdrawal");
     await act(async () => { tree.root.findAll((node) => node.type === "button" && node.props["data-label"] === "View details")[0].props.onClick(); });
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
-    expect(labels(tree)).not.toContain("Edit interview");
+    expect(labels(tree)).toContain("Edit interview");
+    await act(async () => { tree.root.findAll((node) => node.type === "button" && node.props["data-label"] === "Edit interview")[0].props.onClick(); });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/supervisor-revision", params: { userId: "sup", draftId: "dr", vaSid: "VA1", projectId: "P1", siteId: "S1" } });
     await act(async () => { tree.root.findAll((node) => node.type === "button" && node.props["data-label"] === "Edit death report")[0].props.onClick(); });
     expect(mockPush).toHaveBeenCalledWith({ pathname: "/register", params: { userId: "sup", deathId: "D1", by: "supervisor" } });
   });

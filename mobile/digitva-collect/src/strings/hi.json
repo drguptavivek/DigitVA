@@ -481,6 +481,8 @@
   "supervisionReopen": "फिर से खोलें",
   "supervisionLastEdited": "अंतिम संपादन: {name}, {date}",
   "supervisionEditInterview": "साक्षात्कार संपादित करें",
+  "supervisionEditLeaveTitle": "बदलाव छोड़ें?",
+  "supervisionEditLeaveMessage": "इस साक्षात्कार में आपके बदलाव भेजे नहीं गए हैं और खो जाएंगे।",
   "supervisionEditDeath": "मृत्यु रिपोर्ट संपादित करें",
   "supervisionReopenRevision": "संशोधन के लिए फिर से खोलें",
   "supervisionChooseInterview": "साक्षात्कार चुनें",

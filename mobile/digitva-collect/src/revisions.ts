@@ -173,7 +173,8 @@ async function readStoredConfig(db: Db, draftId: string, projectId: string): Pro
   }
 }
 
-function validateDetail(summary: SubmittedRevisionSummary, body: unknown, config?: RevisionConfig): RevisionRow {
+/** Check a GET /intake/drafts/<id> body against its summary and build the editable row (also the supervisor phone path, which never stores it). */
+export function validateDetail(summary: SubmittedRevisionSummary, body: unknown, config?: RevisionConfig): RevisionRow {
   if (!isRecord(body)) throw new ApiError(200, "malformed_response");
   const detail = body as unknown as RevisionDetailBody;
   const draft = detail.draft;

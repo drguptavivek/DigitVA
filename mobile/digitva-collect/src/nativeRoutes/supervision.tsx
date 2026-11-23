@@ -1,7 +1,7 @@
 /**
  * Interview supervision on the phone (docs/policy/mobile-sign-in.md, "Interview supervisors on the phone"):
  * the shared supervision list and case screen (src/supervision) over the account's bearer session. Online only;
- * Edit interview and consent withdrawal are not offered here.
+ * Edit interview opens src/nativeRoutes/supervisorRevision.tsx; consent withdrawal is not offered here.
  */
 import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
 import type { SupervisionHost } from "../supervision/host";
+import { SUPERVISOR_REVISION_ROUTE } from "./supervisionEntry";
 import { SupervisionList } from "../supervision/SupervisionPanel";
 import { errorText, Notice, Screen } from "../ui";
 import { createNativeWorkspaceTransport } from "../workspace/transport.native";
@@ -28,6 +29,10 @@ export default function Supervision() {
     request: createNativeWorkspaceTransport(userId),
     errorText,
     openDeathEdit: (deathId) => router.push({ pathname: "/register", params: { userId, deathId, by: "supervisor" } } as never),
+    openInterviewEdit: (edit) => router.push({
+      pathname: SUPERVISOR_REVISION_ROUTE,
+      params: { userId, draftId: edit.draft_id, vaSid: edit.va_sid, projectId: edit.project_id, siteId: edit.site_id },
+    } as never),
     consentWithdrawal: false,
   } : undefined, [router, userId]);
   return (

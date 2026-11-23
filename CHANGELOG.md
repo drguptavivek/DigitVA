@@ -19,6 +19,11 @@ What landed, newest first. Details live in the commits and the linked docs;
   (`digitva-eqy8`); Coding languages clears the status bar.
 - COD form PDF checked on the dev emulator: `COD-form-<case id>.pdf`, Coded
   by shown. Staging is still `2549743`; these need the next build and deploy.
+- Bulk invitation email: project-user imports queue invitations 2 s apart
+  (`INVITE_PACE_SECONDS`); `email.send` retries transient SMTP failures up
+  to 6 times with capped (10 min) jittered backoff and logs one masked line
+  per attempt, "gave up" on the last (`9cd81495e`, `digitva-u03r`;
+  docs/policy/account-onboarding-and-passwords.md section 5.1).
 - Demo/training projects open only through explicit grants: the flag no
   longer gives admins and coders/reviewers elsewhere automatic access; it
   still drives demo retention and KPI exclusion

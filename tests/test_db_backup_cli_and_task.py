@@ -224,6 +224,13 @@ class TestS3ChecksumSidecar(BaseTestCase):
         super().setUp()
         self.tmp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp_dir.cleanup)
+        # The app is shared across tests: restore the setting, or later tests
+        # on this worker spool into the deleted directory.
+        self.addCleanup(
+            self.app.config.__setitem__,
+            "DB_BACKUP_TMP_DIR",
+            self.app.config.get("DB_BACKUP_TMP_DIR"),
+        )
         self.app.config["DB_BACKUP_TMP_DIR"] = self.tmp_dir.name
         self.body = b"dump-bytes"
         self.objects = {"p/x.dump": self.body}

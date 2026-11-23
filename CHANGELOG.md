@@ -5,6 +5,20 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-23
 
+- Collect coding screen (`dd805322c`, `758fe5b8d`, `05bece88b`): DORIS shows
+  the interview's and the death report's dates of death under its own, red
+  when the day differs (workspace adds `reported_date_of_death`); the case
+  summary (age, sex, district/state, Project, DEMO) like the web, project
+  alone for organization projects (`is_org_project`, `digitva-98ad`); ICD
+  titles for saved Step 1 codes (`digitva-t0h1`); the queue's refresh icon
+  spins instead of a row that shifted the cards.
+- Collect: Reset DORIS asks first in the app's own dialog (`07f2ca9d1`); Add
+  profile on a revoked phone offers re-enrolment, and a PDF failed on the
+  phone no longer says "connect to the internet" (`7149891e5`,
+  `digitva-koe3`, `digitva-hbvz`); Set PIN clears both rows on a mismatch
+  (`digitva-eqy8`); Coding languages clears the status bar.
+- COD form PDF checked on the dev emulator: `COD-form-<case id>.pdf`, Coded
+  by shown. Staging is still `2549743`; these need the next build and deploy.
 - Demo/training projects open only through explicit grants: the flag no
   longer gives admins and coders/reviewers elsewhere automatic access; it
   still drives demo retention and KPI exclusion

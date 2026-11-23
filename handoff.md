@@ -9,10 +9,6 @@ Collect 0.3.29 APK, Collect Plus APK and Play AAB were built on CI from
 `30b1578`; device-check them before any publish or Play upload (owner's
 command). 0.3.28 and older builds are stale: do not publish.
 
-In progress in other sessions, uncommitted, not landed: interview supervisor
-corrections (`.tasks/2026-11-23-supervisor-corrections.md`, policy docs,
-mobile web screens, migration `a7d3e9c5b2f1`) and the spaghetti code audit.
-Leave their files alone.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect
@@ -35,8 +31,8 @@ and maps stay in the browser).
   "Supervisor correction", mobile-sign-in.md "Interview supervisors on the
   phone"): server, browser and phone list/case/death edit landed
   (`3a14cce2d`, `2aec4f0b9`; migration `a7d3e9c5b2f1` since staging). Left:
-  phone Edit interview, built on the audit session's revision-sync rewrite
-  (`digitva-r8nh.1`) once it merges; owner design review of the new phone
+  phone Edit interview, built on the revision-upload fix
+  (`digitva-r8nh.1`, landed `04b674f92`); owner design review of the new phone
   screens with emulator screenshots, then a CI APK device check. Before a
   staging deploy, audit for old APKs: interviewer+supervisor phones now get
   `supervises_deaths` true. Dev test DB `minerva_test_sup` kept for this.
@@ -60,15 +56,26 @@ and maps stay in the browser).
    staging), `zkgx` (Hindi review). Partly done: `yeg3.1`, `9cll.22.3`,
    `r9lk`, `xjpk`, `xk41`, `rpqp`. Open: `yeg3.18`, `yeg3.24`, `342x`,
    `bx43`, `7amd.27` (due 2027-10), `9cll.18`, `1b50`, `p8uj`, `oux5`.
-5. Backend performance epic `digitva-f41g` (owner: "dont fix for now").
-6. Collect: TalkBack/VoiceOver (`digitva-eizq`), Play screenshots
+5. Code audit refactors (epic `digitva-r8nh`, children `.5`-`.29`, filed
+   2026-11-23, not started; ask the owner before starting). Every one
+   follows the epic's behaviour-preservation protocol (bd memory
+   `refactor-behaviour-preservation`): characterization tests first, pure
+   refactor with tests unedited, equivalence review. `.19` waits on `.18`.
+6. Backend performance epic `digitva-f41g` (owner: "dont fix for now").
+7. Collect: TalkBack/VoiceOver (`digitva-eizq`), Play screenshots
    (`digitva-fthd`; raw captures untracked), SM-E146B speed (`digitva-xxfz`),
    camera result after Android kills the app (not built). Owner review of the
    Hindi strings, including today's new ones.
-7. Offline PHC station macOS acceptance (`digitva-xt9y`). Help chatbot
+8. Offline PHC station macOS acceptance (`digitva-xt9y`). Help chatbot
    (`digitva-wawz`): unbuilt; must use a CPU or edge small model, no paid API.
 
 ## Open owner decisions
+
+- Final COD: reviewer workflow-state refusals stay 403/400 `wrong_state`
+  where the coder gets 409 (kept on purpose in `digitva-r8nh.2`); aligning
+  them needs an old-APK check. The global admin toggle still does not
+  invalidate the user's authz cache (as before `r8nh.3`). The public-demo
+  dashboard can lag 5 minutes after a data-manager action.
 
 - Supervisors: `data_manager` on the phone: not done, needs a decision and policy. Phone death edit leaves out informant,
   phones, ABHA, GPS and registration numbers (browser has them).

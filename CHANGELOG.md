@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-23
 
+- Code audit fixes, owner-approved (epic `digitva-r8nh`; `04b674f92`,
+  `d47083f8a`, `822ab7d55`, `be70ec72c`): Collect revision upload skips only
+  a paused project instead of stopping at the first 403 (`r8nh.1`, policy
+  interview-revisions.md); reviewer final-COD refusals match the coder's
+  through one shared core (`r8nh.2`, final-cod-authority.md "Refusals");
+  the global admin toggle is grant-audited (`r8nh.3`); dashboard caches key
+  on grant scope and a data-manager action bumps one dashboard generation
+  instead of clearing all of Redis (`r8nh.4`, data-manager-workflow.md).
+  Refactor children `r8nh.5`-`.29` are filed, not started.
 - Supervisors on the phone (`digitva-hftq`, policy mobile-sign-in.md
   "Interview supervisors on the phone"): an explicit `interview_supervisor`
   unit grant enrols and signs in (password only, no sign-in QR; intake-off

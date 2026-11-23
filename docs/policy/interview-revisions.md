@@ -294,6 +294,15 @@ Owner confirmed 2026-10-05:
 - Locked prefill answers stay locked in a revision.
 - A superseded copy cannot be revised
   ([Web Intake Policy](web-intake.md), "Parallel interviews").
+- **Revision upload and refusals** (owner, 2026-11-23, `digitva-r8nh.1`). A
+  per-project 403 (a paused project, a withdrawn grant) refuses only that
+  revision: it stays queued and retryable, its error is recorded for the
+  unsent-work list, and other projects' revisions still send, as for new
+  interviews. Account-wide 403s (`terms_required`, `password_change_required`,
+  `maintenance`, `no_collection_access`) and a revoked or missing session
+  stop the run with every revision kept; a network failure leaves that
+  revision queued for the next sync, as before. Earlier app releases
+  stopped at the first 403.
 
 ## Versions and fingerprints
 

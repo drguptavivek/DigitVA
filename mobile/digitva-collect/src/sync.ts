@@ -96,6 +96,7 @@ import { syncQueuedRevisions } from "./revisions";
 import { deleteCoveredAttachments, getServerAttachments, markDraftUnconfirmed, sendableAttachments, setServerAttachments } from "./attachmentStore";
 import { uploadDraftAttachments } from "./attachmentUpload";
 import { clearSendError, INCOMPLETE_OUTCOMES, isUploadableVerdict, noteSendError } from "./unsentWork";
+import { isFatalUploadError } from "./uploadRefusal";
 import { consentFor, deleteDraftConsent, getRegistrationConsent, holdServerRefusal, loadConsents, markInheritedConsentRefused, refreshConsentConfig, type ConsentIndex } from "./consentStore";
 import { isRefused, refusalAnswers } from "./refusalBoundary";
 import { runInTransaction } from "./dbTransaction";
@@ -160,9 +161,6 @@ export function isUploadable(data: CompletedDraft["draft"]["data"] | undefined, 
   return isUploadableVerdict(completion?.valid === true, data?.interview_outcome);
 }
 
-/** 403 codes that gate the whole account rather than one project's rows. */
-const ACCOUNT_GATE_CODES = new Set(["terms_required", "password_change_required", "maintenance", "no_collection_access"]);
-
 /**
  * Session, network and account-wide failures stop the run with everything
  * kept; anything but an API refusal is rethrown. A per-project 403 (a paused
@@ -170,10 +168,8 @@ const ACCOUNT_GATE_CODES = new Set(["terms_required", "password_change_required"
  * stop the other projects' work from being sent.
  */
 function refusal(error: unknown): ApiError {
-  if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
-  if (!(error instanceof ApiError)) throw error;
-  if (error.status === 403 && ACCOUNT_GATE_CODES.has(error.code ?? "")) throw error;
-  return error;
+  if (isFatalUploadError(error)) throw error;
+  return error as ApiError;
 }
 
 /** The public demo's per-account limits (docs/policy/public-demo.md section 8): 429 `demo_limit`. */

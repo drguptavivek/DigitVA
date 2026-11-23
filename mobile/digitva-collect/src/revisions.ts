@@ -11,6 +11,7 @@ import { authedRequest, SessionRevokedError, SignInRequiredError, trainingProjec
 import { createProjectStoreGuard, localDateTimeWithOffset, type Completion, type Db, type DeviceTimedDraft } from "./drafts";
 import { readDefinitionPin, withDefinitionPin } from "./formDefinitionRuntime";
 import { clearSendError, noteSendError } from "./unsentWork";
+import { isAccountGate } from "./uploadRefusal";
 
 export type RevisionReason = "interviewer_correction" | "respondent_correction" | "more_information" | "finish_partial";
 export type RevisionState = "editing" | "ready" | "attention";
@@ -589,7 +590,8 @@ export async function syncQueuedRevisions(userId: string, db: Db, authorizedProj
       } catch (error) {
         await noteSendError(db, row.draft_id, error);
         if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) throw error;
-        if (error instanceof ApiError && error.status === 403) throw error;
+        // A per-project 403 falls through: that row stays ready and the other projects' rows still send.
+        if (isAccountGate(error)) throw error;
         if (error instanceof ApiError && TERMINAL_CODES.has(error.code ?? "")) {
           if (await markAttention(db, rowJson, row, error.code!)) attentionIds.push(row.draft_id);
         } else if (error instanceof ApiError && error.status === 404) {

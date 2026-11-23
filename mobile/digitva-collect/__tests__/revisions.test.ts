@@ -652,14 +652,86 @@ describe("native submitted interview revisions", () => {
     expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({ state: "attention", refusal_code: "revision_rejected" });
   });
 
-  it("propagates project-level authorization failures without discarding a ready revision", async () => {
+  it("refuses only the revision of a paused project (per-project 403) and keeps it ready", async () => {
     mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
       ? { body: { drafts: [summary()] } }
       : { body: detail() });
     await beginRevision(USER, db, DRAFT_ID);
     await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: true, issues: [] });
     mockRequest(async () => { throw new ApiError(403, "forbidden"); });
-    await expect(syncQueuedRevisions(USER, db, new Set([PROJECT]))).rejects.toThrow("forbidden");
+    expect(await syncQueuedRevisions(USER, db, new Set([PROJECT]))).toEqual({ sent: 0, failed: 1, attentionIds: [] });
+    expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({ state: "ready" });
+  });
+
+  const DRAFT_B = "33333333-3333-4333-8333-333333333333";
+  const VA_SID_B = "44444444-4444-4444-8444-444444444444";
+  /** Queue one revision in each of project-1 (draft A) and project-2 (draft B). */
+  async function queueTwoProjects(): Promise<void> {
+    const b = { ...summary(), draft_id: DRAFT_B, va_sid: VA_SID_B, project_id: "project-2" };
+    mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
+      ? { body: { drafts: [summary(), b] } }
+      : { body: path.includes(DRAFT_B) ? detail({ draft: b, envelope: { ...envelope(), id: DRAFT_B } }) : detail() });
+    for (const id of [DRAFT_ID, DRAFT_B]) {
+      await beginRevision(USER, db, id);
+      await queueRevision(db, id, "interviewer_correction", { valid: true, issues: [] });
+    }
+  }
+
+  it("still sends project-2 revisions after project-1 is refused with a per-project 403", async () => {
+    await queueTwoProjects();
+    const sentTo: string[] = [];
+    mockRequest(async (_userId, path, init) => {
+      if ((init as { projectId?: string }).projectId === PROJECT) throw new ApiError(403, "project_forbidden");
+      sentTo.push(path);
+      const body = init?.bodyFactory?.() as { answers_sha256: string };
+      return { body: {
+        changed: true, va_sid: VA_SID_B, payload_version_id: "payload-b",
+        answers_sha256: body.answers_sha256, outcome: "completed", workflow_state: "smartva_pending"
+      } };
+    });
+    expect(await syncQueuedRevisions(USER, db, new Set([PROJECT, "project-2"]))).toEqual({ sent: 1, failed: 1, attentionIds: [] });
+    expect(sentTo).toHaveLength(1);
+    expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({ state: "ready" });
+    expect(await getRevisionRow(db, DRAFT_B)).toBeNull();
+  });
+
+  it("stops before project-2 when project-1 hits an account-wide 403", async () => {
+    await queueTwoProjects();
+    const request = mockRequest(async () => { throw new ApiError(403, "terms_required"); });
+    request.mockClear();
+    await expect(syncQueuedRevisions(USER, db, new Set([PROJECT, "project-2"]))).rejects.toMatchObject({ code: "terms_required" });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(await getRevisionRow(db, DRAFT_B)).toMatchObject({ state: "ready" });
+  });
+
+  async function queueOne(): Promise<void> {
+    mockRequest(async (_userId, path) => path.endsWith("?status=submitted")
+      ? { body: { drafts: [summary()] } }
+      : { body: detail() });
+    await beginRevision(USER, db, DRAFT_ID);
+    await queueRevision(db, DRAFT_ID, "interviewer_correction", { valid: true, issues: [] });
+  }
+
+  it.each(["terms_required", "password_change_required", "maintenance", "no_collection_access"])(
+    "stops the run on the account-wide 403 %s and keeps the revision ready", async (code) => {
+      await queueOne();
+      mockRequest(async () => { throw new ApiError(403, code); });
+      await expect(syncQueuedRevisions(USER, db, new Set([PROJECT]))).rejects.toMatchObject({ status: 403, code });
+      expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({ state: "ready" });
+    });
+
+  it("stops the run when the session is revoked", async () => {
+    await queueOne();
+    const { SessionRevokedError } = jest.requireMock("../src/auth") as { SessionRevokedError: new () => Error };
+    mockRequest(async () => { throw new SessionRevokedError(); });
+    await expect(syncQueuedRevisions(USER, db, new Set([PROJECT]))).rejects.toBeInstanceOf(SessionRevokedError);
+    expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({ state: "ready" });
+  });
+
+  it("keeps the revision ready and carries on after a network failure", async () => {
+    await queueOne();
+    mockRequest(async () => { throw new TypeError("network"); });
+    expect(await syncQueuedRevisions(USER, db, new Set([PROJECT]))).toEqual({ sent: 0, failed: 1, attentionIds: [] });
     expect(await getRevisionRow(db, DRAFT_ID)).toMatchObject({ state: "ready" });
   });
 });

@@ -638,6 +638,19 @@ describe("unsent work in a project that leaves access", () => {
     ]);
   });
 
+  it("stops the run on an account-wide 403 and keeps the work", async () => {
+    const db = await pausedSetup();
+    server((call) => {
+      if (call.url.endsWith("/fixture-reference")) return json(200, referenceFixture([project("P1")]));
+      if (call.url.endsWith("/deaths") || call.url.endsWith("/submissions")) return json(403, { code: "terms_required" });
+      return json(200, { cases: [], next_cursor: null, scoped: false, levels: [], units: [] });
+    });
+
+    await expect(syncInterviewer(USER, db)).rejects.toMatchObject({ status: 403, code: "terms_required" });
+    expect(await getDraftRow(db, DRAFT)).toMatchObject({ project_id: "P2", completed: 1 });
+    expect(await getRegistration(db, REG)).toMatchObject({ project_id: "P2", state: "pending" });
+  });
+
   it("deletes paused work the server acknowledges, and the pause notice with it", async () => {
     const db = await pausedSetup();
     server((call) => {

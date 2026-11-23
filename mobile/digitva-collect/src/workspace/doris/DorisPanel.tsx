@@ -596,6 +596,9 @@ export function DorisPanel({
     });
   };
 
+  // Reset discards the causes typed so far, so it asks first, in the app's own dialog (no browser or OS alert).
+  const [askReset, setAskReset] = useState(false);
+
   const clearFinalCause = () => {
     generation.current += 1;
     chooseFinalCause(null);
@@ -776,7 +779,15 @@ export function DorisPanel({
       {state.reconfirm ? <Alert variant="destructive">Fresh processing replaced the previous result; confirm your final cause again.</Alert> : null}
       {isInitial && !offline ? null : <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={setRemark} />}
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      <Button label={demo ? tr("dorisDemoReset") : "Reset DORIS from interview"} variant="secondary" disabled={state.busy} onPress={resetCertificate} />
+      <Button label={demo ? tr("dorisDemoReset") : "Reset DORIS from interview"} variant="secondary" disabled={state.busy} onPress={() => setAskReset(true)} />
+      {askReset ? <ConfirmDialog
+        destructive
+        title="Reset DORIS?"
+        message={demo ? "This restores the loaded example." : "This clears the causes you entered and reloads the interview data. Remarks, notes and SmartVA results are kept."}
+        confirmLabel="Reset"
+        onCancel={() => setAskReset(false)}
+        onConfirm={() => { setAskReset(false); resetCertificate(); }}
+      /> : null}
       <Button label="Process current certificate" disabled={!canEdit || state.busy} loading={state.busy} onPress={() => void process()} />
       {demo ? null : <Button label={direct ? tr("dorisSaveCauseOfDeath") : isInitial ? "Save Step 1" : "Save final COD"} disabled={!state.processing || !state.selectedCause || state.busy} loading={state.busy} onPress={() => void save()} />}
       {ageDialog}

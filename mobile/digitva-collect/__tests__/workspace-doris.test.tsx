@@ -1,5 +1,6 @@
 import React from "react";
 import { AppState, Modal, Platform } from "react-native";
+import { ConfirmDialog } from "../src/ConfirmDialog";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 jest.mock("../src/ui", () => {
@@ -1781,7 +1782,14 @@ describe("web reload recovery", () => {
     const { tree } = renderPanel(workspace, apiFor());
     await act(async () => byLabel(tree, "COD remark").props.onChangeText("Keep remark"));
     await act(async () => { byLabel(tree, "Process current certificate").props.onPress(); await flush(); });
+    // It asks first in the app's own dialog: Cancel clears nothing, Reset clears.
     await act(async () => byLabel(tree, "Reset DORIS from interview").props.onPress());
+    expect(tree.root.findByType(ConfirmDialog).props.title).toBe("Reset DORIS?");
+    await act(async () => tree.root.findByType(ConfirmDialog).props.onCancel());
+    expect(tree.root.findAllByType(ConfirmDialog)).toHaveLength(0);
+    expect(allText(tree)).toContain("Pneumonia");
+    await act(async () => byLabel(tree, "Reset DORIS from interview").props.onPress());
+    await act(async () => tree.root.findByType(ConfirmDialog).props.onConfirm());
     expect(byLabel(tree, "COD remark").props.value).toBe("Keep remark");
     expect(byLabel(tree, "Save final COD").props.disabled).toBe(true);
     expect(allText(tree)).not.toContain("Pneumonia");
@@ -1917,6 +1925,7 @@ describe("demo mode (Collect Plus Try DORIS)", () => {
     const { tree } = rendered(true);
     await act(async () => byLabel(tree, "Part I line 1 interval").props.onChangeText("3"));
     await act(async () => byLabel(tree, "Reset to the loaded example").props.onPress());
+    await act(async () => tree.root.findByType(ConfirmDialog).props.onConfirm());
     expect(allText(tree)).toContain("Pneumonia");
     expect(allText(tree)).toContain("Certificate reset to the loaded example.");
     await act(async () => tree.unmount());

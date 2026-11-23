@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-24
 ---
 
 # Device Collection API (Path B server side)
@@ -30,7 +30,9 @@ and the API contract the app is built against:
 
 - `app/services/device_auth_service.py`: enrolment codes, device enrolment,
   interviewer sessions, token rotation, bearer resolution, outstanding
-  report, admin device list.
+  report, admin device list. The module re-exports the code, which lives in
+  `app/services/device/` (`tokens`, `eligibility`, `registry`, `sessions`,
+  `enrolment`, `demo_enrolment`, `outstanding_work`); import from the facade.
 - `app/routes/api/auth.py`: `/api/v1/auth/*` (enrolment, sessions, refresh,
   sign-out), CSRF-exempt; sign-in and refresh replies carry `access`, the
   `GET /api/v1/me/access` body (`app/routes/api/me.py`).

@@ -32,1333 +32,202 @@ recovery records remain historical compatibility data and are not consulted by
 this flow.
 
 Nothing here logs a token, secret, code, email or password.
+
+Layout (bead digitva-r8nh.17). This module is the public face: every
+caller imports through it and tests patch names on it. The code lives in
+``app/services/device/`` by concern (see its ``__init__``); names a test
+patches here are read back through ``device.facade()``, so patching this
+module still reaches them.
 """
 
-from __future__ import annotations
-
-import hashlib
-import hmac
-import json
-import logging
-import secrets
-import uuid
-from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
-from urllib.parse import urlsplit
-
-import sqlalchemy as sa
-from flask import current_app
-from werkzeug.security import check_password_hash, generate_password_hash
-
-from app import db
-from app.models import (
-    AuthDevice,
-    AuthDeviceEnrolmentCode,
-    AuthDeviceSession,
-    AuthDeviceSigningKey,
-    AuthSecurityEvent,
-    AuthStationConfig,
-    AuthStationCustodian,
-    VaAccessRoles,
-    VaAccessScopeTypes,
-    VaBundleIngest,
-    VaProjectMaster,
-    VaStatuses,
-    VaUsers,
+from app.services.device.demo_enrolment import (
+    _check_demo_device_cap,
+    _demo_code_hash,
+    enrol_demo_device,
 )
-from app.services.authz import resolve_grants
-from app.services.security_event_service import record_security_event
+from app.services.device.eligibility import (
+    _DEVICE_CODING_ROLES,
+    _default_home_project,
+    _eligible_projects,
+    _native_grant_projects,
+    _native_grants,
+    _no_access_error,
+    _project_active,
+    eligible_device_projects,
+    has_device_access,
+)
+from app.services.device.enrolment import (
+    _PLAIN_HTTP_HOSTS,
+    ENROLMENT_DEFAULT_MINUTES,
+    ENROLMENT_MAX_MINUTES,
+    ENROLMENT_MAX_USES,
+    _bounded_int,
+    _insecure_device_url_allowed,
+    create_enrolment_code,
+    device_public_url_problem,
+    enrol_device,
+    enrol_with_password,
+    enrolment_qr_payload,
+)
+from app.services.device.outstanding_work import (
+    OUTSTANDING_MAX_IDS,
+    _uuid_list,
+    record_outstanding,
+)
+from app.services.device.registry import (
+    _APP_VERSION_MAX,
+    _DEVICE_NAME_MAX,
+    _PLATFORMS,
+    _add_device,
+    _clean_text,
+    _device_fields,
+    _get_device,
+    _station_state,
+    device_for_client_uuid,
+    list_project_devices,
+    parse_client_device_uuid,
+    record_app_version,
+    revoke_device,
+    set_device_project,
+)
+from app.services.device.sessions import (
+    _DUMMY_PASSWORD_HASH,
+    _KEEP_DATA_REASONS,
+    _REUSE_REASONS,
+    DEVICE_LIMIT_MESSAGE,
+    LAST_SEEN_INTERVAL,
+    MAX_ACTIVE_USER_DEVICES,
+    REFRESH_RETRY_GRACE,
+    RETIRED_REFRESH_KEEP,
+    _authenticate_device,
+    _check_credentials,
+    _create_session,
+    _device_by_secret,
+    _end_existing_pair_sessions,
+    _issue,
+    _live_session,
+    _open_authorized_session,
+    _refuse,
+    _revoke,
+    _revoked_error,
+    _session_still_allowed,
+    _sign_in_failed,
+    _sign_in_user,
+    check_device_slot,
+    decommission_account_device,
+    end_session,
+    list_account_devices,
+    live_session_clauses,
+    open_session,
+    record_profile_deletion,
+    refresh_session,
+    resolve_access_token,
+)
+from app.services.device.tokens import (
+    ACCESS_TTL,
+    API_V1_PREFIX,
+    DEFAULT_REFRESH_TTL_DAYS,
+    DEFAULT_SESSION_MAX_DAYS,
+    UNAUTHENTICATED_ENDPOINTS,
+    DeviceAuthError,
+    IssuedTokens,
+    _new_secret,
+    _now,
+    _refresh_ttl,
+    _session_max_age,
+    hash_token,
+    log,
+    request_bearer_token,
+    serialize_tokens,
+)
 from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
-from app.services.user_account_service import find_sign_in_user, sign_in_identifier
 
-log = logging.getLogger(__name__)
-
-API_V1_PREFIX = "/api/v1/"
-#: Sign-in endpoints (full endpoint names) that create a session, so carry no valid bearer token.
-UNAUTHENTICATED_ENDPOINTS = frozenset({
-    "api_v1.auth_api.enroll", "api_v1.auth_api.open_session", "api_v1.auth_api.refresh_session",
-    "api_v1.auth_api.demo_enroll", "api_v1.auth_api.redeem_sign_in_qr",
-    "api_v1.auth_api.password_enroll", "api_v1.auth_api.redeem_sign_in_code",
-    "api_v1.auth_api.forgot_password",
-})
-ACCESS_TTL = timedelta(minutes=15)
-DEFAULT_REFRESH_TTL_DAYS = 30
-DEFAULT_SESSION_MAX_DAYS = 90
-#: Rotated-away refresh hashes kept per session for reuse detection.
-RETIRED_REFRESH_KEEP = 5
-#: A retry with the token rotated away less than this ago is treated as a lost
-#: response (409 ``refresh_retry_race``), not as theft (401 ``refresh_reused``).
-REFRESH_RETRY_GRACE = timedelta(seconds=60)
-#: Revocation reasons that mean "the refresh token was replayed". They answer
-#: refresh_reused / refresh_retry_race so the app keeps the interviewer's data;
-#: every other reason answers session_revoked, on which the app wipes.
-_REUSE_REASONS = frozenset({"refresh_reuse", "refresh_retry_race"})
-#: Revocations that end the session but must not destroy unsent interviews:
-#: an account change, device decommission or same-phone re-login. They answer
-#: session_ended (sign in again, keep data). A revoked device, a worker left
-#: with no active project, or a sign-out answers session_revoked (wipe).
-_KEEP_DATA_REASONS = frozenset({"account_changed", "device_decommissioned", "signed_in_again"})
-MAX_ACTIVE_USER_DEVICES = 3
-DEVICE_LIMIT_MESSAGE = (
-    "This account is already active on 3 phones. Open Profile to decommission one, "
-    "or use another signed-in phone."
-)
-#: Hosts an http:// DEVICE_PUBLIC_URL may name outside debug/testing.
-_PLAIN_HTTP_HOSTS = frozenset({"localhost", "127.0.0.1", "10.0.2.2"})
-ENROLMENT_DEFAULT_MINUTES = 60
-ENROLMENT_MAX_MINUTES = 7 * 24 * 60
-ENROLMENT_MAX_USES = 200
-#: Throttle for last_seen_at writes, so a bearer request is not always a write.
-LAST_SEEN_INTERVAL = timedelta(seconds=60)
-OUTSTANDING_MAX_IDS = 1000
-_DEVICE_NAME_MAX = 64
-_APP_VERSION_MAX = 32
-#: "desktop" is the offline PHC station (docs/policy/offline-bundle-and-transfer.md).
-_PLATFORMS = frozenset({"android", "ios", "desktop"})
-_DUMMY_PASSWORD_HASH = generate_password_hash("digitva-device-timing-equaliser")
-
-
-class DeviceAuthError(Exception):
-    """A refused device call: ``code`` is the contract's machine code;
-    ``fields`` names the inputs to fix, when the refusal names any;
-    ``extra`` holds further reply keys (the ``devices`` of a ``device_limit``)."""
-
-    def __init__(self, message: str, code: str, status_code: int, fields: list[str] | None = None,
-                 extra: dict | None = None):
-        super().__init__(message)
-        self.code = code
-        self.status_code = status_code
-        self.fields = fields
-        self.extra = extra
-
-
-@dataclass
-class IssuedTokens:
-    access_token: str
-    refresh_token: str
-    session: AuthDeviceSession
-
-
-def request_bearer_token(request) -> str | None:
-    """The token of an ``Authorization: Bearer`` header on an ``/api/v1/``
-    path ("" when the header names Bearer with no token), else None.
-
-    One definition of "a bearer request" for the credential pre-step, the
-    CSRF hook and the session interface. A header with another scheme, or
-    any path outside ``/api/v1/``, is not one: the cookie rules apply.
-    """
-    if not request.path.startswith(API_V1_PREFIX):
-        return None
-    scheme, _sep, token = request.headers.get("Authorization", "").partition(" ")
-    if scheme.lower() != "bearer":
-        return None
-    return token.strip()
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
-
-
-def _new_secret() -> str:
-    return secrets.token_urlsafe(32)
-
-
-def hash_token(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _refresh_ttl() -> timedelta:
-    return timedelta(days=int(current_app.config.get("DEVICE_REFRESH_TTL_DAYS") or DEFAULT_REFRESH_TTL_DAYS))
-
-
-def _session_max_age() -> timedelta:
-    return timedelta(days=int(current_app.config.get("DEVICE_SESSION_MAX_DAYS") or DEFAULT_SESSION_MAX_DAYS))
-
-
-def _insecure_device_url_allowed() -> bool:
-    """Debug and test builds may put any URL in an enrolment QR."""
-    return bool(current_app.debug or current_app.testing)
-
-
-def device_public_url_problem(url: str | None, *, allow_insecure: bool) -> str | None:
-    """Why *url* must not go into an enrolment QR, or None. Outside debug and
-    testing it must be https, except http to a local development host (an
-    emulator reaches the dev server as 10.0.2.2): the interviewer's password
-    is sent to it."""
-    parsed = urlsplit((url or "").strip())
-    if parsed.scheme not in ("http", "https") or not parsed.hostname:
-        return "DEVICE_PUBLIC_URL is not an http(s) URL."
-    if parsed.scheme == "http" and not allow_insecure and parsed.hostname not in _PLAIN_HTTP_HOSTS:
-        return "DEVICE_PUBLIC_URL must use https outside development."
-    return None
-
-
-def _project_active(project_id: str) -> bool:
-    project = db.session.get(VaProjectMaster, project_id)
-    return project is not None and project.project_status == VaStatuses.active
-
-
-# Roles that may hold a device session without being an interviewer: the app
-# also serves coding and review (docs/policy/field-data-collection.md).
-_DEVICE_CODING_ROLES = frozenset(
-    {VaAccessRoles.coder, VaAccessRoles.coding_tester, VaAccessRoles.reviewer}
-)
-
-
-def _native_grants(resolved):
-    """The explicit grants besides interviewing and death register that open
-    the app: coder, coding_tester or reviewer, and an ``interview_supervisor``
-    unit grant (docs/policy/mobile-sign-in.md, "Interview supervisors on the
-    phone"; supervision reaches through unit grants only). Gate open, never
-    demo-training virtual. A supervisor grant on a project whose web intake is
-    off does not count, as for an interviewer: there is nothing to supervise."""
-    grants = [
-        grant for grant in resolved.of(_DEVICE_CODING_ROLES | {VaAccessRoles.interview_supervisor}, virtual=False)
-        if grant.opens_gate and (
-            grant.role != VaAccessRoles.interview_supervisor or grant.scope_type == VaAccessScopeTypes.org_unit
-        )
-    ]
-    supervised = {g.project_id for g in grants if g.role == VaAccessRoles.interview_supervisor}
-    intake_off = set(db.session.scalars(
-        sa.select(VaProjectMaster.project_id).where(
-            VaProjectMaster.project_id.in_(supervised), VaProjectMaster.web_intake_mode == "off",
-        )
-    )) if supervised else set()
-    for grant in grants:
-        if grant.role != VaAccessRoles.interview_supervisor or grant.project_id not in intake_off:
-            yield grant
-
-
-def has_device_access(
-    user: VaUsers,
-    context: list[dict] | None = None,
-    register_context: list[dict] | None = None,
-    *,
-    _grants=None,
-) -> bool:
-    """The sign-in, refresh and automatic-revocation grant check: the user
-    may interview in at least one project (``interviewer_context``, which
-    skips a project whose ``web_intake_mode`` is ``off``, so a session never
-    opens with nothing to collect in), may register a death in one (a
-    death_reporter, ``register_death_context``), or holds an explicit coder,
-    coding_tester or reviewer grant whose gate is open, or an
-    ``interview_supervisor`` unit grant (``_native_grants``). Demo-training
-    virtual grants never count. Route authorization is separate: each route
-    still checks its own role. The enrolment project is not required.
-
-    *context* is the caller's already computed ``interviewer_context(user)`` and
-    *register_context* their ``register_death_context(user, context)``, so
-    neither is run twice."""
-    from app.services.web_intake_service import interviewer_context, register_death_context
-
-    if (interviewer_context(user) if context is None else context):
-        return True
-    resolved = _grants if _grants is not None else resolve_grants(user)
-    if any(_native_grants(resolved)):
-        return True
-    return bool(register_death_context(user, []) if register_context is None else register_context)
-
-
-# ---------------------------------------------------------------------------
-# Enrolment
-# ---------------------------------------------------------------------------
-
-
-def _bounded_int(value, *, default: int, low: int, high: int, name: str) -> int:
-    if value is None:
-        return default
-    if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
-        raise DeviceAuthError(f"{name} must be a whole number from {low} to {high}.", "invalid_request", 400)
-    return value
-
-
-def create_enrolment_code(project_id: str, *, actor: VaUsers, expires_in_minutes=None, max_uses=None,
-                          subject_user_id=None) -> tuple[AuthDeviceEnrolmentCode, str]:
-    """Issue an enrolment code for *project_id*. Returns (row, plaintext code);
-    the code is shown once and only its hash is stored. *subject_user_id*,
-    when the code is issued for one person (enrolment email, Users page),
-    is the audit event's user. Refused (503 ``device_url_insecure``) when
-    DEVICE_PUBLIC_URL, which the QR carries, is plain http outside
-    development. Caller commits."""
-    problem = device_public_url_problem(
-        current_app.config.get("DEVICE_PUBLIC_URL"), allow_insecure=_insecure_device_url_allowed()
-    )
-    if problem:
-        log.error("enrolment code refused | %s", problem)
-        raise DeviceAuthError("Device enrolment is not configured on this server.", "device_url_insecure", 503)
-    if not _project_active(project_id):
-        raise DeviceAuthError("Project not found.", "not_found", 404)
-    minutes = _bounded_int(expires_in_minutes, default=ENROLMENT_DEFAULT_MINUTES, low=5,
-                           high=ENROLMENT_MAX_MINUTES, name="expires_in_minutes")
-    uses = _bounded_int(max_uses, default=1, low=1, high=ENROLMENT_MAX_USES, name="max_uses")
-    code = _new_secret()
-    row = AuthDeviceEnrolmentCode(
-        project_id=project_id,
-        code_hash=hash_token(code),
-        expires_at=_now() + timedelta(minutes=minutes),
-        max_uses=uses,
-        created_by=actor.user_id,
-    )
-    db.session.add(row)
-    db.session.flush()
-    record_security_event(
-        user_id=subject_user_id, actor_user_id=actor.user_id, event_type="device_enrolment_code_created",
-        detail={"project_id": project_id, "code_id": str(row.id), "max_uses": uses,
-                "expires_in_minutes": minutes},
-    )
-    return row, code
-
-
-def enrolment_qr_payload(row: AuthDeviceEnrolmentCode, code: str) -> str:
-    """The JSON the enrolment QR carries, as the app's parseEnrolmentQr reads
-    it. One builder for the Devices page and the enrolment email, so both
-    show the same QR."""
-    return json.dumps(
-        {"v": 1, "server": current_app.config["DEVICE_PUBLIC_URL"], "enroll": code, "project": row.project_id},
-        separators=(",", ":"),
-    )
-
-
-def _clean_text(value, *, limit: int, name: str, required: bool) -> str | None:
-    if value is None or (isinstance(value, str) and not value.strip()):
-        if required:
-            raise DeviceAuthError(f"{name} is required.", "invalid_request", 400)
-        return None
-    if not isinstance(value, str) or len(value.strip()) > limit:
-        raise DeviceAuthError(f"{name} must be text of at most {limit} characters.", "invalid_request", 400)
-    return value.strip()
-
-
-def record_app_version(session, app_version) -> None:
-    """The app version a device reports at sign-in or refresh (it changes with
-    every app update; enrolment alone went stale). Absent: left as it is."""
-    if app_version is None:
-        return
-    version = _clean_text(app_version, limit=_APP_VERSION_MAX, name="app_version", required=False)
-    device = db.session.get(AuthDevice, session.device_id)
-    if device is not None and version and device.app_version != version:
-        device.app_version = version
-
-
-def _device_fields(device_name, platform, app_version) -> tuple[str, str | None]:
-    """Validated (name, app version) for a new device; raises 400
-    ``invalid_request``."""
-    name = _clean_text(device_name, limit=_DEVICE_NAME_MAX, name="device_name", required=True)
-    version = _clean_text(app_version, limit=_APP_VERSION_MAX, name="app_version", required=False)
-    if not isinstance(platform, str) or platform not in _PLATFORMS:
-        raise DeviceAuthError("platform must be android, ios or desktop.", "invalid_request", 400)
-    return name, version
-
-
-def parse_client_device_uuid(value) -> uuid.UUID | None:
-    """The optional Collect Plus install UUID an enrolment request carries:
-    None when absent, else the parsed UUID or 400 ``invalid_request``. Routes
-    call it before a code or QR token is consumed."""
-    if value is None:
-        return None
-    try:
-        if not isinstance(value, str):
-            raise ValueError
-        return uuid.UUID(value)
-    except ValueError:
-        raise DeviceAuthError("client_device_uuid must be a UUID.", "invalid_request", 400) from None
-
-
-def device_for_client_uuid(session: AuthDeviceSession, client_device_uuid) -> AuthDevice | None:
-    """The session's own device when it was enrolled with *client_device_uuid*,
-    else None. Never another device's row: the UUID is a claim, the session
-    is the proof (offline-api-contract.md section 17)."""
-    claimed = parse_client_device_uuid(client_device_uuid)
-    device = db.session.get(AuthDevice, session.device_id)
-    if claimed is None or device is None or device.client_device_uuid != claimed:
-        return None
-    return device
-
-
-def _add_device(
-    project_id: str, name: str, platform: str, version: str | None, via, client_device_uuid=None
-) -> tuple[AuthDevice, str]:
-    """Insert a device, optionally through code row *via*; returns (device,
-    plaintext secret). Caller commits."""
-    secret = _new_secret()
-    device = AuthDevice(
-        # The enrolment project: the device's admin home (listed and
-        # revoked there). It does not limit which
-        # projects the device serves; every request names its project.
-        project_id=project_id,
-        name=name,
-        platform=platform,
-        app_version=version,
-        secret_hash=hash_token(secret),
-        enrolled_via=via,
-        client_device_uuid=client_device_uuid,
-    )
-    db.session.add(device)
-    db.session.flush()
-    record_security_event(
-        user_id=None, event_type="device_enrolled",
-        detail={"device_id": str(device.device_id), "project_id": device.project_id},
-    )
-    log.info("device enrolled | device=%s | project=%s", device.device_id, device.project_id)
-    return device, secret
-
-
-def enrol_device(
-    code, *, device_name, platform, app_version, client_device_uuid=None
-) -> tuple[AuthDevice, str]:
-    """Consume one use of an enrolment code and register a device. Returns
-    (device, plaintext device secret). An unknown, expired, revoked or used-up
-    code is one answer, 404 ``enrolment_invalid``. Caller commits."""
-    name, version = _device_fields(device_name, platform, app_version)
-    if not isinstance(code, str) or not code.strip():
-        raise DeviceAuthError("Enrolment code is invalid or expired.", "enrolment_invalid", 404)
-
-    table = AuthDeviceEnrolmentCode.__table__
-    # Atomic: two phones scanning a single-use code cannot both consume it.
-    consumed = db.session.execute(
-        sa.update(table)
-        .where(
-            table.c.code_hash == hash_token(code.strip()),
-            table.c.revoked_at.is_(None),
-            table.c.expires_at > _now(),
-            table.c.use_count < table.c.max_uses,
-        )
-        .values(use_count=table.c.use_count + 1)
-        .returning(table.c.id, table.c.project_id)
-    ).first()
-    if consumed is None or not _project_active(consumed.project_id):
-        raise DeviceAuthError("Enrolment code is invalid or expired.", "enrolment_invalid", 404)
-    return _add_device(consumed.project_id, name, platform, version, consumed.id, client_device_uuid)
-
-
-def _native_grant_projects(resolved) -> set[str]:
-    return {grant.project_id for grant in _native_grants(resolved)}
-
-
-def _eligible_projects(context, register_context, resolved) -> list[dict]:
-    ids = {e["project_id"] for e in context} | {e["project_id"] for e in register_context}
-    ids |= _native_grant_projects(resolved)
-    if not ids:
-        return []
-    rows = db.session.execute(
-        sa.select(VaProjectMaster.project_id, VaProjectMaster.project_name)
-        .where(VaProjectMaster.project_id.in_(ids), VaProjectMaster.project_status == VaStatuses.active)
-        .order_by(VaProjectMaster.project_id)
-    ).all()
-    return [{"project_id": r.project_id, "name": r.project_name} for r in rows]
-
-
-def _default_home_project(context, register_context, resolved, eligible: list[dict]) -> str:
-    """The home an app that sends no choice gets (old APKs): the lowest
-    project id across interviewing and death register, else across native
-    coding/review and supervision. Kept to the active *eligible* projects when there are any,
-    so the default is always one the picker lists."""
-    pool = {e["project_id"] for e in context + register_context} or _native_grant_projects(resolved)
-    active = {p["project_id"] for p in eligible}
-    if active:
-        pool = (pool & active) or active
-    return min(pool)
-
-
-def eligible_device_projects(user: VaUsers) -> list[dict]:
-    """Every active project *user* may make a device's home
-    (docs/policy/mobile-sign-in.md, home project): interviewing, death
-    register, native coding/review or supervision. ``[{project_id, name}]`` sorted by id;
-    the app asks the user to pick when there is more than one."""
-    from app.services.web_intake_service import interviewer_context, register_death_context
-
-    resolved = resolve_grants(user)
-    context = interviewer_context(user, _grants=resolved)
-    return _eligible_projects(context, register_death_context(user, context, _grants=resolved), resolved)
-
-
-def _station_state(device: AuthDevice) -> bool:
-    """True when *device* holds offline-station trust or work bound to its
-    project: a signing key, a station config or custodian, an ingested or
-    held bundle, or outstanding work reported by a session."""
-    did = device.device_id
-    if device.signing_public_key is not None or device.signing_key_id is not None:
-        return True
-    exists = lambda *where: db.session.scalar(sa.select(sa.exists().where(*where)))  # noqa: E731
-    return bool(
-        exists(AuthDeviceSigningKey.device_id == did)
-        or exists(AuthStationConfig.device_id == did)
-        or exists(AuthStationCustodian.device_id == did)
-        or exists(VaBundleIngest.device_id == did)
-        or exists(AuthDeviceSession.device_id == did, AuthDeviceSession.outstanding_count > 0)
-    )
-
-
-def set_device_project(device_id: uuid.UUID, user: VaUsers, project_id) -> AuthDevice:
-    """``POST /auth/devices/current/project``: make *project_id* the home of
-    the caller's device (*device_id* from the bearer session). Refused 403
-    ``project_not_eligible`` unless it is one of the session user's
-    eligible projects, and 409 ``device_project_locked`` when the device holds
-    station state (``_station_state``) and the project would change: its
-    project binds offline-station trust. Audited as ``device_project_changed``.
-    Caller commits."""
-    if not isinstance(project_id, str) or not project_id.strip():
-        raise DeviceAuthError("project_id is required.", "invalid_request", 400, fields=["project_id"])
-    project_id = project_id.strip()
-    if project_id not in {p["project_id"] for p in eligible_device_projects(user)}:
-        raise DeviceAuthError("You cannot use this project on a phone.", "project_not_eligible", 403)
-    device = db.session.scalar(
-        sa.select(AuthDevice).where(AuthDevice.device_id == device_id).with_for_update()
-    )
-    if device is None:
-        raise DeviceAuthError("Device is not recognised.", "device_invalid", 401)
-    if device.revoked_at is not None:
-        raise DeviceAuthError("This device has been revoked.", "device_revoked", 403)
-    previous = device.project_id
-    if previous != project_id:
-        if _station_state(device):
-            raise DeviceAuthError("This device is a registered station; its project cannot change.",
-                                  "device_project_locked", 409)
-        device.project_id = project_id
-        record_security_event(
-            user_id=user.user_id, event_type="device_project_changed",
-            detail={"device_id": str(device.device_id), "from": previous, "project_id": project_id},
-        )
-    return device
-
-
-def enrol_with_password(
-    *, identifier, password, device_name, platform, app_version, client_device_uuid=None,
-    replace_device_id=None,
-) -> tuple[AuthDevice, str, IssuedTokens, VaUsers]:
-    """Authenticate, enrol and open one native session; caller commits.
-    *replace_device_id*: the phone to sign out at the device cap
-    (``check_device_slot``), in this transaction.
-
-    The optional install UUID is parsed before writes. The home is the first
-    accessible collection project, otherwise the first native coding/review
-    project (``_default_home_project``). Raises DeviceAuthError before
-    creating rows on credential, eligibility or device-cap refusal. Session issuance never commits, so a
-    later failure rolls the new device back with it. Invalid credentials
-    commit only their audit event before any device/session is created.
-    """
-    from app.services.web_intake_service import interviewer_context, register_death_context
-
-    name, version = _device_fields(device_name, platform, app_version)
-    client_uuid = parse_client_device_uuid(client_device_uuid)
-    identifier = identifier.strip() if isinstance(identifier, str) else ""
-    user, valid = _check_credentials(identifier, password)
-    if not valid or user.is_public_demo:
-        record_security_event(
-            user_id=user.user_id if user and user.is_active else None,
-            event_type="device_password_enrol_failed", detail={"reason": "invalid_credentials"},
-        )
-        db.session.commit()
-        raise DeviceAuthError("Invalid email or password.", "invalid_credentials", 401)
-    if not user.sign_in_verified:
-        raise DeviceAuthError("Verify your email address before signing in.", "email_unverified", 403)
-    if not user.is_admin() and should_block_non_admin_after_cutoff():
-        raise DeviceAuthError("Site is under maintenance.", "maintenance", 403)
-
-    resolved = resolve_grants(user)
-    context = interviewer_context(user, _grants=resolved)
-    register_context = register_death_context(user, context, _grants=resolved)
-    if not has_device_access(user, context, register_context, _grants=resolved):
-        raise _no_access_error(user, resolved)
-    project_id = _default_home_project(
-        context, register_context, resolved, _eligible_projects(context, register_context, resolved))
-    # Hold the account lock through creation and issuance; a phone is signed
-    # out only when the user named it (replace_device_id).
-    check_device_slot(user, replace_device_id=replace_device_id)
-    device, secret = _add_device(project_id, name, platform, version, None, client_uuid)
-    issued, user = _create_session(device, user)
-    return device, secret, issued, user
-
-
-def _demo_code_hash(user: VaUsers) -> str:
-    return hash_token(f"public_demo:{user.user_id}")
-
-
-def enrol_demo_device(
-    *, username, password, device_name, platform, app_version, client_device_uuid=None,
-    replace_device_id=None,
-) -> tuple[AuthDevice, str]:
-    """Enrol a device on the public demo project for a public-demo account,
-    without an enrolment code (docs/policy/public-demo.md section 10). The
-    username and password are checked exactly as device sign-in checks them
-    (same resolver, same uniform ``invalid_credentials`` answer), and an
-    account that is not a public-demo account gets that same answer. The
-    caller has checked ``PUBLIC_DEMO_ENABLED`` and the main-database guard.
-
-    Devices carry no user column, so each demo account owns one hidden,
-    already-revoked ``auth_device_enrolment_codes`` row (``created_by`` the
-    account, a hash no one can present) that its devices name in
-    ``enrolled_via``. Both the three active-device limit (409
-    ``device_limit``) and ``PUBLIC_DEMO_DEVICES_PER_ACCOUNT`` (429
-    ``demo_limit``, unopened devices included) are checked before a device
-    row is created; no older device is silently evicted. At the first cap the
-    409 lists the account's phones and *replace_device_id* signs one out
-    (``check_device_slot``); that phone has no live session afterwards, so it
-    no longer counts toward ``demo_limit``, and a ``demo_limit`` refusal rolls
-    the sign-out back with the request.
-    Raises DeviceAuthError; a refused credential is audited and committed.
-    Caller commits a success."""
-    from app.services import public_demo_service as demo
-
-    name, version = _device_fields(device_name, platform, app_version)
-    identifier = username.strip() if isinstance(username, str) else ""
-    user, valid = _check_credentials(identifier, password)
-    if not valid or not user.is_public_demo:
-        record_security_event(
-            user_id=user.user_id if user and user.is_active else None,
-            event_type="demo_device_enrol_failed", detail={"reason": "invalid_credentials"},
-        )
-        db.session.commit()
-        raise DeviceAuthError("Invalid username or password.", "invalid_credentials", 401)
-    project_id = demo.demo_project_id()
-    if not _project_active(project_id):
-        raise DeviceAuthError(demo.WRONG_DATABASE_MESSAGE, "project_missing", 503)
-    demo._lock_account(user)
-    check_device_slot(user, replace_device_id=replace_device_id)
-    digest = _demo_code_hash(user)
-    code_id = db.session.scalar(
-        sa.select(AuthDeviceEnrolmentCode.id).where(AuthDeviceEnrolmentCode.code_hash == digest)
-    )
-    if code_id is None:
-        now = _now()
-        row = AuthDeviceEnrolmentCode(
-            project_id=project_id, code_hash=digest, expires_at=now, max_uses=1, use_count=1,
-            created_by=user.user_id, revoked_at=now,
-        )
-        db.session.add(row)
-        db.session.flush()
-        code_id = row.id
-    _check_demo_device_cap(user, code_id)
-    return _add_device(project_id, name, platform, version, code_id, client_device_uuid)
-
-
-def _check_demo_device_cap(user: VaUsers, code_id) -> None:
-    """Refuse a new demo device (429 ``demo_limit``) once the account holds
-    ``PUBLIC_DEMO_DEVICES_PER_ACCOUNT`` unrevoked devices that count: those it
-    has a live session on, plus those its demo code *code_id* enrolled in the
-    last 24 hours that never had a session. ``check_device_slot`` counts only
-    signed-in devices, so without the second part an enrolment that never signs
-    in is unbounded; the 24 hour window keeps reinstalls from locking the
-    account out for good. The caller holds the account lock."""
-    now_live = sa.select(AuthDeviceSession.device_id).where(_live_session(user))
-    any_session = sa.select(AuthDeviceSession.device_id)
-    count = db.session.scalar(
-        sa.select(sa.func.count()).select_from(AuthDevice).where(
-            AuthDevice.revoked_at.is_(None),
-            sa.or_(
-                AuthDevice.device_id.in_(now_live),
-                sa.and_(
-                    AuthDevice.enrolled_via == code_id,
-                    AuthDevice.enrolled_at > _now() - timedelta(hours=24),
-                    AuthDevice.device_id.not_in(any_session),
-                ),
-            ),
-        )
-    ) or 0
-    if count >= int(current_app.config["PUBLIC_DEMO_DEVICES_PER_ACCOUNT"]):
-        raise DeviceAuthError("This demo account has reached its device limit.", "demo_limit", 429)
-
-
-def revoke_device(device: AuthDevice, *, actor: VaUsers, compromised: bool = False, reason: str | None = None) -> int:
-    """Revoke a device and every session on it. Returns the number of sessions
-    ended. Idempotent. *compromised* (lost or stolen) refuses every bundle the
-    device signed, not only those created after the revoke; a later revoke
-    may raise it on an already revoked device, never clear it. *reason* is a
-    fixed code put in the audit detail. Caller commits."""
-    now = _now()
-    if device.revoked_at is None:
-        device.revoked_at = now
-        device.revoked_by = actor.user_id
-    if compromised:
-        device.revoked_compromised = True
-    ended = db.session.execute(
-        sa.update(AuthDeviceSession)
-        .where(AuthDeviceSession.device_id == device.device_id, AuthDeviceSession.revoked_at.is_(None))
-        .values(revoked_at=now, revoked_reason="device_revoked")
-    ).rowcount
-    record_security_event(
-        user_id=None, actor_user_id=actor.user_id, event_type="device_revoked",
-        detail={"device_id": str(device.device_id), "sessions_ended": ended,
-                "compromised": bool(device.revoked_compromised), **({"reason": reason} if reason else {})},
-    )
-    return ended
-
-
-# ---------------------------------------------------------------------------
-# Sessions
-# ---------------------------------------------------------------------------
-
-
-def _get_device(device_id) -> AuthDevice | None:
-    try:
-        return db.session.get(AuthDevice, uuid.UUID(str(device_id)))
-    except (ValueError, TypeError, AttributeError):
-        return None
-
-
-def _device_by_secret(device_id, device_secret) -> AuthDevice:
-    """The device named by id whose secret matches (constant-time), else 401
-    ``device_invalid``. Revocation is the caller's check."""
-    device = _get_device(device_id)
-    presented = device_secret if isinstance(device_secret, str) else ""
-    if device is None or not hmac.compare_digest(hash_token(presented), device.secret_hash):
-        raise DeviceAuthError("Device is not recognised.", "device_invalid", 401)
-    return device
-
-
-def _authenticate_device(device_id, device_secret) -> AuthDevice:
-    device = _device_by_secret(device_id, device_secret)
-    # The enrolment project does not bound the device's life: a device serves
-    # every project its worker is an interviewer in, so only a revoke ends it.
-    if device.revoked_at is not None:
-        # Before the credentials are checked: audited with no user.
-        _sign_in_failed(device, None, "device_revoked")
-        raise DeviceAuthError("This device has been revoked.", "device_revoked", 403)
-    return device
-
-
-def _sign_in_failed(device: AuthDevice, user: VaUsers | None, reason: str) -> None:
-    """Audit a refused sign-in: device id and reason only, never the email."""
-    record_security_event(
-        user_id=user.user_id if user else None, event_type="device_session_failed",
-        detail={"device_id": str(device.device_id), "reason": reason},
-    )
-    db.session.commit()
-    log.warning("device sign-in refused | device=%s | reason=%s", device.device_id, reason)
-
-
-def _refuse(device: AuthDevice, user: VaUsers, message: str, code: str, status_code: int) -> DeviceAuthError:
-    """Audit a post-password refusal (reason = the contract code) and return
-    the error to raise."""
-    _sign_in_failed(device, user, code)
-    return DeviceAuthError(message, code, status_code)
-
-
-def _live_session(user: VaUsers):
-    """The condition on ``AuthDeviceSession`` for a session of *user* that can
-    still refresh. The device's own revocation is the caller's condition."""
-    return sa.and_(
-        AuthDeviceSession.user_id == user.user_id,
-        AuthDeviceSession.revoked_at.is_(None),
-        AuthDeviceSession.refresh_expires_at > _now(),
-        # A password or factor reset ended it: it can never refresh again
-        # (``_session_still_allowed``), so it holds no slot.
-        AuthDeviceSession.user_session_version == (user.auth_session_version or 0),
-    )
-
-
-def check_device_slot(user: VaUsers, device_id=None, replace_device_id=None) -> None:
-    """Lock *user* and refuse a new live device pair at the account cap.
-
-    A device already holding a live session for this user is a re-login and
-    does not consume another slot. Only native device sessions are counted;
-    browser sessions have no ``AuthDeviceSession`` row, and a session a
-    password or factor reset ended (older ``user_session_version``) is not.
-
-    Every caller has verified the user's credential in this request, so the
-    409 ``device_limit`` carries ``devices``: that account's live phones
-    ``[{device_id, label, last_seen_at, unsent_count}]``. At the cap,
-    *replace_device_id* (one of those phones; docs/policy/mobile-sign-in.md,
-    replacing a phone at sign-in) is decommissioned as Profile does, actor the
-    user, in the caller's transaction; any other value is 400
-    ``invalid_request``. Below the cap it is ignored.
-    """
-    db.session.execute(
-        sa.select(VaUsers.user_id).where(VaUsers.user_id == user.user_id).with_for_update()
-    )
-    if device_id is not None:
-        try:
-            device_id = uuid.UUID(str(device_id))
-        except (ValueError, TypeError, AttributeError):
-            device_id = None
-    # One row per live session; a pair normally has one (re-login ends the older).
-    rows = db.session.execute(
-        sa.select(AuthDevice.device_id, AuthDevice.name, AuthDeviceSession.last_seen_at,
-                  AuthDeviceSession.outstanding_count)
-        .join(AuthDeviceSession, AuthDeviceSession.device_id == AuthDevice.device_id)
-        .where(_live_session(user), AuthDevice.revoked_at.is_(None))
-    ).all()
-    live: dict[uuid.UUID, dict] = {}
-    for row in rows:
-        entry = live.setdefault(row.device_id, {"name": row.name, "last_seen_at": None, "unsent_count": None})
-        if row.last_seen_at and (entry["last_seen_at"] is None or row.last_seen_at > entry["last_seen_at"]):
-            entry["last_seen_at"] = row.last_seen_at
-        if row.outstanding_count is not None:
-            entry["unsent_count"] = max(entry["unsent_count"] or 0, row.outstanding_count)
-    if device_id in live or len(live) < MAX_ACTIVE_USER_DEVICES:
-        return
-    if replace_device_id is not None:
-        try:
-            replaced = uuid.UUID(str(replace_device_id))
-        except (ValueError, TypeError, AttributeError):
-            replaced = None
-        # Not one of this account's live phones: another user's, revoked, ended or this one.
-        if replaced is None or replaced not in live or replaced == device_id:
-            raise DeviceAuthError("replace_device_id is not one of your signed-in phones.",
-                                  "invalid_request", 400, fields=["replace_device_id"])
-        # Only when that frees the slot: open_session commits a 409's audit.
-        if len(live) - 1 < MAX_ACTIVE_USER_DEVICES:
-            decommission_account_device(user.user_id, replaced, user, reason="replaced_at_sign_in")
-            return
-    devices = sorted(live.items(), key=lambda item: item[1]["last_seen_at"] or datetime.min.replace(tzinfo=UTC),
-                     reverse=True)
-    raise DeviceAuthError(DEVICE_LIMIT_MESSAGE, "device_limit", 409, extra={"devices": [
-        {
-            "device_id": str(did),
-            "label": entry["name"],
-            "last_seen_at": entry["last_seen_at"].isoformat() if entry["last_seen_at"] else None,
-            "unsent_count": entry["unsent_count"],
-        }
-        for did, entry in devices
-    ]})
-
-
-def _end_existing_pair_sessions(device: AuthDevice, user: VaUsers) -> None:
-    """End older sessions for this user/device, retaining encrypted work."""
-    sessions = db.session.scalars(
-        sa.select(AuthDeviceSession)
-        .where(
-            AuthDeviceSession.device_id == device.device_id,
-            AuthDeviceSession.user_id == user.user_id,
-            AuthDeviceSession.revoked_at.is_(None),
-        )
-        .with_for_update()
-    ).all()
-    for session in sessions:
-        _revoke(session, "signed_in_again")
-
-
-def _issue(session: AuthDeviceSession) -> IssuedTokens:
-    access, refresh = _new_secret(), _new_secret()
-    now = _now()
-    session.access_hash = hash_token(access)
-    session.access_expires_at = now + ACCESS_TTL
-    session.refresh_hash = hash_token(refresh)
-    # Sliding, but never past the absolute cap from sign-in.
-    session.refresh_expires_at = min(now + _refresh_ttl(), (session.created_at or now) + _session_max_age())
-    session.last_seen_at = now
-    return IssuedTokens(access_token=access, refresh_token=refresh, session=session)
-
-
-def _sign_in_user(identifier: str) -> VaUsers | None:
-    """The account an email, mobile number or (public demo) username names,
-    read exactly as the web login reads it (``sign_in_identifier``,
-    docs/policy/mobile-sign-in.md section 2): a number matches only a unique
-    sign-in number, so a shared, unknown or malformed one matches no one."""
-    return find_sign_in_user(*sign_in_identifier(identifier))
-
-
-def _check_credentials(identifier: str, password) -> tuple[VaUsers | None, bool]:
-    """The account *identifier* names and whether *password* signs it in:
-    ``(user or None, valid)``. An unknown identifier spends a hash check
-    anyway so it takes as long. A mobile-only account that never redeemed a
-    code has no password of its own: refused exactly like a wrong password,
-    as on the web."""
-    password = password if isinstance(password, str) else ""
-    user = _sign_in_user(identifier) if identifier else None
-    if user is None:
-        check_password_hash(_DUMMY_PASSWORD_HASH, password)
-        return None, False
-    unredeemed = user.is_mobile_only and not user.sign_in_verified
-    return user, user.check_password(password) and user.is_active and not unredeemed
-
-
-def _no_access_error(user: VaUsers, resolved=None) -> DeviceAuthError:
-    """The refusal for a user without device access. An interviewer grant on an
-    active project whose web intake is off gets ``project_intake_off`` so the
-    user and their supervisor know collection is switched off, not that the
-    account has no grants (same 403 and shape; old APKs show their generic
-    error). Anyone else keeps ``no_interviewer_grant``."""
-    resolved = resolved if resolved is not None else resolve_grants(user)
-    project_ids = {g.project_id for g in resolved.of({VaAccessRoles.interviewer}, virtual=False)}
-    if project_ids and db.session.scalar(
-        sa.select(sa.exists().where(
-            VaProjectMaster.project_id.in_(project_ids),
-            VaProjectMaster.project_status == VaStatuses.active,
-            VaProjectMaster.web_intake_mode == "off",
-        ))
-    ):
-        return DeviceAuthError(
-            "Data collection is switched off for your project. Ask your project administrator.",
-            "project_intake_off", 403,
-        )
-    return DeviceAuthError("You have no access in any project.", "no_interviewer_grant", 403)
-
-
-def _open_authorized_session(
-    device: AuthDevice, user: VaUsers, replace_device_id=None
-) -> tuple[IssuedTokens, VaUsers]:
-    """Issue the normal device session after authentication and access checks;
-    *replace_device_id* as ``check_device_slot``."""
-    if not has_device_access(user):
-        error = _no_access_error(user)
-        _sign_in_failed(device, user, error.code)
-        raise error
-    check_device_slot(user, device.device_id, replace_device_id)
-    _end_existing_pair_sessions(device, user)
-    return _create_session(device, user)
-
-
-def _create_session(device: AuthDevice, user: VaUsers) -> tuple[IssuedTokens, VaUsers]:
-    """Issue tokens after the caller checks credentials, access and slots.
-
-    Returns the issued session and user. Caller commits, so a newly enrolled
-    device and its session remain one transaction if issuance fails.
-    """
-    session = AuthDeviceSession(
-        device_id=device.device_id,
-        user_id=user.user_id,
-        user_session_version=user.auth_session_version or 0,
-    )
-    issued = _issue(session)
-    db.session.add(session)
-    device.last_seen_at = session.last_seen_at
-    db.session.flush()
-    user.mark_signed_in()
-    record_security_event(
-        user_id=user.user_id, event_type="device_session_opened",
-        detail={"device_id": str(device.device_id)},
-    )
-    log.info(
-        "device session opened | device=%s | session=%s | user=%s",
-        device.device_id, session.session_id, user.user_id,
-    )
-    return issued, user
-
-
-def live_session_clauses(now: datetime) -> tuple:
-    """SQL clauses for a live phone sign-in: a device session not revoked,
-    its refresh token unexpired, on a device not revoked (the caller joins
-    ``AuthDevice`` to ``AuthDeviceSession``). The one rule behind the account
-    devices list, the roster's ``phone_count`` and the sign-in-code refusal
-    for someone already signed in (docs/policy/mobile-sign-in.md section 3)."""
-    return (
-        AuthDeviceSession.revoked_at.is_(None),
-        AuthDeviceSession.refresh_expires_at > now,
-        AuthDevice.revoked_at.is_(None),
-    )
-
-
-def list_account_devices(user_id, current_device_id=None) -> list[dict]:
-    """List this account's live native device pairs, newest activity first."""
-    rows = db.session.execute(
-        sa.select(AuthDevice, AuthDeviceSession.last_seen_at)
-        .join(AuthDeviceSession, AuthDeviceSession.device_id == AuthDevice.device_id)
-        .where(AuthDeviceSession.user_id == user_id, *live_session_clauses(_now()))
-    ).all()
-    latest: dict[uuid.UUID, tuple[AuthDevice, datetime | None]] = {}
-    for device, last_seen in rows:
-        previous = latest.get(device.device_id)
-        if previous is None or (last_seen or datetime.min.replace(tzinfo=UTC)) > (
-            previous[1] or datetime.min.replace(tzinfo=UTC)
-        ):
-            latest[device.device_id] = (device, last_seen)
-    devices = sorted(
-        latest.values(),
-        key=lambda pair: (pair[1] or pair[0].enrolled_at, pair[0].enrolled_at),
-        reverse=True,
-    )
-    current = str(current_device_id) if current_device_id is not None else None
-    return [
-        {
-            "device_id": str(device.device_id),
-            "name": device.name,
-            "platform": device.platform,
-            "app_version": device.app_version,
-            "enrolled_at": device.enrolled_at.isoformat(),
-            "last_seen_at": last_seen.isoformat() if last_seen else None,
-            "current": str(device.device_id) == current,
-        }
-        for device, last_seen in devices
-    ]
-
-
-def decommission_account_device(user_id, device_id, actor: VaUsers, reason: str | None = None) -> int:
-    """End only *user_id*'s sessions on *device_id*, retaining all data.
-    *reason* is a fixed code put in the audit detail (``replaced_at_sign_in``)."""
-    try:
-        parsed_device_id = uuid.UUID(str(device_id))
-    except (ValueError, TypeError, AttributeError):
-        return 0
-    db.session.execute(
-        sa.select(VaUsers.user_id).where(VaUsers.user_id == user_id).with_for_update()
-    )
-    sessions = db.session.scalars(
-        sa.select(AuthDeviceSession)
-        .where(
-            AuthDeviceSession.user_id == user_id,
-            AuthDeviceSession.device_id == parsed_device_id,
-            AuthDeviceSession.revoked_at.is_(None),
-        )
-        .with_for_update()
-    ).all()
-    for session in sessions:
-        _revoke(session, "device_decommissioned")
-    record_security_event(
-        user_id=user_id,
-        actor_user_id=actor.user_id,
-        event_type="device_decommissioned",
-        detail={"device_id": str(parsed_device_id), "sessions_ended": len(sessions),
-                **({"reason": reason} if reason else {})},
-    )
-    return len(sessions)
-
-
-def record_profile_deletion(*, device_id, device_secret, user_id, unsent_count, loss_confirmed) -> bool:
-    """Audit the phone deleting *user_id*'s profile and end their sessions on
-    the device (docs/policy/mobile-sign-in.md section 10).
-
-    Device-authenticated (a revoked device may still report). *unsent_count*
-    is an int, or None when the phone could not count (locked profile);
-    None needs *loss_confirmed* True. Returns False when a retry found the
-    deletion already recorded and nothing live to end. Raises
-    DeviceAuthError. Caller commits."""
-    device = _device_by_secret(device_id, device_secret)
-    try:
-        user_uuid = uuid.UUID(str(user_id))
-    except (ValueError, TypeError, AttributeError):
-        raise DeviceAuthError("user_id is not valid.", "invalid_request", 400, fields=["user_id"])
-    if unsent_count is not None and (
-        isinstance(unsent_count, bool) or not isinstance(unsent_count, int) or not 0 <= unsent_count <= 100_000
-    ):
-        raise DeviceAuthError("unsent_count is not valid.", "invalid_request", 400, fields=["unsent_count"])
-    if not isinstance(loss_confirmed, bool):
-        raise DeviceAuthError("loss_confirmed must be true or false.", "invalid_request", 400, fields=["loss_confirmed"])
-    if unsent_count:
-        raise DeviceAuthError("Send this profile's work before deleting it.", "unsent_work", 409)
-    if unsent_count is None and not loss_confirmed:
-        raise DeviceAuthError("Confirm that unsent work will be lost.", "confirmation_required", 400)
-
-    latest_session_at = db.session.scalar(
-        sa.select(sa.func.max(AuthDeviceSession.created_at)).where(
-            AuthDeviceSession.device_id == device.device_id,
-            AuthDeviceSession.user_id == user_uuid,
-        )
-    )
-    if latest_session_at is None:  # never signed in here: not this phone's profile
-        raise DeviceAuthError("This profile is not on this device.", "profile_not_on_device", 403)
-
-    sessions = db.session.scalars(
-        sa.select(AuthDeviceSession)
-        .where(
-            AuthDeviceSession.device_id == device.device_id,
-            AuthDeviceSession.user_id == user_uuid,
-            AuthDeviceSession.revoked_at.is_(None),
-        )
-        .with_for_update()
-    ).all()
-    if not sessions:
-        already = db.session.scalar(
-            sa.select(AuthSecurityEvent.id).where(
-                AuthSecurityEvent.user_id == user_uuid,
-                AuthSecurityEvent.event_type == "device_profile_deleted",
-                AuthSecurityEvent.occurred_at >= latest_session_at,
-                AuthSecurityEvent.detail["device_id"].astext == str(device.device_id),
-            ).limit(1)
-        )
-        if already is not None:
-            return False
-    for session in sessions:
-        _revoke(session, "profile_deleted")
-    record_security_event(
-        user_id=user_uuid, event_type="device_profile_deleted",
-        detail={
-            "device_id": str(device.device_id),
-            "unsent_count_known": unsent_count is not None,
-            "unsent_count": unsent_count,
-            "loss_confirmed": loss_confirmed,
-            "sessions_ended": len(sessions),
-        },
-    )
-    log.info("device profile deleted | device=%s | user=%s", device.device_id, user_uuid)
-    return True
-
-
-def open_session(*, device_id, device_secret, email, password, replace_device_id=None) -> tuple[IssuedTokens, VaUsers]:
-    """Sign an interviewer in on an enrolled device (the web login's checks,
-    with the device credential in place of the CAPTCHA). *email* is the
-    contract's field name; it holds an email, a mobile number or a
-    public-demo username. *replace_device_id*: the phone to sign out at the
-    device cap (``check_device_slot``). Raises
-    DeviceAuthError; a refused attempt is audited and committed. Caller
-    commits a success."""
-    device = _authenticate_device(device_id, device_secret)
-    identifier = email.strip() if isinstance(email, str) else ""
-    user, valid = _check_credentials(identifier, password)
-    if not valid:
-        _sign_in_failed(device, user if user and user.is_active else None, "invalid_credentials")
-        raise DeviceAuthError("Invalid email or password.", "invalid_credentials", 401)
-    if not user.sign_in_verified:
-        raise _refuse(device, user, "Verify your email address before signing in.", "email_unverified", 403)
-    # Pending terms do not refuse sign-in (onboarding policy 5.4): the
-    # tokens carry ``terms_required`` and the device API answers 403
-    # ``terms_required`` everywhere but sign-out and POST /terms until then.
-    if not user.is_admin() and should_block_non_admin_after_cutoff():
-        raise _refuse(device, user, "Site is under maintenance.", "maintenance", 403)
-
-    # ``no_interviewer_grant`` (or ``project_intake_off``) when there is no access.
-    try:
-        return _open_authorized_session(device, user, replace_device_id)
-    except DeviceAuthError as exc:
-        if exc.code == "device_limit":
-            _sign_in_failed(device, user, "device_limit")
-        raise
-
-
-def _revoke(session: AuthDeviceSession, reason: str) -> None:
-    session.revoked_at = _now()
-    session.revoked_reason = reason
-    record_security_event(
-        user_id=session.user_id, event_type="device_session_revoked",
-        detail={"device_id": str(session.device_id), "reason": reason},
-    )
-    log.warning("device session revoked | session=%s | reason=%s", session.session_id, reason)
-
-
-def _session_still_allowed(session: AuthDeviceSession) -> tuple[bool, str]:
-    """Whether a session may continue: device not revoked, account unchanged
-    and at least one active project to collect or code in."""
-    device = db.session.get(AuthDevice, session.device_id)
-    if device is None or device.revoked_at is not None:
-        return False, "device_revoked"
-    user = db.session.get(VaUsers, session.user_id)
-    if user is None or not user.is_active or (user.auth_session_version or 0) != session.user_session_version:
-        return False, "account_changed"
-    if not has_device_access(user):
-        return False, "grant_withdrawn"
-    return True, ""
-
-
-def _revoked_error(session: AuthDeviceSession) -> DeviceAuthError:
-    """The refusal for a revoked session, by why it was revoked: a replayed
-    refresh token keeps the app's data (``refresh_reused`` /
-    ``refresh_retry_race``); anything else is ``session_revoked``."""
-    if session.revoked_reason == "refresh_retry_race":
-        return DeviceAuthError("Sign in again.", "refresh_retry_race", 409)
-    if session.revoked_reason in _REUSE_REASONS:
-        return DeviceAuthError("This refresh token was already used; sign in again.", "refresh_reused", 401)
-    if session.revoked_reason in _KEEP_DATA_REASONS:
-        return DeviceAuthError("This session has ended; sign in again.", "session_ended", 401)
-    return DeviceAuthError("This session has been revoked.", "session_revoked", 401)
-
-
-def refresh_session(refresh_token, *, device_id, device_secret) -> tuple[IssuedTokens, VaUsers]:
-    """Rotate a refresh token presented with its device's id and secret.
-
-    Refusals, none of which asks the app to wipe except ``session_revoked``:
-    - 401 ``device_invalid``: device id/secret missing, wrong, or not the
-      session's device. Revokes nothing, so a leaked token without the device
-      secret can neither refresh nor end the session.
-    - a retired refresh token (one of the last ``RETIRED_REFRESH_KEEP``)
-      revokes the session: 409 ``refresh_retry_race`` when it is the token
-      rotated away less than ``REFRESH_RETRY_GRACE`` ago (a lost response;
-      the app holds no newer token, so revoking costs it nothing and cuts off
-      anyone who does), else 401 ``refresh_reused``. Later refreshes on that
-      session keep answering the same code.
-    - 401 ``session_ended``: the account changed (password or factor reset,
-      deactivated) or the project closed; revoked, but the app keeps data.
-    - 401 ``session_revoked``: revoked for any other reason (device or admin
-      revoke, grant withdrawn, signed out); the app wipes that store.
-    - 401 ``session_expired``: past its sliding expiry or the absolute cap.
-    - 401 ``refresh_invalid``: unknown token.
-    Revocations are committed here. Caller commits a success."""
-    if not isinstance(refresh_token, str) or not refresh_token.strip():
-        raise DeviceAuthError("refresh_token is required.", "invalid_request", 400)
-    device = _device_by_secret(device_id, device_secret)
-    digest = hash_token(refresh_token.strip())
-    session = db.session.scalar(
-        sa.select(AuthDeviceSession).where(AuthDeviceSession.refresh_hash == digest).with_for_update()
-    )
-    retired = False
-    if session is None:
-        session = db.session.scalar(
-            sa.select(AuthDeviceSession)
-            .where(sa.or_(
-                AuthDeviceSession.previous_refresh_hash == digest,
-                AuthDeviceSession.retired_refresh_hashes.contains([digest]),
-            ))
-            .with_for_update()
-        )
-        retired = session is not None
-    if session is None:
-        raise DeviceAuthError("Refresh token is not valid.", "refresh_invalid", 401)
-    if session.device_id != device.device_id:
-        raise DeviceAuthError("Device is not recognised.", "device_invalid", 401)
-    if session.revoked_at is not None:
-        raise _revoked_error(session)
-    now = _now()
-    if retired:
-        lost_response = (
-            digest == session.previous_refresh_hash
-            and session.refreshed_at is not None
-            and now - session.refreshed_at < REFRESH_RETRY_GRACE
-        )
-        _revoke(session, "refresh_retry_race" if lost_response else "refresh_reuse")
-        db.session.commit()
-        raise _revoked_error(session)
-    if session.refresh_expires_at <= now or session.created_at + _session_max_age() <= now:
-        raise DeviceAuthError("This session has expired; sign in again.", "session_expired", 401)
-    allowed, reason = _session_still_allowed(session)
-    if not allowed:
-        _revoke(session, reason)
-        db.session.commit()
-        raise _revoked_error(session)
-
-    session.previous_refresh_hash = session.refresh_hash
-    session.retired_refresh_hashes = [session.refresh_hash, *(session.retired_refresh_hashes or [])][
-        :RETIRED_REFRESH_KEEP
-    ]
-    session.refreshed_at = now
-    issued = _issue(session)
-    device.last_seen_at = session.last_seen_at
-    db.session.flush()
-    return issued, db.session.get(VaUsers, session.user_id)
-
-
-def end_session(session: AuthDeviceSession) -> None:
-    """Sign-out: revoke this session. Caller commits."""
-    if session.revoked_at is None:
-        _revoke(session, "signed_out")
-
-
-def resolve_access_token(token: str) -> tuple[AuthDeviceSession, VaUsers] | None:
-    """The live session and its user for a bearer access token, else None:
-    unknown, expired or revoked token, revoked device, inactive account, or a
-    bumped session version. Touches last_seen_at at most once a minute."""
-    now = _now()
-    row = db.session.execute(
-        sa.select(AuthDeviceSession, AuthDevice)
-        .join(AuthDevice, AuthDevice.device_id == AuthDeviceSession.device_id)
-        .where(
-            AuthDeviceSession.access_hash == hash_token(token),
-            AuthDeviceSession.revoked_at.is_(None),
-            AuthDeviceSession.access_expires_at > now,
-            AuthDevice.revoked_at.is_(None),
-        )
-    ).first()
-    if row is None:
-        return None
-    session, device = row
-    user = db.session.get(VaUsers, session.user_id)
-    if user is None or not user.is_active or (user.auth_session_version or 0) != session.user_session_version:
-        return None
-    if session.last_seen_at is None or now - session.last_seen_at > LAST_SEEN_INTERVAL:
-        session.last_seen_at = now
-        device.last_seen_at = now
-        db.session.commit()
-    return session, user
-
-
-def _uuid_list(values, name: str) -> list[str]:
-    """*values* (None, or a list of at most OUTSTANDING_MAX_IDS UUID strings)
-    sorted and normalised, else 400."""
-    if values is None:
-        return []
-    try:
-        if (
-            not isinstance(values, list)
-            or len(values) > OUTSTANDING_MAX_IDS
-            or not all(isinstance(value, str) for value in values)
-        ):
-            raise ValueError
-        return sorted({str(uuid.UUID(value)) for value in values})
-    except ValueError:
-        raise DeviceAuthError(
-            f"{name} must be a list of at most {OUTSTANDING_MAX_IDS} UUIDs.", "invalid_request", 400
-        ) from None
-
-
-def record_outstanding(session: AuthDeviceSession, count, unique_ids, client_draft_ids=None,
-                       client_death_ids=None) -> None:
-    """Store the device's report of unsent work for this interviewer.
-    ``count`` a whole number >= 0 (unsent interviews); ``unique_ids`` a list
-    of case ids (text, at most 64 characters each, at most
-    OUTSTANDING_MAX_IDS); ``client_draft_ids`` the app's draft UUIDs and
-    ``client_death_ids`` its offline registrations not yet uploaded (UUIDs,
-    same bound). Caller commits."""
-    if isinstance(count, bool) or not isinstance(count, int) or not 0 <= count <= 100_000:
-        raise DeviceAuthError("count must be a whole number of at least 0.", "invalid_request", 400)
-    if unique_ids is None:
-        unique_ids = []
-    if (
-        not isinstance(unique_ids, list)
-        or len(unique_ids) > OUTSTANDING_MAX_IDS
-        or not all(isinstance(u, str) and 0 < len(u) <= 64 for u in unique_ids)
-    ):
-        raise DeviceAuthError(
-            f"unique_ids must be a list of at most {OUTSTANDING_MAX_IDS} ids.", "invalid_request", 400
-        )
-    draft_ids = _uuid_list(client_draft_ids, "client_draft_ids")
-    death_ids = _uuid_list(client_death_ids, "client_death_ids")
-    session.outstanding_count = count
-    session.outstanding_unique_ids = sorted(set(unique_ids))
-    session.outstanding_client_draft_ids = draft_ids
-    session.outstanding_client_death_ids = death_ids
-    session.outstanding_reported_at = _now()
-
-
-def serialize_tokens(issued: IssuedTokens, user: VaUsers) -> dict:
-    return {
-        "access_token": issued.access_token,
-        "access_expires_at": issued.session.access_expires_at.isoformat(),
-        "refresh_token": issued.refresh_token,
-        "refresh_expires_at": issued.session.refresh_expires_at.isoformat(),
-        "user": {"user_id": str(user.user_id), "name": user.name, "email": user.email},
-        "terms_required": not user.pw_reset_t_and_c,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Admin listing
-# ---------------------------------------------------------------------------
-
-
-def list_project_devices(project_id: str) -> list[dict]:
-    """Every device enrolled in *project_id* with its live sessions: the
-    interviewer's name and the outstanding-work report. Two queries."""
-    devices = db.session.scalars(
-        sa.select(AuthDevice)
-        .where(AuthDevice.project_id == project_id)
-        .order_by(AuthDevice.revoked_at.is_not(None), AuthDevice.enrolled_at.desc())
-        .limit(500)
-    ).all()
-    sessions_by_device: dict = {}
-    if devices:
-        rows = db.session.execute(
-            sa.select(AuthDeviceSession, VaUsers.name)
-            .join(VaUsers, VaUsers.user_id == AuthDeviceSession.user_id)
-            .where(
-                AuthDeviceSession.device_id.in_([d.device_id for d in devices]),
-                AuthDeviceSession.revoked_at.is_(None),
-            )
-            .order_by(AuthDeviceSession.created_at)
-        ).all()
-        for session, user_name in rows:
-            sessions_by_device.setdefault(session.device_id, []).append({
-                "session_id": str(session.session_id),
-                "user_name": user_name,
-                "last_seen_at": session.last_seen_at.isoformat() if session.last_seen_at else None,
-                "outstanding_count": session.outstanding_count,
-                "outstanding_unique_ids": session.outstanding_unique_ids or [],
-                "outstanding_client_draft_ids": session.outstanding_client_draft_ids or [],
-                "outstanding_client_death_ids": session.outstanding_client_death_ids or [],
-            })
-
-    def iso(value):
-        return value.isoformat() if value else None
-
-    return [
-        {
-            "device_id": str(d.device_id),
-            "name": d.name,
-            "platform": d.platform,
-            "app_version": d.app_version,
-            "enrolled_at": iso(d.enrolled_at),
-            "last_seen_at": iso(d.last_seen_at),
-            "revoked_at": iso(d.revoked_at),
-            "revoked_compromised": d.revoked_compromised,
-            "signing_key_id": d.signing_key_id,
-            "sessions": sessions_by_device.get(d.device_id, []),
-        }
-        for d in devices
-    ]
+__all__ = [
+    "ACCESS_TTL",
+    "API_V1_PREFIX",
+    "DEFAULT_REFRESH_TTL_DAYS",
+    "DEFAULT_SESSION_MAX_DAYS",
+    "DEVICE_LIMIT_MESSAGE",
+    "DeviceAuthError",
+    "ENROLMENT_DEFAULT_MINUTES",
+    "ENROLMENT_MAX_MINUTES",
+    "ENROLMENT_MAX_USES",
+    "IssuedTokens",
+    "LAST_SEEN_INTERVAL",
+    "MAX_ACTIVE_USER_DEVICES",
+    "OUTSTANDING_MAX_IDS",
+    "REFRESH_RETRY_GRACE",
+    "RETIRED_REFRESH_KEEP",
+    "UNAUTHENTICATED_ENDPOINTS",
+    "_APP_VERSION_MAX",
+    "_DEVICE_CODING_ROLES",
+    "_DEVICE_NAME_MAX",
+    "_DUMMY_PASSWORD_HASH",
+    "_KEEP_DATA_REASONS",
+    "_PLAIN_HTTP_HOSTS",
+    "_PLATFORMS",
+    "_REUSE_REASONS",
+    "_add_device",
+    "_authenticate_device",
+    "_bounded_int",
+    "_check_credentials",
+    "_check_demo_device_cap",
+    "_clean_text",
+    "_create_session",
+    "_default_home_project",
+    "_demo_code_hash",
+    "_device_by_secret",
+    "_device_fields",
+    "_eligible_projects",
+    "_end_existing_pair_sessions",
+    "_get_device",
+    "_insecure_device_url_allowed",
+    "_issue",
+    "_live_session",
+    "_native_grant_projects",
+    "_native_grants",
+    "_new_secret",
+    "_no_access_error",
+    "_now",
+    "_open_authorized_session",
+    "_project_active",
+    "_refresh_ttl",
+    "_refuse",
+    "_revoke",
+    "_revoked_error",
+    "_session_max_age",
+    "_session_still_allowed",
+    "_sign_in_failed",
+    "_sign_in_user",
+    "_station_state",
+    "_uuid_list",
+    "check_device_slot",
+    "create_enrolment_code",
+    "decommission_account_device",
+    "device_for_client_uuid",
+    "device_public_url_problem",
+    "eligible_device_projects",
+    "end_session",
+    "enrol_demo_device",
+    "enrol_device",
+    "enrol_with_password",
+    "enrolment_qr_payload",
+    "has_device_access",
+    "hash_token",
+    "list_account_devices",
+    "list_project_devices",
+    "live_session_clauses",
+    "log",
+    "open_session",
+    "parse_client_device_uuid",
+    "record_app_version",
+    "record_outstanding",
+    "record_profile_deletion",
+    "refresh_session",
+    "request_bearer_token",
+    "resolve_access_token",
+    "revoke_device",
+    "serialize_tokens",
+    "set_device_project",
+    "should_block_non_admin_after_cutoff",
+]

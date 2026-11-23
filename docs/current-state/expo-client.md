@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-20
+last_updated: 2026-11-24
 ---
 
 # Expo Client Hosting And Access
@@ -242,7 +242,11 @@ The form's audio, image and file questions get their platform from
 uploader and platform (`app/static/js/intake/attachment_buffer.js`,
 `attachment_platform.js`, imported as they are; `metro.config.js` adds that folder
 to Metro's `watchFolders`) for the signed-in user and the server draft. Uploads go
-through `requestJson` (current CSRF token, training scope, station launch token).
+through `requestJson` (current CSRF token, training scope, station launch token). The
+shared client is `src/api.ts` (transport, CSRF, cookies, timeouts); its types and
+parsers and the intake, station and mentor calls live in `src/api/` and are
+re-exported by `src/api.ts`, the only module that may import them
+(`__tests__/api-entry-point.test.ts`, digitva-r8nh.20).
 Submit sends the buffer first and stops with a count while files of the draft wait;
 `409 attachments_pending` gets the same message. Waiting, dropped, held (with
 Delete from this device) and expiring files show above the form. Not for a

@@ -183,7 +183,8 @@ birthday. The backend must enforce the same upper age limit.
   each account's name and Locked/Unlocked only.
 - **Secure screens**: `FLAG_SECURE` on the whole app. A debug build started
   with `EXPO_PUBLIC_ALLOW_SCREENSHOTS=1 npx expo start` skips it for emulator
-  screenshots; release builds always set it.
+  screenshots. Until 31 Dec 2026 `.env.development` (dev Metro) and the release
+  workflows set `EXPO_PUBLIC_ALLOW_SCREENSHOTS_UNTIL`, which lifts it until then.
 - **Drafts**: each interviewer has their own SQLCipher file (`iv_<sha256>.db`),
   opened in `src/interviewerDb.ts`; the form writes through a `draftStore`
   over it (`src/drafts.ts`). Attachments are disabled. New-interview choices

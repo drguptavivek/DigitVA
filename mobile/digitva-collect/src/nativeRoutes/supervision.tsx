@@ -7,6 +7,7 @@ import { useRouter, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useAppState } from "../AppState";
+import { useLeaveGuard } from "../leaveGuard";
 import { t } from "../i18n";
 import type { SupervisionHost } from "../supervision/host";
 import { SUPERVISOR_REVISION_ROUTE } from "./supervisionEntry";
@@ -25,6 +26,11 @@ export default function Supervision() {
     if (focusedOnce.current) setReturns((count) => count + 1);
     focusedOnce.current = true;
   }, []));
+  // Back (header or hardware) with a case open returns to the list instead of leaving Supervision.
+  const closeDetail = useRef<(() => void) | undefined>(undefined);
+  const leaveGuard = useLeaveGuard();
+  leaveGuard.holds.current = () => Boolean(closeDetail.current);
+  leaveGuard.handler.current = () => closeDetail.current?.();
   const host = useMemo<SupervisionHost | undefined>(() => userId ? {
     request: createNativeWorkspaceTransport(userId),
     errorText,
@@ -38,7 +44,7 @@ export default function Supervision() {
   return (
     <Screen title={t("homeBlockSupervisor")}>
       {offline ? <Notice tone="warning">{t("supervisionNeedsConnection")}</Notice> : null}
-      {host ? <SupervisionList key={returns} host={host} /> : null}
+      {host ? <SupervisionList key={returns} host={host} closeDetail={closeDetail} /> : null}
     </Screen>
   );
 }

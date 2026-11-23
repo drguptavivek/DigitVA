@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Text, View } from "react-native";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { ScrollView, Text, View } from "react-native";
 
 import { listCases, SUPERVISION_STATES, type SupervisedCase, type SupervisionTiles } from "./api";
 import { t } from "../i18n";
@@ -35,7 +35,11 @@ function tileQuery(tile: TileKey) {
  * actions and detail. The host says what the platform offers (browser Deaths
  * screen, or the phone's Supervision screen); it owns the shell and the access check.
  */
-export function SupervisionList({ host }: { host: SupervisionHost }) {
+export function SupervisionList({ host, closeDetail }: {
+  host: SupervisionHost;
+  /** Phone: the screen's own back closes an open case (set here while one is open), so the case has no Back button. */
+  closeDetail?: MutableRefObject<(() => void) | undefined>;
+}) {
   const { request } = host;
   const styles = useUiStyles();
   const [tile, setTile] = useState<TileKey>("needs_decision");
@@ -114,8 +118,10 @@ export function SupervisionList({ host }: { host: SupervisionHost }) {
     ...SUPERVISION_STATES.filter((code) => counts[code]).map((code) => ({ code, label: `${stateLabel(code)} (${counts[code]})` })),
   ];
 
+  if (closeDetail) closeDetail.current = selected ? () => setSelected(undefined) : undefined;
+
   return selected ? (
-    <SupervisionCaseDetail host={host} deathId={selected} onBack={() => setSelected(undefined)} onDone={finish} />
+    <SupervisionCaseDetail host={host} deathId={selected} onBack={closeDetail ? undefined : () => setSelected(undefined)} onDone={finish} />
   ) : (
     <>
       <View style={styles.row}>
@@ -129,7 +135,9 @@ export function SupervisionList({ host }: { host: SupervisionHost }) {
           />
         ))}
       </View>
-      <View style={styles.row} accessibilityLabel={t("supervisionStateFilter")}>
+      {/* The state filters scroll on one labelled line, so they do not fill a phone screen; the four tiles above stay in view. */}
+      <Text style={styles.muted}>{t("supervisionStateFilter")}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }} accessibilityLabel={t("supervisionStateFilter")} testID="supervision-state-filter">
         {stateButtons.map((button) => (
           <Button
             key={button.code}
@@ -145,7 +153,7 @@ export function SupervisionList({ host }: { host: SupervisionHost }) {
           label={t("supervisionVisitNotes")}
           onPress={() => setVisitNotesOnly((on) => !on)}
         />
-      </View>
+      </ScrollView>
       {notice ? <Text style={styles.muted} accessibilityRole="alert">{notice}</Text> : null}
       {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
       {rows.length === 0 && !busy ? <Text style={styles.muted}>{emptyText}</Text> : null}

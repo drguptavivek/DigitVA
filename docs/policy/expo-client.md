@@ -3,7 +3,7 @@ title: Expo Web Client Boundary
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-18
+last_updated: 2026-11-24
 ---
 
 # Expo Web Client Boundary
@@ -626,6 +626,10 @@ at runtime in `mobile/digitva-collect/src/screenCapture.ts`).
   past app start, or an invalid or unset value, keeps the block. Remove the
   setting from builds after expiry. Builds already installed keep their own
   date; only new CI builds carry the new one.
+- Owner 2026-11-24: development builds too. `mobile/digitva-collect/.env.development`
+  sets the same date for dev Metro, so debug builds on emulators and test
+  phones allow screenshots until the same end of 31 December 2026; remove it
+  with the release setting.
 
 ## Offline gate (native; `digitva-5u65`)
 

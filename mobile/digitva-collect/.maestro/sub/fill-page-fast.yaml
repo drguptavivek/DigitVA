@@ -335,7 +335,10 @@ appId: com.causeofdeathindia.digitvacollect.plus
         when:
           visible:
             id: "question-Id10017"
-            text: ""
+          # text: "" also matches a filled field: skip any field that holds a name.
+          notVisible:
+            id: "question-Id10017"
+            text: ".+"
         commands:
           - tapOn:
               id: "question-Id10017"
@@ -685,7 +688,10 @@ appId: com.causeofdeathindia.digitvacollect.plus
         when:
           visible:
             id: "question-Id10017"
-            text: ""
+          # text: "" also matches a filled field: skip any field that holds a name.
+          notVisible:
+            id: "question-Id10017"
+            text: ".+"
         commands:
           - tapOn:
               id: "question-Id10017"
@@ -1035,7 +1041,10 @@ appId: com.causeofdeathindia.digitvacollect.plus
         when:
           visible:
             id: "question-Id10017"
-            text: ""
+          # text: "" also matches a filled field: skip any field that holds a name.
+          notVisible:
+            id: "question-Id10017"
+            text: ".+"
         commands:
           - tapOn:
               id: "question-Id10017"

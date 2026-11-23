@@ -15,7 +15,17 @@ env:
     visible: "Interview supervision"
     timeout: 60000
 - tapOn: "Total in scope.*"
-- tapOn: "Submitted.*"
+# The state filters scroll sideways on one line.
+- repeat:
+    while:
+      notVisible: "Submitted \\([0-9]+\\)"
+    times: 4
+    commands:
+      - swipe:
+          from:
+            id: "supervision-state-filter"
+          direction: LEFT
+- tapOn: "Submitted \\([0-9]+\\)"
 - scrollUntilVisible:
     element: ".*${CASE}.*"
     centerElement: true
@@ -55,7 +65,17 @@ env:
     visible: "Total in scope.*"
     timeout: 60000
 - tapOn: "Total in scope.*"
-- tapOn: "Submitted.*"
+# The state filters scroll sideways on one line.
+- repeat:
+    while:
+      notVisible: "Submitted \\([0-9]+\\)"
+    times: 4
+    commands:
+      - swipe:
+          from:
+            id: "supervision-state-filter"
+          direction: LEFT
+- tapOn: "Submitted \\([0-9]+\\)"
 - scrollUntilVisible:
     element: ".*${CASE}.*"
     centerElement: true

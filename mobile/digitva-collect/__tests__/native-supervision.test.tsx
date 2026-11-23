@@ -4,11 +4,16 @@ import { act, create, type ReactTestRenderer } from "react-test-renderer";
 const mockRequest = jest.fn();
 const mockPush = jest.fn();
 let mockOffline = false;
+let mockBeforeRemove: ((event: { data: { action: { type: string } }; preventDefault: () => void }) => void) | undefined;
 
 jest.mock("expo-router", () => ({
   useRouter: () => ({ push: mockPush }),
   useLocalSearchParams: () => ({ userId: "sup" }),
   useFocusEffect: () => undefined,
+  useNavigation: () => ({
+    addListener: (_name: string, listener: typeof mockBeforeRemove) => { mockBeforeRemove = listener; return () => undefined; },
+    dispatch: jest.fn(),
+  }),
 }));
 jest.mock("../src/AppState", () => ({ useAppState: () => ({ offline: mockOffline }) }));
 jest.mock("../src/workspace/transport.native", () => ({
@@ -90,6 +95,24 @@ describe("native supervision screen", () => {
     expect(mockPush).toHaveBeenCalledWith({ pathname: "/supervisor-revision", params: { userId: "sup", draftId: "dr", vaSid: "VA1", projectId: "P1", siteId: "S1" } });
     await act(async () => { tree.root.findAll((node) => node.type === "button" && node.props["data-label"] === "Edit death report")[0].props.onClick(); });
     expect(mockPush).toHaveBeenCalledWith({ pathname: "/register", params: { userId: "sup", deathId: "D1", by: "supervisor" } });
+  });
+
+  it("closes an open case on the screen's back, which has no Back button of its own", async () => {
+    fakeApi();
+    const tree = await render(<Supervision />);
+    await act(async () => { tree.root.findAll((node) => node.type === "button" && node.props["data-label"] === "View details")[0].props.onClick(); });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(labels(tree)).toContain("Edit interview");
+    expect(labels(tree)).not.toContain("Back to cases");
+    const preventDefault = jest.fn();
+    await act(async () => { mockBeforeRemove?.({ data: { action: { type: "GO_BACK" } }, preventDefault }); });
+    expect(preventDefault).toHaveBeenCalled();
+    expect(labels(tree)).not.toContain("Edit interview");
+    expect(labels(tree)).toContain("View details");
+    // With the list showing, back leaves the screen.
+    const leave = jest.fn();
+    await act(async () => { mockBeforeRemove?.({ data: { action: { type: "GO_BACK" } }, preventDefault: leave }); });
+    expect(leave).not.toHaveBeenCalled();
   });
 
   it("words a failed load with the app's error text", async () => {

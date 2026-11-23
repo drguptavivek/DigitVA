@@ -48,7 +48,8 @@ appId: com.causeofdeathindia.digitvacollect.plus
       - extendedWaitUntil:
           visible: "Set a PIN|This device has been revoked. Enrol it again.|This device is no longer enrolled.*"
           timeout: 30000
-# Newer builds ask before forgetting a revoked device.
+# Newer builds ask before re-enrolling a revoked device; "Enrol again" re-enrols with the
+# credentials just typed and goes on to the PIN.
 - runFlow:
     when:
       visible: "This device is no longer enrolled.*"
@@ -58,7 +59,7 @@ appId: com.causeofdeathindia.digitvacollect.plus
           retryTapIfNoChange: false
           waitToSettleTimeoutMs: 200
       - extendedWaitUntil:
-          visible: "Enrol this device"
+          visible: "Enrol this device|Choose the project|Set a.*PIN|Set new PIN|New PIN"
           timeout: 30000
 - runFlow:
     when:

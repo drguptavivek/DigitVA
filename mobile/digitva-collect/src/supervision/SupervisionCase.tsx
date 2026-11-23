@@ -87,7 +87,8 @@ export function SupervisionCaseDetail({
 }: {
   host: SupervisionHost;
   deathId: string;
-  onBack: () => void;
+  /** Absent: the screen's own back closes the case (the phone), so no Back button. */
+  onBack?: () => void;
   onDone: (message: string) => void;
 }) {
   const styles = useUiStyles();
@@ -120,7 +121,7 @@ export function SupervisionCaseDetail({
   if (!detail) {
     return (
       <View style={styles.card}>
-        <Button kind="secondary" label={t("supervisionBack")} onPress={onBack} />
+        {onBack ? <Button kind="secondary" label={t("supervisionBack")} onPress={onBack} /> : null}
         {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : <Text style={styles.muted}>{t("loading")}</Text>}
       </View>
     );
@@ -155,7 +156,7 @@ export function SupervisionCaseDetail({
 
   return (
     <View style={{ gap: 12 }}>
-      <Button kind="secondary" label={t("supervisionBack")} onPress={onBack} />
+      {onBack ? <Button kind="secondary" label={t("supervisionBack")} onPress={onBack} /> : null}
       <Text style={styles.headline}>{t("supervisionCaseDetail")}</Text>
       <View style={styles.card}>
         <CaseSummary row={row} variant="detail" />

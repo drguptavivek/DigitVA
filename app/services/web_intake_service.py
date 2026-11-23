@@ -8,6 +8,13 @@ requests and serialize results. A submitted questionnaire becomes a
 ``va_submissions`` row through exactly the projection and workflow entry
 that ODK sync uses, so SmartVA, coding and reporting see no difference
 between the two sources.
+
+
+Layout (bead digitva-r8nh.12). This module is the public face: every caller
+imports through it and tests patch names on it. The code lives in
+``app/services/web_intake/`` by section (see its ``__init__``); names a test
+patches here are read back through ``web_intake.facade()``, so patching this
+module still reaches them.
 """
 from __future__ import annotations
 
@@ -114,6 +121,291 @@ from app.services.web_form_relevance_service import (
     form_version_of,
     strip_irrelevant_answers,
 )
+from app.services.web_intake.common import (
+    _ABHA_ADDRESS_RE,
+    _ABHA_NUMBER_RE,
+    _CLOCK_BLOCK_SECONDS,
+    _FUTURE_TOLERANCE,
+    _LOCALE_CODE_RE,
+    _MAX_CLOCK_OFFSET_SECONDS,
+    _PARTIAL_DATE_RE,
+    _SECTION_NAME_RE,
+    ATTACHMENT_REFERENCE_PREFIX,
+    AUDIT_ROLE,
+    DEFAULT_INTAKE_NOTE,
+    INSTRUMENT_ID,
+    PARTIAL_BIRTH_MIN_YEAR,
+    PAYLOAD_ROLE,
+    WEB_PROJECT_DEFAULTS,
+    _clock_meta,
+    _completion_time,
+    _device_time,
+    _expression_now,
+    _utcnow,
+    draft_is_stale,
+    resolve_intake_note,
+)
+from app.services.web_intake.device import (
+    SYNC_MESSAGE,
+    _check_attachment_draft_matches,
+    _device_completion,
+    _merged_answers,
+    _own_submitted_draft,
+    _store_superseded_copy,
+    _sync_reply,
+    case_prefill,
+    case_row,
+    check_device_times,
+    find_device_attempt,
+    find_device_registration,
+    find_device_upload,
+    fold_into_own_submission,
+    get_device_case,
+    is_attachment_draft,
+    lock_draft_for_browser_write,
+    prepare_browser_overwrite,
+    resubmit_browser_draft,
+    resubmit_device_interview,
+    serialize_device_upload,
+    start_attachment_draft,
+    submit_device_interview,
+    sync_device_draft,
+)
+from app.services.web_intake.drafts import (
+    _ADDRESS_ATTRS,
+    _CHANGE_CHANNELS,
+    _CODING_TIMELINE_CLIENT_EVENTS,
+    _CODING_TIMELINE_MAX,
+    _CODING_TIMELINE_META_KEY,
+    _DEFINITION_IDENTITY_KEYS,
+    _DEVICE_TIME_KEYS,
+    _ENVELOPE_META_KEYS,
+    _EXTENSION_NAME_RE,
+    _INTERVIEWER_AGE_RANGE,
+    _INTERVIEWER_ANSWER_KEYS,
+    _INTERVIEWER_NAME_RE,
+    _MAX_DEFINITION_EXTENSIONS,
+    _PLACE_OF_DEATH_CHOICES,
+    _PLACE_OF_DEATH_KEYWORDS,
+    _SHA256_RE,
+    _STARTABLE_STATES,
+    _SUPERSEDED_CASE_STATES,
+    _TIMELINE_META_KEY,
+    DEVICE_ANSWERS_MAX_BYTES,
+    DEVICE_ANSWERS_MAX_DEPTH,
+    DEVICE_SECTION,
+    FINAL_SECTION,
+    PREFILL_ANSWER_FIELDS,
+    PREFILL_LOCKED_FIELDS,
+    _answers_of,
+    _approximate_date_of_death,
+    _begin_interview,
+    _birth_age_from_answers,
+    _case_address,
+    _clean_locale_meta,
+    _current_prefill,
+    _draft_locked_answers,
+    _enforce_locked,
+    _identity_from_answers,
+    _interviewer_age,
+    _is_attachment_reference,
+    _locked_answers,
+    _missing_identity_error,
+    _note_last_change,
+    _parse_coding_timeline,
+    _prefill_from_death,
+    _sync_case_identity,
+    _who_place_of_death,
+    check_definition_identity,
+    check_device_answers,
+    check_refusal_resume,
+    clear_direct_identity_for_refusal,
+    discard_draft,
+    get_draft,
+    is_new_refusal,
+    last_change,
+    list_drafts,
+    load_draft_envelope,
+    merge_incoming_timeline_meta,
+    refusal_stale,
+    release_who_refusal_hold,
+    save_draft_sections,
+    scrub_attachment_names,
+    scrub_refused_draft,
+    start_draft,
+    stored_answers,
+)
+from app.services.web_intake.duplicates import (
+    possible_duplicates,
+)
+from app.services.web_intake.interview_choice import (
+    CANDIDATES_MAX,
+    CHOICE_REASONS,
+    _candidate_completed_at,
+    _candidate_condition,
+    _has_candidate,
+    _supervising_actor,
+    choose_interview,
+    list_candidates,
+)
+from app.services.web_intake.register import (
+    _AGE_INFO_FIELDS,
+    _LEGACY_STATUS,
+    _PHONE_FIELDS,
+    LOCATION_FIELDS,
+    REGISTER_FIELDS,
+    _clean,
+    _clean_abha,
+    _clean_date,
+    _clean_death_fields,
+    _clean_location,
+    _clean_number,
+    _clean_partial_birth,
+    _clean_phone,
+    _project_today,
+    _reporter_reaches,
+    _require_age_info,
+    get_death,
+    interviewer_reaches,
+    list_deaths,
+    register_death,
+)
+from app.services.web_intake.register_access import (
+    _CLOSED_WRITER_ROLES,
+    CASE_CLOSED_MESSAGE,
+    DETAILS_EDITED,
+    IDENTIFIER_CLOSED_STATES,
+    IDENTIFIER_FORBIDDEN_MESSAGE,
+    IDENTITY_FROM_INTERVIEW,
+    REPORTED_PAGE_DEFAULT,
+    REPORTED_PAGE_MAX,
+    _audit_details_change,
+    _correct_register_fields,
+    _interview_completed,
+    _interviewed_condition,
+    _json_value,
+    can_edit_identifiers,
+    flag_death,
+    identifier_edit_condition,
+    identifier_field_scopes,
+    identifier_write_flags,
+    identifier_write_parts,
+    identifier_write_status,
+    reported_deaths_page,
+    require_identifier_write,
+    update_death,
+)
+from app.services.web_intake.revision import (
+    HISTORY_SECTION,
+    RESUBMITTED_REASON,
+    REVISION_REASONS,
+    SUPERSEDED_BY_SUPERVISOR_REVISION,
+    SUPERVISOR_CORRECTION_REASON,
+    _keep_history,
+    _keep_losing_version,
+    _replace_raw_answers,
+    _revisable_now,
+    _revision_reply,
+    case_submission_view,
+    find_own_submission,
+    may_read_submitted_answers,
+    revise_submission,
+    revision_unlocked,
+)
+from app.services.web_intake.scope import (
+    _DEATH_REPORTER,
+    _EPOCH,
+    _INTERVIEWER,
+    _allocate_unique_id,
+    _assigned_only,
+    _code_now_unit_ok,
+    _decode_cursor,
+    _encode_cursor,
+    _mode_allows,
+    _require_scope,
+    _unit_context,
+    _unit_label,
+    _unit_prefill_parts,
+    _worklist_scope,
+    can_code_now,
+    get_web_intake_mode,
+    interviewer_context,
+    reachable_unit_ids,
+    register_death_context,
+    self_coding_project_ids,
+)
+from app.services.web_intake.serializers import (
+    _CASE_DETAIL_HIDDEN,
+    SUPERVISED_ROW_PII,
+    _code_now,
+    _register_values,
+    _serialize_location,
+    _without_location,
+    gps_projects,
+    resolve_draft_display_names,
+    serialize_case_detail,
+    serialize_death,
+    serialize_draft,
+    serialize_drafts,
+    serialize_supervised_row,
+    serialize_worklist_row,
+    shows_gps,
+)
+from app.services.web_intake.submission import (
+    _COMPOSED_VERSION_RE,
+    _INCOMPLETE_OUTCOMES,
+    OUTCOME_CASE_STATES,
+    _interview_outcome,
+    _is_outdated_form_version,
+    _require_live_org_unit,
+    _set_final_section,
+    _supersede_draft,
+    _visit_note,
+    build_final_payload,
+    build_web_payload,
+    submit_draft,
+)
+from app.services.web_intake.supervisor import (
+    _SUPERVISION_OPEN_STATES,
+    SUPERVISION_SORTS,
+    SUPERVISION_STUCK_DAYS,
+    get_case_for_supervisor,
+    get_supervised_case,
+    list_supervised_cases,
+    supervised_case_row,
+    supervised_row_facts,
+    supervision_attention_conditions,
+    supervision_tiles,
+)
+from app.services.web_intake.visits import (
+    _VISIT_AHEAD,
+    _VISIT_PAST,
+    _VISIT_STATES,
+    PAUSE_REASONS,
+    _clean_visit_at,
+    _waiting_case,
+    log_contact_attempt,
+    pause_interview,
+    set_visit,
+)
+from app.services.web_intake.worklist import (
+    _CODING_STATUS,
+    _FALSE,
+    _TRUE,
+    WORKLIST_PAGE_DEFAULT,
+    WORKLIST_PAGE_MAX,
+    WORKLIST_SORTS,
+    _after_reported_cursor,
+    _after_worklist_cursor,
+    _encode_worklist_cursor,
+    _micros,
+    _mine_condition,
+    _worklist_select,
+    get_case_detail,
+    list_worklist,
+    prefill_policy,
+    worklist_page,
+)
 from app.services.who_age_normalization import derive_final_age_in_years
 from app.services.who_va_answers import age_field, birth_answer
 from app.services.who_va_answers import choice as choice_answer
@@ -155,5510 +447,388 @@ from app.utils.phone import normalise_phone
 log = logging.getLogger(__name__)
 
 __all__ = [
-    "WebIntakeError",
+    "ATTACHMENT_REFERENCE_PREFIX",
+    "AUDIT_ROLE",
+    "Action",
+    "CANDIDATES_MAX",
+    "CASE_CLOSED_MESSAGE",
+    "CASE_STATES",
+    "CHOICE_REASONS",
+    "CODING_TIMELINE_EVENTS",
+    "CONTACT_OUTCOMES",
+    "DEATH_NUMBER_SEQUENCE",
+    "DEATH_REGISTERING_ROLES",
+    "DEATH_SEX_VALUES",
+    "DEFAULT_INTAKE_NOTE",
+    "DEFAULT_LOCALE",
+    "DETAILS_EDITED",
+    "DEVICE_ANSWERS_MAX_BYTES",
+    "DEVICE_ANSWERS_MAX_DEPTH",
+    "DEVICE_SECTION",
+    "DUPLICATE_CANDIDATES_MAX",
+    "DUPLICATE_CASE_STATUS",
+    "EDITOR_OWNER",
+    "EDITOR_SUPERVISOR",
+    "EXCLUDED_HOLDS",
+    "FINAL_SECTION",
+    "HISTORY_SECTION",
+    "IDENTIFIER_CLOSED_STATES",
+    "IDENTIFIER_FORBIDDEN_MESSAGE",
+    "IDENTITY_FROM_INTERVIEW",
+    "INSTRUMENT_ID",
+    "INTERVIEW_CHOSEN_REASON",
+    "INTERVIEW_TIMELINE_EVENTS",
+    "LOCATION_FIELDS",
+    "MapCaseContactAttempt",
+    "MapCaseTransition",
+    "MasOrgLevel",
+    "MasOrgUnit",
+    "OUTCOME_CASE_STATES",
+    "PARTIAL_BIRTH_MIN_YEAR",
+    "PAUSE_REASONS",
+    "PAYLOAD_ROLE",
+    "PREFILL_ANSWER_FIELDS",
+    "PREFILL_LOCKED_FIELDS",
+    "PROTECTED_WORKFLOW_STATES",
+    "REGISTER_FIELDS",
+    "REPORTED_PAGE_DEFAULT",
+    "REPORTED_PAGE_MAX",
+    "RESUBMITTED_REASON",
+    "REVISION_REASONS",
+    "SOURCE_INTERVIEWER_REVISION",
+    "SOURCE_SUPERVISOR_CHOICE",
+    "SOURCE_SUPERVISOR_REVISION",
+    "SUPERSEDED_BY_SUPERVISOR_REVISION",
+    "SUPERVISED_ROW_PII",
+    "SUPERVISION_SORTS",
+    "SUPERVISION_STUCK_DAYS",
+    "SUPERVISOR_CORRECTION_REASON",
+    "SYNC_MESSAGE",
+    "UPSTREAM_CHANGE_STATUS_REJECTED",
+    "USER_SEX_VALUES",
+    "UTC",
+    "VaAccessRoles",
+    "VaDeathRegister",
+    "VaForms",
+    "VaProjectMaster",
+    "VaProjectSites",
+    "VaSiteMaster",
+    "VaStatuses",
+    "VaSubmissionPayloadVersion",
+    "VaSubmissionWorkflow",
+    "VaSubmissions",
+    "VaSubmissionsAuditlog",
+    "VaUsers",
+    "VaWebIntakeAttachment",
+    "VaWebIntakeDraft",
+    "VaWebIntakeDraftSection",
     "WEB_INTAKE_MODES",
     "WEB_PROJECT_DEFAULTS",
-    "DEFAULT_INTAKE_NOTE",
-    "INSTRUMENT_ID",
-    "resolve_intake_note",
-    "get_web_intake_mode",
-    "interviewer_context",
-    "register_death_context",
-    "register_death",
-    "list_deaths",
-    "reported_deaths_page",
-    "interviewer_reaches",
-    "get_death",
-    "flag_death",
-    "set_visit",
-    "log_contact_attempt",
-    "pause_interview",
-    "PAUSE_REASONS",
-    "list_worklist",
-    "start_draft",
-    "list_drafts",
-    "get_draft",
-    "load_draft_envelope",
-    "save_draft_sections",
-    "discard_draft",
-    "submit_draft",
+    "WORKFLOW_FINALIZED_UPSTREAM_CHANGED",
+    "WORKFLOW_READY_FOR_CODING",
+    "WORKFLOW_REVIEWER_CODING_IN_PROGRESS",
+    "WORKLIST_PAGE_DEFAULT",
+    "WORKLIST_PAGE_MAX",
+    "WORKLIST_SORTS",
+    "WebIntakeError",
+    "WorkflowTimelineError",
+    "WorkflowTransitionError",
+    "_ABHA_ADDRESS_RE",
+    "_ABHA_NUMBER_RE",
+    "_ADDRESS_ATTRS",
+    "_AGE_INFO_FIELDS",
+    "_CASE_DETAIL_HIDDEN",
+    "_CHANGE_CHANNELS",
+    "_CLOCK_BLOCK_SECONDS",
+    "_CLOSED_WRITER_ROLES",
+    "_CODING_STATUS",
+    "_CODING_TIMELINE_CLIENT_EVENTS",
+    "_CODING_TIMELINE_MAX",
+    "_CODING_TIMELINE_META_KEY",
+    "_COMPOSED_VERSION_RE",
+    "_DEATH_REPORTER",
+    "_DEFINITION_IDENTITY_KEYS",
+    "_DEVICE_TIME_KEYS",
+    "_ENVELOPE_META_KEYS",
+    "_EPOCH",
+    "_EXTENSION_NAME_RE",
+    "_FALSE",
+    "_FUTURE_TOLERANCE",
+    "_INCOMPLETE_OUTCOMES",
+    "_INTERVIEWER",
+    "_INTERVIEWER_AGE_RANGE",
+    "_INTERVIEWER_ANSWER_KEYS",
+    "_INTERVIEWER_NAME_RE",
+    "_LEGACY_STATUS",
+    "_LOCALE_CODE_RE",
+    "_MAX_CLOCK_OFFSET_SECONDS",
+    "_MAX_DEFINITION_EXTENSIONS",
+    "_PARTIAL_DATE_RE",
+    "_PHONE_FIELDS",
+    "_PLACE_OF_DEATH_CHOICES",
+    "_PLACE_OF_DEATH_KEYWORDS",
+    "_SECTION_NAME_RE",
+    "_SHA256_RE",
+    "_STARTABLE_STATES",
+    "_SUPERSEDED_CASE_STATES",
+    "_SUPERVISION_OPEN_STATES",
+    "_TIMELINE_META_KEY",
+    "_TRUE",
+    "_VISIT_AHEAD",
+    "_VISIT_PAST",
+    "_VISIT_STATES",
+    "_after_reported_cursor",
+    "_after_worklist_cursor",
+    "_allocate_unique_id",
+    "_answers_of",
+    "_approximate_date_of_death",
+    "_assigned_only",
+    "_audit_details_change",
+    "_begin_interview",
+    "_birth_age_from_answers",
+    "_candidate_completed_at",
+    "_candidate_condition",
+    "_case_address",
+    "_check_attachment_draft_matches",
+    "_clean",
+    "_clean_abha",
+    "_clean_date",
+    "_clean_death_fields",
+    "_clean_locale_meta",
+    "_clean_location",
+    "_clean_number",
+    "_clean_partial_birth",
+    "_clean_phone",
+    "_clean_visit_at",
+    "_clock_meta",
+    "_code_now",
+    "_code_now_unit_ok",
+    "_completion_time",
+    "_correct_register_fields",
+    "_current_prefill",
+    "_decode_cursor",
+    "_device_completion",
+    "_device_time",
+    "_draft_locked_answers",
+    "_encode_cursor",
+    "_encode_worklist_cursor",
+    "_enforce_locked",
+    "_expression_now",
+    "_has_candidate",
+    "_identity_from_answers",
+    "_interview_completed",
+    "_interview_outcome",
+    "_interviewed_condition",
+    "_interviewer_age",
+    "_is_attachment_reference",
+    "_is_outdated_form_version",
+    "_json_value",
+    "_keep_history",
+    "_keep_losing_version",
+    "_locked_answers",
+    "_merged_answers",
+    "_micros",
+    "_mine_condition",
+    "_missing_identity_error",
+    "_mode_allows",
+    "_note_last_change",
+    "_own_submitted_draft",
+    "_parse_coding_timeline",
+    "_prefill_from_death",
+    "_project_today",
+    "_register_values",
+    "_replace_raw_answers",
+    "_reporter_reaches",
+    "_require_age_info",
+    "_require_live_org_unit",
+    "_require_scope",
+    "_revisable_now",
+    "_revision_reply",
+    "_serialize_location",
+    "_set_final_section",
+    "_store_superseded_copy",
+    "_supersede_draft",
+    "_supervising_actor",
+    "_sync_case_identity",
+    "_sync_reply",
+    "_unit_context",
+    "_unit_label",
+    "_unit_prefill_parts",
+    "_utcnow",
+    "_visit_note",
+    "_waiting_case",
+    "_who_place_of_death",
+    "_without_location",
+    "_worklist_scope",
+    "_worklist_select",
+    "admin_actor",
+    "age_field",
+    "aliased",
+    "apply_submission_projection",
+    "attachments",
+    "birth_answer",
+    "build_final_payload",
+    "build_submission_projection",
     "build_web_payload",
-    "serialize_death",
-    "gps_projects",
-    "shows_gps",
-    "serialize_draft",
-    "serialize_worklist_row",
-    "serialize_case_detail",
+    "can",
+    "can_code_now",
+    "can_edit_identifiers",
+    "case_prefill",
+    "case_row",
+    "case_submission_view",
+    "cases",
+    "check_definition_identity",
+    "check_device_answers",
+    "check_device_times",
+    "check_refusal_resume",
+    "choice_answer",
     "choose_interview",
-    "list_candidates",
+    "clear_direct_identity_for_refusal",
+    "collection_gate",
+    "collection_hold",
+    "consent_is_valid",
+    "data_manager_actor",
+    "dataclasses",
+    "date",
+    "datetime",
+    "db",
+    "death_identifiers",
+    "derive_final_age_in_years",
+    "derive_validation_errors",
+    "discard_draft",
+    "draft_is_stale",
+    "ensure_active_payload_version",
+    "ensure_web_runtime_form",
+    "find_device_attempt",
+    "find_device_registration",
+    "find_device_upload",
+    "find_own_submission",
+    "find_revisable_submission",
+    "flag_death",
+    "fold_into_own_submission",
+    "form_version_of",
+    "get_active_payload_version",
     "get_case_detail",
-    "worklist_page",
+    "get_case_for_supervisor",
+    "get_death",
+    "get_device_case",
+    "get_draft",
+    "get_latest_pending_upstream_payload_version",
+    "get_open_revision_request",
+    "get_submission_workflow_state",
+    "get_supervised_case",
+    "get_web_intake_mode",
+    "gps_projects",
+    "has_visit_note_condition",
+    "hashlib",
+    "identifier_edit_condition",
+    "identifier_field_scopes",
+    "identifier_write_flags",
+    "identifier_write_parts",
+    "identifier_write_status",
+    "interview_supervisor_actor",
+    "interviewer_context",
+    "interviewer_reaches",
+    "is_attachment_draft",
+    "is_new_refusal",
+    "is_withdrawn",
+    "json",
+    "last_change",
+    "list_candidates",
+    "list_deaths",
+    "list_drafts",
+    "list_supervised_cases",
+    "list_worklist",
+    "load_draft_envelope",
+    "lock_draft_for_browser_write",
+    "log",
+    "log_contact_attempt",
+    "logging",
+    "mark_attachment_sync_completed",
+    "mark_consulted",
+    "mark_upstream_change_detected",
+    "math",
+    "may_read_submitted_answers",
+    "merge_incoming_timeline_meta",
+    "merge_timeline",
+    "normalise_phone",
+    "normalize_consent",
+    "notification_service",
+    "opened_payload",
+    "org",
+    "org_grant_service",
+    "org_routing",
+    "parse_timeline",
+    "pause_interview",
+    "payload_matches",
+    "pii_scope",
+    "possible_duplicates",
     "prefill_policy",
+    "prepare_browser_overwrite",
+    "project_clock",
+    "project_country",
+    "public_demo_service",
+    "pytz",
+    "re",
+    "reachable_unit_ids",
+    "redact_national_id_digits",
+    "redact_payload_national_ids",
+    "refusal_stale",
+    "register_death",
+    "register_death_context",
+    "register_duplicate_service",
+    "register_pii_accessor",
+    "reject_pending_upstream_payload_version",
+    "release_coding_for_changed_payload",
+    "release_who_refusal_hold",
+    "reopen_coding_after_revision",
+    "reported_deaths_page",
+    "require_identifier_write",
+    "resolve_draft_display_names",
+    "resolve_grants",
+    "resolve_intake_note",
+    "resolve_pending_upstream_change",
+    "resubmit_browser_draft",
+    "resubmit_device_interview",
+    "revise_submission",
+    "revision_unlocked",
+    "route_synced_submission",
+    "sa",
+    "save_draft_sections",
+    "scrub_attachment_names",
+    "scrub_refused_draft",
+    "selectinload",
+    "self_coding_project_ids",
+    "serialize_case_detail",
+    "serialize_death",
+    "serialize_device_upload",
+    "serialize_draft",
+    "serialize_drafts",
+    "serialize_supervised_row",
+    "serialize_worklist_row",
+    "served_form_service",
+    "server_event",
+    "set_visit",
+    "shows_gps",
+    "smartva_service",
+    "start_attachment_draft",
+    "start_draft",
+    "stored_answers",
+    "strip_irrelevant_answers",
+    "submit_device_interview",
+    "submit_draft",
+    "subtree_select",
+    "supervised_case_row",
+    "supervised_row_facts",
+    "supervision",
+    "supervision_attention_conditions",
+    "supervision_tiles",
+    "sync_device_draft",
+    "system_actor",
+    "timedelta",
+    "training_scope",
+    "update_death",
+    "uuid",
+    "whole_answer",
+    "worklist_page",
 ]
-
-INSTRUMENT_ID = "va_who_2022"
-ATTACHMENT_REFERENCE_PREFIX = "who-va-attachment:"
-AUDIT_ROLE = "vainterviewer"
-PAYLOAD_ROLE = "vainterviewer"
-#: ``YYYY`` or ``YYYY-MM``: a birth date whose day (or day and month) is unknown.
-_PARTIAL_DATE_RE = re.compile(r"^\d{4}(-(0[1-9]|1[0-2]))?$", re.ASCII)
-#: The earliest plausible birth year; the WHO dob_year constraint's floor.
-PARTIAL_BIRTH_MIN_YEAR = 1900
-_ABHA_NUMBER_RE = re.compile(r"^(\d{14}|\d{2}-\d{4}-\d{4}-\d{4})$")
-_ABHA_ADDRESS_RE = re.compile(r"^[A-Za-z0-9._]{4,32}@(abdm|sbx)$")
-# Phone: exactly 10 digits, optionally after +91, 91 or 0.
-_SECTION_NAME_RE = re.compile(r"^[A-Za-z0-9_]{1,64}$")
-#: An instrument locale code as the XLSForm writes it ("hi", "kha", "pt-BR").
-_LOCALE_CODE_RE = re.compile(r"^[A-Za-z0-9-]{2,16}$")
-
-#: The welcome note a project shows before the questionnaire starts when it
-#: has not written one of its own. A constant rather than a stored default so
-#: the wording can change without a migration: a NULL
-#: ``web_intake_intake_note`` resolves to this text, an empty string means the
-#: project wants no welcome screen. Decided 2026-09-19,
-#: docs/policy/va-web-form-options.md.
-DEFAULT_INTAKE_NOTE = (
-    "Before you begin: confirm the respondent has consented, is comfortable, "
-    "and has time for the interview. Answers are saved as you go."
-)
-
-#: What a project that collects on the web is created with when the client
-#: says nothing (docs/planning/web-capture-project-configuration-plan.md, WP1).
-#: Applied by POST /admin/api/projects to every key the payload omits whenever
-#: ``web_intake_mode`` is not ``off``; an explicit value always wins. The two
-#: language lists are filtered to the codes the validators accept before they
-#: are applied, so a deployment that has not vendored Hindi translations or
-#: seeded the language rows still creates the project instead of failing it.
-WEB_PROJECT_DEFAULTS = {
-    "web_intake_form_type_code": "WHO_2022_VA",
-    "web_intake_intake_note": None,
-    "web_intake_death_summary_enabled": True,
-    "web_intake_medical_records_enabled": True,
-    "web_intake_equity_enabled": True,
-    "social_autopsy_enabled": False,
-    "web_intake_available_locales": ["en", "hi"],
-    "web_intake_narration_languages": ["english", "hindi"],
-    "coding_intake_mode": "pick_and_choose",
-}
-
-
-def resolve_intake_note(project: VaProjectMaster) -> str:
-    """The welcome note this project shows, ``""`` when it shows none.
-
-    NULL is "the project never set one", which is the system default text;
-    a stored empty (or whitespace-only) string is a project that deliberately
-    turned the welcome screen off. The ``intake_screen`` extension is served
-    exactly when this is non-empty.
-    """
-    note = project.web_intake_intake_note
-    if note is None:
-        return DEFAULT_INTAKE_NOTE
-    return note.strip()
-
-
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC)
-
-
-def _expression_now(user: VaUsers, at: datetime) -> datetime:
-    """``at`` read in the interviewer's own timezone, for the expression
-    evaluator's ``today()`` -- the same "whatever the device considers
-    local" the browser's ``formatLocalDate`` uses (see
-    docs/policy/xform-expression-evaluator.md). Falls back to this
-    application's primary deployment timezone, matching
-    ``app._current_user_timezone``."""
-    tz_name = getattr(user, "timezone", None) or "Asia/Kolkata"
-    try:
-        tz = pytz.timezone(tz_name)
-    except pytz.UnknownTimeZoneError:
-        tz = pytz.timezone("Asia/Kolkata")
-    return at.astimezone(tz)
-
-
-def _device_time(value: object) -> datetime | None:
-    """An ISO 8601 time with a UTC offset, in that offset; None for anything
-    else (not text, unparsable, or no offset -- an offset-less time cannot
-    be placed, docs/policy/field-data-collection.md "Interview times")."""
-    if not isinstance(value, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo is not None and parsed.utcoffset() is not None else None
-
-
-#: The phone's measured clock offset (phone minus server) is kept within a year
-#: (a wilder value is clamped, never refused: the upload must not be lost). An
-#: offset past 4 h (the owner's block rule) or a start or completion time more
-#: than 10 min ahead of the server marks the upload as clock-suspect.
-_MAX_CLOCK_OFFSET_SECONDS = 366 * 86400
-_CLOCK_BLOCK_SECONDS = 4 * 3600
-_FUTURE_TOLERANCE = timedelta(minutes=10)
-
-
-def _clock_meta(envelope: dict, now: datetime) -> dict:
-    """Meta for the device clock: ``clockOffsetSeconds`` when the envelope
-    carries one, and ``clockSuspect`` when the offset or a future start or
-    completion time says the phone's clock was wrong. Audit and display only."""
-    out: dict = {}
-    offset = envelope.get("clockOffsetSeconds")
-    if offset is not None:
-        out["clockOffsetSeconds"] = max(-_MAX_CLOCK_OFFSET_SECONDS, min(_MAX_CLOCK_OFFSET_SECONDS, offset))
-    times = [_device_time(envelope.get(k)) for k in ("startedAt", "completedAt")]
-    if abs(out.get("clockOffsetSeconds", 0)) > _CLOCK_BLOCK_SECONDS or any(
-        t is not None and t > now + _FUTURE_TOLERANCE for t in times
-    ):
-        out["clockSuspect"] = True
-    return out
-
-
-def _completion_time(envelope: dict, now: datetime) -> datetime:
-    """When the interview was completed, in server time: the device's
-    ``completedAt`` corrected by its clock drift (``now - deviceClockAt`` is
-    how far the device runs behind, as in ``sync_device_draft``) and never
-    later than *now*. Without both times (a browser submit, an older app) it
-    is *now*, the moment the server received it."""
-    done, clock = _device_time(envelope.get("completedAt")), _device_time(envelope.get("deviceClockAt"))
-    if done is None or clock is None:
-        return now
-    return min(now, now - (clock - done))
-
-
-# ---------------------------------------------------------------------------
-# Project mode and interviewer scope
-# ---------------------------------------------------------------------------
-
-
-def get_web_intake_mode(project_id: str) -> str:
-    project = db.session.get(VaProjectMaster, project_id)
-    if project is None or project.project_status != VaStatuses.active:
-        return "off"
-    return project.web_intake_mode or "off"
-
-
-def _mode_allows(mode: str, *, death_register: bool) -> bool:
-    if mode == "both":
-        return True
-    return mode == ("death_register" if death_register else "direct")
-
-
-_INTERVIEWER = frozenset({VaAccessRoles.interviewer})
-_DEATH_REPORTER = frozenset({VaAccessRoles.death_reporter})
-
-
-def interviewer_context(
-    user: VaUsers,
-    roles: frozenset = _INTERVIEWER,
-    *,
-    _grants=None,
-) -> list[dict]:
-    """Projects and sites where this user may fill questionnaires.
-
-    One entry per (project, site) reachable through interviewer grants at
-    project, project-site or organization-unit scope, for projects whose
-    web intake is switched on. Unit grants list the units the interviewer
-    belongs to so drafts and deaths can be attributed to a unit.
-
-    *roles* names the grants the reach is built from. The default, interviewer
-    alone, is every interviewing surface; the register routes pass
-    ``DEATH_REGISTERING_ROLES`` (``register_death_context``), and a
-    ``death_reporter``'s own reach is built from that role alone
-    (``_DEATH_REPORTER``), so neither role widens the other's.
-    """
-    resolved = _grants if _grants is not None else resolve_grants(user)
-    grants = list(resolved.of(roles, virtual=False))
-    pairs: dict[tuple[str, str], dict] = {}
-
-    # Project and project-site grants: the sites of the project's active
-    # forms (a site grant only its own site).
-    wide = [
-        sa.and_(VaForms.project_id == g.project_id,
-                VaForms.site_id == g.site_id if g.site_id else sa.true())
-        for g in grants if g.is_wide
-    ]
-    if wide:
-        rows = db.session.execute(
-            sa.select(VaForms.project_id, VaForms.site_id)
-            .where(VaForms.form_status == VaStatuses.active, sa.or_(*wide))
-            .distinct()
-        ).all()
-        for project_id, site_id in rows:
-            pairs[(project_id, site_id)] = {"org_units": []}
-
-    # A pair a wide grant reaches keeps ``org_units: []``, the whole tree, as
-    # ``reachable_unit_ids`` has it: a unit grant there narrows nothing.
-    whole_tree = set(pairs)
-
-    # Unit grants: every active site of the unit's project.
-    unit_grants = [g for g in grants if not g.is_wide]
-    if unit_grants:
-        units = {
-            u.org_unit_id: u
-            for u in db.session.scalars(
-                sa.select(MasOrgUnit).where(
-                    MasOrgUnit.org_unit_id.in_({g.org_unit_id for g in unit_grants})
-                )
-            )
-        }
-        site_ids_by_project: dict[str, list[str]] = {}
-        for project_id, site_id in db.session.execute(
-            sa.select(VaProjectSites.project_id, VaProjectSites.site_id)
-            .where(
-                VaProjectSites.project_id.in_({g.project_id for g in unit_grants}),
-                VaProjectSites.project_site_status == VaStatuses.active,
-            )
-            .order_by(VaProjectSites.site_id)
-        ):
-            site_ids_by_project.setdefault(project_id, []).append(site_id)
-        for grant in unit_grants:
-            unit = units.get(grant.org_unit_id)
-            if unit is None:
-                continue
-            for site_id in site_ids_by_project.get(grant.project_id, ()):
-                if (grant.project_id, site_id) in whole_tree:
-                    continue
-                entry = pairs.setdefault((grant.project_id, site_id), {"org_units": []})
-                unit_id_str = str(unit.org_unit_id)
-                if any(u["org_unit_id"] == unit_id_str for u in entry["org_units"]):
-                    continue
-                entry["org_units"].append(
-                    {
-                        "org_unit_id": unit_id_str,
-                        "unit_code": unit.unit_code,
-                        "unit_name": unit.unit_name,
-                        "path": str(unit.path),
-                    }
-                )
-
-    if not pairs:
-        return []
-    project_ids = {p for p, _ in pairs}
-    site_ids = {s for _, s in pairs}
-    active_pair_rows = db.session.execute(
-        sa.select(
-            VaProjectSites.project_id,
-            VaProjectSites.site_id,
-            VaProjectMaster.project_name,
-            VaProjectMaster.web_intake_mode,
-            VaSiteMaster.site_name,
-        )
-        .join(VaProjectMaster, VaProjectMaster.project_id == VaProjectSites.project_id)
-        .join(VaSiteMaster, VaSiteMaster.site_id == VaProjectSites.site_id)
-        .where(
-            VaProjectSites.project_id.in_(project_ids),
-            VaProjectSites.site_id.in_(site_ids),
-            VaProjectSites.project_site_status == VaStatuses.active,
-            VaProjectMaster.project_status == VaStatuses.active,
-        )
-    ).all()
-    info_by_pair = {(r.project_id, r.site_id): r for r in active_pair_rows}
-
-    context = []
-    for (project_id, site_id), entry in sorted(pairs.items()):
-        info = info_by_pair.get((project_id, site_id))
-        if info is None:
-            continue
-        mode = info.web_intake_mode or "off"
-        if mode == "off":
-            continue
-        context.append(
-            {
-                "project_id": project_id,
-                "project_name": info.project_name,
-                "site_id": site_id,
-                "site_name": info.site_name if info.site_name else site_id,
-                "web_intake_mode": mode,
-                "org_units": entry["org_units"],
-            }
-        )
-    return context
-
-
-def register_death_context(
-    user: VaUsers,
-    interview_context: list[dict] | None = None,
-    *,
-    _grants=None,
-) -> list[dict]:
-    """The ``interviewer_context`` entries where *user* may register a death:
-    reached through an interviewer or death_reporter grant, in a project
-    whose ``web_intake_mode`` keeps a death register. The one predicate of the
-    register routes (``register_death`` checks scope through the same
-    ``_require_scope``), ``/me/access`` ``actions.register_death`` and the
-    app's sign-in check. *interview_context*: the caller's already computed
-    ``interviewer_context(user)``, reused when they hold no death_reporter
-    grant (then it is the whole answer)."""
-    resolved = _grants if _grants is not None else resolve_grants(user)
-    if interview_context is not None and not any(resolved.of(_DEATH_REPORTER, virtual=False)):
-        entries = interview_context
-    else:
-        entries = interviewer_context(user, DEATH_REGISTERING_ROLES, _grants=resolved)
-    return [e for e in entries if _mode_allows(e["web_intake_mode"], death_register=True)]
-
-
-def self_coding_project_ids(user: VaUsers, *, _grants=None) -> frozenset[str]:
-    """Projects where *user* may be offered "Code this case now": a self-coding
-    project in which they hold a coder grant that codes (gate open, coding
-    scope level met). Plus the training project while the user self-codes in
-    a self-coding training session (``training_self_coding_ids``, one memoised
-    query); there only on those slot units (``can_code_now``, ``_code_now``).
-    The action itself re-checks scope and ownership
-    (``coder_workflow_service.allocate_own_case``)."""
-    from app.services import training_demo_service
-
-    resolved = _grants if _grants is not None else resolve_grants(user)
-    projects = {
-        g.project_id
-        for g in resolved.of({VaAccessRoles.coder}, virtual=False)
-        if g.opens_gate
-        and (settings := resolved.projects.get(g.project_id)) is not None
-        and settings.self_coding
-        and resolved.codes(g)
-    }
-    if training_demo_service.training_self_coding_ids(user.user_id):
-        projects.add(training_demo_service.TRAINING_PROJECT_ID)
-    return frozenset(projects)
-
-
-def _code_now_unit_ok(user: VaUsers, project_id: str, org_unit_id) -> bool:
-    """In the training project "Code this case now" holds only on the user's
-    self-coding slot units; elsewhere the project decides (N6)."""
-    from app.services import training_demo_service
-
-    if project_id != training_demo_service.TRAINING_PROJECT_ID:
-        return True
-    return org_unit_id in training_demo_service.training_self_coding_ids(user.user_id)
-
-
-def can_code_now(user: VaUsers, draft: VaWebIntakeDraft) -> bool:
-    """Whether the reply to *user*'s submit of *draft* offers "Code this case
-    now": a submitted, completed interview that entered coding (consent valid)
-    in a self-coding project where the user codes. The case is usually still
-    waiting for attachments or SmartVA; the action answers 409 ``not_ready``
-    until it is ready."""
-    return (
-        draft.status == "submitted"
-        and draft.va_sid is not None
-        and (draft.meta or {}).get("interviewOutcome") == "completed"
-        and draft.collection_hold not in EXCLUDED_HOLDS
-        and draft.project_id in self_coding_project_ids(user)
-        and (submission := db.session.get(VaSubmissions, draft.va_sid)) is not None
-        and _code_now_unit_ok(user, draft.project_id, submission.org_unit_id)
-        and consent_is_valid(submission.va_consent)
-    )
-
-
-def reachable_unit_ids(user: VaUsers, project_id: str, site_id: str | None = None,
-                       roles: frozenset = _INTERVIEWER) -> set[uuid.UUID] | None:
-    """Active units of *project_id* this interviewer may attribute an entry to.
-
-    The unit-picking half of the rule ``_worklist_scope`` applies to cases
-    (docs/policy/web-intake.md, "Who sees which cases"), built from the same
-    ``resolve_grants`` data. ``None`` means the whole tree: a project grant
-    on the project, or a site grant on exactly (*project_id*, *site_id*).
-    Otherwise the subtrees of the user's interviewer unit grants in this
-    project (an empty set reaches nothing). A site grant on another site
-    widens nothing here.
-
-    With ``site_id=None`` (the per-project picker, which has no site: device
-    ``/units`` and ``prefill_policy``) a wide grant on *any* site of the
-    project returns ``None``: the picker offers every unit some site of the
-    project allows, and the create-time check (``_require_scope``, which
-    passes its site) still holds each site to its own grants.
-
-    No admin or project_pi bypass: web intake is strictly grant-based. *roles*
-    as ``interviewer_context``.
-    """
-    mark_consulted()
-    units: set[uuid.UUID] = set()
-    for grant in resolve_grants(user).of(roles, virtual=False):
-        if grant.project_id != project_id:
-            continue
-        if not grant.is_wide:
-            units.add(grant.org_unit_id)
-        elif site_id is None or grant.site_id in (None, site_id):  # site_id None: project grant
-            return None
-    if not units:
-        return set()
-    return set(db.session.scalars(subtree_select(units)))
-
-
-def _require_scope(user: VaUsers, project_id: str, site_id: str, org_unit_id: object | None,
-                   roles: frozenset = _INTERVIEWER, *, entries: list[dict] | None = None,
-                   unrouted_ok: bool = False) -> dict:
-    """Return the context entry for (project, site) or raise 403.
-
-    In a project with an organization tree, a unit must always be named,
-    whatever the grant's scope — the routed unit is what makes a submission
-    codeable at all (docs/policy/organization-model.md phase 4), and an
-    unrouted one is invisible to every coder. A project- or site-scoped
-    interviewer grant on this project-site may name *any* active unit of
-    the project; a unit-scoped grant is held to its own subtree
-    (``reachable_unit_ids``). A project with no tree
-    keeps the pre-phase-4 behaviour: no unit is required. *roles* as
-    ``interviewer_context``: the grants whose reach is checked. *entries*: the
-    caller's own ``interviewer_context(user, roles)`` of this request, reused
-    instead of rebuilt; the checks are the same. *unrouted_ok*: a Collect Plus
-    standalone push whose org code matched no unit it may name may start
-    without one; routing then leaves it to the mapping fallback or the
-    project's unrouted queue (offline-api-contract.md section 17).
-    """
-    entry = None
-    # A context built for other roles is never reused: the role set decides reach.
-    reuse = entries is not None and roles == _INTERVIEWER
-    for candidate in (entries if reuse else interviewer_context(user, roles)):
-        if candidate["project_id"] == project_id and candidate["site_id"] == site_id:
-            entry = candidate
-            break
-    if entry is None:
-        raise WebIntakeError("You do not have access to that project and site.", 403)
-
-    has_tree = project_id in org_grant_service.projects_with_org_tree({project_id})
-    if not has_tree:
-        if org_unit_id:
-            allowed = {u["org_unit_id"] for u in entry["org_units"]}
-            if str(org_unit_id) not in allowed:
-                raise WebIntakeError("You are not attached to that organization unit.", 403)
-        elif entry["org_units"]:
-            raise WebIntakeError("Choose the organization unit for this entry.", 400)
-        return entry
-
-    if not org_unit_id:
-        if unrouted_ok:
-            return entry
-        raise WebIntakeError("Choose the organization unit for this entry.", 400)
-    try:
-        unit_id = uuid.UUID(str(org_unit_id))
-    except (ValueError, TypeError, AttributeError):
-        raise WebIntakeError("Invalid organization unit.", 400) from None
-
-    reachable = reachable_unit_ids(user, project_id, site_id, roles)
-    if reachable is not None and unit_id not in reachable:
-        raise WebIntakeError("That organization unit is outside what you may access.", 403)
-
-    unit = db.session.get(MasOrgUnit, unit_id)
-    if unit is None or unit.project_id != project_id or not unit.is_active:
-        raise WebIntakeError("That organization unit is not active in this project.", 400)
-
-    return entry
-
-
-# ---------------------------------------------------------------------------
-# Unique ids and unit context
-# ---------------------------------------------------------------------------
-
-
-def _allocate_unique_id(prefix: str) -> tuple[int, str]:
-    number = db.session.execute(sa.text(f"SELECT nextval('{DEATH_NUMBER_SEQUENCE}')")).scalar_one()
-    return int(number), f"{prefix}-{int(number):06d}"
-
-
-def _unit_context(org_unit_id: object | None) -> dict:
-    """Ancestor codes of a unit keyed by level: {"org_<level>_code": code, ...}."""
-    if not org_unit_id:
-        return {}
-    unit = db.session.get(MasOrgUnit, uuid.UUID(str(org_unit_id)))
-    if unit is None:
-        return {}
-    codes = str(unit.path).split(".")
-    # Routing attributes a submission to the deepest code naming a *live*
-    # unit, so a deactivated ancestor's code would be inert at best and
-    # misleading in the stored payload -- keep the active-only default.
-    rows = org.list_units_by_codes(unit.project_id, codes)
-    context: dict = {}
-    for row in rows:
-        context[f"org_{row['level_code']}_code"] = row["unit_code"]
-        context[f"org_{row['level_code']}_name"] = row["unit_name"]
-    return context
-
-
-# ---------------------------------------------------------------------------
-# Death register
-# ---------------------------------------------------------------------------
-
-
-def _clean(raw: object, *, what: str, required: bool = False, max_len: int | None = None) -> str | None:
-    value = str(raw).strip() if raw is not None else ""
-    if not value:
-        if required:
-            raise WebIntakeError(f"{what} is required.")
-        return None
-    if max_len and len(value) > max_len:
-        raise WebIntakeError(f"{what} must be at most {max_len} characters.")
-    return value
-
-
-def _project_today(project_id: str) -> date:
-    """Today on the project's clock (its timezone, default Asia/Kolkata), the
-    day "not in the future" is judged by (owner, digitva-vz9f)."""
-    project = db.session.get(VaProjectMaster, project_id)
-    return project_clock.project_day(project.timezone if project else None).today
-
-
-def _clean_date(raw: object, *, what: str, required: bool = False, today: date | None = None) -> date | None:
-    """*today*: the project's day (``_project_today``); the server's date when not given."""
-    value = _clean(raw, what=what, required=required)
-    if value is None:
-        return None
-    try:
-        parsed = date.fromisoformat(value)
-    except ValueError as exc:
-        raise WebIntakeError(f"{what} must be a date in YYYY-MM-DD form.") from exc
-    if parsed > (today or date.today()):
-        raise WebIntakeError(f"{what} cannot be in the future.")
-    return parsed
-
-
-def _clean_partial_birth(raw: object, date_of_death: date, today: date | None = None) -> str | None:
-    """A partial birth date as ``YYYY`` or ``YYYY-MM``, or None if blank.
-
-    Refused (400) when malformed, before PARTIAL_BIRTH_MIN_YEAR, or after
-    today or the date of death at the precision given -- the month or year
-    of death itself is plausible. Compared as strings, which order like the
-    dates they name at equal length.
-    """
-    value = _clean(raw, what="Partial date of birth", max_len=7)
-    if value is None:
-        return None
-    if not _PARTIAL_DATE_RE.match(value):
-        raise WebIntakeError("Partial date of birth must be YYYY-MM or YYYY.")
-    if int(value[:4]) < PARTIAL_BIRTH_MIN_YEAR:
-        raise WebIntakeError(f"Partial date of birth cannot be before {PARTIAL_BIRTH_MIN_YEAR}.")
-    if value > (today or date.today()).isoformat()[:len(value)]:
-        raise WebIntakeError("Partial date of birth cannot be in the future.")
-    if value > date_of_death.isoformat()[:len(value)]:
-        raise WebIntakeError("Date of birth cannot be after the date of death.")
-    return value
-
-
-def _clean_abha(number: object, address: object) -> tuple[str | None, str | None]:
-    abha_number = _clean(number, what="ABHA number", max_len=17)
-    abha_address = _clean(address, what="ABHA address", max_len=64)
-    if abha_number and not _ABHA_NUMBER_RE.match(abha_number):
-        raise WebIntakeError("ABHA number must be 14 digits (optionally grouped 2-4-4-4).")
-    if abha_address and not _ABHA_ADDRESS_RE.match(abha_address):
-        raise WebIntakeError("ABHA address must look like name@abdm.")
-    return abha_number, abha_address
-
-
-def _clean_phone(raw: object, *, what: str) -> str | None:
-    """A phone number normalised to its 10 digits, or None if blank.
-
-    The VA form's one phone format: exactly 10 digits, no restriction on the
-    first. Spaces, hyphens and parentheses are ignored; a +91, 91 or 0 in
-    front is dropped when 10 digits remain. The client mirrors this in
-    ``mobile/digitva-collect/src/phoneFormat.ts``.
-    """
-    value = _clean(raw, what=what, max_len=32)
-    if value is None:
-        return None
-    phone = normalise_phone(value)
-    if phone is None:
-        raise WebIntakeError(f"{what} must be a 10-digit phone number, for example 987 654 3210.")
-    return phone
-
-
-#: The register form's fields (``VaDeathRegister`` columns ``_clean_death_fields`` fills).
-REGISTER_FIELDS = (
-    "deceased_name", "deceased_sex", "abha_number", "abha_address", "date_of_birth", "date_of_birth_partial",
-    "age_years", "date_of_death", "place_of_death", "address", "address_house_street",
-    "address_village_ward", "address_landmark", "informant_name", "informant_phone",
-    "informant_phone_2", "remarks", "father_name", "mother_name",
-    "latitude", "longitude", "accuracy_m",
-)
-#: The informant phone columns, validated only when an edit changes them.
-_PHONE_FIELDS = ("informant_phone", "informant_phone_2")
-#: The GPS fix's columns; ``captured_at`` follows them, set by the server.
-LOCATION_FIELDS = ("latitude", "longitude", "accuracy_m")
-
-
-def _clean_number(raw: object, *, what: str, low: float, high: float) -> float | None:
-    """A finite number within [low, high], or None if blank. Booleans and
-    non-numeric text are refused; the message never echoes the value."""
-    if raw is None or (isinstance(raw, str) and not raw.strip()):
-        return None
-    if isinstance(raw, bool):
-        raise WebIntakeError(f"{what} must be a number.")
-    try:
-        value = float(raw)
-    except (TypeError, ValueError):
-        raise WebIntakeError(f"{what} must be a number.") from None
-    if not math.isfinite(value) or not low <= value <= high:
-        raise WebIntakeError(f"{what} must be between {low:g} and {high:g}.")
-    return value
-
-
-def _clean_location(fields: dict) -> dict:
-    """The GPS fix: latitude and longitude together or not at all, accuracy
-    (metres) only with them. Rounded to 6 decimals (about 0.1 m)."""
-    lat = _clean_number(fields.get("latitude"), what="Latitude", low=-90, high=90)
-    lng = _clean_number(fields.get("longitude"), what="Longitude", low=-180, high=180)
-    accuracy = _clean_number(fields.get("accuracy_m"), what="Location accuracy", low=0, high=1e7)
-    if (lat is None) != (lng is None):
-        raise WebIntakeError("Latitude and longitude must be given together.")
-    if lat is None:
-        if accuracy is not None:
-            raise WebIntakeError("Location accuracy needs a latitude and longitude.")
-        return {"latitude": None, "longitude": None, "accuracy_m": None}
-    return {
-        "latitude": round(lat, 6),
-        "longitude": round(lng, 6),
-        "accuracy_m": round(accuracy, 1) if accuracy is not None else None,
-    }
-
-
-#: The birth-date and age columns, one unit for the age-information rule.
-_AGE_INFO_FIELDS = ("date_of_birth", "date_of_birth_partial", "age_years")
-
-
-def _require_age_info(cleaned: dict, current: dict | None = None) -> None:
-    """A registration carries age information: a date of birth (exact, month
-    and year, or year only) or an estimated ``age_years``. 400 otherwise.
-
-    With *current* (the stored values, on an edit) the rule applies only when
-    this edit changes one of the three fields, so an older row without age
-    information stays editable until they are touched; clearing them on a row
-    that had one is a change and is refused. 0 is a valid age."""
-    if any(cleaned[name] is not None for name in _AGE_INFO_FIELDS):
-        return
-    if current is not None and all(cleaned[name] == current[name] for name in _AGE_INFO_FIELDS):
-        return
-    raise WebIntakeError(
-        "Enter the date of birth, or choose Date of birth unknown and enter an estimated age."
-    )
-
-
-def _clean_death_fields(fields: dict, *, keep_phones: frozenset[str] = frozenset(),
-                        today: date | None = None) -> dict:
-    """The register form's fields validated and normalised to ``VaDeathRegister``
-    columns; the one validation path of ``register_death`` and ``update_death``.
-    Raises 400 on the first bad value. A phone named in *keep_phones* is an
-    unchanged stored value and passes as it is, so an older non-conforming
-    number never blocks an edit of another field. *today* is the project's day
-    for the not-in-the-future checks (``_project_today``)."""
-    name = _clean(fields.get("deceased_name"), what="Deceased name", required=True)
-    sex = (_clean(fields.get("deceased_sex"), what="Sex", required=True) or "").lower()
-    if sex not in DEATH_SEX_VALUES:
-        raise WebIntakeError("Sex must be one of " + ", ".join(DEATH_SEX_VALUES) + ".")
-    date_of_death = _clean_date(fields.get("date_of_death"), what="Date of death", required=True,
-                               today=today)
-    date_of_birth = _clean_date(fields.get("date_of_birth"), what="Date of birth", today=today)
-    if date_of_birth and date_of_birth > date_of_death:
-        raise WebIntakeError("Date of birth cannot be after the date of death.")
-    date_of_birth_partial = _clean_partial_birth(fields.get("date_of_birth_partial"), date_of_death, today)
-    if date_of_birth and date_of_birth_partial:
-        raise WebIntakeError("Give an exact or a partial date of birth, not both.")
-    age_years = None
-    if fields.get("age_years") not in (None, ""):
-        try:
-            age_years = int(fields["age_years"])
-        except (TypeError, ValueError) as exc:
-            raise WebIntakeError("Age must be a whole number of years.") from exc
-        if age_years < 0 or age_years > 130:
-            raise WebIntakeError("Age must be between 0 and 130 years.")
-    abha_number, abha_address = _clean_abha(fields.get("abha_number"), fields.get("abha_address"))
-    return {
-        "deceased_name": name,
-        "deceased_sex": sex,
-        "abha_number": abha_number,
-        "abha_address": abha_address,
-        "date_of_birth": date_of_birth,
-        "date_of_birth_partial": date_of_birth_partial,
-        "age_years": age_years,
-        "date_of_death": date_of_death,
-        "place_of_death": redact_national_id_digits(_clean(fields.get("place_of_death"), what="Place of death"))[0],
-        "address": _clean(fields.get("address"), what="Address"),
-        "address_house_street": _clean(fields.get("address_house_street"), what="House or street", max_len=200),
-        "address_village_ward": _clean(fields.get("address_village_ward"), what="Village or ward", max_len=200),
-        "address_landmark": _clean(fields.get("address_landmark"), what="Landmark", max_len=200),
-        "informant_name": _clean(fields.get("informant_name"), what="Informant name"),
-        "father_name": _clean(fields.get("father_name"), what="Father's name", max_len=200),
-        "mother_name": _clean(fields.get("mother_name"), what="Mother's name", max_len=200),
-        "informant_phone": fields.get("informant_phone") if "informant_phone" in keep_phones
-        else _clean_phone(fields.get("informant_phone"), what="Informant phone"),
-        "informant_phone_2": fields.get("informant_phone_2") if "informant_phone_2" in keep_phones
-        else _clean_phone(fields.get("informant_phone_2"), what="Second phone"),
-        # Free text: a national-ID-like digit run is masked (PII slice 1a).
-        "remarks": redact_national_id_digits(_clean(fields.get("remarks"), what="Remarks"))[0],
-        **_clean_location(fields),
-    }
-
-
-def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None,
-                   client_death_id: uuid.UUID | None = None, identifiers: dict | None = None,
-                   warnings: list | None = None, enforce_collection_gate: bool = False,
-                   **fields) -> VaDeathRegister:
-    """Register a death. *identifiers* (``{type code: text}``) are validated
-    and stored with it (``death_identifier_service.set_identifiers``), always
-    checked for the project's ``required_at_report`` types; any
-    ``identifier_in_use`` warnings are appended to *warnings*.
-    *enforce_collection_gate*: a live new start (the browser's register), so a
-    closed collection gate refuses it (``collection_gate.require_open``); an
-    upload of a registration made offline never passes it."""
-    mode = get_web_intake_mode(project_id)
-    if not _mode_allows(mode, death_register=True):
-        raise WebIntakeError("This project does not use the death register.", 403)
-    org_unit_id = org_unit_id or public_demo_service.default_org_unit_id(project_id)
-    # An interviewer or a death_reporter (register_death_context's predicate).
-    _require_scope(user, project_id, site_id, org_unit_id, DEATH_REGISTERING_ROLES)
-    if enforce_collection_gate:
-        collection_gate.require_open(user, project_id, site_id, org_unit_id)
-    public_demo_service.check_new_registration(user, project_id)
-    cleaned = _clean_death_fields(fields, today=_project_today(project_id))
-    _require_age_info(cleaned)
-    unit = db.session.get(MasOrgUnit, uuid.UUID(str(org_unit_id))) if org_unit_id else None
-    number, unique_id = _allocate_unique_id(unit.unit_code if unit else site_id)
-    death = VaDeathRegister(
-        project_id=project_id,
-        site_id=site_id,
-        org_unit_id=unit.org_unit_id if unit else None,
-        death_number=number,
-        unique_id=unique_id,
-        **cleaned,
-        captured_at=_utcnow() if cleaned["latitude"] is not None else None,
-        registered_by=user.user_id,
-        source="register",
-        client_death_id=client_death_id,
-    )
-    # Flag on: sealed before it is added, so the flags are right for open_case.
-    register_pii_accessor.seal_new_row(death)
-    cases.open_case(death, actor=user)
-    _, found = death_identifiers.set_identifiers(
-        death, user, identifiers or {}, reason_context="registration", enforce_required=True)
-    if warnings is not None:
-        warnings.extend(found)
-    log.info("web intake death registered | project=%s | site=%s | unique_id=%s | by=%s", project_id, site_id, unique_id, user.user_id)
-    return death
-
-
-#: Status filter values the register list accepted before the case states
-#: (digitva-vzk.4), mapped forward so an old bookmark or client keeps working.
-_LEGACY_STATUS = {"va_in_progress": "in_progress", "va_submitted": "submitted"}
-
-
-def list_deaths(user: VaUsers, *, project_id: str, site_id: str, status: str | None = None) -> list[VaDeathRegister]:
-    """Registered deaths (``source = register``) of one project-site in scope.
-
-    Direct starts are cases too, but they are listed by ``list_worklist``;
-    this list stays what it was, the death register.
-    """
-    stmt = sa.select(VaDeathRegister).where(
-        VaDeathRegister.project_id == project_id,
-        VaDeathRegister.site_id == site_id,
-        VaDeathRegister.source == "register",
-    )
-    entry = next(
-        (e for e in interviewer_context(user) if e["project_id"] == project_id and e["site_id"] == site_id),
-        None,
-    )
-    if entry is None:
-        raise WebIntakeError("You do not have interviewer access to that project and site.", 403)
-    # The same per-project-site rule the worklist uses; its draft-identity
-    # clause is moot here, register rows never sit in that state.
-    scope = _worklist_scope(user, [entry])
-    if scope is None:
-        return []
-    stmt = stmt.where(scope)
-    if status:
-        stmt = stmt.where(VaDeathRegister.status == _LEGACY_STATUS.get(status, status))
-    return list(db.session.scalars(stmt.order_by(VaDeathRegister.created_at.desc()).limit(500)).all())
-
-
-def get_death(user: VaUsers, death_id: object, *, entries: list[dict] | None = None) -> VaDeathRegister:
-    try:
-        death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
-    except ValueError:
-        death = None
-    if death is None or not training_scope.keeps_project(death.project_id):
-        raise WebIntakeError("Death entry not found.", 404)
-    try:
-        _require_scope(user, death.project_id, death.site_id, death.org_unit_id, entries=entries)
-    except WebIntakeError as exc:
-        # Out of scope reads as not found: an id is not proof the case exists.
-        if exc.status_code == 403:
-            raise WebIntakeError("Death entry not found.", 404) from None
-        raise
-    # A public-demo account reaches only the deaths it registered (a direct
-    # start registers its own): docs/policy/public-demo.md section 3.
-    if user.is_public_demo and death.registered_by != user.user_id:
-        raise WebIntakeError("Death entry not found.", 404)
-    # A consent-withdrawn case is sealed: admin only (docs/policy/consent-withdrawal.md).
-    if death.consent_withdrawn_at is not None and not user.is_admin():
-        raise WebIntakeError("Death entry not found.", 404)
-    # "Details pending" is its starter's (and supervisors') only (owner,
-    # 2026-09-30, item 11); for anyone else it does not exist.
-    if (
-        death.status == "draft_identity"
-        and death.started_by_user_id != user.user_id
-        and not cases.is_interview_supervisor_for(user, death)
-    ):
-        raise WebIntakeError("Death entry not found.", 404)
-    return death
-
-
-def _reporter_reaches(user: VaUsers, death: VaDeathRegister) -> bool:
-    """Whether *death* is one *user* registered and a death_reporter grant of
-    theirs still reaches (project, site and unit): the reporter's whole
-    claim on a case. An interviewer's reach is ``get_death``'s, separate on
-    purpose, so holding both roles never lets one lend the other its cases."""
-    if death.registered_by != user.user_id:
-        return False
-    try:
-        _require_scope(user, death.project_id, death.site_id, death.org_unit_id, _DEATH_REPORTER)
-    except WebIntakeError:
-        return False
-    return True
-
-
-def interviewer_reaches(user: VaUsers, death: VaDeathRegister) -> bool:
-    """Whether *user*'s interviewer grants reach *death*: the worklist's own
-    scope (``_worklist_scope``), so it agrees with what ``GET /cases/<id>``
-    shows. Decides whether a reply carries the interview's prefill and links
-    (a user holding both roles gets the reporter-shaped body for a case they
-    reach only as a reporter)."""
-    scope = _worklist_scope(user)
-    return scope is not None and bool(db.session.scalar(
-        sa.select(sa.exists().where(scope, VaDeathRegister.death_id == death.death_id))
-    ))
-
-
-# ---------------------------------------------------------------------------
-# Registration-number write access (digitva-kzyp; policy
-# death-registration-identifiers.md decisions 11 and 12, "Authorization")
-# ---------------------------------------------------------------------------
-
-#: A case in one of these states is closed: cancelled, or a confirmed duplicate.
-IDENTIFIER_CLOSED_STATES = ("cancelled", DUPLICATE_CASE_STATUS)
-#: The supervising roles that may still write numbers on a closed case.
-#: ``data_manager`` supervises but is read-only there, so it is left out.
-_CLOSED_WRITER_ROLES = (VaAccessRoles.interview_supervisor, VaAccessRoles.site_pi, VaAccessRoles.project_pi)
-CASE_CLOSED_MESSAGE = "This case is closed; only a supervisor can change its registration numbers."
-IDENTIFIER_FORBIDDEN_MESSAGE = "You may not change this case's registration numbers."
-
-
-def identifier_field_scopes(user: VaUsers) -> tuple:
-    """``(interviewer, reporter)``: the SQL reach of *user*'s ASSIGNED
-    interviewer grants and of the death_reporter grants (own registrations
-    only), each None without any. The coder's implied self-coding interviewer
-    grant is not one of them, so it neither shows values nor writes numbers."""
-    interviewer = _worklist_scope(user, assigned_only=True)
-    reporter = _worklist_scope(user, None, _DEATH_REPORTER, assigned_only=True)
-    if reporter is not None:
-        reporter = sa.and_(reporter, VaDeathRegister.registered_by == user.user_id)
-    return interviewer, reporter
-
-
-def _interviewed_condition(user: VaUsers):
-    """The cases *user* registered, started or has an interview of (a draft
-    that is not discarded): not every case of their unit subtree. The
-    registrant clause lets an interviewer who registered a death correct its
-    numbers before the first interview, as the death_reporter can."""
-    return sa.or_(
-        VaDeathRegister.registered_by == user.user_id,
-        VaDeathRegister.started_by_user_id == user.user_id,
-        sa.exists().where(
-            VaWebIntakeDraft.death_id == VaDeathRegister.death_id,
-            VaWebIntakeDraft.user_id == user.user_id,
-            VaWebIntakeDraft.status != "discarded",
-        ),
-    )
-
-
-def identifier_write_parts(user: VaUsers, scopes: tuple | None = None) -> tuple:
-    """``(open_ok, closed_ok)``: SQL conditions on ``VaDeathRegister`` for the
-    cases *user* may change registration numbers of, ignoring closed cases
-    (``open_ok``) and including them (``closed_ok``).
-
-    Admin: every case. A supervisor, In-charge, project PI or data manager
-    (``supervised_case_condition``; under a device credential only an
-    explicit interview supervisor) and the death_reporter on a death they reported, and the
-    interviewer on a case they registered, started or interviewed, write open cases; only
-    a supervisor, In-charge, project PI or admin write closed ones. *scopes*:
-    ``identifier_field_scopes(user)``, when the caller already has it.
-    """
-    if resolve_grants(user).is_admin:
-        return sa.true(), sa.true()
-    interviewer, reporter = scopes if scopes is not None else identifier_field_scopes(user)
-    ways = [supervision.supervised_case_condition(user)]
-    if reporter is not None:
-        ways.append(reporter)
-    if interviewer is not None:
-        ways.append(sa.and_(interviewer, _interviewed_condition(user)))
-    return sa.or_(*ways), supervision.supervised_case_condition(user, _CLOSED_WRITER_ROLES)
-
-
-def identifier_edit_condition(user: VaUsers, scopes: tuple | None = None):
-    """SQL on ``VaDeathRegister``: *user* may change this case's numbers now
-    (``can_edit_identifiers``): ``closed_ok`` or an open case and ``open_ok``."""
-    open_ok, closed_ok = identifier_write_parts(user, scopes)
-    return sa.or_(closed_ok, sa.and_(VaDeathRegister.status.not_in(IDENTIFIER_CLOSED_STATES), open_ok))
-
-
-def identifier_write_flags(user: VaUsers, deaths) -> dict:
-    """``{death_id: (open_ok, closed_ok)}`` for *deaths* (anything with
-    ``death_id``), one query however many."""
-    ids = [d.death_id for d in deaths]
-    if not ids:
-        return {}
-    open_ok, closed_ok = identifier_write_parts(user)
-    rows = db.session.execute(
-        sa.select(VaDeathRegister.death_id, open_ok.label("open_ok"), closed_ok.label("closed_ok"))
-        .where(VaDeathRegister.death_id.in_(ids))
-    ).all()
-    return {row.death_id: (bool(row.open_ok), bool(row.closed_ok)) for row in rows}
-
-
-def can_edit_identifiers(user: VaUsers, deaths) -> dict:
-    """``{death_id: bool}``: whether *user* may change each case's numbers now
-    (the ``can_edit_identifiers`` of a detail or a list row). One query."""
-    deaths = list(deaths)
-    flags = identifier_write_flags(user, deaths)
-    out = {}
-    for death in deaths:
-        open_ok, closed_ok = flags.get(death.death_id, (False, False))
-        out[death.death_id] = closed_ok or (open_ok and death.status not in IDENTIFIER_CLOSED_STATES)
-    return out
-
-
-def identifier_write_status(user: VaUsers, death: VaDeathRegister) -> str:
-    """``"ok"`` when *user* may change *death*'s numbers now, ``"closed"``
-    when only the case being closed stops them, else ``"denied"``."""
-    open_ok, closed_ok = identifier_write_flags(user, [death]).get(death.death_id, (False, False))
-    if closed_ok or (open_ok and death.status not in IDENTIFIER_CLOSED_STATES):
-        return "ok"
-    return "closed" if open_ok else "denied"
-
-
-def require_identifier_write(user: VaUsers, death: VaDeathRegister) -> None:
-    """Return when *user* may change *death*'s numbers now
-    (``identifier_write_status``, the rule of ``can_edit_identifiers`` and of
-    ``PUT /cases/<id>/identifiers``); else 409 ``case_closed`` when only the
-    case being cancelled or a confirmed duplicate stops them (decision 12),
-    else 403. The id is a claim: reaching a case to correct its details is
-    not permission to change its numbers (decisions 11 and 12)."""
-    status = identifier_write_status(user, death)
-    if status == "closed":
-        raise WebIntakeError(CASE_CLOSED_MESSAGE, 409, "case_closed")
-    if status != "ok":
-        raise WebIntakeError(IDENTIFIER_FORBIDDEN_MESSAGE, 403)
-
-
-#: Page size of a reporter's list, as the worklist's.
-REPORTED_PAGE_DEFAULT = 50
-REPORTED_PAGE_MAX = 200
-
-
-def reported_deaths_page(user: VaUsers, args) -> dict:
-    """``GET /api/v1/intake/deaths`` for a death_reporter: the deaths *user*
-    registered that their death_reporter grants reach, newest activity first,
-    keyset-paged on (updated_at, death_id): ``{"deaths": [...],
-    "next_cursor": str | None}``.
-
-    *args* is the query string: ``project_id`` and ``site_id`` (optional
-    narrowing; one the caller has no reach in is 403), ``limit`` (clamped to
-    1..200, default 50), ``cursor`` (from ``next_cursor``; malformed is 400).
-    Rows are ``serialize_death`` without the submission id (a reporter has no
-    business with the interview) plus ``identifiers``
-    (``death_identifier_service.identifier_payloads``, one query for the page). Each row is the caller's own registration,
-    so each carries its GPS fix (``shows_gps``).
-    """
-    try:
-        limit = max(1, min(int(args.get("limit") or REPORTED_PAGE_DEFAULT), REPORTED_PAGE_MAX))
-    except ValueError:
-        raise WebIntakeError("limit must be a whole number.") from None
-    context = interviewer_context(user, _DEATH_REPORTER)
-    project_id, site_id = args.get("project_id") or None, args.get("site_id") or None
-    if project_id is not None or site_id is not None:
-        context = [e for e in context if project_id in (None, e["project_id"]) and site_id in (None, e["site_id"])]
-        if not context:
-            raise WebIntakeError("You do not have access to that project and site.", 403)
-    scope = _worklist_scope(user, context, _DEATH_REPORTER)
-    if scope is None:
-        return {"deaths": [], "next_cursor": None}
-    stmt = sa.select(VaDeathRegister).where(scope, VaDeathRegister.registered_by == user.user_id)
-    if args.get("cursor"):
-        at, death_id = _decode_cursor(args["cursor"])
-        stmt = stmt.where(sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_id))
-    rows = list(db.session.scalars(
-        stmt.order_by(VaDeathRegister.updated_at.desc(), VaDeathRegister.death_id.desc()).limit(limit + 1)
-    ))
-    page = rows[:limit]
-    next_cursor = _encode_cursor(page[-1].updated_at, page[-1].death_id) if len(rows) > limit else None
-    # Every row is the caller's own registration, so it keeps its GPS fix
-    # (``shows_gps``): the edit form shows the location its reporter captured.
-    # The registration numbers ride along for the edit form's prefill.
-    identifiers = death_identifiers.identifier_payloads(user, page)
-    editable = can_edit_identifiers(user, page)
-    opened = register_pii_accessor.open_register_pii(page)
-    return {"deaths": [dict(serialize_death(d, show_gps=True, register=opened[d.death_id]), va_sid=None, identifiers=identifiers[d.death_id],
-                            can_edit_identifiers=editable[d.death_id])
-                       for d in page],
-            "next_cursor": next_cursor}
-
-
-def flag_death(user: VaUsers, death_id: object, *, kind: str, reason: str | None = None,
-               duplicate_of: object | None = None) -> VaDeathRegister:
-    """Flag a case in scope as a possible duplicate of another case in scope, or
-    for cancellation. A supervisor confirms or rejects it later."""
-    death = get_death(user, death_id)
-    target = get_death(user, duplicate_of) if kind == "duplicate" and duplicate_of else None
-    return cases.flag_case(death, actor=user, kind=kind, reason=reason, duplicate_of=target)
-
-
-#: Audit actions of a correction and of an interview overwriting registered
-#: details; ``reason`` names the fields, never their values.
-DETAILS_EDITED = "details_edited"
-IDENTITY_FROM_INTERVIEW = "identity_from_interview"
-
-
-def _json_value(value: object) -> object:
-    return value.isoformat() if isinstance(value, date) else value
-
-
-def _audit_details_change(death: VaDeathRegister, actor: VaUsers, action: str, before: dict, after: dict) -> None:
-    """One case audit row for details that moved from *before* to *after*
-    (same keys). The reason holds the field names only (their count past the
-    reason cap); the old and new values, personal data, go in ``changes``.
-    Neither is ever logged."""
-    names = ", ".join(before)
-    reason = names if len(names) <= cases.REASON_MAX else f"{len(before)} fields"
-    changes = {name: {"old": _json_value(before[name]), "new": _json_value(after[name])} for name in before}
-    cases.record_action(death, actor=actor, action=action, reason=reason, changes=changes)
-
-
-def _interview_completed(death: VaDeathRegister) -> bool:
-    """Whether a completed interview of the case exists: the winning one
-    (``va_sid``), or a complete copy kept apart on a shared case."""
-    return death.va_sid is not None or bool(db.session.scalar(sa.select(sa.exists().where(
-        VaWebIntakeDraft.death_id == death.death_id,
-        VaWebIntakeDraft.status.in_(("submitted", "superseded")),
-        VaWebIntakeDraft.meta["interviewOutcome"].astext == "completed",
-    ))))
-
-
-def update_death(user: VaUsers, death_id: object, changes: dict, *, if_updated_at: object | None = None,
-                 identifiers: dict | None = None, warnings: list | None = None,
-                 station_roster: bool = False, consent=None) -> VaDeathRegister:
-    """Correct the register fields of a case, until an interview of it is completed.
-
-    *changes* holds only the fields to change, named as ``register_death``'s
-    are; the result is validated by the same ``_clean_death_fields`` over the
-    case as it would stand. Allowed to whoever sees the case (``get_death``)
-    or supervises it, or is the death_reporter who registered it
-    (``_reporter_reaches``). Refused: 404 out of reach; 409 ``details_pending`` (a
-    direct start's identity comes from its interview), ``case_completed``
-    (the completed interview holds the better data, docs/policy/web-intake.md
-    "Correcting a registered death"), ``death_stale`` when *if_updated_at* is
-    not the case's ``updated_at`` (400 if malformed); 400 on a bad value.
-    One audit row names the changed fields in ``reason`` (their count when
-    the names exceed the cap) and keeps each one's old and new value in
-    ``changes``; values are personal data and never go in the reason or a log. A stored value that no longer validates must be corrected in
-    the same edit (400, naming the field).
-
-    *identifiers* (``{type code: text | None}``) change only the listed
-    registration numbers (``death_identifier_service.set_identifiers``; None
-    clears); they may be the only change. Their
-    ``identifier_in_use`` warnings are appended to *warnings*. On a cancelled
-    or confirmed-duplicate case they are a supervisor's only: any other caller
-    gets 409 ``case_closed`` for the whole request; the register fields of a
-    closed case are edited as before. The numbers need the write permission of
-    ``PUT /cases/<id>/identifiers`` (``require_identifier_write``): anyone else
-    who may correct the details gets 403 for the whole request. After an
-    interview is completed the numbers go through
-    ``death_identifier_write.put_identifiers`` instead.
-
-    *station_roster*: a station supervisor's correction from a bundle
-    (offline-api-contract.md 4.1, 4.2). The caller has authorized *user*
-    from the station's signed roster, so the reach and number-writer gates
-    are skipped; a cancelled or confirmed-duplicate case is 409
-    ``case_closed`` for any change (stricter than the web).
-    """
-    if station_roster:
-        try:
-            death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
-        except ValueError:
-            death = None
-        if death is None:
-            raise WebIntakeError("Death entry not found.", 404)
-    else:
-        try:
-            death = get_death(user, death_id)
-        except WebIntakeError:
-            try:
-                death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
-            except ValueError:
-                death = None
-            if death is None or not (cases.is_interview_supervisor_for(user, death) or _reporter_reaches(user, death)):
-                raise
-    death = cases.lock_case(death)
-    from app.services import consent_service
-    if consent_service.interview_refused(death=death, client_draft_id=None, answers={}, consent=consent):
-        if any(v not in (None, "") for v in changes.values()) or identifiers:
-            raise WebIntakeError("Consent was refused; do not add registration details.", 422, "consent_refused")
-    if station_roster and death.status in IDENTIFIER_CLOSED_STATES:
-        raise WebIntakeError("This case is closed; correct it on the web.", 409, "case_closed")
-    if not changes and not identifiers:
-        raise WebIntakeError("Nothing to change.")
-    unknown = set(changes) - set(REGISTER_FIELDS)
-    if unknown:
-        raise WebIntakeError("Unknown field: " + ", ".join(sorted(unknown)) + ".")
-    if death.status == "draft_identity":
-        raise WebIntakeError("Record the details in the interview first.", 409, "details_pending")
-    if _interview_completed(death):
-        raise WebIntakeError("An interview of this case is completed; its answers are the case details.", 409, "case_completed")
-    if identifiers and not station_roster:
-        # Register-field edits of a closed case are unchanged; the numbers
-        # have the any-time write's own gate.
-        require_identifier_write(user, death)
-    if if_updated_at is not None and draft_is_stale(death, if_updated_at):
-        raise WebIntakeError("This death was changed since you opened it; reload it.", 409, "death_stale")
-    if changes:
-        _correct_register_fields(user, death, changes)
-    if identifiers:
-        _, found = death_identifiers.set_identifiers(
-            death, user, identifiers, reason_context="correction", enforce_required=False)
-        if warnings is not None:
-            warnings.extend(found)
-    db.session.flush()
-    return death
-
-
-def _correct_register_fields(user: VaUsers, death: VaDeathRegister, changes: dict) -> None:
-    """The register-field half of ``update_death``: validate the case as it
-    would stand and audit the changed fields (nothing when none changed)."""
-    opened = register_pii_accessor.current_values(death)
-    current = {name: opened[name] if name in opened else getattr(death, name) for name in REGISTER_FIELDS}
-    # A phone is validated only when this edit changes it.
-    keep_phones = frozenset(n for n in _PHONE_FIELDS if changes.get(n, current[n]) == current[n])
-    today = _project_today(death.project_id)
-    try:
-        cleaned = _clean_death_fields({**current, **changes}, keep_phones=keep_phones, today=today)
-    except WebIntakeError as exc:
-        # The whole record is re-validated, so a stored value that is no
-        # longer valid (older free-text phone) must be corrected in this edit.
-        if exc.status_code != 400:
-            raise
-        try:
-            _clean_death_fields(current, keep_phones=frozenset(_PHONE_FIELDS), today=today)
-        except WebIntakeError as stored:
-            if str(stored) == str(exc):
-                raise WebIntakeError(f"{exc} The stored value is no longer valid; correct it in this edit.") from None
-        raise
-    _require_age_info(cleaned, current)
-    changed = [name for name in changes if cleaned[name] != current[name]]
-    if not changed:
-        return
-    register_pii_accessor.write_fields(death, {name: cleaned[name] for name in changed})
-    if any(name in LOCATION_FIELDS for name in changed):
-        death.captured_at = _utcnow() if cleaned["latitude"] is not None else None
-    _audit_details_change(death, user, DETAILS_EDITED,
-                          {name: current[name] for name in changed}, {name: cleaned[name] for name in changed})
-    db.session.flush()
-
-
-# ---------------------------------------------------------------------------
-# Visits, contact attempts, pause (phase 5, digitva-vzk.9)
-# ---------------------------------------------------------------------------
-
-#: Pause reason codes (a code, never free text: the audit reason holds no PII).
-PAUSE_REASONS = ("respondent_busy", "respondent_left", "needs_other_respondent", "other")
-#: Cases waiting for a visit: a visit date may be set and attempts logged.
-_VISIT_STATES = frozenset({"registered", "scheduled", "not_reachable", "paused"})
-_VISIT_PAST = timedelta(days=1)
-_VISIT_AHEAD = timedelta(days=366)
-
-
-def _clean_visit_at(raw: object) -> datetime | None:
-    """An ISO date-time with a timezone, from yesterday to a year ahead, or None."""
-    value = _clean(raw, what="Visit date")
-    if value is None:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        parsed = None
-    if parsed is None or parsed.tzinfo is None:
-        raise WebIntakeError("Visit date must be a date and time with a timezone.")
-    now = _utcnow()
-    if not now - _VISIT_PAST <= parsed <= now + _VISIT_AHEAD:
-        raise WebIntakeError("Visit date must be between yesterday and a year from now.")
-    return parsed.astimezone(UTC)
-
-
-def _waiting_case(user: VaUsers, death_id: object) -> VaDeathRegister:
-    """A case in scope (else 404), row-locked, that is waiting for a visit (else 409)."""
-    death = cases.lock_case(get_death(user, death_id))
-    if death.status not in _VISIT_STATES:
-        raise WebIntakeError("Only a case waiting for a visit can take a visit date or a contact attempt.", 409)
-    return death
-
-
-def set_visit(user: VaUsers, death_id: object, *, next_visit_at: object | None) -> VaDeathRegister:
-    """Set or clear a case's next visit (appointment or follow-up).
-
-    Setting moves registered / not_reachable to ``scheduled``; on a scheduled
-    or paused case it only changes the date. Clearing moves ``scheduled`` back
-    to ``registered``; elsewhere it only clears the date.
-    """
-    visit_at = _clean_visit_at(next_visit_at)
-    death = _waiting_case(user, death_id)
-    death.next_visit_at = visit_at
-    if visit_at is not None and death.status in ("registered", "not_reachable"):
-        cases.transition(death, "scheduled", actor=user, action="visit_scheduled")
-    elif visit_at is None and death.status == "scheduled":
-        cases.transition(death, "registered", actor=user, action="visit_cleared")
-    db.session.flush()
-    return death
-
-
-def log_contact_attempt(user: VaUsers, death_id: object, *, outcome: str,
-                        next_visit_at: object | None = None,
-                        client_attempt_id: uuid.UUID | None = None) -> VaDeathRegister:
-    """Record one contact attempt and move the case by its outcome.
-
-    - ``refused``: the case becomes ``refused``; its visit date is cleared (a
-      next date is refused).
-    - ``no_answer`` / ``wrong_number`` / ``moved``: ``not_reachable`` (stays
-      so if already), next visit = the given date or none.
-    - ``reached``: with a date, registered / not_reachable become
-      ``scheduled`` and a scheduled or paused case takes the new date; without
-      one nothing changes but the contact time.
-    """
-    if outcome not in CONTACT_OUTCOMES:
-        raise WebIntakeError("Outcome must be one of " + ", ".join(CONTACT_OUTCOMES) + ".")
-    visit_at = _clean_visit_at(next_visit_at)
-    if outcome == "refused" and visit_at is not None:
-        raise WebIntakeError("A refusal takes no next visit date.")
-    death = _waiting_case(user, death_id)
-    now = _utcnow()
-    db.session.add(MapCaseContactAttempt(
-        death_id=death.death_id, attempted_at=now, outcome=outcome,
-        next_visit_at=visit_at, by_user_id=user.user_id, client_attempt_id=client_attempt_id,
-    ))
-    death.last_contact_at = now
-    if outcome == "refused":
-        death.next_visit_at = None
-        cases.transition(death, "refused", actor=user, action="contact_refused")
-    elif outcome == "reached":
-        if visit_at is not None:
-            death.next_visit_at = visit_at
-            if death.status in ("registered", "not_reachable"):
-                cases.transition(death, "scheduled", actor=user, action="contact_reached")
-    else:
-        death.next_visit_at = visit_at
-        if death.status != "not_reachable":
-            cases.transition(death, "not_reachable", actor=user, action=f"contact_{outcome}")
-    db.session.flush()
-    return death
-
-
-def pause_interview(user: VaUsers, death_id: object, *, reason: str,
-                    next_visit_at: object | None = None) -> VaDeathRegister:
-    """Pause an in-progress interview with a reason code and optional revisit
-    date. Resuming is starting the draft again (``start_draft``)."""
-    if reason not in PAUSE_REASONS:
-        raise WebIntakeError("Reason must be one of " + ", ".join(PAUSE_REASONS) + ".")
-    visit_at = _clean_visit_at(next_visit_at)
-    death = cases.lock_case(get_death(user, death_id))
-    # Only an interview in progress pauses; a submitted case leaves coding only
-    # through its submitter's later version (revise_submission).
-    if death.status != "in_progress":
-        raise WebIntakeError("Only an interview in progress can be paused.", 409)
-    death.next_visit_at = visit_at
-    cases.transition(death, "paused", actor=user, action="interview_paused", reason=reason)
-    return death
-
-
-# ---------------------------------------------------------------------------
-# Drafts
-# ---------------------------------------------------------------------------
-
-
-#: Id10010's own constraint (letters and spaces). A locked answer that fails
-#: its constraint would trap the interviewer, so a name outside it stays editable.
-_INTERVIEWER_NAME_RE = re.compile(r"[A-Za-z ]+")
-
-#: Id10058 choices matched exactly, by value or English label.
-_PLACE_OF_DEATH_CHOICES = {
-    "hospital": "hospital",
-    "other health facility": "other_health_facility",
-    "home": "home",
-    "on route to hospital or facility": "on_route_to_hospital_or_facility",
-    "other": "other",
-}
-#: Then keywords, in this order: "on the way to hospital" is en route, not a
-#: hospital; "nursing home" is a facility, not home.
-_PLACE_OF_DEATH_KEYWORDS = (
-    ("on_route_to_hospital_or_facility", ("route", "on the way", "transit", "ambulance")),
-    ("other_health_facility", ("phc", "chc", "health centre", "health center", "sub centre", "subcentre",
-                               "clinic", "dispensary", "nursing home", "facility")),
-    ("hospital", ("hospital",)),
-    ("home", ("home", "house", "residence")),
-)
-
-
-def _who_place_of_death(text: str | None) -> str | None:
-    """The Id10058 choice for a free-text register ``place_of_death``, or None
-    when nothing matches with confidence (the question is then left unasked
-    -- never defaulted to ``other``, since it is a coding input)."""
-    value = " ".join((text or "").lower().replace("_", " ").split())
-    if not value:
-        return None
-    if value in _PLACE_OF_DEATH_CHOICES:
-        return _PLACE_OF_DEATH_CHOICES[value]
-    for choice, words in _PLACE_OF_DEATH_KEYWORDS:
-        if any(word in value for word in words):
-            return choice
-    return None
-
-
-def _unit_label(unit: MasOrgUnit | None) -> str:
-    """The unit's own code and name, e.g. "PHC06 PHC name 2" (Id10055's
-    prefill, owner decision 2026-10-23); "" without a unit."""
-    return f"{unit.unit_code} {unit.unit_name}" if unit is not None else ""
-
-
-_ADDRESS_ATTRS = ("address_house_street", "address_village_ward", "address_landmark", "address")
-
-
-def _case_address(values: dict) -> str:
-    """The case's address parts, structured first, joined with commas.
-    *values* holds the opened register attributes (``current_values``)."""
-    parts = tuple(values[attr] for attr in _ADDRESS_ATTRS)
-    return ", ".join(part.strip() for part in parts if part and part.strip())
-
-
-#: WHO question -> the death-register column ``_prefill_from_death`` answers
-#: it from, as an editable answer (Id10058 through ``_who_place_of_death``).
-PREFILL_ANSWER_FIELDS = {
-    "Id10058": "place_of_death",
-    "Id10007": "informant_name",
-    "Id10061": "father_name",
-    "Id10062": "mother_name",
-}
-#: Death-register columns prefilled as the same-named question and locked.
-PREFILL_LOCKED_FIELDS = ("abha_number", "abha_address")
-
-
-#: Id10010a's own constraint (``(.>=18 and .<90) or .=99``): an age outside it
-#: would trap the interviewer, so it is not prefilled.
-_INTERVIEWER_AGE_RANGE = range(18, 90)
-
-
-def _interviewer_age(user: VaUsers) -> int | None:
-    """The interviewer's age for Id10010a: the interview year (now, in the
-    user's timezone) minus the profile's ``year_of_birth``; None without a
-    year of birth or when the age is outside Id10010a's 18-89."""
-    if user.year_of_birth is None:
-        return None
-    age = _expression_now(user, _utcnow()).year - user.year_of_birth
-    return age if age in _INTERVIEWER_AGE_RANGE else None
-
-
-def _prefill_from_death(death: VaDeathRegister | None, user: VaUsers, org_unit_id: uuid.UUID | None = None,
-                        unit_parts: tuple[dict, str] | None = None) -> dict:
-    """The draft's prefill, per the map in docs/policy/web-intake.md.
-
-    ``deceased`` and ``interviewer`` go through the package's
-    ``createWhoVaInitialDataFromPrefill``; ``answers`` are WHO answers merged
-    on top; ``lockedQuestionNames`` are the read-only ones (interviewer
-    name, sex and id, area presets, ABHA). Everything else is an ordinary editable
-    answer, the interviewer's age (``interviewer.age``) included. Name split: the last word is the surname (Id10018), the words
-    before it the given name (Id10017); a one-word name is a given name only.
-
-    Birth date: an exact ``date_of_birth`` goes as ``deceased.dateOfBirth``
-    (prefill.ts sets Id10020 = yes, Id10021). A ``date_of_birth_partial``
-    never touches Id10021 (WHO's full date only); it sets Id10020 = no and
-    the DigitVA precision block after it, whose relevance needs that no:
-    ``YYYY-MM`` -> dob_precision = month_year, dob_month_year = YYYY-MM-01;
-    ``YYYY`` -> dob_precision = year, dob_year = YYYY-01-01 (the day and
-    month the ODK date type stores for those appearances, never read back
-    as known). Age, when also known, still prefills as below.
-
-    Age: the registered ``age_years`` prefills ``age_group`` and its age
-    field, editable like the date of birth: where an interview is completed
-    its date of birth and age win (``_sync_case_identity``). An exact date
-    of birth sends no age (the form calculates it).
-
-    ``unit_parts`` is the unit's ``(presets, unit label)`` already resolved
-    for a batch (``prefill_policy``); without it both are queried here.
-    """
-    interviewer: dict = {"name": user.name, "id": str(user.user_id)}
-    age = _interviewer_age(user)
-    if age is not None:
-        # Not locked: a birth year alone is accurate to a year.
-        interviewer["age"] = age
-    locked = {"Id10010c"}
-    if _INTERVIEWER_NAME_RE.fullmatch((user.name or "").strip()):
-        locked.add("Id10010")
-    if user.sex in USER_SEX_VALUES:
-        interviewer["sex"] = user.sex
-        locked.add("Id10010b")
-    prefill: dict = {"interviewer": interviewer}
-    answers: dict = {}
-    if org_unit_id is not None:
-        # Area presets (Id10002/Id10003) from the organization tree, per
-        # docs/policy/web-intake.md ("Area VA presets"). Merged before the
-        # death-register answers below so a death-register value always wins.
-        presets = unit_parts[0] if unit_parts else org_grant_service.resolve_va_presets(org_unit_id)
-        answers.update(presets)
-        locked.update(presets)
-    unit_label = (unit_parts[1] if unit_parts
-                  else _unit_label(db.session.get(MasOrgUnit, org_unit_id) if org_unit_id else None))
-    # Opened once (one unwrap for a sealed row); the sealed columns are NULL.
-    register = (register_pii_accessor.current_values(death, (
-        *_ADDRESS_ATTRS, *PREFILL_ANSWER_FIELDS.values(), *PREFILL_LOCKED_FIELDS, "deceased_name", "remarks"))
-        if death is not None else {})
-    # No registered address: the registration's remarks say where the person lived.
-    address = (_case_address(register) or (register["remarks"] or "").strip()) if death is not None else ""
-    # Id10055 (usual residence): "<unit code> <unit name>; <address or remarks>". Place of
-    # death (Id10057) is never prefilled; Id10051 comes from the form default.
-    residence = "; ".join(part for part in (unit_label, address) if part)
-    if residence:
-        answers["Id10055"] = residence
-    if death is not None:
-        for name, field in PREFILL_ANSWER_FIELDS.items():
-            value = register[field]
-            if name == "Id10058":
-                value = _who_place_of_death(value)
-            if value:
-                answers[name] = value
-    if death is not None and cases.identity_complete(death):
-        names = register["deceased_name"].split()
-        deceased = {
-            "givenNames": " ".join(names[:-1] or names),
-            "sex": death.deceased_sex if death.deceased_sex in ("male", "female") else "undetermined",
-            # Only one of dateOfDeath/yearOfDeath may be sent -- prefill.ts
-            # throws on both (WhoVaDeathEvidence). A case with its identity
-            # always has the exact date; yearOfDeath is for a future path
-            # that only knows the year.
-            "dateOfDeath": death.date_of_death.isoformat(),
-        }
-        if len(names) > 1:
-            deceased["surname"] = names[-1]
-        if death.date_of_birth:
-            deceased["dateOfBirth"] = death.date_of_birth.isoformat()
-        elif death.age_years is not None and 12 <= death.age_years <= 119:
-            # ageInYears for prefill.ts (device and web clients); the same
-            # answers it derives. Not locked: the interview's age wins.
-            deceased["ageInYears"] = death.age_years
-            answers.update({"age_group": "adult", "age_adult": death.age_years})
-        elif death.age_years is not None and 1 <= death.age_years <= 11:
-            # prefill.ts maps adults only. Age 0 is not prefilled: days
-            # (neonate) or months (child) cannot be told from 0 years.
-            answers.update({"Id10020": "no", "age_group": "child", "age_child_unit": "years",
-                            "age_child_years": death.age_years})
-        if not death.date_of_birth and death.date_of_birth_partial:
-            partial = death.date_of_birth_partial
-            answers["Id10020"] = "no"
-            if len(partial) == 7:
-                answers.update({"dob_precision": "month_year", "dob_month_year": f"{partial}-01"})
-            else:
-                answers.update({"dob_precision": "year", "dob_year": f"{partial}-01-01"})
-        prefill["deceased"] = deceased
-        for name in PREFILL_LOCKED_FIELDS:
-            value = register[name]
-            if value:
-                answers[name] = value
-                locked.add(name)
-    # Free-text answers built from the register (Id10055/Id10057) carry no
-    # national-ID digit run (PII slice 1a).
-    prefill["answers"] = redact_payload_national_ids(answers)[0]
-    prefill["lockedQuestionNames"] = sorted(locked)
-    return prefill
-
-
-#: Locked interviewer questions and the ``prefill["interviewer"]`` key each is
-#: filled from, as prefill.ts's addInterviewer maps them.
-#: Id10010a (interviewer age) is prefilled but never locked (owner,
-#: 2026-10-20); leaving it out also stops a draft's stored lock list from
-#: enforcing it.
-_INTERVIEWER_ANSWER_KEYS = {"Id10010": "name", "Id10010b": "sex", "Id10010c": "id"}
-
-
-def _locked_answers(prefill: dict) -> dict:
-    """``{question: value}`` for every locked question of a draft's prefill.
-
-    *prefill* is the draft's stored, server-computed prefill
-    (``_prefill_from_death``), never the client's ``lockedQuestionNames``:
-    the client list only drives the read-only display. Values come from
-    ``prefill["answers"]`` (area presets, ABHA) or ``prefill["interviewer"]``
-    (Id10010 trimmed, as prefill.ts does). A name with no value to restore,
-    or a prefill without locked names (a draft from before them), yields
-    nothing, so nothing is ever blanked.
-    """
-    answers = prefill.get("answers") or {}
-    interviewer = prefill.get("interviewer") or {}
-    out: dict = {}
-    for name in prefill.get("lockedQuestionNames") or ():
-        if name in answers:
-            value = answers[name]
-        elif name in _INTERVIEWER_ANSWER_KEYS:
-            value = interviewer.get(_INTERVIEWER_ANSWER_KEYS[name])
-            if isinstance(value, str):
-                value = value.strip()
-        else:
-            value = None
-        if value not in (None, ""):
-            out[name] = value
-    return out
-
-
-def _current_prefill(draft: VaWebIntakeDraft) -> dict:
-    """*draft*'s prefill as a new draft would get it now: ``_prefill_from_death``
-    from its case as it stands, its owner and its unit."""
-    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-    return _prefill_from_death(death, db.session.get(VaUsers, draft.user_id), draft.org_unit_id)
-
-
-def _draft_locked_answers(draft: VaWebIntakeDraft) -> dict:
-    """``_locked_answers`` for *draft*, always recomputed from the case and
-    the draft's owner, never from the stored prefill: a draft saved before a
-    lock existed (no ``lockedQuestionNames``, ``{}``, or an older list) gets
-    today's locks, and a corrected registration wins. Never written back."""
-    return _locked_answers(_current_prefill(draft))
-
-
-def _enforce_locked(answers: dict, locked: dict, previous: dict | None = None) -> dict:
-    """*answers* with every locked question it carries, or *previous* (the
-    section's last save) carried, set to its authoritative value. A new dict:
-    the caller's is left as sent. Locked questions the section never held are
-    not added, so a section save does not move answers between sections."""
-    held = set(answers) | set(previous or {})
-    return {**answers, **{name: value for name, value in locked.items() if name in held}}
-
-
-#: Case states from which starting (or resuming) an interview moves the case
-#: to ``in_progress``; ``refused`` included, since a refusal blocks nothing.
-_STARTABLE_STATES = frozenset({"registered", "scheduled", "paused", "not_reachable", "refused"})
-
-
-def _begin_interview(death: VaDeathRegister, user: VaUsers) -> None:
-    """Move a case whose interview (re)starts to ``in_progress``, audited."""
-    if death.started_by_user_id is None:
-        death.started_by_user_id = user.user_id
-    if death.status in _STARTABLE_STATES:
-        action = "interview_restarted" if death.status == "refused" else "interview_started"
-        # The visit is happening: the date no longer sorts the worklist.
-        death.next_visit_at = None
-        cases.transition(death, "in_progress", actor=user, action=action)
-
-
-def start_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None = None, death_id: object | None = None, entries: list[dict] | None = None, locked_death: VaDeathRegister | None = None, unrouted_ok: bool = False, enforce_collection_gate: bool = False) -> VaWebIntakeDraft:
-    """Open (or return the caller's own) draft for a case, or start directly.
-
-    *entries* and *locked_death* are plumbing for a caller that already built
-    ``interviewer_context(user)`` and already passed ``get_death`` and
-    ``lock_case`` on this case in this transaction (``submit_device_interview``):
-    reused instead of rebuilt, re-read and re-locked. Every check still runs.
-    *unrouted_ok* as ``_require_scope`` (a standalone push only).
-    *enforce_collection_gate*: a live direct start (the browser's), refused
-    by a closed collection gate; it never applies to a case already
-    registered, which is continuing work (project-clock-and-gates.md).
-
-    A direct start creates its case at once (``source = direct``,
-    ``draft_identity``); the draft's answers fill the identity in.
-
-    One open draft per interviewer per case: another interviewer's draft never
-    blocks a start, each gets their own copy (web-intake.md "Parallel
-    interviews").
-    """
-    mode = get_web_intake_mode(project_id)
-    if locked_death is not None and str(locked_death.death_id) == str(death_id):
-        death = locked_death
-    else:
-        death = get_death(user, death_id, entries=entries) if death_id else None
-    if death is not None:
-        if not _mode_allows(mode, death_register=death.source == "register"):
-            raise WebIntakeError("This project does not use the death register.", 403)
-        if death.project_id != project_id or death.site_id != site_id:
-            raise WebIntakeError("Death entry belongs to another project or site.")
-        # Serialises starts on one case: the second waits here, then sees the
-        # caller's own open draft below instead of opening another.
-        if death is not locked_death:
-            death = cases.lock_case(death)
-        if death.status == "submitted":
-            raise WebIntakeError("A questionnaire has already been submitted for this death.", 409)
-        if death.status in ("duplicate", "cancelled") or death.consent_withdrawn_at is not None:
-            raise WebIntakeError("This case is closed.", 409)
-        existing = db.session.scalar(
-            sa.select(VaWebIntakeDraft).where(
-                VaWebIntakeDraft.death_id == death.death_id,
-                VaWebIntakeDraft.user_id == user.user_id,
-                VaWebIntakeDraft.status == "draft",
-            )
-        )
-        if existing is not None:
-            _begin_interview(death, user)
-            return existing
-        org_unit_id = death.org_unit_id
-    elif not _mode_allows(mode, death_register=False):
-        raise WebIntakeError("This project requires a death register entry before the questionnaire.", 403)
-    else:
-        org_unit_id = org_unit_id or public_demo_service.default_org_unit_id(project_id)
-    _require_scope(user, project_id, site_id, org_unit_id, entries=entries, unrouted_ok=unrouted_ok)
-    if enforce_collection_gate and death is None:
-        collection_gate.require_open(user, project_id, site_id, org_unit_id)
-    # Only a new draft counts against the public demo's open-draft limit.
-    public_demo_service.check_new_draft(user, project_id)
-    form = ensure_web_runtime_form(project_id, site_id)
-    resolved_org_unit_id = uuid.UUID(str(org_unit_id)) if org_unit_id else None
-    prefill = _prefill_from_death(death, user, resolved_org_unit_id)
-    if death is not None:
-        _begin_interview(death, user)
-    else:
-        unit = db.session.get(MasOrgUnit, resolved_org_unit_id) if resolved_org_unit_id else None
-        number, unique_id = _allocate_unique_id(unit.unit_code if unit else site_id)
-        death = cases.open_case(
-            VaDeathRegister(
-                project_id=project_id,
-                site_id=site_id,
-                org_unit_id=resolved_org_unit_id,
-                death_number=number,
-                unique_id=unique_id,
-                source="direct",
-                registered_by=user.user_id,
-                started_by_user_id=user.user_id,
-            ),
-            actor=user,
-        )
-    now = _utcnow().isoformat()
-    started_event = server_event("interview_started", at=datetime.fromisoformat(now))
-    draft = VaWebIntakeDraft(
-        project_id=project_id,
-        site_id=site_id,
-        org_unit_id=resolved_org_unit_id,
-        death_id=death.death_id,
-        form_id=form.form_id,
-        user_id=user.user_id,
-        unique_id=death.unique_id,
-        # The base locale until the page tells us otherwise; a locale switch
-        # PATCHes both keys and build_web_payload copies them to the payload.
-        meta={
-            "createdAt": now,
-            "updatedAt": now,
-            "instrumentId": INSTRUMENT_ID,
-            "locale": DEFAULT_LOCALE,
-            "translation_version": 0,
-            _TIMELINE_META_KEY: [started_event],
-        },
-        prefill=prefill,
-    )
-    db.session.add(draft)
-    db.session.flush()
-    if death_id:
-        # Other interviewers already holding an open draft on this case.
-        holders = notification_service.open_draft_holders(death.death_id, exclude_user_id=user.user_id)
-        notification_service.notify(
-            holders, notification_service.OTHER_DRAFT_STARTED, project_id=project_id,
-            death_id=death.death_id, draft_id=holders,
-        )
-    log.info("web intake draft started | project=%s | site=%s | unique_id=%s | by=%s", project_id, site_id, death.unique_id, user.user_id)
-    return draft
-
-
-def list_drafts(user: VaUsers, *, status: str = "draft") -> list[VaWebIntakeDraft]:
-    stmt = sa.select(VaWebIntakeDraft).where(
-        VaWebIntakeDraft.user_id == user.user_id, *training_scope.conditions(VaWebIntakeDraft.project_id)
-    )
-    if status:
-        stmt = stmt.where(VaWebIntakeDraft.status == status)
-    if not user.is_admin():
-        # A consent-withdrawn case is sealed: admin only (docs/policy/consent-withdrawal.md).
-        stmt = stmt.where(~sa.exists().where(
-            VaDeathRegister.death_id == VaWebIntakeDraft.death_id,
-            VaDeathRegister.consent_withdrawn_at.is_not(None),
-        ))
-    return list(db.session.scalars(stmt.order_by(VaWebIntakeDraft.updated_at.desc()).limit(200)).all())
-
-
-def get_draft(user: VaUsers, draft_id: object, *, require_open: bool = False) -> VaWebIntakeDraft:
-    """The caller's own draft (404 for anyone else's or an unknown id: the one
-    ownership predicate of every draft route). *require_open* also refuses a
-    draft that is no longer ``draft`` (409). Takes no row lock;
-    ``lock_draft_for_browser_write`` takes the case lock a write needs."""
-    try:
-        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(str(draft_id)))
-    except ValueError:
-        draft = None
-    if draft is None or draft.user_id != user.user_id or not training_scope.keeps_project(draft.project_id):
-        raise WebIntakeError("Draft not found.", 404)
-    # A consent-withdrawn case is sealed: admin only (docs/policy/consent-withdrawal.md).
-    if draft.death_id is not None and not user.is_admin() and db.session.scalar(
-        sa.select(VaDeathRegister.consent_withdrawn_at).where(VaDeathRegister.death_id == draft.death_id)
-    ) is not None:
-        raise WebIntakeError("Draft not found.", 404)
-    if require_open and draft.status != "draft":
-        raise WebIntakeError("This draft is no longer editable.", 409)
-    # A real project keeps an in-flight draft after its grant goes
-    # (digitva-9xn9.22); a training draft ends with its session's grants.
-    if draft.project_id == training_scope.training_project_id():
-        _require_scope(user, draft.project_id, draft.site_id, draft.org_unit_id)
-    return draft
-
-
-def _answers_of(draft: VaWebIntakeDraft) -> dict:
-    """The draft's answers: the ``final`` section alone once the draft is
-    closed (a submitted or superseded draft keeps its complete final answers
-    there), else the per-section saves merged."""
-    data: dict = {}
-    for section in draft.sections:
-        if section.section_name == FINAL_SECTION and draft.status != "draft":
-            return dict(section.data or {})
-        data.update(section.data or {})
-    return data
-
-
-def load_draft_envelope(draft: VaWebIntakeDraft) -> dict:
-    """Reassemble the package's draft envelope from the per-section rows."""
-    data = _answers_of(draft)
-    meta = dict(draft.meta or {})
-    return {
-        "schemaVersion": meta.get("schemaVersion", 1),
-        "formVersion": meta.get("formVersion", "2022"),
-        "id": str(draft.draft_id),
-        "instrumentId": meta.get("instrumentId", INSTRUMENT_ID),
-        "instrumentVersion": meta.get("instrumentVersion", ""),
-        "locale": meta.get("locale", DEFAULT_LOCALE),
-        "translation_version": meta.get("translation_version", 0),
-        "currentSection": draft.current_section or meta.get("currentSection", ""),
-        "createdAt": meta.get("createdAt", draft.created_at.isoformat()),
-        "updatedAt": meta.get("updatedAt", draft.updated_at.isoformat()),
-        # Only when recorded: a browser draft (bundled form) has no slice identity.
-        **{k: meta[k] for k in _DEFINITION_IDENTITY_KEYS if k in meta},
-        **(
-            {_TIMELINE_META_KEY: parse_timeline(meta[_TIMELINE_META_KEY], INTERVIEW_TIMELINE_EVENTS)}
-            if _TIMELINE_META_KEY in meta else {}
-        ),
-        **(
-            {_CODING_TIMELINE_META_KEY: _parse_coding_timeline(meta[_CODING_TIMELINE_META_KEY])}
-            if _CODING_TIMELINE_META_KEY in meta else {}
-        ),
-        "data": data,
-    }
-
-
-def _clean_locale_meta(meta: dict) -> dict:
-    """The working language and translation version out of a client's meta.
-
-    Recorded on the draft at every locale switch so the submission can say what
-    the respondent was actually shown (WP6 of
-    docs/planning/web-capture-project-configuration-plan.md). Both come from the
-    browser, so both are validated here: an unparseable value is refused rather
-    than stored and copied into a payload later.
-    """
-    out: dict = {}
-    if "locale" in meta:
-        locale = meta.get("locale")
-        if not isinstance(locale, str) or not _LOCALE_CODE_RE.match(locale):
-            raise WebIntakeError("Invalid locale.")
-        out["locale"] = locale
-    if "translation_version" in meta:
-        version = meta.get("translation_version")
-        if isinstance(version, bool) or not isinstance(version, int) or version < 0:
-            raise WebIntakeError("Invalid translation version.")
-        out["translation_version"] = version
-    return out
-
-
-def _parse_coding_timeline(value: object, allowed_events=CODING_TIMELINE_EVENTS) -> list[dict]:
-    """Validate the fixed, separately bounded coding event stream."""
-    timeline = parse_timeline(value, allowed_events)
-    if len(timeline) > _CODING_TIMELINE_MAX:
-        raise WorkflowTimelineError("Invalid workflow timeline.")
-    return timeline
-
-
-def merge_incoming_timeline_meta(
-    draft: VaWebIntakeDraft,
-    incoming: dict | None,
-    *,
-    allow_server_receipts: bool = False,
-) -> dict:
-    """Merge client timeline metadata without replacing server-owned receipts.
-
-    This is shared by ordinary saves, revisions and idempotent upload resends.
-    ``submitted`` and ``final_saved`` are server receipts: a client may echo
-    them, but can never add or replace their stored timestamps.
-    """
-    if not isinstance(incoming, dict):
-        return {}
-    updates: dict = {}
-    try:
-        if _TIMELINE_META_KEY in incoming:
-            current = parse_timeline((draft.meta or {}).get(_TIMELINE_META_KEY), INTERVIEW_TIMELINE_EVENTS)
-            received = parse_timeline(incoming[_TIMELINE_META_KEY], INTERVIEW_TIMELINE_EVENTS)
-            received = [event for event in received if event["event"] != "submitted"]
-            updates[_TIMELINE_META_KEY] = merge_timeline(current, received, INTERVIEW_TIMELINE_EVENTS)
-        if _CODING_TIMELINE_META_KEY in incoming:
-            current = _parse_coding_timeline((draft.meta or {}).get(_CODING_TIMELINE_META_KEY), CODING_TIMELINE_EVENTS)
-            received = _parse_coding_timeline(
-                incoming[_CODING_TIMELINE_META_KEY],
-                CODING_TIMELINE_EVENTS if allow_server_receipts else _CODING_TIMELINE_CLIENT_EVENTS,
-            )
-            received = [event for event in received if event["event"] not in {"final_saved", "coding_allocated"}]
-            updates[_CODING_TIMELINE_META_KEY] = _parse_coding_timeline(
-                merge_timeline(current, received, CODING_TIMELINE_EVENTS)
-            )
-    except WorkflowTimelineError as exc:
-        # Keep the existing coding-specific API error for callers that send
-        # only the coding stream.  The combined helper is also used by
-        # revisions and upload resends, where the distinction is useful to
-        # clients without changing validation semantics.
-        if _CODING_TIMELINE_META_KEY in incoming and _TIMELINE_META_KEY not in incoming:
-            raise WebIntakeError("Invalid coding timeline.", 400, "invalid_coding_timeline") from exc
-        raise WebIntakeError("Invalid workflow timeline.", 400, "invalid_workflow_timeline") from exc
-    return updates
-
-
-def _identity_from_answers(data: dict) -> dict:
-    """Name, sex and date of death from WHO answers, only those validly given.
-
-    ``Id10017``/``Id10018`` given names and surname, ``Id10019`` sex,
-    ``Id10023`` the calculated date of death (else the ``Id10023_a``/``_b``
-    answer it is calculated from). A malformed or future date is ignored:
-    the form validates it, this only mirrors it onto the case.
-    """
-    out: dict = {}
-    name = " ".join(
-        part for part in (str(data.get(k) or "").strip() for k in ("Id10017", "Id10018")) if part
-    )
-    if name:
-        out["deceased_name"] = name
-    sex = data.get("Id10019")
-    if sex in DEATH_SEX_VALUES:
-        out["deceased_sex"] = sex
-    raw = data.get("Id10023")
-    if not raw and data.get("Id10022") == "yes":
-        raw = data.get("Id10023_a") if data.get("Id10020") == "yes" else data.get("Id10023_b")
-    try:
-        parsed = date.fromisoformat(str(raw)[:10]) if raw else None
-    except ValueError:
-        parsed = None
-    if parsed is not None and parsed <= date.today():
-        out["date_of_death"] = parsed
-    return out
-
-
-def _approximate_date_of_death(data: dict) -> date | None:
-    """1 July of the ``Id10024`` year of death, when the exact date is not known.
-
-    Only when the answers give no exact date (``_identity_from_answers``) and
-    ``Id10022`` is not "yes". Mid-year minimises the worst-case error; it is
-    capped at today (a current-year death before July is not a future date).
-    None for an unusable year (not four digits, before 1900, or after this
-    year). Callers use it only where the case holds no date of death.
-    """
-    if "date_of_death" in _identity_from_answers(data) or data.get("Id10022") == "yes":
-        return None
-    raw = str(data.get("Id10024") or "").strip()[:4]
-    if not (raw.isascii() and raw.isdigit() and len(raw) == 4):
-        return None
-    year, today = int(raw), date.today()
-    if not 1900 <= year <= today.year:
-        return None
-    return min(date(year, 7, 1), today)
-
-
-def _missing_identity_error(data: dict, *, name: bool, sex: bool, date_of_death: bool) -> WebIntakeError:
-    """The 422 for an incomplete identity, naming the WHO questions to answer.
-
-    Each flag says that part is present. ``fields`` lists only the missing
-    parts' input questions (``Id10023`` is calculated, so its ``_a``/``_b``
-    sources stand in once the date is said to be known)."""
-    fields: list[str] = [] if name else ["Id10017", "Id10018"]
-    if not sex:
-        fields.append("Id10019")
-    if not date_of_death:
-        fields.append("Id10022")
-        fields += ["Id10023_a", "Id10023_b"] if data.get("Id10022") == "yes" else ["Id10024"]
-    return WebIntakeError("Record the name, date of death and sex of the deceased before submitting.", 422, fields=fields)
-
-
-def _birth_age_from_answers(data: dict, date_of_death: date | None) -> dict:
-    """The interview's date of birth and age as case columns (the reverse of
-    ``_prefill_from_death``); the answers are read by ``who_va_answers``, the
-    case's rules are here. The case keeps its own where the interview gives
-    nothing usable.
-
-    The date of birth is one unit: the exact date (``date_of_birth``, partial
-    cleared) or the year/month (``date_of_birth_partial`` as ``YYYY`` or
-    ``YYYY-MM``, exact cleared), each valid as ``register_death`` requires
-    (not future, not after the death); one that fails is unusable. The age is
-    whole years 0..130, as ``register_death`` accepts: ``ageInYears`` (the
-    form's, from an exact date of birth; "NaN" without one), else the
-    ``age_group`` answers, under a year being 0.
-
-    An age with the date of birth said to be unknown (``Id10020`` = no or
-    ref, no usable partial date) clears the registered date of birth, exact
-    and partial: the interview wins (owner, 2026-10-06, ``digitva-uq6v``).
-    """
-    out: dict = {}
-    answer = birth_answer(data)
-    if answer is not None:
-        precision, _key, born = answer
-        if precision == "exact":
-            if born <= min(date_of_death or date.max, date.today()):
-                out.update(date_of_birth=born, date_of_birth_partial=None)
-        elif date_of_death is not None:
-            partial = f"{born.year:04d}" + (f"-{born.month:02d}" if precision == "month_year" else "")
-            try:
-                out.update(date_of_birth=None, date_of_birth_partial=_clean_partial_birth(partial, date_of_death))
-            except WebIntakeError:
-                pass
-    age = whole_answer(data, "ageInYears") if out.get("date_of_birth") else None
-    field = age_field(data)
-    if age is None and field is not None:
-        group, unit, key = field
-        if group == "neonate" or unit == "days":
-            age = 0
-        elif unit == "months":
-            months = whole_answer(data, key)
-            age = months // 12 if months is not None and months >= 0 else None
-        else:
-            age = whole_answer(data, key)
-    if age is None or not 0 <= age <= 130:
-        return out
-    if "date_of_birth" not in out and choice_answer(data, "Id10020") in ("no", "ref"):
-        out.update(date_of_birth=None, date_of_birth_partial=None)
-    out["age_years"] = age
-    return out
-
-
-def _sync_case_identity(death: VaDeathRegister, data: dict, actor: VaUsers) -> None:
-    """Copy the form's identity answers onto the case (the form is the record
-    of the interview); a direct start leaves ``draft_identity`` once complete.
-    Name, sex, date of death, date of birth and age: the interview's replace
-    the case's, the previous values going to the audit. An empty or unusable
-    answer never blanks a value the case already holds."""
-    incoming = _identity_from_answers(data)
-    if "date_of_death" not in incoming and not death.date_of_death:
-        approximate = _approximate_date_of_death(data)
-        if approximate:
-            incoming["date_of_death"] = approximate
-    incoming.update(_birth_age_from_answers(data, incoming.get("date_of_death") or death.date_of_death))
-    opened = register_pii_accessor.current_values(death)
-    before: dict = {}
-    after: dict = {}
-    for field, value in incoming.items():
-        stored = opened[field] if field in opened else getattr(death, field)
-        if stored != value:
-            before[field] = stored
-            after[field] = value
-    register_pii_accessor.write_fields(death, after)
-    if before and death.status != "draft_identity":
-        # A completed interview overwrote registered details: the field
-        # names go in the reason, the old and new values in ``changes``.
-        _audit_details_change(death, actor, IDENTITY_FROM_INTERVIEW, before, after)
-    if death.status == "draft_identity" and cases.identity_complete(death):
-        cases.transition(death, "in_progress", actor=actor, action="identity_captured")
-
-
-#: Which served form slice the answers were filled on: the SHA-256 of its body
-#: and the conditional extensions it contained (``instrumentVersion`` is the
-#: composed version). Kept so a device can fetch exactly that slice again
-#: (field-data-collection.md "Form definition from the server").
-_DEFINITION_IDENTITY_KEYS = ("definitionSha256", "definitionExtensions")
-_SHA256_RE = re.compile(r"[0-9a-f]{64}")
-_EXTENSION_NAME_RE = re.compile(r"[a-z][a-z0-9_]{0,31}")
-_MAX_DEFINITION_EXTENSIONS = 16
-_TIMELINE_META_KEY = "workflowTimelineV1"
-_CODING_TIMELINE_META_KEY = "codingTimelineV1"
-_CODING_TIMELINE_CLIENT_EVENTS = CODING_TIMELINE_EVENTS - {"final_saved", "coding_allocated"}
-_CODING_TIMELINE_MAX = 6
-#: Draft meta keys a client (browser save or device envelope) may set.
-_ENVELOPE_META_KEYS = (
-    "schemaVersion", "formVersion", "instrumentId", "instrumentVersion", "createdAt", "updatedAt",
-    *_DEFINITION_IDENTITY_KEYS, _TIMELINE_META_KEY, _CODING_TIMELINE_META_KEY,
-)
-#: The device's interview start and completion times (ISO 8601 with offset),
-#: taken from the checked device envelope only: a browser save cannot set
-#: them, so it cannot choose the date ``today()`` is evaluated at.
-_DEVICE_TIME_KEYS = ("startedAt", "completedAt")
-
-
-def scrub_attachment_names(answers: dict) -> dict:
-    """*answers* without the file names inside attachment references.
-
-    A reference carries ``name`` and ``originalName``; the package fills them
-    from the picked file, and a file name can name the deceased or the
-    respondent. The server keeps only the id, ``uri``, type, size and the
-    like: names are dropped before any answer is stored (docs/policy/web-intake.md,
-    "Attachments"). A new dict; values that are not references are shared."""
-    return {
-        key: ({k: v for k, v in value.items() if k not in ("name", "originalName")}
-              if isinstance(value, dict) and _is_attachment_reference(value) else value)
-        for key, value in answers.items()
-    }
-
-
-def stored_answers(answers: dict) -> dict:
-    """*answers* as every draft row stores them: attachment file names
-    dropped (``scrub_attachment_names``) and national IDs reduced
-    (``redact_payload_national_ids``: ``Id10073`` to its last 3 digits, digit
-    runs in free text masked; PII slice 1a, docs/kb/pii-slice-1a.md). The
-    server applies it whatever the client sent; the client's
-    ``answers_sha256`` is kept as sent, an upload identity only."""
-    return redact_payload_national_ids(scrub_attachment_names(answers))[0]
-
-
-def is_new_refusal(draft: VaWebIntakeDraft, answers: dict, consent: object = None,
-                   client_draft_id: uuid.UUID | None = None) -> bool:
-    """Whether this request records a new refusal of *draft*'s own, the
-    moment its teammates are cleared (``clear_direct_identity_for_refusal``
-    *hold_others*). Own: WHO ``Id10013 = no`` in *answers*, a refused
-    *consent* arriving with this request (device), or a refused consent
-    recorded for its attempt (*client_draft_id*, default the draft's), not
-    only the case's older case-level refusal it inherits. New: the draft is
-    not already refused and unresumed (``refusalResumePending``, which only
-    ``scrub_refused_draft`` sets and only an explicit resume clears), so a
-    later autosave or submit of the same refusal clears no one again. Read it
-    before this request scrubs the draft."""
-    from app.services import consent_service
-
-    if (draft.meta or {}).get("refusalResumePending"):
-        return False
-    if str(answers.get("Id10013") or "").strip().lower() == "no":
-        return True
-    if isinstance(consent, dict) and consent.get("decision") in ("granted", "refused"):
-        return consent["decision"] == "refused"
-    attempt = client_draft_id or draft.client_draft_id
-    if attempt is None or draft.death_id is None:
-        return False
-    record = consent_service._latest_record(draft.death_id, attempt)
-    return bool(record and record.event == "refused")
-
-
-def clear_direct_identity_for_refusal(draft: VaWebIntakeDraft, actor: VaUsers, *, hold_others: bool) -> None:
-    """Remove identity copied from an unsent direct interview, not a register.
-
-    On a shared case (other open drafts) the case's identity stays. When
-    *hold_others* (this request records a new refusal of the draft's own,
-    ``is_new_refusal``) every other open draft is scrubbed as this one is
-    (``scrub_refused_draft``: refusal-only answers, no prefill, history or
-    uploads) and paused for an explicit resume, and this draft holds the case
-    until a fresh grant on it or its submit
-    (docs/policy/respondent-consent-notice-draft.md, "Later agreement and
-    shared cases"). A draft refused only by the case's older refusal, or
-    saved again under a refusal already recorded, leaves the others alone:
-    they may hold a fresh grant of their own. Submitted
-    drafts are never touched."""
-    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-    if death is None:
-        return
-    open_others = sa.select(VaWebIntakeDraft).where(
-        VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.draft_id != draft.draft_id,
-        VaWebIntakeDraft.status == "draft",
-    )
-    if not hold_others:
-        if db.session.scalar(sa.select(open_others.exists())):
-            return
-    else:
-        # Locked so a teammate's concurrent save cannot land over the scrub;
-        # ordered so concurrent refusals take the locks in one order.
-        others = db.session.scalars(
-            open_others.order_by(VaWebIntakeDraft.draft_id).options(selectinload(VaWebIntakeDraft.sections))
-            .with_for_update(of=VaWebIntakeDraft).execution_options(populate_existing=True)
-        ).all()
-        if others:
-            for other in others:
-                scrub_refused_draft(other)
-            draft.meta = {**(draft.meta or {}), "caseRefusalHold": True}
-            return
-    if death.source != "direct" or death.status not in ("draft_identity", "in_progress") or death.va_sid or db.session.scalar(sa.select(sa.exists().where(
-        VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.status == "submitted",
-    ))):
-        return
-    if death.status == "in_progress":
-        cases.transition(death, "draft_identity", actor=actor, action="refusal_identity_cleared")
-    register_pii_accessor.write_fields(death, {
-        "deceased_name": None, "deceased_sex": None, "date_of_death": None,
-        "date_of_birth": None, "date_of_birth_partial": None, "age_years": None,
-    })
-    db.session.flush()
-
-
-def scrub_refused_draft(draft: VaWebIntakeDraft) -> None:
-    """Scrub this unsent draft and its saved losing versions."""
-    from app.services import consent_service
-
-    history = sa.select(VaWebIntakeDraft.draft_id).where(
-        VaWebIntakeDraft.status == "replaced", VaWebIntakeDraft.user_id == draft.user_id,
-        VaWebIntakeDraft.death_id == draft.death_id,
-        VaWebIntakeDraft.meta["replacedDraftId"].astext == str(draft.draft_id),
-    )
-    section_data = VaWebIntakeDraftSection.data
-    pairs = []
-    for key, values in consent_service.REFUSAL_ANSWERS.items():
-        pairs.extend((key, sa.case((section_data[key].astext.in_(values), section_data[key].astext), else_=None)))
-    db.session.execute(sa.update(VaWebIntakeDraftSection).where(
-        VaWebIntakeDraftSection.draft_id.in_(history)
-    ).values(data=sa.func.jsonb_strip_nulls(sa.func.jsonb_build_object(*pairs))))
-    db.session.execute(sa.update(VaWebIntakeDraft).where(VaWebIntakeDraft.draft_id.in_(history)).values(prefill={}))
-    for row in draft.sections:
-        row.data = consent_service.refusal_answers(row.data or {})
-    draft.prefill = {}
-    draft.updated_at = _utcnow()
-    draft.meta = {**(draft.meta or {}), "refusalBarrier": draft.updated_at.isoformat(), "refusalResumePending": True}
-    _note_last_change(draft, refusal=True)
-    attachments.delete_draft_uploads(draft)
-
-
-def _note_last_change(draft: VaWebIntakeDraft, *, user_id=None, channel: str | None = None,
-                      refusal: bool = False) -> None:
-    """Record on the draft who changed it at its current ``updated_at``, on
-    which channel and whether a consent refusal cleared it (``last_change``)."""
-    draft.meta = {**(draft.meta or {}), "lastChange": {
-        "at": draft.updated_at.isoformat(),
-        **({"userId": str(user_id)} if user_id else {}),
-        **({"channel": channel} if channel else {}),
-        **({"refusal": True} if refusal else {}),
-    }}
-
-
-_CHANGE_CHANNELS = {"device": "phone", "web": "browser"}
-
-
-def last_change(draft: VaWebIntakeDraft, viewer: VaUsers) -> dict:
-    """``{at, via, by_you, name, refusal}``: the draft's last change for a
-    reply to *viewer*, who must be allowed to edit it (its owner,
-    ``get_draft``). ``via`` is ``phone`` or ``browser``, ``name`` the editor's
-    display name only (never an email or number); both null when the draft
-    did not record its current version (saved before this was kept, or a
-    metadata-only change). ``refusal``: a consent refusal cleared it."""
-    note = (draft.meta or {}).get("lastChange") or {}
-    if _device_time(note.get("at")) != draft.updated_at:
-        note = {}
-    editor_id = note.get("userId")
-    by_you = None if editor_id is None else editor_id == str(viewer.user_id)
-    editor = viewer if by_you else (db.session.get(VaUsers, uuid.UUID(editor_id)) if editor_id else None)
-    return {
-        "at": draft.updated_at.isoformat(),
-        "via": _CHANGE_CHANNELS.get(note.get("channel")),
-        "by_you": by_you,
-        "name": editor.name if editor is not None else None,
-        "refusal": bool(note.get("refusal")),
-    }
-
-
-def check_refusal_resume(draft: VaWebIntakeDraft, *, base_updated_at: object, resume_refused: bool) -> bool:
-    """Require a current, explicit first resume and reject pre-refusal saves.
-
-    The first resume rebuilds the prefill the refusal cleared
-    (``scrub_refused_draft``) from the case, owner and unit as they are now
-    (``_current_prefill``), as for a new draft: area presets, interviewer,
-    registration answers and locked names come back; nothing from before the
-    refusal is restored. Its saved losing versions stay scrubbed."""
-    meta = draft.meta or {}
-    barrier = _device_time(meta.get("refusalBarrier"))
-    if barrier is None:
-        return False
-    base = _device_time(base_updated_at)
-    if base is None or base < barrier:
-        raise refusal_stale(draft, "Reload the cleared draft before continuing.")
-    if meta.get("refusalResumePending"):
-        if not resume_refused or base != draft.updated_at:
-            raise refusal_stale(draft, "Confirm the new consent decision on the current draft.")
-        draft.meta = {**meta, "refusalResumePending": False}
-        draft.prefill = _current_prefill(draft)
-        return True
-    return False
-
-
-def refusal_stale(draft: VaWebIntakeDraft, message: str) -> WebIntakeError:
-    exc = WebIntakeError(message, 409, "refusal_stale")
-    exc.draft_id = str(draft.draft_id)
-    return exc
-
-
-def release_who_refusal_hold(draft: VaWebIntakeDraft, *, answers: dict, base_updated_at: object,
-                             resume_refused: bool, consent=None) -> bool:
-    if not ((draft.meta or {}).get("caseRefusalHold") and resume_refused and answers.get("Id10013") == "yes"):
-        return False
-    from app.services import consent_service
-    death = db.session.get(VaDeathRegister, draft.death_id)
-    if consent_service.interview_refused(death=death, client_draft_id=draft.client_draft_id,
-                                         answers=answers, consent=consent, include_case_hold=False):
-        return False
-    check_refusal_resume(draft, base_updated_at=base_updated_at, resume_refused=True)
-    draft.meta = {**draft.meta, "caseRefusalHold": False}
-    db.session.flush()
-    return True
-
-
-def save_draft_sections(draft: VaWebIntakeDraft, *, sections: dict, meta: dict | None = None, current_section: str | None = None, actor: VaUsers | None = None, refusal_override: bool | None = None, resume_refused: bool = False, new_refusal: bool | None = None, channel: str = "web") -> int:
-    """Upsert the given sections' answers; returns the number of sections written.
-
-    A direct start's case (``draft_identity``) takes its identity from the
-    merged answers of every saved section (a save sends only the sections that
-    changed); any other case takes it at submit. *actor* is the saver,
-    recorded when the case leaves ``draft_identity``; it defaults to the
-    draft's owner, the only user who may save it. *new_refusal*:
-    ``is_new_refusal`` decided by a caller that scrubs the draft or knows an
-    incoming consent first (device paths); None decides it here. *channel*
-    (``web`` or ``device``) is recorded with the saver for ``last_change``.
-    """
-    if not isinstance(sections, dict):
-        raise WebIntakeError("sections must be an object keyed by section name.")
-    from app.services import consent_service
-
-    combined = _answers_of(draft)
-    if resume_refused and any(isinstance(answers, dict) and answers.get("Id10013") == "yes"
-                              for answers in sections.values()):
-        for row in draft.sections:
-            row.data = {key: value for key, value in (row.data or {}).items() if key != "Id10013"}
-        combined.pop("Id10013", None)
-    if str(combined.get("Id10013") or "").strip().lower() == "no" and not resume_refused:
-        prior_sections = {row.section_name for row in draft.sections if (row.data or {}).get("Id10013") == "no"}
-        sections = {name: ({**answers, "Id10013": "no"} if isinstance(answers, dict)
-                           and ("Id10013" in answers or name in prior_sections) else answers)
-                    for name, answers in sections.items()}
-    for answers in sections.values():
-        if isinstance(answers, dict):
-            combined.update(answers)
-    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-    refused = refusal_override if refusal_override is not None else consent_service.interview_refused(
-        death=death, client_draft_id=draft.client_draft_id, answers=combined,
-    )
-    if refused:
-        new = new_refusal if new_refusal is not None else is_new_refusal(draft, combined)
-        clear_direct_identity_for_refusal(draft, actor or db.session.get(VaUsers, draft.user_id), hold_others=new)
-        scrub_refused_draft(draft)
-        sections = {name: consent_service.refusal_answers(answers) if isinstance(answers, dict) else answers
-                    for name, answers in sections.items()}
-    # Validate metadata before writing answers so an invalid pin, locale, or
-    # timeline cannot leave the answers saved while its metadata is refused.
-    locale_meta = _clean_locale_meta(meta) if meta else {}
-    if meta:
-        check_definition_identity(meta)
-    timeline_meta = merge_incoming_timeline_meta(draft, meta)
-    existing = {row.section_name: row for row in draft.sections}
-    # docs/policy/web-intake.md "Locked prefill": a tampered or dropped locked
-    # answer is put back, not refused (see submit_draft).
-    locked = {} if refused else _draft_locked_answers(draft)
-    written = 0
-    browser_keys: set = set()
-    for name, answers in sections.items():
-        if not isinstance(name, str) or not _SECTION_NAME_RE.match(name):
-            raise WebIntakeError(f"Invalid section name {name!r}.")
-        if not isinstance(answers, dict):
-            raise WebIntakeError(f"Section {name!r} must be an object of answers.")
-        check_device_answers(answers)
-        row = existing.get(name)
-        if name != DEVICE_SECTION:
-            browser_keys.update(answers)
-            # An answer the browser cleared is null or gone from the section it
-            # had saved: it must beat the phone's value for the same question.
-            browser_keys.update((row.data or {}) if row is not None else ())
-        answers = stored_answers(_enforce_locked(answers, locked, row.data if row is not None else None))
-        if row is None:
-            row = VaWebIntakeDraftSection(draft_id=draft.draft_id, section_name=name, data=answers)
-            db.session.add(row)
-            draft.sections.append(row)
-        else:
-            row.data = answers
-            row.saved_at = _utcnow()
-        written += 1
-    device_row = existing.get(DEVICE_SECTION)
-    if browser_keys:
-        # A browser save over a phone-won draft is no longer the phone's
-        # content, and its answers beat the phone's for the same questions
-        # (no section merge: web-intake.md "Parallel interviews").
-        draft.answers_sha256 = None
-        if device_row is not None and browser_keys & set(device_row.data or {}):
-            device_row.data = {k: v for k, v in device_row.data.items() if k not in browser_keys}
-    if meta:
-        keep = {k: meta[k] for k in _ENVELOPE_META_KEYS if k in meta}
-        keep.update(locale_meta)
-        keep.update(timeline_meta)
-        draft.meta = {**(draft.meta or {}), **keep}
-    if current_section is not None:
-        if not _SECTION_NAME_RE.match(str(current_section)):
-            raise WebIntakeError("Invalid current section.")
-        draft.current_section = str(current_section)
-    if written:
-        # Only an answer write dates the draft: a locale or position save from
-        # merely opening the form must not outrank a newer phone save.
-        draft.updated_at = _utcnow()
-        _note_last_change(draft, user_id=actor.user_id if actor else draft.user_id, channel=channel, refusal=refused)
-    if written and draft.death_id:
-        death = db.session.get(VaDeathRegister, draft.death_id)
-        # Identity follows the form only for a direct start, which only its
-        # starter sees; on a shared case it updates at the winning submit.
-        if death.status == "draft_identity" and not refused:
-            merged: dict = {}
-            for row in draft.sections:
-                merged.update(row.data or {})
-            _sync_case_identity(death, merged, actor or db.session.get(VaUsers, draft.user_id))
-        if death.status not in _SUPERSEDED_CASE_STATES:
-            death.updated_at = draft.updated_at  # the worklist sorts by last activity
-    db.session.flush()
-    return written
-
-
-def discard_draft(draft: VaWebIntakeDraft, actor: VaUsers | None = None) -> None:
-    """Discard a draft. Its case waits for a new interview (``registered``)
-    unless another interviewer still holds an open draft on it; a direct start
-    discarded before it had an identity is cancelled."""
-    draft.status = "discarded"
-    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-    if death is not None:
-        # Under the case lock, so two concurrent discards (or a discard racing
-        # a teammate's start) see each other's drafts.
-        death = cases.lock_case(death)
-    actor = actor or db.session.get(VaUsers, draft.user_id)
-    if death is not None and death.status == "in_progress":
-        others_open = db.session.scalar(
-            sa.select(
-                sa.exists().where(
-                    VaWebIntakeDraft.death_id == death.death_id,
-                    VaWebIntakeDraft.status == "draft",
-                    VaWebIntakeDraft.draft_id != draft.draft_id,
-                )
-            )
-        )
-        if not others_open:
-            cases.transition(death, "registered", actor=actor, action="draft_discarded")
-    elif death is not None and death.status == "draft_identity":
-        cases.transition(death, "cancelled", actor=actor, action="draft_discarded")
-    # The draft's uploaded files go with it (their stored objects too): a
-    # discarded draft is never submitted, so nothing would ever read them.
-    deleted = attachments.delete_draft_uploads(draft)
-    if deleted and death is not None:
-        cases.record_action(death, actor=actor, action="draft_attachments_deleted")
-    if deleted:
-        log.info("draft discarded with %d uploaded file(s) deleted | unique_id=%s | by=%s", deleted, draft.unique_id, actor.user_id)
-    db.session.flush()
-
-
-# ---------------------------------------------------------------------------
-# Submission
-# ---------------------------------------------------------------------------
-
-
-def _is_attachment_reference(value: object) -> bool:
-    if isinstance(value, str):
-        return value.startswith(ATTACHMENT_REFERENCE_PREFIX)
-    if isinstance(value, dict):
-        return str(value.get("id", "")).startswith(ATTACHMENT_REFERENCE_PREFIX) or "id" in value and "mimeType" in value
-    return False
-
-
-def build_web_payload(draft: VaWebIntakeDraft, data: dict, user: VaUsers, *, submitted_at: datetime, intake_source: str = "web", meta: dict | None = None, carry: dict | None = None, attachments_from: VaWebIntakeDraft | None = None) -> tuple[dict, dict]:
-    """Return (payload, attachment_references) shaped like a synced ODK record.
-
-    An attachment answer whose file the server holds (uploaded for
-    *attachments_from*, default *draft*: ``web_intake_attachment_service``)
-    carries that file's filename in the payload, as an ODK answer does, and is
-    linked to the submission by ``attachments.link_to_submission``. An answer
-    whose file has not reached the server is lifted out of the payload and
-    returned in ``attachment_references`` (slot name -> reference): empty means
-    every attachment is held. ``AttachmentsExpected`` counts both kinds.
-
-    ``meta`` replaces ``draft.meta`` when given (a revision builds the next
-    version before it changes the draft).
-
-    ``carry`` is the payload a revision replaces. Every value that is not an
-    answer or an interview time is taken from it instead of today's world
-    (the submitter's name, the organization-unit codes and names, the death
-    register's ABHA), so renaming the interviewer or a unit after the submit
-    does not turn a resend of the same answers into a change. So are the
-    identifiers ``sid``, ``KEY`` and ``instanceID``: the submission keeps its
-    id when another interviewer's draft supplies the answers (a supervisor's
-    choice, ``choose_interview``), where they would otherwise name *draft*.
-
-    ``data`` is expected to already have had ``strip_irrelevant_answers``
-    applied (see ``submit_draft``): an attachment reference for a question
-    that became irrelevant (e.g. an ``md_im*`` slot after ``md_available``
-    flips to "no") must never reach here, or it is counted in
-    ``AttachmentsExpected``. A file uploaded for such a slot stays in
-    ``va_web_intake_attachments``, unlinked.
-    """
-    # Server authoritative whatever the client sent (PII slice 1a); the
-    # payload version service reduces again before storing.
-    data = redact_payload_national_ids(data or {})[0]
-    payload: dict = {}
-    references: dict = {}
-    wanted = {key: attachments.reference_id(value) for key, value in (data or {}).items() if _is_attachment_reference(value)}
-    held = attachments.pending_filenames((attachments_from or draft).draft_id, {i for i in wanted.values() if i})
-    for key, value in (data or {}).items():
-        if key not in wanted:
-            payload[key] = value
-        elif wanted[key] in held:
-            payload[key] = held[wanted[key]]
-        else:
-            references[key] = value
-            payload[key] = None
-
-    form = db.session.get(VaForms, draft.form_id)
-    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-    if carry is None:
-        unit_context = _unit_context(draft.org_unit_id)
-    else:
-        unit_context = {k: v for k, v in carry.items() if k.startswith("org_")}
-    submitted_iso = submitted_at.isoformat()
-    if meta is None:
-        meta = draft.meta or {}
-
-    payload.update(unit_context)
-    payload.setdefault("Site", draft.site_id)
-    payload["unique_id"] = draft.unique_id
-    payload["site_individual_id"] = draft.unique_id
-    payload.setdefault("survey_state", unit_context.get("org_state_name", ""))
-    payload.setdefault("survey_district", unit_context.get("org_district_name", ""))
-    payload["narr_language"] = payload.get("narr_language") or "english"
-    payload["language"] = payload.get("language") or payload["narr_language"]
-    if death is not None:
-        if death.source == "register":
-            if carry is not None:
-                abha = {k: carry[k] for k in ("abha_number", "abha_address") if k in carry}
-            else:
-                abha = register_pii_accessor.current_values(death, ("abha_number", "abha_address"))
-            for key, value in abha.items():
-                payload.setdefault(key, value)
-        payload["death_register_id"] = str(death.death_id)
-
-    # ODK-shaped metadata so the shared projection and payload-version code
-    # see a complete record (see va_odk_06_fetchsubmissions._normalize_odata_record).
-    own_ids = {"KEY": f"web:{draft.draft_id}", "instanceID": f"web:{draft.draft_id}",
-               "sid": f"web-{draft.draft_id}-{form.form_id.lower()}"}
-    payload.update({k: (carry or {}).get(k) or v for k, v in own_ids.items()})
-    payload["SubmissionDate"] = submitted_iso
-    payload["updatedAt"] = submitted_iso
-    payload["SubmitterName"] = carry["SubmitterName"] if carry and "SubmitterName" in carry else user.name
-    payload["SubmitterID"] = str(user.user_id)
-    payload["DeviceID"] = f"digitva-{intake_source}"
-    payload["FormVersion"] = str(meta.get("instrumentVersion") or meta.get("formVersion") or "2022")
-    # QA flag, never a refusal: filled on a served form version older than the
-    # one this server serves now.
-    payload["form_version_outdated"] = _is_outdated_form_version(payload["FormVersion"])
-    payload["ReviewState"] = None
-    payload["instanceName"] = f"{draft.unique_id}_WHOVA2022"
-    payload["form_def"] = form.form_id
-    # Device-recorded times when the interview carried them, else the draft's
-    # open time and the server submit time (docs/policy/field-data-collection.md
-    # "Interview times"). ``today`` is the completion date the server's
-    # re-check used; nothing else reads it.
-    started_at, completed_at = _device_time(meta.get("startedAt")), _device_time(meta.get("completedAt"))
-    payload["start"] = meta["startedAt"] if started_at else meta.get("createdAt") or submitted_iso
-    payload["end"] = meta["completedAt"] if completed_at else submitted_iso
-    payload["today"] = (completed_at or submitted_at).date().isoformat()
-    # Phone-clock audit for coders and supervisors (phone minus server, seconds).
-    if "clockOffsetSeconds" in meta:
-        payload["device_clock_offset_seconds"] = meta["clockOffsetSeconds"]
-    if meta.get("clockSuspect"):
-        payload["device_clock_suspect"] = True
-    payload["AttachmentsExpected"] = len(wanted)
-    payload["AttachmentsPresent"] = len(wanted) - len(references)
-    payload["intake_source"] = intake_source
-    # What the respondent was shown: the working language and the exact
-    # translation version behind it, so the screen is reconstructible.
-    payload["intake_locale"] = meta.get("locale") or DEFAULT_LOCALE
-    payload["intake_translation_version"] = meta.get("translation_version") or 0
-    payload["unique_id2"] = f"{draft.unique_id}_{submitted_at.strftime('%H%M%S')}{int(submitted_at.microsecond / 1000):03}"
-    # The ND01 calculate the WHO workbook lacks; coding cards, exports and the
-    # age band read it. Never replaces one the payload already carries.
-    if payload.get("finalAgeInYears") in (None, ""):
-        payload["finalAgeInYears"] = derive_final_age_in_years(payload)
-    return payload, references
-
-
-def _require_live_org_unit(draft: VaWebIntakeDraft) -> None:
-    """Refuse a submission whose organization unit is inactive or unplaced.
-
-    A unit can be deactivated, or turn out to be unplaced (imported, parent
-    not yet mapped — see ``unplaced_unit_codes``), between starting a draft
-    and submitting it. Routing only attributes a submission to a live, placed
-    unit, so the case would fall back to the mapping's unit or stay unrouted —
-    and since coding eligibility is decided by the routed unit, an unrouted
-    case in a project with an organization tree is visible to no coder at
-    all. Failing here tells the interviewer while the draft is still safe,
-    instead of filing a death nobody can see.
-    """
-    if not draft.org_unit_id:
-        return
-    unit = db.session.get(MasOrgUnit, uuid.UUID(str(draft.org_unit_id)))
-    if unit is None:
-        raise WebIntakeError(
-            "The organization unit for this case no longer exists. Ask an "
-            "administrator to restore it or move the case before submitting.",
-            409,
-        )
-    if not unit.is_active:
-        raise WebIntakeError(
-            f"The organization unit for this case ({unit.unit_name}) is no "
-            "longer active, so the case could not be attributed to it or "
-            "reach a coder. Ask an administrator to reactivate it or move the "
-            "case before submitting.",
-            409,
-        )
-    unplaced = org.unplaced_unit_codes(unit.project_id)  # same predicate as the intake unit picker
-    if str(unit.path).split(".")[0] in unplaced:
-        raise WebIntakeError(
-            f"The organization unit for this case ({unit.unit_name}) is not yet placed in the "
-            "organization tree, so the case could not be attributed to it or reach a coder. Ask an "
-            "administrator to map its parent (Organization → Units → Map parents) before submitting.",
-            409,
-        )
-
-
-#: ``interview_outcome`` -> the case state its submission leaves the case in
-#: (decision 8 of .tasks/2026-09-28-interviewer-worklist.md). Only
-#: ``completed`` enters coding; the rest keep the case open for a later
-#: complete submission.
-OUTCOME_CASE_STATES = {
-    "completed": "submitted",
-    "refused": "refused",
-    "partially_completed": "paused",
-    "respondent_unavailable": "not_reachable",
-}
-_INCOMPLETE_OUTCOMES = frozenset({"partially_completed", "respondent_unavailable"})
-
-
-def _interview_outcome(data: dict, completion: dict) -> str:
-    """The ``interview_outcome`` a submission is stored with, decided here.
-
-    The form cannot compute it (docs/policy/web-intake.md, "The
-    ``interview_outcome`` question"): ``refused`` when consent (Id10013) is
-    no; ``completed`` when the form reports every required question answered;
-    otherwise the interviewer's own pick, which must be ``partially_completed`` or
-    ``respondent_unavailable``. Raises 422 for an invalid form with no such
-    pick, or a valid one without consent. Also 422 (``outcome_conflicts_consent``)
-    when the pick is ``refused`` while consent is yes, valid form or not.
-    """
-    consent = normalize_consent(data.get("Id10013"))
-    if consent.lower() == "no":
-        return "refused"
-    if consent.lower() == "yes" and data.get("interview_outcome") == "refused":
-        raise WebIntakeError(
-            "Consent is recorded as yes, but the interview outcome says refused. Change one of them.",
-            422,
-            "outcome_conflicts_consent",
-            ["Id10013", "interview_outcome"],
-        )
-    if completion.get("valid") is True:
-        if not consent:
-            raise WebIntakeError("The consent question (Id10013) must be answered.", 422)
-        return "completed"
-    picked = data.get("interview_outcome")
-    if picked in _INCOMPLETE_OUTCOMES:
-        return picked
-    raise WebIntakeError(
-        "The questionnaire is not valid yet; complete the sections flagged by the form, "
-        "or record the interview outcome as partially completed or respondent unavailable.",
-        422,
-    )
-
-
-def _visit_note(data: dict) -> dict:
-    """The visit note an identity-less refusal carries: address and date of
-    the visit required (422), remarks optional. Keyed by the form's answer
-    names so it is stored in the payload exactly as the form collects it."""
-    try:
-        address = _clean(data.get("visit_address"), what="Visit address", required=True, max_len=500)
-        visited = _clean_date(data.get("visit_date"), what="Visit date", required=True)
-        remarks = _clean(data.get("visit_remarks"), what="Visit remarks", max_len=2000)
-    except WebIntakeError as exc:
-        raise WebIntakeError(f"A refusal with no identity needs a visit note: {exc}", 422) from exc
-    # Also kept in the draft's meta: free text, so digit runs are masked here
-    # as in the payload (PII slice 1a).
-    note = {"visit_address": redact_national_id_digits(address)[0], "visit_date": visited.isoformat()}
-    if remarks:
-        note["visit_remarks"] = redact_national_id_digits(remarks)[0]
-    return note
-
-
-#: Case states a submit is kept for as a superseded copy instead of
-#: submitted: a teammate's complete submission won, or a supervisor closed
-#: the case. Never refused, so nothing is left stuck on the phone or page.
-_SUPERSEDED_CASE_STATES = frozenset({"submitted", "duplicate", "cancelled"})
-#: Section holding a browser draft's final answers when it is superseded.
-FINAL_SECTION = "final"
-
-
-def _set_final_section(draft: VaWebIntakeDraft, data: dict) -> None:
-    """Store *data* as the draft's ``final`` section: the exact final raw
-    answers, locked answers included, before irrelevant ones are stripped. A
-    browser section saved under that name is overwritten, not duplicated."""
-    data = stored_answers(data)
-    for row in draft.sections:
-        if row.section_name == FINAL_SECTION:
-            row.data = data
-            return
-    draft.sections.append(VaWebIntakeDraftSection(section_name=FINAL_SECTION, data=data))
-
-
-def _supersede_draft(draft: VaWebIntakeDraft, data: dict, completion: dict) -> None:
-    """Keep a draft whose case was closed meanwhile (a teammate's complete
-    submission won): final answers stored, no submission, no routing, the case
-    left exactly as it is. The browser's saved sections may lack the last
-    edits, which only the submit carries, so they are kept as one more section."""
-    _set_final_section(draft, data)
-    draft.status = "superseded"
-    # ``submit_draft`` has set ``interview_outcome`` in *data*. Read by the
-    # candidate rule (``_candidate_condition``): a complete copy can be chosen
-    # by a supervisor, an incomplete one never.
-    draft.meta = {**(draft.meta or {}), "interviewOutcome": data.get("interview_outcome")}
-    draft.submitted_at = _utcnow()
-    draft.client_valid = completion.get("valid") is True
-    draft.client_issue_count = len(completion.get("issues") or [])
-    db.session.flush()
-    log.info("draft kept as superseded copy | unique_id=%s | by=%s", draft.unique_id, draft.user_id)
-
-
-_COMPOSED_VERSION_RE = re.compile(r"^\d+-[0-9a-f]{10}$")
-
-
-def _is_outdated_form_version(version: str) -> bool:
-    """A served (composed) form version other than the current one. The
-    browser's bundled version and unknown strings are not composed versions."""
-    if not _COMPOSED_VERSION_RE.match(version):
-        return False
-    try:
-        return version != served_form_service.composed_version()
-    except served_form_service.ServedFormUnavailable:
-        return False
-
-
-def build_final_payload(draft: VaWebIntakeDraft, user: VaUsers, data: dict, *, submitted_at: datetime, expression_now: datetime, visit_note: dict, intake_source: str, meta: dict | None = None, carry: dict | None = None, attachments_from: VaWebIntakeDraft | None = None) -> tuple[dict, dict, list]:
-    """The coding payload for the final raw answers *data*, with its
-    attachment references and the server's own validation diagnostic:
-    ``(payload, references, validation_err)``. Shared by a first submit and an
-    interviewer's revision (which passes the payload it replaces as *carry*, see
-    ``build_web_payload``), so both strip and build identically."""
-    # Re-derive relevance and constraint over the client's raw answers before
-    # anything is stripped: this is the diagnostic the client's own
-    # "valid: true" is checked against (beads digitva-cal.2). It does not
-    # block the submission -- see derive_validation_errors' docstring.
-    # Against the form version the interview was filled on, when the server
-    # served that version (field-data-collection.md "Form version"); any other
-    # (the browser's bundled form, an unknown version) uses the current rules.
-    version = form_version_of(meta if meta is not None else draft.meta)
-    validation_err = derive_validation_errors(data, now=expression_now, version=version)
-    # Final submit only (never a draft save): remove answers to questions
-    # that are not relevant, resolved to a fixed point (beads digitva-aiy.1).
-    stripped_data, _removed_answers = strip_irrelevant_answers(data, now=expression_now, version=version)
-    # Added after stripping: the form shows the note only while no given name
-    # is recorded, so a partial identity would otherwise lose it as irrelevant.
-    stripped_data = {**stripped_data, **visit_note}
-    payload, references = build_web_payload(
-        draft, stripped_data, user, submitted_at=submitted_at, intake_source=intake_source, meta=meta, carry=carry,
-        attachments_from=attachments_from,
-    )
-    return payload, references, validation_err
-
-
-def submit_draft(draft: VaWebIntakeDraft, user: VaUsers, *, completion: dict, intake_source: str = "web", completed_at: datetime | None = None, locked_death: VaDeathRegister | None = None, refusal_override: bool | None = None, new_refusal: bool | None = None) -> VaSubmissions | None:
-    """Turn a draft into a submission; its ``interview_outcome`` decides where it goes.
-
-    Every outcome is stored as a submission. Only ``completed`` enters coding
-    and moves the case to ``submitted`` (first complete submission wins);
-    ``refused`` and the incomplete outcomes are routed to ``consent_refused``
-    (no SmartVA, no allocation) and leave the case waiting
-    (``OUTCOME_CASE_STATES``). A draft whose case is already closed
-    (``_SUPERSEDED_CASE_STATES``) becomes a ``superseded`` copy and the result
-    is None; the browser route first tries ``fold_into_own_submission``, which
-    takes a draft on a case the caller's own interview won.
-
-    The submitted draft's ``meta["effectiveSavedAt"]`` is its completion time
-    (*completed_at*, a device's skew-corrected ``completedAt``; the submit
-    time when None), the clock a later version of the same interview is
-    compared against (``revise_submission`` with ``resubmit``).
-
-    *locked_death*: the draft's case when the caller already holds its row
-    lock in this transaction (``submit_device_interview``); not locked again.
-    *new_refusal* as ``save_draft_sections``.
-    """
-    if draft.status != "draft":
-        raise WebIntakeError("This draft has already been submitted.", 409)
-    if not isinstance(completion, dict) or not isinstance(completion.get("data"), dict):
-        raise WebIntakeError("completion.data is required.")
-    check_device_answers(completion["data"])
-    # Web and device submits both pass here (public-demo.md section 8).
-    public_demo_service.check_new_submission(user, draft.project_id)
-    from app.services import consent_service
-    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-    if death is not None and (locked_death is None or locked_death.death_id != death.death_id):
-        death = cases.lock_case(death)
-    refused = refusal_override if refusal_override is not None else consent_service.interview_refused(
-        death=death, client_draft_id=draft.client_draft_id, answers=completion["data"],
-    )
-    outcome = "refused" if refused else _interview_outcome(completion["data"], completion)
-    # Locked answers (interviewer identity, area presets, ABHA, registered age) are
-    # overwritten with the draft's server-computed prefill, added when the
-    # client left them out, before relevance is derived or stripped. Overwrite,
-    # not refuse: a device interview finished offline may hold a stale locked
-    # value (a profile or case edit), and refusing
-    # would strand a completed interview the interviewer cannot correct.
-    data = (consent_service.refusal_answers(completion["data"]) if refused else
-            {**completion["data"], **_draft_locked_answers(draft), "interview_outcome": outcome})
-    consent = normalize_consent(data.get("Id10013"))
-    _require_live_org_unit(draft)
-    visit_note: dict = {}
-    if death is not None:
-        # Under the case lock, so a teammate's concurrent winning submit is
-        # seen here and this one is kept as a superseded copy, and before any
-        # identity sync, so a closed case's identity is never rewritten.
-        # Re-read under the lock: a double or retried submit of this same
-        # draft that won meanwhile must not turn the winner into a copy.
-        if db.session.scalar(sa.select(VaWebIntakeDraft.status).where(VaWebIntakeDraft.draft_id == draft.draft_id)) != "draft":
-            raise WebIntakeError("This draft has already been submitted.", 409)
-        if refused:
-            new = new_refusal if new_refusal is not None else is_new_refusal(draft, completion["data"])
-            clear_direct_identity_for_refusal(draft, user, hold_others=new)
-            scrub_refused_draft(draft)
-        if death.status in _SUPERSEDED_CASE_STATES:
-            _supersede_draft(draft, data, completion)
-            return None
-        # Identity comes from a direct start's own (only) draft or from the
-        # winning complete submit, never from a refused or partial one on a
-        # shared case.
-        if outcome != "refused" and (death.status == "draft_identity" or outcome == "completed"):
-            _sync_case_identity(death, data, user)
-        # A refusal needs no identity: WHO asks it after consent, so a direct
-        # start refused at consent never has one. The submission is stored as
-        # refused and the nameless case closes as cancelled, the only closed
-        # state the identity constraint allows without one (digitva-vzk.12).
-        identity_pending = death.status == "draft_identity"
-        if identity_pending and outcome != "refused":
-            raise _missing_identity_error(
-                data, name=bool(death.has_deceased_name or death.deceased_name),
-                sex=bool(death.deceased_sex), date_of_death=bool(death.date_of_death),
-            )
-        _begin_interview(death, user)
-        if not (identity_pending or death.status in ("in_progress", "paused")):
-            raise WebIntakeError("This case is closed.", 409)
-        # A case restarted from such a refusal still has no identity.
-        if outcome != "refused" and not cases.identity_complete(death):
-            raise _missing_identity_error(
-                data, name=bool(death.has_deceased_name or death.deceased_name),
-                sex=bool(death.deceased_sex), date_of_death=bool(death.date_of_death),
-            )
-
-    elif refused:
-        scrub_refused_draft(draft)
-
-    submitted_at = _utcnow()
-    try:
-        submitted_timeline = merge_timeline(
-            (draft.meta or {}).get(_TIMELINE_META_KEY),
-            [server_event("submitted", at=submitted_at)],
-            INTERVIEW_TIMELINE_EVENTS,
-        )
-    except WorkflowTimelineError as exc:
-        raise WebIntakeError("Invalid workflow timeline.", 400, "invalid_workflow_timeline") from exc
-    # The device's completion time in its own offset, else the submit time in
-    # the interviewer's timezone (docs/policy/field-data-collection.md).
-    expression_now = _device_time((draft.meta or {}).get("completedAt")) or _expression_now(user, submitted_at)
-    payload, references, validation_err = build_final_payload(
-        draft, user, data, submitted_at=submitted_at, expression_now=expression_now,
-        visit_note=visit_note, intake_source=intake_source,
-    )
-    if refused:
-        # Keep system identifiers needed by the submission pipeline, never register prefill.
-        keep = {"KEY", "instanceID", "sid", "SubmissionDate", "updatedAt", "SubmitterID",
-                "DeviceID", "FormVersion", "ReviewState", "form_def", "intake_source",
-                "death_register_id", "AttachmentsExpected", "AttachmentsPresent"}
-        payload = {k: v for k, v in payload.items() if k in keep or k in consent_service.REFUSAL_ANSWERS}
-        payload.update(consent_service.refusal_answers(data))
-        payload["interview_outcome"] = "refused"
-        references = {}
-        validation_err = []
-    if references:
-        # Every file the answers name must be on the server first (the page
-        # and the phone send them before they submit); a case must not reach
-        # coding with a file missing. The phone, told this, marks its files
-        # unconfirmed and sends them again (phone-attachments.md).
-        raise WebIntakeError(
-            f"{len(references)} attached file(s) have not finished uploading; wait for them to be sent, then submit again.",
-            409, "attachments_pending",
-        )
-    form = db.session.get(VaForms, draft.form_id)
-    fields = build_submission_projection(form, payload)
-    va_sid = fields["va_sid"]
-    if db.session.get(VaSubmissions, va_sid) is not None:
-        raise WebIntakeError("This questionnaire was already submitted.", 409)
-
-    submission = VaSubmissions(
-        va_sid=va_sid,
-        va_form_id=fields["va_form_id"],
-        va_country_iso3=project_country(form.project_id),
-        va_submission_date=fields["va_submission_date"],
-        va_odk_updatedat=fields["va_odk_updatedat"],
-        va_data_collector=fields["va_data_collector"],
-        va_odk_reviewstate=fields["va_odk_reviewstate"],
-        va_odk_reviewcomments=fields["va_odk_reviewcomments"],
-        va_instance_name=fields["va_instance_name"],
-        va_uniqueid_real=fields["va_uniqueid_real"],
-        va_uniqueid_masked=fields["va_uniqueid_masked"],
-        va_consent=fields["va_consent"],
-        va_narration_language=fields["va_narration_language"],
-        va_deceased_age=fields["va_deceased_age"],
-        va_deceased_age_normalized_days=fields["va_deceased_age_normalized_days"],
-        va_deceased_age_normalized_years=fields["va_deceased_age_normalized_years"],
-        va_deceased_age_source=fields["va_deceased_age_source"],
-        va_deceased_gender=fields["va_deceased_gender"],
-        va_summary=fields["va_summary"],
-        va_catcount=fields["va_catcount"],
-        va_category_list=fields["va_category_list"],
-    )
-    db.session.add(submission)
-    db.session.flush()
-    attachments.link_to_submission(va_sid, draft.draft_id, payload)
-    # Attribute the death to an organization unit, exactly as ODK sync does:
-    # the web questionnaire carries the same org_<level_code>_code fields, and
-    # the project-site's ODK mapping supplies the same fallback unit.
-    # No-op for a project without an organization tree.
-    routing_context = org_routing.context_for_form(form)
-    if routing_context.has_tree:
-        org_routing.route_submission(
-            submission, context=routing_context, payload=payload
-        )
-    ensure_active_payload_version(
-        submission,
-        payload_data=payload,
-        source_updated_at=fields["va_odk_updatedat"],
-        created_by_role=PAYLOAD_ROLE,
-        created_by=user.user_id,
-        validation_err=validation_err,
-        answers_sha256=draft.answers_sha256,
-    )
-    # A refused or incomplete interview is kept but never coded. consent_refused
-    # is the only existing state that is outside coding *and* blocked from
-    # SmartVA (SMARTVA_BLOCKED_WORKFLOW_STATES); no new workflow state.
-    enters_coding = outcome == "completed" and consent_is_valid(consent)
-    # Outside the collection period at this first upload: kept, but held out
-    # of coding and reports (collection_hold); SmartVA waits for the release.
-    held = enters_coding and collection_hold.hold_at_upload(user, draft, va_sid, submitted_at)
-    route_synced_submission(
-        va_sid,
-        consent_valid=enters_coding,
-        reason="web_intake_submitted",
-        actor=system_actor(),
-    )
-    if enters_coding and not references:
-        mark_attachment_sync_completed(
-            va_sid, reason="web_intake_no_attachments", actor=system_actor()
-        )
-        if not held:
-            smartva_service.queue_smartva_after_commit(va_sid, "web_intake_submit")
-    db.session.add(
-        VaSubmissionsAuditlog(
-            va_sid=va_sid,
-            va_audit_byrole=AUDIT_ROLE,
-            va_audit_by=user.user_id,
-            va_audit_operation="c",
-            va_audit_action="va_submission_created_from_web_intake",
-            va_audit_entityid=draft.draft_id,
-        )
-    )
-    # The complete raw answers, whatever sections the saves held.
-    _set_final_section(draft, data)
-    draft.status = "submitted"
-    draft.va_sid = va_sid
-    draft.submitted_at = submitted_at
-    draft.client_valid = completion.get("valid") is True
-    draft.client_issue_count = len(completion.get("issues") or [])
-    draft.meta = {
-        **(draft.meta or {}), "attachmentReferences": references, "interviewOutcome": outcome,
-        "effectiveSavedAt": (completed_at or submitted_at).isoformat(),
-        _TIMELINE_META_KEY: submitted_timeline,
-    }
-    if visit_note:
-        draft.meta = {**draft.meta, "visitNote": visit_note}
-    if death is not None:
-        action = "submitted" if outcome == "completed" else f"submitted_{outcome}"
-        to_state = "cancelled" if identity_pending else OUTCOME_CASE_STATES[outcome]
-        cases.transition(death, to_state, actor=user, action=action)
-        if outcome == "completed":
-            # The case's submission is the complete one; an earlier refused or
-            # incomplete one stays linked through its draft only.
-            death.va_sid = va_sid
-            # The case is closed: interviewers still holding an open draft on it.
-            holders = notification_service.open_draft_holders(death.death_id, exclude_user_id=user.user_id)
-            notification_service.notify(
-                holders, notification_service.CASE_SUBMITTED_BY_OTHER, project_id=draft.project_id,
-                death_id=death.death_id, draft_id=holders,
-            )
-    db.session.flush()
-    log.info("web intake submitted | sid=%s | unique_id=%s | by=%s | outcome=%s | attachments=%d", va_sid, draft.unique_id, user.user_id, outcome, len(references))
-    return submission
-
-
-# ---------------------------------------------------------------------------
-# Interviewer revisions (digitva-bhpl part A, docs/policy/interview-revisions.md)
-# ---------------------------------------------------------------------------
-
-#: The fixed reasons for a revision. No free text: a reason carries no
-#: personal data.
-REVISION_REASONS = ("interviewer_correction", "respondent_correction", "more_information", "finish_partial")
-#: The reason of a correction the server itself makes when a later version of
-#: an interviewer's own interview arrives (an upload resent with other answers,
-#: a second upload, a browser submit of an already submitted draft). Internal:
-#: never accepted from a client (``REVISION_REASONS`` is the public list).
-RESUBMITTED_REASON = "resubmitted"
-#: The reason of a supervisor's correction (docs/policy/interview-revisions.md
-#: "Supervisor correction"). Set by the server whenever the caller revises as
-#: a supervisor; never accepted from a client (not in ``REVISION_REASONS``).
-SUPERVISOR_CORRECTION_REASON = "supervisor_correction"
-#: The reason a supervisor's correction rejects a pending upstream version.
-SUPERSEDED_BY_SUPERVISOR_REVISION = "superseded_by_supervisor_revision"
-
-
-def revision_unlocked(submission: VaSubmissions) -> bool:
-    """True while a coder's or reviewer's send-back, or a supervisor's reopen
-    (``interview_send_back_service``), holds *submission* open for its
-    interviewer: it is in ``finalized_upstream_changed`` and the latest
-    workflow event that put it there was one of those two requests. An ODK
-    upstream change leaves it locked: that case is the data manager's to
-    accept or reject. One indexed lookup (``get_open_revision_request``)."""
-    return get_open_revision_request(submission.va_sid) is not None
-
-
-def find_own_submission(user: VaUsers, va_sid: str) -> VaWebIntakeDraft | None:
-    """*user*'s submitted draft that holds submission *va_sid*, or None.
-
-    Unlike an unsent draft (digitva-9xn9.22), a submitted case is revised and
-    read only under a live interviewer grant on its unit, and a training case
-    only in training mode (``?training=1``) under an active session's grant
-    (digitva-l9dp.6); otherwise None."""
-    draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
-        VaWebIntakeDraft.va_sid == va_sid,
-        VaWebIntakeDraft.user_id == user.user_id,
-        VaWebIntakeDraft.status == "submitted",
-    ))
-    if draft is None or not training_scope.keeps_project(draft.project_id):
-        return None
-    try:
-        _require_scope(user, draft.project_id, draft.site_id, draft.org_unit_id)
-    except WebIntakeError as exc:
-        if exc.status_code == 403:  # no live grant; other refusals (e.g. an inactive unit) are not grant loss
-            return None
-    return draft
-
-
-def may_read_submitted_answers(user: VaUsers, va_sid: str) -> bool:
-    """Whether *user* may read submission *va_sid*'s answers through intake:
-    the interviewer whose draft became it (``find_own_submission``) or a
-    supervisor of its case (``is_interview_supervisor_for``). The read-only
-    workspace view's intake gate and the case detail's ``can_view_answers``;
-    coding access (``Action.VIEW``) is decided separately. A consent-withdrawn
-    case is sealed: admin only. At most three indexed reads."""
-    if not user.is_admin() and is_withdrawn(va_sid):
-        return False
-    if find_own_submission(user, va_sid) is not None:
-        return True
-    death = db.session.scalar(sa.select(VaDeathRegister).where(VaDeathRegister.va_sid == va_sid).limit(1))
-    return death is not None and cases.is_interview_supervisor_for(user, death)
-
-
-def _revisable_now(death: VaDeathRegister) -> bool:
-    """Whether ``revise_submission`` would take a revision of *death*'s
-    submission now: the case is not closed or consent-withdrawn, and its
-    workflow is not in a protected state unless sent back or reopened
-    (docs/policy/interview-revisions.md "Where the lock starts")."""
-    if death.status in ("duplicate", "cancelled") or death.consent_withdrawn_at is not None:
-        return False
-    state = get_submission_workflow_state(death.va_sid)
-    if state not in PROTECTED_WORKFLOW_STATES:
-        return True
-    submission = db.session.get(VaSubmissions, death.va_sid)
-    return state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED and submission is not None and revision_unlocked(submission)
-
-
-def case_submission_view(user: VaUsers, death: VaDeathRegister, my_submission: bool) -> dict:
-    """The case detail's submitted interview (docs/policy/interview-revisions.md).
-
-    ``submission`` ``{va_sid, submitted_at, interview_outcome}`` (plus the
-    caller's ``draft_id``, which a revision opens) for the interviewer whose
-    draft became the case's submission (*my_submission*), a supervisor of
-    the case, or a caller with coding access to it (``Action.VIEW``, who
-    already reads it in the workspace); None otherwise or without a submission. ``can_view_answers``
-    follows it. ``can_revise``: only the submitter, while ``revise_submission``
-    would take a revision (case not ``duplicate``/``cancelled``; workflow not
-    in a protected state unless sent back or reopened). Revision stays open
-    during active coding (rule 2). ``revise_reason_required`` is always True:
-    a client revision needs one of ``REVISION_REASONS``.
-    """
-    view = {"submission": None, "can_view_answers": False, "can_revise": False, "revise_reason_required": True}
-    if not death.va_sid:
-        return view
-    draft = find_own_submission(user, death.va_sid) if my_submission else None
-    if draft is None:
-        if not (cases.is_interview_supervisor_for(user, death) or can(user, Action.VIEW, death.va_sid)):
-            return view
-        draft = db.session.scalar(sa.select(VaWebIntakeDraft).where(
-            VaWebIntakeDraft.va_sid == death.va_sid, VaWebIntakeDraft.status == "submitted",
-        ).limit(1))
-        mine = False
-    else:
-        mine = True
-    view["submission"] = {
-        "va_sid": death.va_sid,
-        "submitted_at": draft.submitted_at.isoformat() if draft is not None and draft.submitted_at else None,
-        "interview_outcome": (draft.meta or {}).get("interviewOutcome") if draft is not None else None,
-        **({"draft_id": str(draft.draft_id)} if mine else {}),
-    }
-    view["can_view_answers"] = True
-    # Mirrors revise_submission's lock check.
-    view["can_revise"] = mine and _revisable_now(death)
-    return view
-
-
-def revise_submission(user: VaUsers, va_sid: str, *, reason_code: str, data: dict, answers_sha256: str | None, completion: dict, envelope: dict, resubmit: bool = False, found: tuple | None = None) -> dict:
-    """Revise the submitted interview *va_sid* as its interviewer, or as a
-    supervisor who may correct it; returns the reply ``{changed, va_sid,
-    payload_version_id, answers_sha256, outcome, workflow_state}`` (plus
-    ``kept`` and ``locked`` with *resubmit*).
-
-    Only the user whose draft became the submission (``find_own_submission``)
-    or a supervisor whose cadre may edit interviews and whose reach covers
-    the case (``find_supervised_submission``: the case's completed current
-    submission, in a project where they see personal data) may; *found*:
-    the caller's ``find_revisable_submission`` result, when it already looked; else 404, never revealing it exists. The owner wins when
-    both apply. A supervisor's *reason_code* is ignored: the server records
-    ``SUPERVISOR_CORRECTION_REASON``, audits ``supervisor_revision`` and
-    refuses turning the completed interview incomplete (409
-    ``case_state_conflict``; that move is its interviewer's). The interviewer
-    stays the interview's: the payload is built as the draft owner's
-    (``SubmitterID``, so ``va_data_collector``, and the timezone), and the
-    caller is only the version's ``created_by`` and the audit actor.
-
-    Done under the case lock with a lock on the
-    submission, so a concurrent submit, revision or sync serialises with it.
-    The payload is rebuilt from the new raw answers exactly as ``submit_draft``
-    builds it, on the original submit time, ``intake_source`` and
-    non-answer values (``build_web_payload``'s *carry*), so only a real
-    change in the answers or times changes the fingerprint.
-
-    An equal fingerprint is the ODK no-change rule, which is about coding: no
-    payload version, no release, no SmartVA rerun, no routing, no case move.
-    Raw answers that differ only in answers stripped as irrelevant are still
-    kept (the previous ones as a ``replaced`` draft row, the new ones as the
-    draft's ``final`` section, ``answers_sha256`` set to the sent hash), so
-    nothing typed is lost and the phone's acknowledgement matches; raw answers
-    with the stored hash write nothing. Otherwise the previous raw answers are
-    kept as a ``replaced`` draft row, the draft takes the new ones, a new
-    active payload version records reason and hash, the coding artifacts and
-    allocations are dropped as an ODK edit drops them, and the submission is
-    re-routed. An incomplete outcome revised to ``completed`` also runs
-    ``submit_draft``'s completion branch (case to ``submitted``); one revised
-    to another incomplete outcome moves the case to that outcome's state
-    (``OUTCOME_CASE_STATES``) the way a submit does. A completed interview
-    revised to refused or incomplete is allowed (the latest completed version
-    wins, docs/policy/interview-revisions.md): coding is released first, the
-    submission routes to ``consent_refused``, and the case it won leaves
-    ``submitted`` for that outcome's state and loses its ``va_sid``. A
-    completed-to-completed revision syncs the form's identity answers onto the
-    case again: the winning submission is the one corrected.
-
-    A protected case is locked, except one a coder, reviewer or supervisor
-    sent back or reopened (``revision_unlocked``): its changed revision
-    restarts coding at once (``reopen_coding_after_revision``, the data
-    manager's accept block under a system actor), rejects any lingering
-    pending upstream payload, and keeps the earlier COD as inactive history.
-    An unchanged revision leaves that case sent back.
-
-    The draft's ``meta["effectiveSavedAt"]`` becomes this version's completion
-    time (``_completion_time`` of *envelope*). The interview start
-    (``startedAt``, payload ``start``) is never moved: the stored one stays
-    whatever *envelope* sends, so a revision differing only in its start is
-    no change.
-
-    *resubmit* is the server's own correction of the interviewer's latest
-    version (reason ``RESUBMITTED_REASON``) and never refuses for a reason the
-    caller cannot act on: the version is applied only when it is not older than
-    the stored one (a tie goes to the later received) and the case still takes
-    it. Otherwise (coding finished, case closed or won by a teammate, or an
-    older version) nothing in the case changes and the answers are kept as a
-    ``replaced`` row, once per answers (``kept: "server"``; ``locked: true``
-    when coding or the case no longer takes any version).
-
-    Every other refusal is decided before anything is written, except the
-    workflow race ``revision_locked`` (a coder finalised after the check) and a
-    case transition ``cases.transition`` refuses; those raise after writes, and
-    the route's error handler rolls the whole transaction back. Refusals: 404
-    unknown or not the caller's, 409 ``revision_locked`` (protected workflow
-    state not sent back or reopened), ``case_already_submitted`` (a teammate's
-    complete submission won), ``case_closed`` (duplicate or cancelled),
-    ``case_state_conflict`` (an outcome change a teammate's winning case state
-    does not allow), the live-org-unit refusals when finishing a partial, 422
-    ``invalid_reason``, the missing identity of a finished partial and
-    ``_interview_outcome``'s own.
-    """
-    # *found*: the route's one lookup. A resubmit is always the owner's.
-    if found is None:
-        found = (find_own_submission(user, va_sid), EDITOR_OWNER) if resubmit else find_revisable_submission(user, va_sid)
-    draft, editor = found
-    by_supervisor = editor == EDITOR_SUPERVISOR
-    if by_supervisor:
-        # The interview stays its interviewer's whoever corrects it.
-        interviewer = db.session.get(VaUsers, draft.user_id)
-        reason_code = SUPERVISOR_CORRECTION_REASON
-        audit_role = interview_supervisor_actor(user.user_id).audit_role
-        audit_action = "va_submission_revised_by_supervisor"
-        source = SOURCE_SUPERVISOR_REVISION
-        superseded_reason = SUPERSEDED_BY_SUPERVISOR_REVISION
-        smartva_reason = SOURCE_SUPERVISOR_REVISION
-    else:
-        if not resubmit and reason_code not in REVISION_REASONS:
-            raise WebIntakeError("reason_code must be one of: " + ", ".join(REVISION_REASONS) + ".", 422, "invalid_reason")
-        interviewer = user
-        audit_role = AUDIT_ROLE
-        audit_action = "va_submission_revised_by_interviewer"
-        source = SOURCE_INTERVIEWER_REVISION
-        superseded_reason = "superseded_by_interviewer_revision"
-        smartva_reason = "interview_revision"
-    if draft is None:
-        raise WebIntakeError("Submission not found.", 404)
-    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-    if death is not None:
-        death = cases.lock_case(death)
-    submission = db.session.get(VaSubmissions, va_sid, with_for_update=True)
-    # Re-read under the locks: a revision that won meanwhile is the version
-    # this one compares against.
-    db.session.refresh(draft)
-    if submission is None or draft.status != "submitted":
-        raise WebIntakeError("Submission not found.", 404)
-    # Under the lock: the owner's regression may have taken the case's submission meanwhile.
-    if by_supervisor and (death is None or death.va_sid != va_sid):
-        raise WebIntakeError("Submission not found.", 404)
-    if ((draft.meta or {}).get("interviewOutcome") == "refused" or
-            str(data.get("Id10013") or "").strip().lower() == "no"):
-        raise WebIntakeError("A submitted interview cannot be changed to or from a refusal here.", 422, "consent_refused")
-    state = get_submission_workflow_state(va_sid)
-    # A sent-back or reopened case takes the revision and restarts coding at
-    # once; every other protected state is locked, an ODK upstream change
-    # included (the data manager resolves that one).
-    reopening = state == WORKFLOW_FINALIZED_UPSTREAM_CHANGED and revision_unlocked(submission)
-    locked = state in PROTECTED_WORKFLOW_STATES and not reopening
-    if locked and not resubmit:
-        raise WebIntakeError("Coding has finished on this interview; it can no longer be revised.", 409, "revision_locked")
-
-    active = get_active_payload_version(va_sid)
-    # The opened prior (sealed fields joined back with the payload split on):
-    # it is the revision's carry, so ABHA and the identity answers survive.
-    prior = opened_payload(active)
-    previous = (draft.meta or {}).get("interviewOutcome") or prior.get("interview_outcome")
-    now = _utcnow()
-    completed_at = _completion_time(envelope, now)
-
-    def kept_apart(*, closed: bool) -> dict:
-        """The resubmitted answers stay history; the coder's version stands."""
-        _keep_losing_version(draft, data, answers_sha256, meta={
-            "source": "resubmission", "effectiveSavedAt": completed_at.isoformat(), "receivedAt": now.isoformat(),
-        })
-        return {**_revision_reply(draft, active, False, previous), "kept": "server", "locked": closed}
-
-    if resubmit:
-        # Every submit and correction records it (no pre-release rows exist).
-        stored_at = datetime.fromisoformat(draft.meta["effectiveSavedAt"])
-        if locked:
-            return kept_apart(closed=True)
-        if completed_at < stored_at:
-            return kept_apart(closed=False)
-    # Only consent = no stores ``refused``, and the server writes it, so a
-    # revision that corrects consent to yes may send it back unchanged. It
-    # was never the interviewer's pick: not a conflict with consent.
-    picked = data
-    if previous == "refused" and data.get("interview_outcome") == "refused":
-        picked = {name: value for name, value in data.items() if name != "interview_outcome"}
-    outcome = _interview_outcome(picked, completion)
-    regressing = previous == "completed" and outcome != "completed"
-    completing = outcome == "completed" and previous != "completed"
-    if by_supervisor and outcome != previous:
-        raise WebIntakeError(
-            "A supervisor correction keeps the interview's outcome; its interviewer changes that.",
-            409, "case_state_conflict",
-        )
-    # Locked answers keep the value the interview was submitted with; one the
-    # submit never held is filled from the case and the interviewer, as on a
-    # submit. Recomputing them all would turn a renamed interviewer or a
-    # corrected registration into a change to answers nobody edited.
-    stored = _answers_of(draft)
-    locked_answers = {name: stored.get(name, value) for name, value in _draft_locked_answers(draft).items()}
-    raw = {**data, **locked_answers, "interview_outcome": outcome}
-    if death is not None:
-        refusal = None
-        # A consent-withdrawn case is closed to every interview change too.
-        if death.status in ("duplicate", "cancelled") or death.consent_withdrawn_at is not None:
-            refusal = WebIntakeError("This case is closed.", 409, "case_closed")
-        elif completing:
-            if death.status == "submitted" and death.va_sid != va_sid:
-                refusal = WebIntakeError("A complete interview of this case was already submitted.", 409, "case_already_submitted")
-            else:
-                _require_live_org_unit(draft)
-                # What the identity sync below will leave on the case.
-                identity = {
-                    "deceased_name": register_pii_accessor.current_values(death, ("deceased_name",))["deceased_name"],
-                    "date_of_death": death.date_of_death,
-                    "deceased_sex": death.deceased_sex, **_identity_from_answers(raw),
-                }
-                if not identity["date_of_death"]:
-                    identity["date_of_death"] = _approximate_date_of_death(raw)
-                if not all(identity.values()):
-                    raise _missing_identity_error(
-                        raw, name=bool(identity["deceased_name"]), sex=bool(identity["deceased_sex"]),
-                        date_of_death=bool(identity["date_of_death"]),
-                    )
-        elif outcome != previous and death.status != OUTCOME_CASE_STATES[outcome] and death.va_sid != va_sid:
-            # Incomplete to another incomplete outcome: the case follows it as
-            # on a submit (via in_progress), or the revision is refused rather
-            # than leave the case and the submission disagreeing. The case's
-            # own winning submission always moves it (a regression included).
-            if death.status not in _STARTABLE_STATES and death.status != "in_progress":
-                refusal = WebIntakeError(
-                    f"The case is {death.status}, so this interview's outcome can no longer be changed.",
-                    409, "case_state_conflict",
-                )
-        if refusal is not None:
-            if not resubmit:
-                raise refusal
-            return kept_apart(closed=True)
-
-    # The interview start is when the family was interviewed: a revision never
-    # moves it (docs/policy/interview-revisions.md, digitva-7amd.4), so the
-    # stored start wins whatever the client sends, and a draft that has none
-    # stays without one (the payload then falls back to the open time).
-    meta = {
-        **(draft.meta or {}),
-        **{k: envelope[k] for k in (*_DEVICE_TIME_KEYS, *_DEFINITION_IDENTITY_KEYS) if k in envelope},
-        **_clock_meta({k: v for k, v in envelope.items() if k != "startedAt"}, _utcnow()),
-    }
-    if "startedAt" in (draft.meta or {}):
-        meta["startedAt"] = draft.meta["startedAt"]
-    else:
-        meta.pop("startedAt", None)
-    # Revisions and idempotent device resends rebuild the envelope from the
-    # stored draft.  Merge the small client timeline streams before that
-    # rebuild, retaining server-owned submitted/final_saved receipts.
-    meta.update(merge_incoming_timeline_meta(draft, envelope, allow_server_receipts=True))
-    # The original submit time and source: SubmissionDate, the masked id and
-    # the default end time stay as they were, so they never read as a change.
-    submitted_at = datetime.fromisoformat(prior["SubmissionDate"]) if prior.get("SubmissionDate") else draft.submitted_at
-    expression_now = _device_time(meta.get("completedAt")) or _expression_now(interviewer, submitted_at)
-    payload, references, validation_err = build_final_payload(
-        draft, interviewer, raw, submitted_at=submitted_at, expression_now=expression_now, visit_note={},
-        intake_source=prior.get("intake_source") or "web", meta=meta, carry=prior if active is not None else None,
-    )
-    # The form's own start answer (Id10011) is pinned the same way. A revision
-    # session can stamp a new one, so the coded payload keeps the stored value;
-    # the raw answers keep what was sent, so the acknowledged hash still holds.
-    if prior.get("Id10011") is not None:
-        payload["Id10011"] = prior["Id10011"]
-    # Recomputed from the stored payload, as ensure_active_payload_version and
-    # ODK sync decide "same payload" (payload_matches, both sides one rule):
-    # a stored column from an older normalisation must not turn a no-op into
-    # a release.
-    if active is not None and payload_matches(active, payload):
-        if answers_sha256 != draft.answers_sha256:
-            _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=active.payload_version_id)
-        reply = _revision_reply(draft, active, False, outcome)
-        draft.meta = {
-            **meta,
-            **({"effectiveSavedAt": completed_at.isoformat()} if resubmit else {}),
-        }
-        if resubmit:
-            reply.update(kept="incoming", locked=False)
-        return reply
-
-    payload["updatedAt"] = now.isoformat()
-    form = db.session.get(VaForms, draft.form_id)
-    fields = build_submission_projection(form, payload)
-    if fields["va_sid"] != va_sid:
-        if resubmit:
-            return kept_apart(closed=True)
-        raise WebIntakeError("This interview's form changed; it cannot be revised.", 409)
-    # All refusals above are decided; writes start here.
-    if death is not None and outcome == "completed":
-        _sync_case_identity(death, raw, user)
-    apply_submission_projection(submission, fields, payload)
-    version = ensure_active_payload_version(
-        submission,
-        payload_data=payload,
-        source_updated_at=fields["va_odk_updatedat"],
-        created_by_role=PAYLOAD_ROLE,
-        created_by=user.user_id,
-        validation_err=validation_err,
-        revision_reason_code=reason_code,
-        answers_sha256=answers_sha256,
-    )
-    attachments.link_to_submission(va_sid, draft.draft_id, payload)
-    _replace_raw_answers(draft, raw, answers_sha256, completion, at=now, version_id=version.payload_version_id)
-    draft.meta = {**meta, "attachmentReferences": references, "interviewOutcome": outcome, "effectiveSavedAt": completed_at.isoformat()}
-
-    enters_coding = outcome == "completed" and consent_is_valid(normalize_consent(raw.get("Id10013")))
-    # *source* is also the workflow reason ("interviewer_revision" / "supervisor_revision").
-    try:
-        if reopening:
-            # The revision is the new payload: no pending upstream version may
-            # linger beside it. Coding restarts at smartva_pending, then the
-            # routing below puts the case where any revision would be.
-            pending = get_latest_pending_upstream_payload_version(va_sid)
-            if pending is not None:
-                reject_pending_upstream_payload_version(pending, reason=superseded_reason)
-            resolve_pending_upstream_change(
-                va_sid, resolution_status=UPSTREAM_CHANGE_STATUS_REJECTED, resolved_by=user.user_id, resolved_by_role=audit_role,
-            )
-            reopen_coding_after_revision(va_sid, audit_by=user.user_id, source=source)
-        else:
-            release_coding_for_changed_payload(va_sid, source=source, audit_by=user.user_id)
-        route_synced_submission(va_sid, consent_valid=enters_coding, reason=source, actor=system_actor())
-    except WorkflowTransitionError as exc:
-        # A coder finalised between the check above and here; the route rolls back.
-        raise WebIntakeError("Coding has finished on this interview; it can no longer be revised.", 409, "revision_locked") from exc
-    if enters_coding and not references:
-        mark_attachment_sync_completed(va_sid, reason="web_intake_no_attachments", actor=system_actor())
-        smartva_service.queue_smartva_after_commit(va_sid, smartva_reason)
-    if death is not None and outcome != previous:
-        target = OUTCOME_CASE_STATES[outcome]
-        if completing or death.status != target:
-            _begin_interview(death, user)
-            cases.transition(
-                death, target, actor=user, action="submitted" if completing else f"submitted_{outcome}", reason=reason_code,
-            )
-        if completing:
-            death.va_sid = va_sid
-        elif regressing and death.va_sid == va_sid:
-            # The case waits for a new complete interview; the regressed
-            # submission stays linked through its draft only.
-            death.va_sid = None
-    db.session.add(VaSubmissionsAuditlog(
-        va_sid=va_sid,
-        va_audit_byrole=audit_role,
-        va_audit_by=user.user_id,
-        va_audit_operation="u",
-        va_audit_action=audit_action,
-        va_audit_entityid=version.payload_version_id,
-    ))
-    db.session.flush()
-    log.info("interview revised | sid=%s | by=%s | reason=%s | outcome=%s", va_sid, user.user_id, reason_code, outcome)
-    reply = _revision_reply(draft, version, True, outcome)
-    if resubmit:
-        reply.update(kept="incoming", locked=False)
-    return reply
-
-
-def _replace_raw_answers(draft: VaWebIntakeDraft, raw: dict, answers_sha256: str, completion: dict, *, at: datetime, version_id: uuid.UUID) -> None:
-    """Keep the draft's current raw answers as a ``replaced`` history row and
-    make *raw* its only (``final``) section, with the sent hash and the
-    completion that came with it. *version_id* is the payload version that was
-    current when the answers were replaced."""
-    _keep_history(draft, _answers_of(draft), sha256=draft.answers_sha256, meta={
-        "source": "revision", "revisedAt": at.isoformat(), "payloadVersionId": str(version_id),
-    })
-    _set_final_section(draft, raw)
-    for row in [r for r in draft.sections if r.section_name != FINAL_SECTION]:
-        draft.sections.remove(row)
-    draft.answers_sha256 = answers_sha256
-    draft.client_valid = completion.get("valid") is True
-    draft.client_issue_count = len(completion.get("issues") or [])
-
-
-def _revision_reply(draft: VaWebIntakeDraft, version, changed: bool, outcome: str) -> dict:
-    return {
-        "changed": changed,
-        "va_sid": draft.va_sid,
-        "payload_version_id": str(version.payload_version_id),
-        "answers_sha256": draft.answers_sha256,
-        "outcome": outcome,
-        "workflow_state": get_submission_workflow_state(draft.va_sid),
-    }
-
-
-# ---------------------------------------------------------------------------
-# A supervisor chooses between two complete interviews (digitva-bqzm,
-# docs/policy/web-intake.md "Parallel interviews")
-# ---------------------------------------------------------------------------
-
-#: Fixed reasons for a choice; no free text, so a reason carries no personal data.
-CHOICE_REASONS = ("better_quality", "more_complete", "original_incorrect", "switch_back")
-#: Most candidates one case detail lists (a case rarely has more than one).
-CANDIDATES_MAX = 20
-
-
-def _candidate_condition():
-    """SQL condition on ``VaWebIntakeDraft``: a candidate for the case's
-    interview, a ``superseded`` copy whose interview was complete. A ``replaced``
-    row (history of a resend) and an incomplete copy never qualify."""
-    return sa.and_(
-        VaWebIntakeDraft.status == "superseded",
-        VaWebIntakeDraft.meta["interviewOutcome"].astext == "completed",
-    )
-
-
-def _has_candidate():
-    """Correlated EXISTS on ``VaDeathRegister``: the submitted case has a
-    candidate, i.e. a second complete interview exists. One probe on
-    ``ix_va_web_intake_drafts_death`` per case row."""
-    return sa.exists().where(
-        VaWebIntakeDraft.death_id == VaDeathRegister.death_id,
-        _candidate_condition(),
-        VaDeathRegister.status == "submitted",
-        VaDeathRegister.va_sid.is_not(None),
-    )
-
-
-def list_candidates(death: VaDeathRegister, *, redact_names: bool = False) -> list[dict]:
-    """The other complete interviews of a submitted case a supervisor may
-    choose, newest first: ``{draft_id, interviewer_name, completed_at,
-    outcome}``. Names are for supervisors only (staff identity, as the
-    supervision list shows who registered a case); never serve this to an
-    interviewer. *redact_names*: the viewer has no personal-data access in
-    the case's project, so ``interviewer_name`` is null. One query, joined to
-    the interviewer."""
-    if death.status != "submitted" or not death.va_sid:
-        return []
-    rows = db.session.execute(
-        sa.select(
-            VaWebIntakeDraft.draft_id, VaUsers.name, VaWebIntakeDraft.submitted_at,
-            VaWebIntakeDraft.meta["completedAt"].astext,
-        )
-        .join(VaUsers, VaUsers.user_id == VaWebIntakeDraft.user_id)
-        .where(VaWebIntakeDraft.death_id == death.death_id, _candidate_condition())
-        .order_by(VaWebIntakeDraft.submitted_at.desc())
-        .limit(CANDIDATES_MAX)
-    ).all()
-    return [
-        {
-            "draft_id": str(draft_id), "interviewer_name": None if redact_names else name,
-            "completed_at": completed or (submitted_at.isoformat() if submitted_at else None),
-            "outcome": "completed",
-        }
-        for draft_id, name, submitted_at, completed in rows
-    ]
-
-
-def _candidate_completed_at(draft: VaWebIntakeDraft) -> datetime:
-    """When *draft*'s interview was completed, in server time: the device's
-    ``completedAt`` corrected by the clock skew recorded at upload and never
-    later than the upload (``_completion_time``'s rule), else the upload."""
-    meta = draft.meta or {}
-    done = _device_time(meta.get("completedAt"))
-    if done is None:
-        return draft.submitted_at
-    skew = meta.get("clockSkewSeconds")
-    if isinstance(skew, (int, float)) and not isinstance(skew, bool):
-        done += timedelta(seconds=skew)
-    return min(done, draft.submitted_at)
-
-
-def _supervising_actor(user: VaUsers, death: VaDeathRegister):
-    """The workflow actor *user* chooses as: an admin, or a supervisor or data
-    manager whose supervision reach covers *death* (audited as a data manager
-    when the grant is data-manager shaped, as ``reopen_for_revision`` does);
-    else 404, so an id outside the caller's reach is never confirmed."""
-    if user.is_admin():
-        return admin_actor(user.user_id)
-    if not cases.is_interview_supervisor_for(user, death):
-        raise WebIntakeError("Case not found.", 404)
-    shaped = supervision.dm_shaped_grant(user.user_id, death)
-    return data_manager_actor(user.user_id) if shaped else interview_supervisor_actor(user.user_id)
-
-
-def choose_interview(user: VaUsers, death_id: object, candidate_draft_id: object, reason_code: object) -> VaDeathRegister:
-    """A supervisor, data manager or admin chooses the *candidate_draft_id*
-    interview (another interviewer's complete one, kept as a superseded copy)
-    over the one the submitted case now holds; returns the case.
-
-    The submission keeps its ``va_sid``. The candidate's answers become a new
-    active payload version (reason ``supervisor_choice``, built by
-    ``build_final_payload`` on the original submit time with the sid, key and
-    non-answer values carried over), so ``va_data_collector`` and the
-    projection follow the chosen interviewer; the identity answers sync onto
-    the case. The drafts swap: the candidate becomes the ``submitted`` draft
-    carrying the ``va_sid``, the former winner becomes ``superseded`` (sid
-    cleared, ``meta.previousVaSid`` set) and stays a candidate, so the choice
-    can be switched back, each time audited.
-
-    Coding restarts as for any changed payload: a protected case (final COD
-    given) moves through ``finalized_upstream_changed`` and
-    ``reopen_coding_after_revision``, the earlier COD kept as inactive
-    history; an unprotected one is released
-    (``release_coding_for_changed_payload``); the submission is then re-routed.
-    Both interviewers are notified (``INTERVIEW_CHOSEN``; the chosen one with
-    the ``va_sid``).
-
-    Done under the case lock, then a lock on the submission
-    (``revise_submission``'s order). Refusals: 422 ``invalid_reason``; 404 an
-    unknown or out-of-reach case, or a candidate that is not this case's; 409
-    ``case_not_submitted``, ``not_web_submission``, ``not_a_candidate`` (not a
-    superseded, complete interview), ``form_mismatch``, ``wrong_state`` (a
-    reviewer session is live) and the form-changed refusal.
-    """
-    if reason_code not in CHOICE_REASONS:
-        raise WebIntakeError("reason_code must be one of: " + ", ".join(CHOICE_REASONS) + ".", 422, "invalid_reason")
-    try:
-        death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
-    except ValueError:
-        death = None
-    if death is None:
-        raise WebIntakeError("Case not found.", 404)
-    try:
-        candidate_id = uuid.UUID(str(candidate_draft_id))
-    except ValueError:
-        raise WebIntakeError("draft_id must be a UUID.") from None
-    actor = _supervising_actor(user, death)
-    death = cases.lock_case(death)
-    if death.status != "submitted" or not death.va_sid:
-        raise WebIntakeError("Only a submitted case has an interview to choose.", 409, "case_not_submitted")
-    va_sid = death.va_sid
-    submission = db.session.get(VaSubmissions, va_sid, with_for_update=True)
-    winner = db.session.scalar(sa.select(VaWebIntakeDraft).where(
-        VaWebIntakeDraft.va_sid == va_sid, VaWebIntakeDraft.status == "submitted"))
-    candidate = db.session.get(VaWebIntakeDraft, candidate_id)
-    if submission is None or winner is None:
-        raise WebIntakeError("Only a web or device interview can be chosen between here.", 409, "not_web_submission")
-    if candidate is None or candidate.death_id != death.death_id:
-        raise WebIntakeError("Interview not found.", 404)
-    if candidate.status != "superseded" or (candidate.meta or {}).get("interviewOutcome") != "completed":
-        raise WebIntakeError("Only another complete interview of this case can be chosen.", 409, "not_a_candidate")
-    if candidate.form_id != winner.form_id:
-        raise WebIntakeError("That interview was filled on another form.", 409, "form_mismatch")
-    state = get_submission_workflow_state(va_sid)  # read under the lock
-    if state == WORKFLOW_REVIEWER_CODING_IN_PROGRESS:
-        raise WebIntakeError("A reviewer is coding this interview; try again when the session ends.", 409, "wrong_state")
-    active = get_active_payload_version(va_sid)
-    if active is None:
-        raise WebIntakeError("This submission has no payload to replace.", 409, "wrong_state")
-    prior = opened_payload(active)  # the carry: sealed fields joined back
-
-    chosen_user = db.session.get(VaUsers, candidate.user_id)
-    now = _utcnow()
-    meta = {k: v for k, v in (candidate.meta or {}).items() if k != "previousVaSid"}
-    raw = {**_answers_of(candidate), "interview_outcome": "completed"}
-    submitted_at = datetime.fromisoformat(prior["SubmissionDate"]) if prior.get("SubmissionDate") else winner.submitted_at
-    expression_now = _device_time(meta.get("completedAt")) or _expression_now(chosen_user, candidate.submitted_at)
-    payload, references, validation_err = build_final_payload(
-        winner, chosen_user, raw, submitted_at=submitted_at, expression_now=expression_now, visit_note={},
-        intake_source=prior.get("intake_source") or "web", meta=meta,
-        carry={k: v for k, v in prior.items() if k != "SubmitterName"}, attachments_from=candidate,
-    )
-    payload["updatedAt"] = now.isoformat()
-    fields = build_submission_projection(db.session.get(VaForms, winner.form_id), payload)
-    if fields["va_sid"] != va_sid:
-        raise WebIntakeError("This interview's form changed; it cannot be chosen.", 409, "form_mismatch")
-    # All refusals are decided; writes start here.
-    _sync_case_identity(death, raw, user)
-    apply_submission_projection(submission, fields, payload)
-    version = ensure_active_payload_version(
-        submission, payload_data=payload, source_updated_at=fields["va_odk_updatedat"],
-        created_by_role=actor.audit_role, created_by=user.user_id, validation_err=validation_err,
-        revision_reason_code="supervisor_choice", answers_sha256=candidate.answers_sha256,
-    )
-    attachments.link_to_submission(va_sid, candidate.draft_id, payload)
-
-    enters_coding = consent_is_valid(normalize_consent(raw.get("Id10013")))
-    try:
-        if state in PROTECTED_WORKFLOW_STATES:
-            if state != WORKFLOW_FINALIZED_UPSTREAM_CHANGED:
-                mark_upstream_change_detected(va_sid, reason=INTERVIEW_CHOSEN_REASON, actor=actor)
-            # No pending upstream version may linger beside the chosen payload.
-            pending = get_latest_pending_upstream_payload_version(va_sid)
-            if pending is not None:
-                reject_pending_upstream_payload_version(pending, reason="superseded_by_interview_choice")
-            resolve_pending_upstream_change(
-                va_sid, resolution_status=UPSTREAM_CHANGE_STATUS_REJECTED, resolved_by=user.user_id,
-                resolved_by_role=actor.audit_role,
-            )
-            reopen_coding_after_revision(va_sid, audit_by=user.user_id, source=SOURCE_SUPERVISOR_CHOICE)
-        else:
-            release_coding_for_changed_payload(va_sid, source=SOURCE_SUPERVISOR_CHOICE, audit_by=user.user_id)
-        route_synced_submission(va_sid, consent_valid=enters_coding, reason=INTERVIEW_CHOSEN_REASON, actor=system_actor())
-    except WorkflowTransitionError as exc:
-        # A coder finalised or a reviewer started after the check; the route rolls back.
-        raise WebIntakeError("The interview changed state; try again.", 409, "wrong_state") from exc
-    if enters_coding and not references:
-        mark_attachment_sync_completed(va_sid, reason="web_intake_no_attachments", actor=system_actor())
-        smartva_service.queue_smartva_after_commit(va_sid, "supervisor_choice")
-
-    # The swap. The former winner keeps its answers and its outcome, so it is a
-    # candidate again (switch back); the sid moves with the submitted draft.
-    winner.status = "superseded"
-    winner.va_sid = None
-    winner.meta = {**(winner.meta or {}), "previousVaSid": va_sid}
-    candidate.status = "submitted"
-    candidate.va_sid = va_sid
-    candidate.meta = {
-        **meta, "attachmentReferences": references, "interviewOutcome": "completed",
-        "effectiveSavedAt": _candidate_completed_at(candidate).isoformat(),
-    }
-    db.session.add(VaSubmissionsAuditlog(
-        va_sid=va_sid, va_audit_byrole=actor.audit_role, va_audit_by=user.user_id, va_audit_operation="u",
-        va_audit_action=f"va_submission_interview_chosen_by_supervisor:{reason_code}",
-        va_audit_entityid=version.payload_version_id,
-    ))
-    cases.record_action(death, actor=user, action="interview_chosen", reason=reason_code)
-    if candidate.user_id != user.user_id:
-        notification_service.notify(
-            [candidate.user_id], notification_service.INTERVIEW_CHOSEN, project_id=candidate.project_id,
-            death_id=death.death_id, draft_id=candidate.draft_id, va_sid=va_sid,
-        )
-    if winner.user_id not in (user.user_id, candidate.user_id):
-        notification_service.notify(
-            [winner.user_id], notification_service.INTERVIEW_CHOSEN, project_id=winner.project_id,
-            death_id=death.death_id, draft_id=winner.draft_id,
-        )
-    db.session.flush()
-    log.info("interview chosen | sid=%s | by=%s | reason=%s | chosen_draft=%s", va_sid, user.user_id, reason_code, candidate.draft_id)
-    return death
-
-
-# ---------------------------------------------------------------------------
-# Device uploads (Path B, .tasks/2026-09-30-android-collection-app.md)
-# ---------------------------------------------------------------------------
-
-#: The one section a device upload's answers are stored under: the app sends
-#: the whole envelope at once, not section-wise saves.
-DEVICE_SECTION = "device"
-#: Bounds on a device upload's answers, checked before anything is stored
-#: (the request itself is capped at 2 MB by the device blueprint). Answers
-#: are flat values, choice lists and small attachment/audit objects.
-DEVICE_ANSWERS_MAX_BYTES = 1024 * 1024
-DEVICE_ANSWERS_MAX_DEPTH = 6
-
-
-def check_device_answers(data: dict) -> None:
-    """Refuse (422) answers nested deeper than DEVICE_ANSWERS_MAX_DEPTH or (413)
-    whose serialized JSON exceeds DEVICE_ANSWERS_MAX_BYTES."""
-    stack = [(data, 1)]
-    while stack:
-        value, depth = stack.pop()
-        if depth > DEVICE_ANSWERS_MAX_DEPTH:
-            raise WebIntakeError("answers_json is nested too deeply.", 422)
-        children = value.values() if isinstance(value, dict) else value
-        stack.extend((child, depth + 1) for child in children if isinstance(child, (dict, list)))
-    if len(json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8", "surrogatepass")) > DEVICE_ANSWERS_MAX_BYTES:
-        raise WebIntakeError("answers_json is too large.", 413, "payload_too_large")
-
-
-def check_definition_identity(meta: dict) -> None:
-    """Refuse (422) a ``definitionSha256`` that is not 64 lowercase hex or a
-    ``definitionExtensions`` that is not a short list of extension names.
-    Absent is fine (an older app, a browser form)."""
-    sha = meta.get("definitionSha256")
-    if "definitionSha256" in meta and not (isinstance(sha, str) and _SHA256_RE.fullmatch(sha)):
-        raise WebIntakeError("definitionSha256 must be 64 lowercase hex characters.", 422)
-    names = meta.get("definitionExtensions")
-    if "definitionExtensions" in meta and not (
-        isinstance(names, list)
-        and len(names) <= _MAX_DEFINITION_EXTENSIONS
-        and all(isinstance(n, str) and _EXTENSION_NAME_RE.fullmatch(n) for n in names)
-    ):
-        raise WebIntakeError("definitionExtensions must be a short list of extension names.", 422)
-
-
-def check_device_times(envelope: dict) -> None:
-    """Refuse (422) an envelope whose ``startedAt``, ``completedAt`` or
-    ``deviceClockAt`` is present but not an ISO 8601 time with a UTC offset, or
-    whose definition identity is malformed (``check_definition_identity``).
-    Absent is fine (an older app)."""
-    check_definition_identity(envelope)
-    for field in ("startedAt", "completedAt", "deviceClockAt"):
-        if field in envelope and _device_time(envelope[field]) is None:
-            raise WebIntakeError(f"draft.{field} must be an ISO 8601 time with a UTC offset.", 422)
-    offset = envelope.get("clockOffsetSeconds")
-    if offset is not None and (not isinstance(offset, int) or isinstance(offset, bool)):
-        raise WebIntakeError("draft.clockOffsetSeconds must be an integer number of seconds.", 422)
-
-
-def find_device_upload(user: VaUsers, client_draft_id: uuid.UUID) -> VaWebIntakeDraft | None:
-    """The draft an earlier upload of *client_draft_id* created, if any.
-    Another interviewer's id is a 409, never their result."""
-    draft = db.session.scalar(
-        sa.select(VaWebIntakeDraft).where(VaWebIntakeDraft.client_draft_id == client_draft_id)
-    )
-    if draft is not None and draft.user_id != user.user_id:
-        raise WebIntakeError("That client_draft_id is already in use.", 409)
-    return draft
-
-
-def is_attachment_draft(draft: VaWebIntakeDraft) -> bool:
-    """True for the open draft ``start_attachment_draft`` made: it has a
-    ``client_draft_id`` but no upload yet (an upload sets ``answers_sha256``
-    and closes the draft)."""
-    return draft.status == "draft" and draft.answers_sha256 is None
-
-
-def start_attachment_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None, client_draft_id: uuid.UUID) -> tuple[VaWebIntakeDraft, bool]:
-    """The server draft a phone's direct start (no case) uploads its files to,
-    identified by the phone's *client_draft_id*; returns ``(draft, created)``.
-
-    ``submit_device_interview`` resolves the same draft by that id instead of
-    starting another, so the files are on the submission. A repeat with the
-    same id and the same project/site/unit is the same draft (idempotent). The
-    id of another interviewer's draft is 409 (``find_device_upload``); of an
-    already uploaded interview, or with another project, site or unit, 409.
-    The draft is an ordinary open draft: an unsubmitted one follows the
-    existing open-draft rules. A new one runs every ``start_draft`` check.
-    """
-    existing = find_device_upload(user, client_draft_id)
-    if existing is not None:
-        if not is_attachment_draft(existing):
-            raise WebIntakeError("That client_draft_id is already in use.", 409)
-        _check_attachment_draft_matches(existing, project_id, site_id, org_unit_id)
-        return existing, False
-    draft = start_draft(user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id)
-    draft.client_draft_id = client_draft_id
-    db.session.flush()
-    return draft, True
-
-
-def _check_attachment_draft_matches(draft: VaWebIntakeDraft, project_id: str, site_id: str, org_unit_id: object | None) -> None:
-    if draft.project_id != project_id or draft.site_id != site_id:
-        raise WebIntakeError("That client_draft_id belongs to another project or site.", 409)
-    if org_unit_id and str(draft.org_unit_id) != str(org_unit_id):
-        raise WebIntakeError("That client_draft_id belongs to another unit.", 409)
-
-
-def _store_superseded_copy(user: VaUsers, death: VaDeathRegister, *, client_draft_id: uuid.UUID, site_id: str, data: dict, answers_sha256: str, meta: dict, completion: dict) -> VaWebIntakeDraft:
-    """Keep a device interview for a closed case as a ``superseded`` draft
-    linked to the case: answers stored, no submission, no routing, and the
-    case (its identity included) left exactly as it is.
-
-    The uploader's own open draft (on this case, or the phone's attachment
-    draft of *client_draft_id*) is closed as ``replaced`` and its uploaded
-    files move to the copy: the phone deletes its local copy on the 2xx, so
-    the copy must hold them for a supervisor's choice, and the stale-draft
-    purge reads open drafts only. Stored objects stay where they are (each row
-    carries its own path). Runs under the case lock the submit holds."""
-    if death.site_id != site_id:
-        raise WebIntakeError("Death entry belongs to another project or site.")
-    open_drafts = db.session.scalars(
-        sa.select(VaWebIntakeDraft).where(
-            VaWebIntakeDraft.status == "draft", VaWebIntakeDraft.user_id == user.user_id,
-            sa.or_(VaWebIntakeDraft.death_id == death.death_id, VaWebIntakeDraft.client_draft_id == client_draft_id),
-        ).with_for_update()
-    ).all()
-    for old in open_drafts:
-        # The copy takes the phone's id (retries of this upload find the copy).
-        if old.client_draft_id == client_draft_id:
-            old.client_draft_id = None
-    db.session.flush()
-    try:
-        outcome = _interview_outcome(data, completion)
-    except WebIntakeError:
-        outcome = None
-    form = ensure_web_runtime_form(death.project_id, death.site_id)
-    # Stored answers get the same locked-answer rule as a submission.
-    prefill = _prefill_from_death(death, user, death.org_unit_id)
-    data = {**data, **_locked_answers(prefill)}
-    now = _utcnow()
-    draft = VaWebIntakeDraft(
-        project_id=death.project_id,
-        site_id=death.site_id,
-        org_unit_id=death.org_unit_id,
-        death_id=death.death_id,
-        form_id=form.form_id,
-        user_id=user.user_id,
-        unique_id=death.unique_id,
-        meta={"instrumentId": INSTRUMENT_ID, "locale": DEFAULT_LOCALE, "translation_version": 0,
-              **meta, "interviewOutcome": outcome},
-        prefill=prefill,
-        status="superseded",
-        client_draft_id=client_draft_id,
-        answers_sha256=answers_sha256,
-        submitted_at=now,
-        client_valid=completion.get("valid") is True,
-    )
-    draft.sections.append(VaWebIntakeDraftSection(section_name=DEVICE_SECTION, data=stored_answers(data)))
-    db.session.add(draft)
-    db.session.flush()
-    moved = 0
-    for old in open_drafts:
-        moved += db.session.execute(
-            sa.update(VaWebIntakeAttachment).where(VaWebIntakeAttachment.draft_id == old.draft_id)
-            .values(draft_id=draft.draft_id)
-        ).rowcount
-        old.status = "replaced"
-        old.meta = {**(old.meta or {}), "replacedDraftId": str(draft.draft_id)}
-    if moved:
-        cases.record_action(death, actor=user, action="draft_files_moved_to_copy")
-    db.session.flush()
-    log.info("device interview kept as superseded copy | unique_id=%s | case_status=%s | by=%s", death.unique_id, death.status, user.user_id)
-    return draft
-
-
-def _device_completion(completion: dict, data: dict) -> dict:
-    """The upload's ``{valid, issues}`` normalised, with the parsed answers as ``data``."""
-    return {
-        "valid": completion.get("valid") is True,
-        "issues": completion.get("issues") if isinstance(completion.get("issues"), list) else [],
-        "data": data,
-    }
-
-
-def _own_submitted_draft(user: VaUsers, death: VaDeathRegister) -> VaWebIntakeDraft | None:
-    """The caller's submitted draft of *death* that a later upload of the same
-    interview corrects (docs/policy/web-intake.md "Parallel interviews"): the
-    one that won the case, else their latest. None when they have none, or
-    when a teammate's complete submission or a supervisor closed the case and
-    theirs is not the winner: that upload stays a superseded copy. One query
-    on ``ix_va_web_intake_drafts_death``."""
-    own = db.session.scalar(
-        sa.select(VaWebIntakeDraft)
-        .where(
-            VaWebIntakeDraft.death_id == death.death_id,
-            VaWebIntakeDraft.user_id == user.user_id,
-            VaWebIntakeDraft.status == "submitted",
-        )
-        .order_by(sa.case((VaWebIntakeDraft.va_sid == death.va_sid, 0), else_=1), VaWebIntakeDraft.submitted_at.desc())
-        .limit(1)
-    )
-    if own is not None and (own.va_sid == death.va_sid or death.status not in _SUPERSEDED_CASE_STATES):
-        return own
-    return None
-
-
-def resubmit_device_interview(user: VaUsers, draft: VaWebIntakeDraft, *, envelope: dict, data: dict, answers_sha256: str, completion: dict) -> tuple[str, bool]:
-    """Apply an upload of *draft*'s interview that is not the first (a resend
-    with other answers, or a second upload of the case); returns
-    ``(kept, locked)``.
-
-    The last completed version wins: this one becomes the coder's version when
-    its completion time is not older than the stored one's
-    (``revise_submission`` with ``resubmit``, reason ``RESUBMITTED_REASON``),
-    else, or when coding is final or the case closed (*locked*), its answers
-    are kept as ``replaced`` history and ``kept`` is ``"server"``. A
-    ``superseded`` copy (a closed case's upload) keeps the resend as history
-    the same way, locked."""
-    completion = _device_completion(completion, data)
-    if draft.status != "submitted":
-        now = _utcnow()
-        _keep_losing_version(draft, data, answers_sha256, meta={
-            "source": "resubmission", "effectiveSavedAt": _completion_time(envelope, now).isoformat(),
-            "receivedAt": now.isoformat(),
-        })
-        return "server", True
-    reply = revise_submission(
-        user, draft.va_sid, reason_code=RESUBMITTED_REASON, data=data, answers_sha256=answers_sha256,
-        completion=completion, envelope=envelope, resubmit=True,
-    )
-    return reply["kept"], reply["locked"]
-
-
-def resubmit_browser_draft(user: VaUsers, draft: VaWebIntakeDraft, *, completion: dict) -> dict:
-    """A browser submit of a draft that is already submitted (a stale tab, a
-    second completion): the later completion is a correction of the interview
-    (``revise_submission`` with ``resubmit``, completed now). Returns its reply
-    (``kept``, ``locked``, ``va_sid``...). Refusals as ``submit_draft``'s for
-    the completion (422), 404 when it is not the caller's."""
-    if not isinstance(completion, dict) or not isinstance(completion.get("data"), dict):
-        raise WebIntakeError("completion.data is required.")
-    data = completion["data"]
-    check_device_answers(data)
-    # A browser draft has no device hash; the correction needs one to tell
-    # answers apart, taken over the data in a fixed form.
-    sha = hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8", "surrogatepass")).hexdigest()
-    return revise_submission(
-        user, draft.va_sid, reason_code=RESUBMITTED_REASON, data=data, answers_sha256=sha,
-        completion={
-            "valid": completion.get("valid") is True,
-            "issues": completion.get("issues") if isinstance(completion.get("issues"), list) else [],
-        },
-        envelope={}, resubmit=True,
-    )
-
-
-def fold_into_own_submission(user: VaUsers, draft: VaWebIntakeDraft, *, completion: dict) -> tuple[VaWebIntakeDraft, dict] | None:
-    """A browser submit of the open *draft* on a case whose winning submission
-    is the caller's own (an earlier draft of theirs: reachable once that one
-    regressed and the interviewer then opened a new draft, see "Parallel
-    interviews"): the second completion is a correction of that interview, not
-    a teammate's competing copy. Returns ``(winning_draft, reply)`` with the
-    reply of ``resubmit_browser_draft``, or None when the case's winner is not
-    the caller's (``submit_draft`` then decides as before).
-
-    *draft* is closed as ``replaced``: its final answers are kept on it, and
-    the same answers are a payload version of the submission, or ``replaced``
-    history when coding is final or the version is older (``revise_submission``'s
-    resubmit rules). A teammate's draft is never folded."""
-    if draft.status != "draft" or not draft.death_id:
-        return None
-    # Under the case lock, so the winner read here is the one revised below.
-    death = cases.lock_case(db.session.get(VaDeathRegister, draft.death_id))
-    if death.status != "submitted" or death.va_sid is None:
-        return None
-    own = db.session.scalar(sa.select(VaWebIntakeDraft).where(
-        VaWebIntakeDraft.va_sid == death.va_sid,
-        VaWebIntakeDraft.user_id == user.user_id,
-        VaWebIntakeDraft.status == "submitted",
-    ))
-    if own is None:
-        return None
-    reply = resubmit_browser_draft(user, own, completion=completion)
-    _set_final_section(draft, completion["data"])
-    draft.status = "replaced"
-    draft.meta = {**(draft.meta or {}), "replacedDraftId": str(own.draft_id)}
-    draft.submitted_at = _utcnow()
-    draft.client_valid = completion.get("valid") is True
-    draft.client_issue_count = len(completion.get("issues") or [])
-    db.session.flush()
-    log.info("draft folded into own submission | sid=%s | unique_id=%s | by=%s", own.va_sid, draft.unique_id, user.user_id)
-    return own, reply
-
-
-def submit_device_interview(user: VaUsers, *, project_id: str, client_draft_id: uuid.UUID, site_id: str, org_unit_id: object | None, death_id: object | None, envelope: dict, data: dict, answers_sha256: str, completion: dict, device_id: uuid.UUID | None = None, unrouted_ok: bool = False, refusal_override: bool | None = None, resume_refused: bool = False, base_updated_at: object | None = None, incoming_consent=None) -> tuple[VaWebIntakeDraft, str, bool]:
-    """Store and submit one completed device interview; returns
-    ``(draft, kept, locked)`` (``"incoming"``/``"server"``: whose answers are
-    the coder's version; *locked*: coding is final or the case closed).
-
-    The same path as a web submit: ``start_draft`` (scope, case, prefill) in
-    *project_id* only, which returns the interviewer's own open draft on the
-    case when there is one (the upload completes it), the answers saved
-    through ``save_draft_sections``, then ``submit_draft`` with
-    ``intake_source = device``. When the caller already submitted an interview
-    of the case, the upload is a later version of it
-    (``resubmit_device_interview``) and no new draft is made. A case already
-    closed is kept as a superseded copy instead (``_store_superseded_copy``).
-    An open draft with browser saves newer than this completion keeps its
-    content as ``replaced`` history first: the completion is the version
-    submitted. *completion* is ``{valid, issues}`` from the app's form engine;
-    without ``valid: true`` the upload needs an incomplete ``interview_outcome``
-    pick, exactly as on the web. Idempotency is the caller's
-    (``find_device_upload`` first; ``client_draft_id`` is unique).
-    *device_id* is the uploading device's id, None for a browser-cookie request.
-    *unrouted_ok*: a standalone push may start without a unit (``_require_scope``).
-    *envelope* supplies only the meta keys; *data* is the parsed answers and
-    *answers_sha256* the hash of their exact JSON text, both already checked
-    by the caller (``check_device_answers``) and stored with the upload.
-    """
-    meta = {k: envelope[k] for k in _ENVELOPE_META_KEYS if k in envelope}
-    # Stored beside the draft's meta, never through the client keep-list.
-    stored = {k: envelope[k] for k in _DEVICE_TIME_KEYS if k in envelope}
-    if device_id is not None:
-        stored["deviceId"] = str(device_id)
-    now = _utcnow()
-    stored.update(_clock_meta(envelope, now))
-    device_clock = _device_time(envelope.get("deviceClockAt"))
-    if device_clock is not None:
-        # Positive = the device clock is behind the server. Audit only: the
-        # interview times above are never corrected by it.
-        stored["clockSkewSeconds"] = round((now - device_clock).total_seconds())
-    completed_at = _completion_time(envelope, now)
-    completion = _device_completion(completion, data)
-    entries = interviewer_context(user)
-    death = None
-    case_hold = None
-    if death_id:
-        death = cases.lock_case(get_death(user, death_id, entries=entries))
-        if death.project_id != project_id:
-            raise WebIntakeError("Death entry not found.", 404)
-        from app.services import consent_service
-        case_hold = consent_service.case_refusal_hold(death)
-        refusal_override = consent_service.interview_refused(
-            death=death, client_draft_id=client_draft_id, answers=data, consent=incoming_consent, known_case_hold=case_hold,
-        )
-        attempting_resume = (resume_refused and data.get("Id10013") == "yes"
-                              and case_hold)
-        if refusal_override and not attempting_resume:
-            consent_service.check_refusal_answers(data)
-        own = _own_submitted_draft(user, death)
-        if own is not None:
-            if refusal_override:
-                raise WebIntakeError("Another interview holds this case after a refusal.", 409, "consent_refused")
-            kept, locked = resubmit_device_interview(
-                user, own, envelope=envelope, data=data, answers_sha256=answers_sha256, completion=completion,
-            )
-            return own, kept, locked
-        if death.status in _SUPERSEDED_CASE_STATES:
-            copy = _store_superseded_copy(
-                user, death, client_draft_id=client_draft_id, site_id=site_id,
-                data=data, answers_sha256=answers_sha256, meta={**meta, **stored}, completion=completion,
-            )
-            return copy, "server", True
-    pending = find_device_upload(user, client_draft_id)
-    if pending is not None and is_attachment_draft(pending):
-        # The phone's direct start made this draft for its files: the upload
-        # completes it. It is a direct draft, so a request naming a case is
-        # not for it.
-        if death_id:
-            raise WebIntakeError("That client_draft_id is already in use.", 409)
-        if pending.death_id:
-            death = cases.lock_case(db.session.get(VaDeathRegister, pending.death_id))
-        pending = db.session.get(VaWebIntakeDraft, pending.draft_id, with_for_update=True, populate_existing=True)
-        if not is_attachment_draft(pending):
-            raise WebIntakeError("This draft is no longer editable.", 409)
-        _check_attachment_draft_matches(pending, project_id, site_id, org_unit_id)
-        _require_scope(user, project_id, site_id, pending.org_unit_id, entries=entries)
-        draft = pending
-    else:
-        draft = start_draft(
-            user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id,
-            death_id=death_id, entries=entries, locked_death=death, unrouted_ok=unrouted_ok,
-        )
-    from app.services import consent_service
-    if draft.death_id and case_hold is None:
-        case_hold = consent_service.case_refusal_hold(db.session.get(VaDeathRegister, draft.death_id))
-    if case_hold and not (draft.meta or {}).get("caseRefusalHold"):
-        raise WebIntakeError("Another interview holds this case after a refusal.", 409, "consent_refused")
-    released = release_who_refusal_hold(draft, answers=data, base_updated_at=base_updated_at,
-                                        resume_refused=resume_refused, consent=incoming_consent)
-    if released:
-        case_hold = False
-    if not death_id or released:
-        refusal_override = consent_service.interview_refused(
-            death=db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None,
-            client_draft_id=client_draft_id, answers=data, consent=incoming_consent, known_case_hold=case_hold,
-        )
-    if refusal_override:
-        consent_service.check_refusal_answers(data)
-    if (not released and str(_answers_of(draft).get("Id10013") or "").lower() == "no"
-            and str(data.get("Id10013") or "").lower() != "no"):
-        if not (resume_refused and data.get("Id10013") == "yes"
-                and _device_time(base_updated_at) == draft.updated_at):
-            raise refusal_stale(draft, "Reload the draft and record the new consent decision.")
-    if not refusal_override and not released:
-        check_refusal_resume(draft, base_updated_at=base_updated_at, resume_refused=resume_refused)
-    if draft.sections:
-        # An open draft with content: the phone's own earlier sync is the same
-        # draft continuing; a newer browser save is unfinished work that must
-        # not be lost to the completion (the last completed version wins).
-        draft_meta = draft.meta or {}
-        from_phone = draft.answers_sha256 is not None
-        edited = datetime.fromisoformat(draft_meta["effectiveSavedAt"]) if from_phone and draft_meta.get("effectiveSavedAt") else draft.updated_at
-        own_sync = from_phone and (draft_meta.get("lastSync") or {}).get("clientDraftId") == str(client_draft_id)
-        if edited > completed_at and not own_sync:
-            _keep_history(draft, _merged_answers(draft), sha256=draft.answers_sha256, meta={
-                "source": "device" if from_phone else "web", "effectiveSavedAt": edited.isoformat(),
-                "receivedAt": now.isoformat(),
-            })
-    draft.client_draft_id = client_draft_id
-    draft.answers_sha256 = answers_sha256
-    draft.meta = {**(draft.meta or {}), **stored}
-    # The incoming consent is recorded after this call, so it is passed in;
-    # the save clears the teammates, so the submit (same request) does not.
-    new = refusal_override is not False and is_new_refusal(draft, data, incoming_consent, client_draft_id)
-    save_draft_sections(draft, sections={DEVICE_SECTION: data}, meta=meta or None, actor=user,
-                        refusal_override=refusal_override, resume_refused=resume_refused, new_refusal=new,
-                        channel="device")
-    if submit_draft(draft, user, completion=completion, intake_source="device", completed_at=completed_at, locked_death=death, refusal_override=refusal_override, new_refusal=False) is None:
-        return draft, "server", True
-    return draft, "incoming", False
-
-
-#: Section holding the answers of a draft version that lost an edit conflict.
-HISTORY_SECTION = "history"
-SYNC_MESSAGE = "This interview was also edited on another device; the newer version was kept."
-
-
-def lock_draft_for_browser_write(draft: VaWebIntakeDraft) -> VaWebIntakeDraft:
-    """Take the case lock a phone sync takes (``start_draft``), then re-read
-    the draft, so a browser save or submit and a concurrent sync serialise and
-    the stale check below sees the committed version."""
-    if draft.death_id:
-        cases.lock_case(db.session.get(VaDeathRegister, draft.death_id))
-        db.session.refresh(draft)
-        if draft.status != "draft":
-            raise WebIntakeError("This draft is no longer editable.", 409)
-    return draft
-
-
-def draft_is_stale(draft: VaWebIntakeDraft, if_updated_at: object) -> bool:
-    """True when a browser save made on an older view (*if_updated_at*, the
-    ``updated_at`` of the last reply it saw) would overwrite a newer version.
-    400 when not an ISO 8601 time with an offset."""
-    seen = _device_time(if_updated_at)
-    if seen is None:
-        raise WebIntakeError("if_updated_at must be an ISO 8601 time with a UTC offset.")
-    return seen != draft.updated_at
-
-
-def _merged_answers(draft: VaWebIntakeDraft) -> dict:
-    merged: dict = {}
-    for row in draft.sections:
-        merged.update(row.data or {})
-    return merged
-
-
-def _keep_history(draft: VaWebIntakeDraft, answers: dict, *, sha256: str | None, meta: dict) -> None:
-    """Keep a losing version of *draft* as a ``replaced`` draft row: same case,
-    owner and form, answers in one ``history`` section, no client id (the
-    unique index on it must not match) and not ``draft`` (so the one-open-draft
-    index ignores it)."""
-    row = VaWebIntakeDraft(
-        project_id=draft.project_id, site_id=draft.site_id, org_unit_id=draft.org_unit_id,
-        death_id=draft.death_id, form_id=draft.form_id, user_id=draft.user_id, unique_id=draft.unique_id,
-        meta={"replacedDraftId": str(draft.draft_id), **meta}, prefill={},
-        status="replaced", answers_sha256=sha256,
-    )
-    row.sections.append(VaWebIntakeDraftSection(section_name=HISTORY_SECTION, data=stored_answers(answers)))
-    db.session.add(row)
-
-
-def prepare_browser_overwrite(draft: VaWebIntakeDraft, sections: dict) -> dict:
-    """A deliberate browser "Use my answers" (``PATCH ... overwrite``): keep
-    the version it replaces as a ``replaced`` row (the trail, and a way back)
-    and return *sections* plus every other saved section emptied, the phone's
-    included, so the browser's answers replace the draft whole."""
-    if draft.sections:
-        _keep_history(draft, _merged_answers(draft), sha256=draft.answers_sha256, meta={
-            "source": "device" if draft.answers_sha256 else "web",
-            "receivedAt": _utcnow().isoformat(), "overwrittenBy": "web",
-        })
-    return {**{row.section_name: {} for row in draft.sections}, **sections}
-
-
-def _keep_losing_version(draft: VaWebIntakeDraft, answers: dict, sha256: str | None, *, meta: dict, client_draft_id: str | None = None) -> None:
-    """Keep a losing resend of *draft*'s interview as a ``replaced`` row, once:
-    a retry of the same answers (same hash, and the same ``clientDraftId``
-    when given) stores no second row. One indexed lookup on the case."""
-    clauses = [
-        VaWebIntakeDraft.death_id == draft.death_id,
-        VaWebIntakeDraft.user_id == draft.user_id,
-        VaWebIntakeDraft.status == "replaced",
-        VaWebIntakeDraft.answers_sha256 == sha256,
-    ]
-    if client_draft_id is not None:
-        clauses.append(VaWebIntakeDraft.meta["clientDraftId"].astext == client_draft_id)
-    if not db.session.scalar(sa.select(sa.exists().where(*clauses))):
-        _keep_history(draft, answers, sha256=sha256, meta=meta)
-        db.session.flush()
-
-
-def _sync_reply(draft: VaWebIntakeDraft, kept: str, conflict: bool) -> dict:
-    reply = {
-        "draft": serialize_draft(draft),
-        "kept": kept,
-        "conflict": conflict,
-        "answers_sha256": draft.answers_sha256,
-        "message": SYNC_MESSAGE if conflict else None,
-    }
-    if kept == "server":
-        reply["envelope"] = load_draft_envelope(draft)  # the phone replaces its copy
-    return reply
-
-
-def sync_device_draft(user: VaUsers, *, project_id: str, site_id: str, org_unit_id: object | None, death_id: object | None, client_draft_id: uuid.UUID, envelope: dict, data: dict, answers_sha256: str, saved_at: object, device_clock_at: object, base_updated_at: object | None, resume_refused: bool = False) -> dict:
-    """Sync a phone's in-progress interview into the interviewer's one open
-    draft of the case (web-intake.md "Parallel interviews"); returns the reply.
-
-    The newer save wins, whole (no section merge): the phone's ``saved_at``
-    corrected by the device clock's drift (``now - device_clock_at`` is how old
-    the save is on the device, so the correction needs no absolute clock),
-    against the draft's last save (``updated_at``, or the corrected phone time
-    of an earlier phone win nobody has edited since). A tie goes to the phone,
-    which is received later. The loser is kept as a ``replaced`` row. A conflict
-    is a draft the phone had not seen (``base_updated_at`` is the ``updated_at``
-    of its last download or sync reply, None if never); without one the phone
-    simply continues the draft and always wins. A resend is a no-op.
-    Never sets the draft's ``client_draft_id``: only the final upload does.
-    Refusals (all before anything is written): 422 for the times, 400
-    without a case, and ``start_draft``'s own (a closed case is 409).
-    """
-    saved = _device_time(saved_at)
-    clock = _device_time(device_clock_at)
-    if saved is None or clock is None:
-        raise WebIntakeError("savedAt and deviceClockAt must be ISO 8601 times with a UTC offset.", 422)
-    base = None
-    if base_updated_at is not None:
-        base = _device_time(base_updated_at)
-        if base is None:
-            raise WebIntakeError("base_updated_at must be null or an ISO 8601 time with a UTC offset.", 422)
-    check_device_times(envelope)
-    if not death_id:
-        raise WebIntakeError("death_id is required.")
-    now = _utcnow()
-    draft = start_draft(user, project_id=project_id, site_id=site_id, org_unit_id=org_unit_id, death_id=death_id)
-    from app.services import consent_service  # local: consent_service imports this module
-    if consent_service.case_refusal_hold(db.session.get(VaDeathRegister, draft.death_id)) and not (draft.meta or {}).get("caseRefusalHold"):
-        raise WebIntakeError("Another interview holds this case after a refusal.", 409, "consent_refused")
-    resume_refused = resume_refused and base is not None and base == draft.updated_at
-    released = release_who_refusal_hold(draft, answers=data, base_updated_at=base_updated_at,
-                                        resume_refused=resume_refused)
-    if str(_answers_of(draft).get("Id10013") or "").strip().lower() == "no" and not resume_refused:
-        data = {**data, "Id10013": "no"}
-    # No covered answer is stored without a granted consent on file (the gate of /submissions); the hash
-    # stays the phone's, so a resend of the same save is still recognised below.
-    data, stripped = consent_service.strip_unconsented_answers(
-        project_id=draft.project_id, death=db.session.get(VaDeathRegister, draft.death_id),
-        client_draft_id=client_draft_id, answers=data)
-    combined = {**_answers_of(draft), **data}
-    refused = consent_service.interview_refused(
-        death=db.session.get(VaDeathRegister, draft.death_id),
-        client_draft_id=client_draft_id, answers=combined,
-    )
-    if not refused and not released:
-        check_refusal_resume(draft, base_updated_at=base_updated_at, resume_refused=resume_refused)
-    # Decided before the scrub below marks the draft refused.
-    new = refused and is_new_refusal(draft, combined, client_draft_id=client_draft_id)
-    if refused:
-        cleaned = consent_service.refusal_answers(data)
-        stripped = stripped or cleaned != data
-        data = cleaned
-        scrub_refused_draft(draft)
-    meta = draft.meta or {}
-    last = meta.get("lastSync") or {}
-    cid = str(client_draft_id)
-    # The phone's own earlier version, untouched since: the same draft
-    # continuing, never a conflict. A stripped earlier sync is not a no-op
-    # resend: once consent is on file the same hash stores the full answers.
-    from_phone = draft.answers_sha256 is not None and last.get("clientDraftId") == cid
-    if from_phone and draft.answers_sha256 == answers_sha256 and refused:
-        draft.meta = {**meta, "lastSync": {**last, "refusal": True, "stripped": True}}
-        db.session.flush()
-        return _sync_reply(draft, "server", bool(last.get("conflict")))
-    if from_phone and draft.answers_sha256 == answers_sha256 and last.get("refusal") and not refused:
-        return _sync_reply(draft, "server", False)
-    if from_phone and draft.answers_sha256 == answers_sha256 and not last.get("stripped"):
-        return _sync_reply(draft, "incoming", bool(last.get("conflict")))
-    has_content = bool(draft.sections)
-    effective = min(now, now - (clock - saved))
-    # An untouched phone win is dated by its corrected save time, not by the
-    # (later) moment it was received.
-    phone_won = draft.answers_sha256 is not None and meta.get("effectiveSavedAt")
-    current = datetime.fromisoformat(meta["effectiveSavedAt"]) if phone_won else draft.updated_at
-    conflict = has_content and not from_phone and (base is None or base != draft.updated_at)
-    redo_stripped = from_phone and draft.answers_sha256 == answers_sha256
-    if redo_stripped:
-        incoming_wins = True
-    elif has_content and (conflict or from_phone):
-        incoming_wins = effective >= current
-    else:
-        incoming_wins = True
-    source = "device" if phone_won else "web"
-    if not incoming_wins:
-        if conflict:
-            _keep_losing_version(draft, data, answers_sha256, client_draft_id=cid, meta={
-                "source": "device", "clientDraftId": cid, "savedAt": saved.isoformat(),
-                "effectiveSavedAt": effective.isoformat(), "receivedAt": now.isoformat(),
-            })
-        return _sync_reply(draft, "server", conflict)
-    if conflict:
-        _keep_history(draft, _merged_answers(draft), sha256=draft.answers_sha256, meta={
-            "source": source, "effectiveSavedAt": current.isoformat(), "receivedAt": now.isoformat(),
-        })
-    for row in [r for r in draft.sections if r.section_name != DEVICE_SECTION]:
-        draft.sections.remove(row)
-    draft.answers_sha256 = answers_sha256
-    stored = {k: envelope[k] for k in ("startedAt",) if k in envelope}
-    stored.update(_clock_meta(envelope, now))
-    draft.meta = {
-        **meta, **stored,
-        "effectiveSavedAt": effective.isoformat(),
-        "clockSkewSeconds": round((now - clock).total_seconds()),
-        "lastSync": {"clientDraftId": cid, "conflict": conflict, **({"stripped": True} if stripped else {}),
-                     **({"refusal": True} if refused else {})},
-    }
-    section = envelope.get("currentSection")
-    save_draft_sections(
-        draft, sections={DEVICE_SECTION: data},
-        meta={k: envelope[k] for k in _ENVELOPE_META_KEYS if k in envelope} or None,
-        current_section=section if isinstance(section, str) and section else None, actor=user, resume_refused=resume_refused,
-        # The draft has no client_draft_id until its upload: the attempt's
-        # own consent decided *refused* above, so it is passed on.
-        refusal_override=refused, new_refusal=new, channel="device",
-    )
-    log.info("device draft synced | unique_id=%s | conflict=%s | by=%s", draft.unique_id, conflict, user.user_id)
-    return _sync_reply(draft, "server" if refused else "incoming", conflict)
-
-
-def serialize_device_upload(draft: VaWebIntakeDraft) -> dict:
-    """The contract's upload result, rebuilt from the stored draft so a
-    resend gets the same ``va_sid``, case and outcome as the first upload;
-    ``case.status`` is the case's current state."""
-    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-    return {
-        "va_sid": draft.va_sid,
-        "case": {
-            "death_id": str(death.death_id) if death else None,
-            "unique_id": draft.unique_id,
-            "status": death.status if death else None,
-        },
-        "outcome": (draft.meta or {}).get("interviewOutcome"),
-        "superseded": draft.status == "superseded",
-        "answers_sha256": draft.answers_sha256,
-    }
-
-
-# ---------------------------------------------------------------------------
-# Device cases (Path B phase 3, digitva-kmk.4)
-# ---------------------------------------------------------------------------
-
-def _unit_prefill_parts(unit_ids: set[uuid.UUID]) -> dict[uuid.UUID, tuple[dict, str]]:
-    """``{unit_id: (Id10002/Id10003 presets, unit label)}`` for
-    ``_prefill_from_death``'s ``unit_parts``, in two queries for any number
-    of units (units, presets)."""
-    if not unit_ids:
-        return {}
-    units = db.session.scalars(
-        sa.select(MasOrgUnit).where(MasOrgUnit.org_unit_id.in_(sorted(unit_ids)))
-    ).all()
-    presets = org_grant_service.resolve_unit_va_presets(sorted(unit_ids))
-    parts = {}
-    for unit in units:
-        parts[unit.org_unit_id] = (
-            {
-                org_grant_service.VA_PRESET_QUESTION_NAMES[column]: entry["value"]
-                for column, entry in presets.get(unit.org_unit_id, {}).items()
-            },
-            _unit_label(unit),
-        )
-    return parts
-
-
-def case_prefill(user: VaUsers, death: VaDeathRegister, my_draft_id: uuid.UUID | None) -> dict | None:
-    """What the web form page prefills for *death*: the case detail's
-    ``prefill``, so an interview started offline opens prefilled. Carries the
-    questionnaire's own answers (informant's and parents' names, address,
-    ABHA), never a phone number.
-
-    Only for a caller who may start or resume the interview, as
-    ``start_draft`` decides: they hold the case's own draft (*my_draft_id*),
-    or the case is open (another interviewer's draft does not matter).
-    Otherwise None (a closed case): the identifiers are not theirs to read.
-    """
-    if not interviewer_reaches(user, death):
-        return None
-    if my_draft_id is None and death.status in _SUPERSEDED_CASE_STATES:
-        return None
-    return _prefill_from_death(death, user, death.org_unit_id)
-
-
-def case_row(user: VaUsers, death: VaDeathRegister) -> tuple:
-    """A ``_worklist_select`` row for a case the caller already holds in scope
-    (an offline registration's reply): the worklist query for that one case,
-    without its scope."""
-    return tuple(
-        db.session.execute(_worklist_select(user).where(VaDeathRegister.death_id == death.death_id)).one()
-    )
-
-
-def get_device_case(user: VaUsers, project_id: str, death_id: object) -> VaDeathRegister:
-    """A case in the caller's scope and in *project_id*, else 404."""
-    death = get_death(user, death_id)
-    if death.project_id != project_id:
-        raise WebIntakeError("Death entry not found.", 404)
-    return death
-
-
-def find_device_registration(user: VaUsers, project_id: str, client_death_id: uuid.UUID) -> VaDeathRegister | None:
-    """The case an earlier offline registration with *client_death_id*
-    created, if any. Another user's id is a 409; a case since moved out of
-    the caller's scope or *project_id* is a 404."""
-    death = db.session.scalar(
-        sa.select(VaDeathRegister).where(VaDeathRegister.client_death_id == client_death_id)
-    )
-    if death is None:
-        return None
-    if death.registered_by != user.user_id:
-        raise WebIntakeError("That client_death_id is already in use.", 409)
-    try:
-        return get_device_case(user, project_id, death.death_id)
-    except WebIntakeError:
-        # A death_reporter registered it: theirs by the reporter's reach.
-        if death.project_id == project_id and _reporter_reaches(user, death):
-            return death
-        raise
-
-
-def find_device_attempt(user: VaUsers, death_id: object, client_attempt_id: uuid.UUID) -> VaDeathRegister | None:
-    """The case of an earlier attempt logged with *client_attempt_id*, if
-    any. The id reused by another user or on another case is a 409."""
-    attempt = db.session.scalar(
-        sa.select(MapCaseContactAttempt).where(MapCaseContactAttempt.client_attempt_id == client_attempt_id)
-    )
-    if attempt is None:
-        return None
-    try:
-        same_case = attempt.death_id == uuid.UUID(str(death_id))
-    except ValueError:
-        same_case = False
-    if attempt.by_user_id != user.user_id or not same_case:
-        raise WebIntakeError("That client_attempt_id is already in use.", 409)
-    return get_death(user, attempt.death_id)
-
-
-# ---------------------------------------------------------------------------
-# Worklist
-# ---------------------------------------------------------------------------
-
-WORKLIST_PAGE_DEFAULT = 50
-WORKLIST_PAGE_MAX = 200
-# ``sort``: the default next-visit order the device app and the older page use,
-# or ``reported`` (newest reported first, the page's "Recent" chip).
-WORKLIST_SORTS = ("next_visit", "reported")
-_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
-
-
-def _encode_cursor(updated_at: datetime, death_id: uuid.UUID) -> str:
-    micros = (updated_at - _EPOCH) // timedelta(microseconds=1)
-    return f"{micros}_{death_id}"
-
-
-def _decode_cursor(raw: str) -> tuple[datetime, uuid.UUID]:
-    try:
-        micros, death_id = raw.split("_", 1)
-        return _EPOCH + timedelta(microseconds=int(micros)), uuid.UUID(death_id)
-    except (ValueError, OverflowError):
-        raise WebIntakeError("Invalid cursor.") from None
-
-
-def _micros(at: datetime) -> int:
-    return (at - _EPOCH) // timedelta(microseconds=1)
-
-
-def _encode_worklist_cursor(case: VaDeathRegister) -> str:
-    visit = str(_micros(case.next_visit_at)) if case.next_visit_at else "-"
-    return f"{visit}_{_micros(case.updated_at)}_{case.death_id}"
-
-
-def _after_reported_cursor(raw: str):
-    """Keyset condition for rows after *raw* in the reported order: newest
-    registration first. ``_decode_cursor`` refuses a next-visit cursor (its
-    remainder is not a uuid), so a cursor cannot cross the two orders."""
-    at, death_uuid = _decode_cursor(raw)
-    return sa.tuple_(VaDeathRegister.created_at, VaDeathRegister.death_id) < (at, death_uuid)
-
-
-def _after_worklist_cursor(raw: str):
-    """Keyset condition for rows after *raw* in the worklist order: next visit
-    ascending with undated cases last, then last activity newest first."""
-    try:
-        visit, updated, death_id = raw.split("_", 2)
-        visit_at = None if visit == "-" else _EPOCH + timedelta(microseconds=int(visit))
-        at, death_uuid = _EPOCH + timedelta(microseconds=int(updated)), uuid.UUID(death_id)
-    except (ValueError, OverflowError):
-        raise WebIntakeError("Invalid cursor.") from None
-    older = sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_uuid)
-    if visit_at is None:
-        return sa.and_(VaDeathRegister.next_visit_at.is_(None), older)
-    return sa.or_(
-        VaDeathRegister.next_visit_at.is_(None),
-        VaDeathRegister.next_visit_at > visit_at,
-        sa.and_(VaDeathRegister.next_visit_at == visit_at, older),
-    )
-
-
-def _assigned_only(resolved):
-    """*resolved* without the grants a coder's self-coding project implies
-    (``source == "self_coding"``): the grant rows someone actually assigned."""
-    return dataclasses.replace(resolved, grants=tuple(g for g in resolved.grants if g.source == "assigned"))
-
-
-def _worklist_scope(user: VaUsers, context: list[dict] | None = None, roles: frozenset = _INTERVIEWER,
-                    *, assigned_only: bool = False):
-    """SQL condition for the cases this interviewer's grants reach, or None.
-
-    Per project-site of ``interviewer_context`` (*context* when the caller
-    already has it): a project grant, or a site grant on that very site,
-    sees the whole project-site; otherwise the subtrees of the user's unit
-    grants in that project (a case with no unit is outside every subtree).
-    A wider grant wins over a unit grant on the same project-site
-    (docs/policy/web-intake.md, "Who sees which cases"). The subtrees stay
-    sub-selects, so the grants cost one memoised lookup however many
-    project-sites there are. *roles* as ``interviewer_context`` (*context*
-    must then be built from the same roles). *assigned_only* leaves out the
-    interviewer grant a self-coding coder is implied (``source ==
-    "self_coding"``): the reach that confers registration-number rights, which
-    a coding role never does (policy decisions 11 and 14).
-    """
-    wide: set[tuple[str, str | None]] = set()
-    unit_grants: dict[str, set[uuid.UUID]] = {}
-    resolved = resolve_grants(user)
-    if assigned_only:
-        resolved = _assigned_only(resolved)
-    for grant in resolved.of(roles, virtual=False):
-        if grant.is_wide:
-            wide.add((grant.project_id, grant.site_id))  # site_id None: project grant
-        else:
-            unit_grants.setdefault(grant.project_id, set()).add(grant.org_unit_id)
-    conditions = []
-    for entry in interviewer_context(user, roles, _grants=resolved) if context is None else context:
-        project_id, site_id = entry["project_id"], entry["site_id"]
-        pair = sa.and_(VaDeathRegister.project_id == project_id, VaDeathRegister.site_id == site_id)
-        if (project_id, None) not in wide and (project_id, site_id) not in wide:
-            units = unit_grants.get(project_id)
-            if not units:
-                continue
-            pair = sa.and_(pair, VaDeathRegister.org_unit_id.in_(subtree_select(units)))
-        conditions.append(pair)
-    if not conditions:
-        return None
-    return sa.and_(
-        sa.or_(*conditions),
-        # "Details pending" only for its starter; supervisors see it in
-        # list_supervised_cases.
-        sa.or_(
-            VaDeathRegister.status != "draft_identity",
-            VaDeathRegister.started_by_user_id == user.user_id,
-        ),
-        # A public-demo account sees only the deaths it registered
-        # (docs/policy/public-demo.md section 3), as get_death.
-        *([VaDeathRegister.registered_by == user.user_id] if user.is_public_demo else []),
-        # The Expo training scope: one funnel for the worklist, the register
-        # lists and the Home counts (docs/policy/training-demo-project.md).
-        *training_scope.conditions(VaDeathRegister.project_id),
-    )
-
-
-def _mine_condition(user: VaUsers):
-    """Registered, started or otherwise worked on (any audited action or
-    contact attempt) by *user*."""
-    return sa.or_(
-        VaDeathRegister.registered_by == user.user_id,
-        VaDeathRegister.started_by_user_id == user.user_id,
-        sa.exists().where(
-            MapCaseTransition.death_id == VaDeathRegister.death_id,
-            MapCaseTransition.actor_user_id == user.user_id,
-        ),
-        sa.exists().where(
-            MapCaseContactAttempt.death_id == VaDeathRegister.death_id,
-            MapCaseContactAttempt.by_user_id == user.user_id,
-        ),
-    )
-
-
-def _worklist_select(user: VaUsers):
-    """``SELECT (case, unit_name, my_draft_id, other_draft_started_at,
-    my_submission, other_complete_interview, ready_for_coding,
-    other_draft_started_by)``: a worklist row, with the
-    caller's own resumable web draft (at most one,
-    ``uq_va_web_intake_drafts_user_death_open``, so the join never repeats a
-    case), when the earliest other interviewer's open draft started (None
-    without one), whether the caller's draft is the case's submission,
-    whether a second complete interview exists (``_has_candidate``),
-    whether the case's submission is ``ready_for_coding`` (None without one)
-    and the name of the interviewer whose open draft is that earliest one
-    (owner, 2026-11-05). One query for all of them. The caller adds the
-    scope."""
-    my_draft = aliased(VaWebIntakeDraft)
-    other = aliased(VaWebIntakeDraft)
-    won = aliased(VaWebIntakeDraft)
-    other_started = (
-        sa.select(sa.func.min(other.created_at))
-        .where(
-            other.death_id == VaDeathRegister.death_id, other.status == "draft", other.user_id != user.user_id,
-            # A closed case has no live other interview to warn about.
-            VaDeathRegister.status.not_in(tuple(_SUPERSEDED_CASE_STATES)),
-        )
-        .scalar_subquery()
-    )
-    # Same drafts as other_started; the earliest one's interviewer. Correlated
-    # per row like other_started, probing the case's drafts by death_id.
-    other_started_by = (
-        sa.select(VaUsers.name)
-        .select_from(other)
-        .join(VaUsers, VaUsers.user_id == other.user_id)
-        .where(
-            other.death_id == VaDeathRegister.death_id, other.status == "draft", other.user_id != user.user_id,
-            VaDeathRegister.status.not_in(tuple(_SUPERSEDED_CASE_STATES)),
-        )
-        .order_by(other.created_at, other.draft_id)
-        .limit(1)
-        .scalar_subquery()
-    )
-    return (
-        sa.select(
-            VaDeathRegister, MasOrgUnit.unit_name, my_draft.draft_id,
-            other_started.label("other_draft_started_at"), (won.draft_id.is_not(None)).label("my_submission"),
-            _has_candidate().label("other_complete_interview"),
-            # A confirmed duplicate is never offered for coding; the register
-            # row carries that status, so no correlated subquery is needed.
-            sa.and_(
-                VaSubmissionWorkflow.workflow_state == WORKFLOW_READY_FOR_CODING,
-                VaDeathRegister.status != DUPLICATE_CASE_STATUS,
-                VaDeathRegister.consent_withdrawn_at.is_(None),
-            ).label("ready_for_coding"),
-            other_started_by.label("other_draft_started_by"),
-        )
-        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
-        .outerjoin(
-            my_draft,
-            sa.and_(
-                my_draft.death_id == VaDeathRegister.death_id,
-                my_draft.status == "draft",
-                my_draft.user_id == user.user_id,
-            ),
-        )
-        # A join, not EXISTS: PostgreSQL hashes an EXISTS into one scan of all
-        # the caller's submitted drafts, a join probes ``death_id`` per case.
-        # Matches at most one row: a submission belongs to one draft.
-        .outerjoin(
-            won,
-            sa.and_(
-                won.death_id == VaDeathRegister.death_id,
-                won.user_id == user.user_id,
-                won.status == "submitted",
-                won.va_sid == VaDeathRegister.va_sid,
-            ),
-        )
-        # One row per va_sid (uq_va_submission_workflow_sid).
-        .outerjoin(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaDeathRegister.va_sid)
-    )
-
-
-def list_worklist(user: VaUsers, *, mine: bool = False, states: list[str] | None = None,
-                  cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT,
-                  project_id: str | None = None, context: list[dict] | None = None,
-                  sort: str = "next_visit") -> dict:
-    """Team cases in the interviewer's scope, soonest next visit first.
-
-    Returns ``{"cases": [(case, unit_name, my_draft_id, other_draft_started_at,
-    my_submission, other_complete_interview, ready_for_coding,
-    other_draft_started_by), ...], "counts":
-    {state: n}, "next_cursor": str | None, "possible_duplicates": {death_id:
-    [{"death_id", "unique_id"}, ...]}}``; the last is the page's possible
-    duplicates (up to three a case) from one query. ``counts`` cover the scope and
-    the *mine* filter but not *states*, so tabs can show their totals. Sorted
-    by next visit (overdue first, undated last), then last activity newest
-    first. Keyset-paged on (next_visit_at, updated_at, death_id).
-    *project_id* narrows the scope to one project, counts included (the
-    device list); possible duplicates still come from the whole scope.
-    ``sort="reported"`` orders by registration instead (newest first), keyset
-    on (created_at, death_id); the cursor then comes from that order.
-    ``context``: the caller's ``interviewer_context``, if already computed.
-
-    A death_reporter also gets the deaths they registered that their
-    death_reporter grants still reach (``reported_deaths_page``'s scope, so
-    no case they could not already list). ``reporter_only`` is the set of
-    the page's death ids reached that way alone, not by an interviewer
-    grant: their rows carry the reporter's shape (``worklist_page``).
-    ``coding_status`` is ``{death_id: str | None}`` for the page (``_CODING_STATUS``).
-    """
-    for state in states or []:
-        if state not in CASE_STATES:
-            raise WebIntakeError(f"Unknown state {state!r}.")
-    if sort not in WORKLIST_SORTS:
-        raise WebIntakeError("sort must be next_visit or reported.")
-    limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
-    interviewer_scope = _worklist_scope(user, context)
-    reporter_scope = _worklist_scope(user, None, _DEATH_REPORTER)
-    if reporter_scope is not None:
-        reporter_scope = sa.and_(reporter_scope, VaDeathRegister.registered_by == user.user_id)
-    scopes = [s for s in (interviewer_scope, reporter_scope) if s is not None]
-    if not scopes:
-        return {"cases": [], "counts": {}, "next_cursor": None, "possible_duplicates": {}, "reporter_only": set(),
-                "coding_status": {}}
-    scope = scopes[0] if len(scopes) == 1 else sa.or_(*scopes)
-    # A consent-withdrawn case is sealed (docs/policy/consent-withdrawal.md).
-    base = [scope, VaDeathRegister.consent_withdrawn_at.is_(None)]
-    if project_id is not None:
-        base.append(VaDeathRegister.project_id == project_id)
-    if mine:
-        base.append(_mine_condition(user))
-
-    counts = dict(
-        db.session.execute(
-            sa.select(VaDeathRegister.status, sa.func.count())
-            .where(*base)
-            .group_by(VaDeathRegister.status)
-        ).all()
-    )
-
-    filters = list(base)
-    if states:
-        filters.append(VaDeathRegister.status.in_(states))
-    if sort == "reported":
-        order_by = (VaDeathRegister.created_at.desc(), VaDeathRegister.death_id.desc())
-        if cursor:
-            filters.append(_after_reported_cursor(cursor))
-    else:
-        order_by = (
-            VaDeathRegister.next_visit_at.asc().nulls_last(),
-            VaDeathRegister.updated_at.desc(),
-            VaDeathRegister.death_id.desc(),
-        )
-        if cursor:
-            filters.append(_after_worklist_cursor(cursor))
-    # Lazy: case_list_service imports this module.
-    from app.services.case_list_service import combined_status_case
-
-    via_interviewer = interviewer_scope if interviewer_scope is not None else sa.false()
-    rows = db.session.execute(
-        _worklist_select(user)
-        .add_columns(combined_status_case().label("combined_status"), via_interviewer.label("via_interviewer"))
-        .where(*filters)
-        .order_by(*order_by)
-        .limit(limit + 1)
-    ).all()
-    reporter_only = {row[0].death_id for row in rows[:limit] if not row[-1]}
-    coding_status = {row[0].death_id: _CODING_STATUS.get(row[-2]) for row in rows[:limit]}
-    page = [tuple(row)[:-2] for row in rows[:limit]]
-    if len(rows) > limit:
-        last = page[-1][0]
-        next_cursor = (_encode_cursor(last.created_at, last.death_id) if sort == "reported"
-                       else _encode_worklist_cursor(last))
-    else:
-        next_cursor = None
-    duplicates = register_duplicate_service.possible_duplicate_rows([row[0].death_id for row in page], scope, per_case=3)
-    possible = {}
-    for row in duplicates:
-        possible.setdefault(row.subject_id, []).append(
-            {"death_id": str(row.death_id), "unique_id": row.unique_id}
-        )
-    return {"cases": page, "counts": counts, "next_cursor": next_cursor, "possible_duplicates": possible,
-            "reporter_only": reporter_only, "coding_status": coding_status}
-
-
-_TRUE, _FALSE = ("1", "true", "yes"), ("", "0", "false", "no")
-#: A worklist row's ``coding_status`` from the case list's combined status
-#: (``case_list_service.combined_status_case``); any other status (no
-#: submission, refused, duplicate, cancelled) is None.
-_CODING_STATUS = {"submitted_awaiting_coding": "awaiting_coding", "in_coding": "in_coding",
-                  "coded": "coded", "not_codeable": "not_codeable"}
-
-
-def worklist_page(user: VaUsers, args, *, project_id: str | None = None,
-                  context: list[dict] | None = None) -> dict:
-    """The worklist response ``GET /api/v1/intake/cases`` serves:
-    ``{"cases": [row + possible_duplicates], "counts", "next_cursor"}``.
-
-    *args* is the request's query string: ``mine`` (true/false), ``state``
-    (comma-separated case states), ``limit`` (clamped to 1..200), ``cursor``
-    (from ``next_cursor``), ``sort`` (``next_visit`` default, or ``reported``);
-    a malformed one is a 400 WebIntakeError. Each row's ``can_interview`` is
-    False for a case reached only as its reporter (``list_worklist``).
-    ``latitude`` / ``longitude`` (the death-site GPS fix, for the card's map
-    link) only in organization projects (``projects_with_org_tree``, the
-    notion ``_require_scope`` uses), and there only where the case detail
-    would show the household address: a caller with personal-data access
-    in the row's project (``pii_scope``), or the death's own reporter. A sites-mode
-    project's rows never carry them (owner, 2026-10-20). Each row carries
-    ``identifiers`` (``death_identifier_service.identifier_payloads``, loaded
-    once for the page) and ``can_edit_identifiers`` (``can_edit_identifiers``,
-    one query for the page). ``coding_status``: ``awaiting_coding``,
-    ``in_coding``, ``coded``, ``not_codeable`` or None (no submission, or
-    refused / duplicate / cancelled), from the same select.
-    *project_id* and *context* as ``list_worklist``.
-    """
-    mine = (args.get("mine") or "").lower()
-    if mine not in _TRUE + _FALSE:
-        raise WebIntakeError("mine must be true or false.")
-    sort = args.get("sort") or "next_visit"
-    if sort not in WORKLIST_SORTS:
-        raise WebIntakeError("sort must be next_visit or reported.")
-    try:
-        limit = int(args.get("limit") or WORKLIST_PAGE_DEFAULT)
-    except ValueError:
-        raise WebIntakeError("limit must be a whole number.") from None
-    result = list_worklist(
-        user,
-        mine=mine in _TRUE,
-        states=[s for s in (args.get("state") or "").split(",") if s],
-        cursor=args.get("cursor") or None,
-        limit=limit,
-        project_id=project_id,
-        context=context,
-        sort=sort,
-    )
-    possible = result["possible_duplicates"]
-    # One grant read and one org-tree read per page, not per row.
-    pii = pii_scope(user)
-    org_projects = org_grant_service.projects_with_org_tree(
-        {row[0].project_id for row in result["cases"]}) if result["cases"] else set()
-    identifiers = death_identifiers.identifier_payloads(user, [row[0] for row in result["cases"]])
-    editable = can_edit_identifiers(user, [row[0] for row in result["cases"]])
-    # Names of the page opened once (one unwrap a sealed row); the GPS fix
-    # only for rows that carry it and may show it, so nothing else opens.
-    deaths = [row[0] for row in result["cases"]]
-    names = register_pii_accessor.open_register_pii(deaths, only=("deceased_name",))
-    shows_fix = [d for d in deaths if d.has_location and d.project_id in org_projects
-                 and (pii.sees(d.project_id) or d.registered_by == user.user_id)]
-    fixes = register_pii_accessor.open_register_pii(shows_fix, only=("latitude", "longitude"))
-    rows = []
-    for row in result["cases"]:
-        serialized = serialize_worklist_row(user, *row, register=names[row[0].death_id])
-        serialized["identifiers"] = identifiers[row[0].death_id]
-        serialized["can_edit_identifiers"] = editable[row[0].death_id]
-        if row[0].project_id in org_projects and (pii.sees(row[0].project_id) or serialized["registered_by_me"]):
-            fix = fixes.get(row[0].death_id) or {}
-            serialized["latitude"] = fix.get("latitude")
-            serialized["longitude"] = fix.get("longitude")
-        serialized["possible_duplicates"] = possible.get(row[0].death_id, [])
-        serialized["coding_status"] = result["coding_status"][row[0].death_id]
-        # A case reached only as its reporter: no interview here, so nothing
-        # about other interviewers' drafts (as _case_body, digitva-t6q).
-        serialized["can_interview"] = row[0].death_id not in result["reporter_only"]
-        if not serialized["can_interview"]:
-            serialized.pop("other_draft_active")
-            serialized.pop("other_draft_started_at")
-            serialized.pop("other_draft_started_by")
-        rows.append(serialized)
-    return {"cases": rows, "counts": result["counts"], "next_cursor": result["next_cursor"]}
-
-
-def get_case_detail(user: VaUsers, death_id: object, *, context: list[dict] | None = None) -> tuple:
-    """One case as a ``_worklist_select`` row, visible exactly when the
-    worklist would list it (``_worklist_scope``, every project of the
-    caller's), in any state. Unknown, out of scope or a malformed id: 404.
-    ``context``: the caller's ``interviewer_context``, if already computed."""
-    try:
-        death_uuid = uuid.UUID(str(death_id))
-    except ValueError:
-        raise WebIntakeError("Case not found.", 404) from None
-    scope = _worklist_scope(user, context)
-    if scope is None:
-        raise WebIntakeError("Case not found.", 404)
-    row = db.session.execute(
-        _worklist_select(user).where(scope, VaDeathRegister.death_id == death_uuid).limit(1)
-    ).first()
-    if row is None:
-        raise WebIntakeError("Case not found.", 404)
-    return tuple(row)
-
-
-def prefill_policy(user: VaUsers, project_id: str) -> dict:
-    """The offline prefill the server applies in *project_id*, for an app that
-    builds a draft before it can reach the server. Derived from
-    ``_prefill_from_death``, which stays the authority: an upload's locked
-    answers are recomputed server-side whatever the app sent.
-
-    ``direct``: the prefill of a direct start with no unit (interviewer and
-    its locked questions). ``units``: ``{org_unit_id: {answers,
-    lockedQuestionNames}}``, the area part a direct start in that unit adds,
-    for every unit the caller may pick (``reachable_unit_ids``; None means
-    every active unit). ``answer_fields``/``locked_fields``: which register
-    columns become which answers. Name, sex, dates and age go to
-    ``prefill.deceased`` and the package maps them; the registered age lock,
-    the partial birth date and the place-of-death matching are conditional,
-    so they arrive per case in the case detail's ``prefill``, not here.
-
-    ponytail: ``units`` grows with the reachable tree, as ``/units`` does.
-    """
-    direct = _prefill_from_death(None, user)
-    reachable = reachable_unit_ids(user, project_id)
-    if reachable is None:
-        reachable = set(db.session.scalars(
-            sa.select(MasOrgUnit.org_unit_id).where(
-                MasOrgUnit.project_id == project_id, MasOrgUnit.is_active.is_(True)
-            )
-        ).all())
-    parts = _unit_prefill_parts(reachable)
-    interviewer_locked = set(direct["lockedQuestionNames"])
-    units = {}
-    for unit_id, unit_parts in parts.items():
-        prefill = _prefill_from_death(None, user, unit_id, unit_parts)
-        units[str(unit_id)] = {
-            "answers": prefill["answers"],
-            "lockedQuestionNames": sorted(set(prefill["lockedQuestionNames"]) - interviewer_locked),
-        }
-    return {
-        "direct": direct,
-        "units": units,
-        "answer_fields": dict(PREFILL_ANSWER_FIELDS),
-        "locked_fields": list(PREFILL_LOCKED_FIELDS),
-    }
-
-
-# ---------------------------------------------------------------------------
-# Possible-duplicate check (phase 6, digitva-vzk.11)
-# ---------------------------------------------------------------------------
-
-def possible_duplicates(user: VaUsers, case: VaDeathRegister, scope=None) -> list[dict]:
-    """Cases in *user*'s worklist reach that may be the same death as *case*.
-
-    A warning for the interviewer, never a block and never a merge: flagging
-    stays a person's decision (decisions 6 and 14). The caller has already
-    checked *user* may see *case* (``get_death``). Rules in
-    ``register_duplicate_service``. Each candidate carries what tells a person
-    whether it is the same death (name, date of death, village, age, sex,
-    informant, previous interviewer, who reported the death); the candidates are only cases inside
-    *scope* (default: *user*'s worklist reach), so nothing of any other case is
-    returned (docs/policy/web-intake.md, "Duplicate and cancel flags"). ``village`` is
-    the village or ward of the candidate's recorded address, None when empty
-    (never the org unit, which comes as ``unit_name``).
-    """
-    if scope is None:
-        scope = _worklist_scope(user)
-    rows = register_duplicate_service.possible_duplicate_rows([case.death_id], scope, per_case=DUPLICATE_CANDIDATES_MAX)
-    return [
-        {
-            "death_id": str(row.death_id),
-            "unique_id": row.unique_id,
-            "unit_name": row.unit_name,
-            "state": row.status,
-            "score": round(float(row.score), 2),
-            "deceased_name": row.deceased_name,
-            "date_of_death": row.date_of_death.isoformat() if row.date_of_death else None,
-            "village": row.address_village_ward or None,
-            "age_years": row.age_years,
-            "sex": row.deceased_sex,
-            "informant_name": row.informant_name,
-            "previous_interviewer_name": row.interviewer_name,
-            "reported_by_name": row.registrant_name,
-        }
-        for row in rows
-    ]
-
-
-# ---------------------------------------------------------------------------
-# Supervisor view (digitva-vzk.5)
-# ---------------------------------------------------------------------------
-
-
-def get_supervised_case(user: VaUsers, death_id: object) -> VaDeathRegister:
-    """A case *user* supervises, else 404: an id is not proof the case exists."""
-    try:
-        death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
-    except ValueError:
-        death = None
-    # An admin may open any case here, as the choose action allows (they find
-    # the case id in the admin panels; the supervision list stays grant-scoped).
-    if death is None or not training_scope.keeps_project(death.project_id) or not (
-        user.is_admin() or cases.is_interview_supervisor_for(user, death)
-    ):
-        raise WebIntakeError("Case not found.", 404)
-    # A consent-withdrawn case is sealed: admin only (docs/policy/consent-withdrawal.md).
-    if death.consent_withdrawn_at is not None and not user.is_admin():
-        raise WebIntakeError("Case not found.", 404)
-    return death
-
-
-def get_case_for_supervisor(user: VaUsers, death_id: object) -> VaDeathRegister:
-    """A case *user* supervises (``is_interview_supervisor_for``: no admin
-    bypass) in a project where they see personal data (``pii_scope``), for
-    ``GET /cases/<id>``'s death-report edit form; else 404. A
-    consent-withdrawn case is sealed; a training case stays in training
-    mode."""
-    try:
-        death = db.session.get(VaDeathRegister, uuid.UUID(str(death_id)))
-    except ValueError:
-        death = None
-    if (death is None or death.consent_withdrawn_at is not None
-            or not training_scope.keeps_project(death.project_id)
-            or not pii_scope(user).sees(death.project_id)
-            or not cases.is_interview_supervisor_for(user, death)):
-        raise WebIntakeError("Case not found.", 404)
-    return death
-
-
-def supervised_row_facts(user: VaUsers, deaths: list[VaDeathRegister]) -> dict:
-    """``{death_id: {last_edited_by_name, last_edited_at, can_edit_death}}``
-    for a page of supervision rows, in two queries whatever its size.
-
-    ``last_edited_*``: who made the case submission's active payload version
-    and when, when that version is a revision (``revision_reason_code`` set);
-    else null. The name is null where *user* has no personal-data access in
-    the case's project, like ``registered_by_name``. ``can_edit_death``: the
-    death report edit (``update_death``) is open now: not ``draft_identity``,
-    not cancelled, duplicate or consent-withdrawn, and no interview of the
-    case completed (``_interview_completed``)."""
-    if not deaths:
-        return {}
-    pii = pii_scope(user)
-    sids = {d.va_sid for d in deaths if d.va_sid}
-    edited = {}
-    if sids:
-        edited = {row.va_sid: row for row in db.session.execute(
-            sa.select(VaSubmissionPayloadVersion.va_sid, VaSubmissionPayloadVersion.version_created_at,
-                      VaUsers.name)
-            .outerjoin(VaUsers, VaUsers.user_id == VaSubmissionPayloadVersion.created_by)
-            .where(VaSubmissionPayloadVersion.va_sid.in_(sids),
-                   VaSubmissionPayloadVersion.version_status == "active",
-                   VaSubmissionPayloadVersion.revision_reason_code.is_not(None))
-        )}
-    open_ids = [d.death_id for d in deaths if not d.va_sid]
-    completed = set(db.session.scalars(sa.select(VaWebIntakeDraft.death_id).distinct().where(
-        VaWebIntakeDraft.death_id.in_(open_ids),
-        VaWebIntakeDraft.status.in_(("submitted", "superseded")),
-        VaWebIntakeDraft.meta["interviewOutcome"].astext == "completed",
-    ))) if open_ids else set()
-    facts = {}
-    for death in deaths:
-        version = edited.get(death.va_sid)
-        facts[death.death_id] = {
-            "last_edited_by_name": version.name if version is not None and pii.sees(death.project_id) else None,
-            "last_edited_at": version.version_created_at.isoformat() if version is not None else None,
-            "can_edit_death": (
-                death.status not in ("draft_identity", "cancelled", DUPLICATE_CASE_STATUS)
-                and death.consent_withdrawn_at is None
-                and not death.va_sid and death.death_id not in completed
-            ),
-        }
-    return facts
-
-
-def supervised_case_row(death: VaDeathRegister) -> tuple:
-    """``(case, unit_name, registered_by_name, started_by_name,
-    other_complete_interview)`` for a case the caller supervises
-    (``list_supervised_cases``' row, for an action's reply), without
-    re-running the list query."""
-    unit = db.session.get(MasOrgUnit, death.org_unit_id) if death.org_unit_id else None
-    registrant = db.session.get(VaUsers, death.registered_by) if death.registered_by else None
-    starter = db.session.get(VaUsers, death.started_by_user_id) if death.started_by_user_id else None
-    return (
-        death,
-        unit.unit_name if unit else None,
-        registrant.name if registrant else None,
-        starter.name if starter else None,
-        bool(db.session.scalar(sa.select(_has_candidate()).where(VaDeathRegister.death_id == death.death_id))),
-    )
-
-
-_SUPERVISION_OPEN_STATES = ("registered", "scheduled", "in_progress", "paused", "not_reachable")
-SUPERVISION_STUCK_DAYS = 30
-SUPERVISION_SORTS = ("newest", "oldest")
-
-
-def supervision_attention_conditions() -> dict:
-    """The supervisor's three attention predicates, shared by the list filters
-    and the tiles/Home counts so they never disagree: ``needs_decision`` (a
-    flag waits, or a second complete interview is there to choose), ``overdue``
-    (open and the revisit date has passed) and ``stuck`` (open, untouched for
-    ``SUPERVISION_STUCK_DAYS``)."""
-    now = datetime.now(UTC)
-    open_case = VaDeathRegister.status.in_(_SUPERVISION_OPEN_STATES)
-    return {
-        "needs_decision": sa.or_(VaDeathRegister.pending_flag.is_not(None), _has_candidate()),
-        "overdue": sa.and_(open_case, VaDeathRegister.next_visit_at < now),
-        "stuck": sa.and_(open_case, VaDeathRegister.updated_at < now - timedelta(days=SUPERVISION_STUCK_DAYS)),
-    }
-
-
-def supervision_tiles(scope) -> dict:
-    """``{needs_decision, overdue, stuck, total}`` over the cases *scope*
-    (a ``VaDeathRegister`` condition) selects: one aggregate query, shared by
-    the supervision list and the case list's tiles."""
-    attention = supervision_attention_conditions()
-    row = db.session.execute(
-        sa.select(
-            sa.func.count().filter(attention["needs_decision"]),
-            sa.func.count().filter(attention["overdue"]),
-            sa.func.count().filter(attention["stuck"]),
-            sa.func.count(),
-        ).where(scope)
-    ).one()
-    return dict(zip(("needs_decision", "overdue", "stuck", "total"), row))
-
-
-def list_supervised_cases(user: VaUsers, *, states: list[str] | None = None, flagged: bool = False,
-                          candidates: bool = False, visit_note: bool = False,
-                          needs_decision: bool = False, overdue: bool = False, stuck: bool = False,
-                          sort: str = "newest",
-                          cursor: str | None = None, limit: int = WORKLIST_PAGE_DEFAULT) -> dict:
-    """Every case in the supervisor's scope, "details pending" included.
-
-    Returns ``{"cases": [(case, unit_name, registered_by_name,
-    started_by_name, other_complete_interview), ...], "counts": {state: n},
-    "next_cursor": ...}``; *flagged* keeps cases with a flag waiting for a
-    supervisor, *candidates* those with a second complete interview to choose
-    (``_has_candidate``), *visit_note* those whose submission holds a visit
-    note (one EXISTS, no extra query); *needs_decision*, *overdue* and *stuck*
-    are ``supervision_attention_conditions``. ``counts`` and ``tiles``
-    (``{needs_decision, overdue, stuck, total}``, one aggregate query) ignore
-    every filter. *sort*: ``newest`` (updated_at desc, default) or ``oldest``.
-    Keyset-paged like ``list_worklist``.
-    """
-    for state in states or []:
-        if state not in CASE_STATES:
-            raise WebIntakeError(f"Unknown state {state!r}.")
-    if sort not in SUPERVISION_SORTS:
-        raise WebIntakeError(f"Unknown sort {sort!r}.")
-    limit = max(1, min(int(limit), WORKLIST_PAGE_MAX))
-    scope = sa.and_(cases.supervised_case_condition(user), VaDeathRegister.consent_withdrawn_at.is_(None),
-                    *training_scope.conditions(VaDeathRegister.project_id))
-    counts = dict(
-        db.session.execute(
-            sa.select(VaDeathRegister.status, sa.func.count()).where(scope).group_by(VaDeathRegister.status)
-        ).all()
-    )
-    attention = supervision_attention_conditions()
-    tiles = supervision_tiles(scope)
-    filters = [scope]
-    for name, wanted in (("needs_decision", needs_decision), ("overdue", overdue), ("stuck", stuck)):
-        if wanted:
-            filters.append(attention[name])
-    if states:
-        filters.append(VaDeathRegister.status.in_(states))
-    if flagged:
-        filters.append(VaDeathRegister.pending_flag.is_not(None))
-    if candidates:
-        filters.append(_has_candidate())
-    if visit_note:
-        # The note's predicate reads VaSubmissions, so it is correlated here.
-        filters.append(sa.exists(sa.select(1).where(
-            VaSubmissions.va_sid == VaDeathRegister.va_sid, has_visit_note_condition(),
-        )))
-    if cursor:
-        at, death_id = _decode_cursor(cursor)
-        keyset = sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id)
-        filters.append(keyset > (at, death_id) if sort == "oldest" else keyset < (at, death_id))
-    registrant = aliased(VaUsers)
-    starter = aliased(VaUsers)
-    ordering = (
-        (VaDeathRegister.updated_at.asc(), VaDeathRegister.death_id.asc())
-        if sort == "oldest"
-        else (VaDeathRegister.updated_at.desc(), VaDeathRegister.death_id.desc())
-    )
-    rows = db.session.execute(
-        sa.select(VaDeathRegister, MasOrgUnit.unit_name, registrant.name, starter.name,
-                  _has_candidate().label("other_complete_interview"))
-        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaDeathRegister.org_unit_id)
-        .outerjoin(registrant, registrant.user_id == VaDeathRegister.registered_by)
-        .outerjoin(starter, starter.user_id == VaDeathRegister.started_by_user_id)
-        .where(*filters)
-        .order_by(*ordering)
-        .limit(limit + 1)
-    ).all()
-    page = [tuple(row) for row in rows[:limit]]
-    next_cursor = None
-    if len(rows) > limit:
-        last = page[-1][0]
-        next_cursor = _encode_cursor(last.updated_at, last.death_id)
-    return {"cases": page, "counts": counts, "tiles": tiles, "next_cursor": next_cursor}
-
-
-# ---------------------------------------------------------------------------
-# Serializers
-# ---------------------------------------------------------------------------
-
-
-def gps_projects(user: VaUsers, project_ids: set[str]) -> set[str]:
-    """The projects among *project_ids* where *user* sees the GPS fix of a
-    death someone else registered: organization projects
-    (``projects_with_org_tree``) and only those where the caller has
-    personal-data access (``pii_scope``, per project). One grant read and one org-tree read, so
-    call it once per request, not per row. ``shows_gps`` adds the reporter's
-    own registrations (owner, 2026-10-20; docs/policy/web-intake.md)."""
-    pii = pii_scope(user)
-    visible = {p for p in project_ids if pii.sees(p)} if project_ids else set()
-    if not visible:
-        return set()
-    return org_grant_service.projects_with_org_tree(visible)
-
-
-def shows_gps(user: VaUsers, death: VaDeathRegister, visible_projects: set[str]) -> bool:
-    """Whether a case detail or register row for *death* carries its GPS fix:
-    *death* is in one of *visible_projects* (``gps_projects``), or *user*
-    registered it, in any project, so the registration's edit form keeps the
-    fix its reporter captured."""
-    return death.registered_by == user.user_id or death.project_id in visible_projects
-
-
-def _serialize_location(death: VaDeathRegister, show_gps: bool, values: dict) -> dict:
-    """The GPS fix, for the serializers that already carry the address; the
-    keys are omitted (not null) when *show_gps* is False (``shows_gps``).
-    *values* are the opened register attributes."""
-    if not show_gps:
-        return {}
-    return {
-        "latitude": values["latitude"],
-        "longitude": values["longitude"],
-        "accuracy_m": values["accuracy_m"],
-        "captured_at": death.captured_at.isoformat() if death.captured_at else None,
-    }
-
-
-def _register_values(death: VaDeathRegister, register: dict | None, only) -> dict:
-    """The opened sealed attributes of *death* named in *only*: *register*
-    when the caller opened a whole page (``open_register_pii``, one unwrap a
-    row), else opened here. A viewer who may not see an attribute leaves it
-    out of *only*, so it is never decrypted."""
-    return register if register is not None else register_pii_accessor.current_values(death, only)
-
-
-def _without_location(names=register_pii_accessor.SEALED_ATTRS) -> tuple:
-    return tuple(n for n in names if n not in LOCATION_FIELDS)
-
-
-def serialize_death(death: VaDeathRegister, *, show_gps: bool = False, register: dict | None = None) -> dict:
-    """One register row. The GPS fix (``latitude``, ``longitude``,
-    ``accuracy_m``, ``captured_at``) only when *show_gps* (``shows_gps``).
-    *register*: the row's opened attributes when the caller opened a page of
-    rows (``open_register_pii``); else opened here."""
-    values = _register_values(
-        death, register, register_pii_accessor.SEALED_ATTRS if show_gps else _without_location())
-    return {
-        "death_id": str(death.death_id),
-        "project_id": death.project_id,
-        "site_id": death.site_id,
-        "org_unit_id": str(death.org_unit_id) if death.org_unit_id else None,
-        "unique_id": death.unique_id,
-        "deceased_name": values["deceased_name"],
-        "deceased_sex": death.deceased_sex,
-        "abha_number": values["abha_number"],
-        "abha_address": values["abha_address"],
-        "date_of_birth": death.date_of_birth.isoformat() if death.date_of_birth else None,
-        "date_of_birth_partial": death.date_of_birth_partial,
-        "age_years": death.age_years,
-        "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
-        "place_of_death": values["place_of_death"],
-        "address": values["address"],
-        "address_house_street": values["address_house_street"],
-        "address_village_ward": values["address_village_ward"],
-        "address_landmark": values["address_landmark"],
-        **_serialize_location(death, show_gps, values),
-        "informant_name": values["informant_name"],
-        "father_name": values["father_name"],
-        "mother_name": values["mother_name"],
-        "informant_phone": values["informant_phone"],
-        "informant_phone_2": values["informant_phone_2"],
-        "remarks": values["remarks"],
-        "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
-        "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
-        "status": death.status,
-        "source": death.source,
-        "pending_flag": death.pending_flag,
-        "va_sid": death.va_sid,
-        "created_at": death.created_at.isoformat(),
-    }
-
-
-def _code_now(user: VaUsers, death: VaDeathRegister, my_submission: bool, ready_for_coding: bool | None) -> bool:
-    return bool(
-        my_submission and ready_for_coding and death.project_id in self_coding_project_ids(user)
-        and _code_now_unit_ok(user, death.project_id, death.org_unit_id)
-    )
-
-
-def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
-                           my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
-                           my_submission: bool = False, other_complete_interview: bool = False,
-                           ready_for_coding: bool | None = False, other_draft_started_by: str | None = None,
-                           register: dict | None = None) -> dict:
-    """One worklist row (browser and device lists). *register*: the row's
-    opened ``deceased_name`` when the caller opened the page (one unwrap a
-    row); phone presence comes from the ``has_*`` flags, nothing else opens. No informant name or
-    address, and no phone digits (only ``has_informant_phone`` booleans): the
-    list shows who died, not how to reach the family. ``va_sid`` only for the interviewer whose draft
-    became the submission (*my_submission*): the interview form is its
-    interviewer's own. ``other_draft_active`` / ``other_draft_started_at`` /
-    ``other_draft_started_by`` warn that another interviewer holds an open
-    draft, when the earliest one started and that interviewer's name (owner,
-    2026-11-05: names are an operational need inside the organisation);
-    ``other_complete_interview`` that a second complete interview of the case
-    exists (a supervisor may choose it), never whose. ``code_now``: the caller's
-    own submission is ``ready_for_coding`` in a self-coding project where they
-    code, so "Code now" works (``coder_workflow_service.allocate_own_case``)."""
-    values = _register_values(death, register, ("deceased_name",))
-    return {
-        "death_id": str(death.death_id),
-        "unique_id": death.unique_id,
-        "project_id": death.project_id,
-        "site_id": death.site_id,
-        "org_unit_id": str(death.org_unit_id) if death.org_unit_id else None,
-        "unit_name": unit_name,
-        "source": death.source,
-        "state": death.status,
-        "details_pending": death.status == "draft_identity",
-        "deceased_name": values["deceased_name"],
-        "deceased_sex": death.deceased_sex,
-        "age_years": death.age_years,
-        "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
-        "pending_flag": death.pending_flag,
-        "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
-        "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
-        "has_informant_phone": bool(death.has_informant_phone),
-        "has_informant_phone_2": bool(death.has_informant_phone_2),
-        "registered_by_me": death.registered_by == user.user_id,
-        "started_by_me": death.started_by_user_id == user.user_id,
-        # Someone started the case (no name: who holds it is supervisor-only).
-        "started": death.started_by_user_id is not None,
-        "my_draft_id": str(my_draft_id) if my_draft_id else None,
-        "other_draft_active": other_draft_started_at is not None,
-        "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,
-        "other_draft_started_by": other_draft_started_by if other_draft_started_at else None,
-        "va_sid": death.va_sid if my_submission else None,
-        "other_complete_interview": bool(other_complete_interview),
-        "code_now": _code_now(user, death, my_submission, ready_for_coding),
-        "created_at": death.created_at.isoformat(),
-        "updated_at": death.updated_at.isoformat(),
-    }
-
-
-#: Never in a case detail (``serialize_case_detail``): they come only in the
-#: API's ``prefill`` to a caller who may start the interview.
-_CASE_DETAIL_HIDDEN = ("abha_number", "abha_address", "father_name", "mother_name")
-
-
-def serialize_case_detail(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
-                          my_draft_id: uuid.UUID | None, other_draft_started_at: datetime | None = None,
-                          my_submission: bool = False, other_complete_interview: bool = False,
-                          ready_for_coding: bool | None = False, other_draft_started_by: str | None = None,
-                          register: dict | None = None) -> dict:
-    """One case for the case page and the device detail: the worklist row's
-    case fields plus the full contact details (informant name, both phones,
-    household address, remarks). Never ABHA, parents' names, other users' ids
-    or client ids: the ABHA and parents' names come only in the API's
-    ``prefill`` (``case_prefill``), only to a caller who may start or resume
-    the interview (docs/policy/web-intake.md, "Single-case detail"). The
-    submission id (``va_sid``) only to the interviewer whose draft became the
-    submission (*my_submission*); ``other_draft_active``,
-    ``other_draft_started_at``, ``other_draft_started_by`` and
-    ``other_complete_interview`` as in
-    ``serialize_worklist_row``, as is ``code_now``. The household address's
-    GPS fix only where ``shows_gps`` allows it; otherwise its keys are
-    absent. *register*: the row's opened attributes, if the caller has them;
-    ABHA and parents' names, and the fix without ``show_gps``, are never
-    opened here."""
-    show_gps = shows_gps(user, death, gps_projects(user, {death.project_id}))
-    values = _register_values(death, register, tuple(
-        n for n in register_pii_accessor.SEALED_ATTRS
-        if n not in _CASE_DETAIL_HIDDEN and (show_gps or n not in LOCATION_FIELDS)))
-    return {
-        "death_id": str(death.death_id),
-        "unique_id": death.unique_id,
-        "project_id": death.project_id,
-        "site_id": death.site_id,
-        "org_unit_id": str(death.org_unit_id) if death.org_unit_id else None,
-        "unit_name": unit_name,
-        "source": death.source,
-        "state": death.status,
-        "details_pending": death.status == "draft_identity",
-        "pending_flag": death.pending_flag,
-        "deceased": {
-            "name": values["deceased_name"],
-            "sex": death.deceased_sex,
-            "age_years": death.age_years,
-            "date_of_birth": death.date_of_birth.isoformat() if death.date_of_birth else None,
-            "date_of_birth_partial": death.date_of_birth_partial,
-            "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
-            "place_of_death": values["place_of_death"],
-        },
-        "household_address": {
-            "address": values["address"],
-            "house_street": values["address_house_street"],
-            "village_ward": values["address_village_ward"],
-            "landmark": values["address_landmark"],
-            **_serialize_location(death, show_gps, values),
-        },
-        "informant": {
-            "name": values["informant_name"],
-            "phone": values["informant_phone"],
-            "phone_2": values["informant_phone_2"],
-        },
-        "remarks": values["remarks"],
-        "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
-        "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
-        "registered_by_me": death.registered_by == user.user_id,
-        "started_by_me": death.started_by_user_id == user.user_id,
-        "my_draft_id": str(my_draft_id) if my_draft_id else None,
-        "other_draft_active": other_draft_started_at is not None,
-        "other_draft_started_at": other_draft_started_at.isoformat() if other_draft_started_at else None,
-        "other_draft_started_by": other_draft_started_by if other_draft_started_at else None,
-        "va_sid": death.va_sid if my_submission else None,
-        "other_complete_interview": bool(other_complete_interview),
-        "code_now": _code_now(user, death, my_submission, ready_for_coding),
-        "created_at": death.created_at.isoformat(),
-        "updated_at": death.updated_at.isoformat(),
-    }
-
-
-#: The sealed attributes a supervision row opens (where the caller sees PII).
-SUPERVISED_ROW_PII = ("deceased_name", "address_village_ward")
-
-
-def serialize_supervised_row(user: VaUsers, death: VaDeathRegister, unit_name: str | None,
-                             registered_by_name: str | None, started_by_name: str | None,
-                             other_complete_interview: bool = False, register: dict | None = None) -> dict:
-    """A worklist row plus who registered and started the case (staff identity,
-    decision 13), without the informant's phones: the supervisor list does not
-    contact families. ``other_complete_interview``: a candidate to choose
-    exists (``choose_interview``). The deceased, registrant and starter names
-    and the household's ``village_ward`` are null where *user* has no
-    personal-data access in the case's project (``pii_scope``; web-intake.md
-    item 14), and are then never opened. *register*: the row's opened
-    ``deceased_name`` and ``address_village_ward`` when the caller opened the
-    page; else opened here."""
-    named = pii_scope(user).sees(death.project_id)
-    if not named:
-        register = {"deceased_name": None, "address_village_ward": None}
-    elif register is None:
-        register = register_pii_accessor.current_values(death, SUPERVISED_ROW_PII)
-    row = serialize_worklist_row(user, death, unit_name, None, other_complete_interview=other_complete_interview,
-                                 register=register)
-    for key in ("my_draft_id", "has_informant_phone", "has_informant_phone_2",
-                "other_draft_active", "other_draft_started_at", "other_draft_started_by", "code_now"):
-        row.pop(key)
-    # Supervisors oversee every interview in scope, so they keep every va_sid
-    # (the submitter-only rule is the interviewer lists').
-    row["va_sid"] = death.va_sid
-    row["village_ward"] = register.get("address_village_ward") or None
-    row["registered_by_name"] = registered_by_name if named else None
-    row["started_by_name"] = started_by_name if named else None
-    row["duplicate_of_death_id"] = str(death.duplicate_of_death_id) if death.duplicate_of_death_id else None
-    # Only an admin reaches a withdrawn case here (get_supervised_case).
-    row["consent_withdrawn"] = death.consent_withdrawn_at is not None
-    return row
-
-
-def serialize_draft(draft: VaWebIntakeDraft, *, sections_saved: int | None = None) -> dict:
-    """One draft. *sections_saved*: the count already fetched for a list
-    (``serialize_drafts``); otherwise the draft's sections are loaded."""
-    return {
-        "draft_id": str(draft.draft_id),
-        "project_id": draft.project_id,
-        "site_id": draft.site_id,
-        "org_unit_id": str(draft.org_unit_id) if draft.org_unit_id else None,
-        "death_id": str(draft.death_id) if draft.death_id else None,
-        "form_id": draft.form_id,
-        "unique_id": draft.unique_id,
-        "current_section": draft.current_section,
-        "status": draft.status,
-        "va_sid": draft.va_sid,
-        "sections_saved": len(draft.sections) if sections_saved is None else sections_saved,
-        "created_at": draft.created_at.isoformat(),
-        "updated_at": draft.updated_at.isoformat(),
-    }
-
-
-def serialize_drafts(drafts: list[VaWebIntakeDraft]) -> list[dict]:
-    """``GET /drafts`` rows: ``serialize_draft`` plus the case's
-    ``deceased_name``, ``deceased_sex``, ``age_years`` and ``date_of_death``
-    (the caller's own drafts, whose answers already hold them; None for a
-    direct start without a case) so the list can filter like the worklist.
-    Two queries for the whole list, not a lazy sections load per row."""
-    if not drafts:
-        return []
-    counts = dict(db.session.execute(
-        sa.select(VaWebIntakeDraftSection.draft_id, sa.func.count())
-        .where(VaWebIntakeDraftSection.draft_id.in_([d.draft_id for d in drafts]))
-        .group_by(VaWebIntakeDraftSection.draft_id)
-    ).all())
-    death_ids = {d.death_id for d in drafts if d.death_id}
-    cases = {c.death_id: c for c in db.session.scalars(
-        sa.select(VaDeathRegister).where(VaDeathRegister.death_id.in_(death_ids))
-    )} if death_ids else {}
-    # The name is sealed on a sealed row: open it for the page's rows (no
-    # query, one unwrap a sealed row).
-    names = {k: v["deceased_name"] for k, v in register_pii_accessor.open_register_pii(
-        cases.values(), only=("deceased_name",)).items()}
-    rows = []
-    for d in drafts:
-        case = cases.get(d.death_id)
-        rows.append(dict(
-            serialize_draft(d, sections_saved=counts.get(d.draft_id, 0)),
-            deceased_name=names.get(d.death_id),
-            deceased_sex=case.deceased_sex if case else None,
-            age_years=case.age_years if case else None,
-            date_of_death=case.date_of_death.isoformat() if case and case.date_of_death else None,
-        ))
-    return rows
-
-
-def resolve_draft_display_names(draft: VaWebIntakeDraft) -> dict:
-    """Project, site and (if any) org-unit/level names for the intake form
-    header (digitva-wdj) -- names instead of the bare codes it used to show.
-
-    One query for a single draft: not folded into ``serialize_draft`` because
-    that is also called once per row of ``serialize_drafts``, where adding a join
-    here would turn into an N+1.
-    """
-    row = db.session.execute(
-        sa.select(
-            VaProjectMaster.project_name,
-            VaSiteMaster.site_name,
-            MasOrgUnit.unit_name,
-            MasOrgLevel.level_name,
-        )
-        .select_from(VaProjectMaster)
-        # Project and site are unrelated tables (each narrowed to one row by
-        # the WHERE below), so the join has no natural ON of its own.
-        .join(VaSiteMaster, sa.true())
-        .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == draft.org_unit_id)
-        .outerjoin(MasOrgLevel, MasOrgLevel.org_level_id == MasOrgUnit.org_level_id)
-        .where(VaProjectMaster.project_id == draft.project_id, VaSiteMaster.site_id == draft.site_id)
-    ).one_or_none()
-    if row is None:
-        return {"project_name": draft.project_id, "site_name": draft.site_id, "org_unit_name": None, "org_level_name": None}
-    project_name, site_name, unit_name, level_name = row
-    return {
-        "project_name": project_name,
-        "site_name": site_name,
-        "org_unit_name": unit_name,
-        "org_level_name": level_name,
-    }

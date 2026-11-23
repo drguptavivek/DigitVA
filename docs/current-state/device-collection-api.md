@@ -50,7 +50,8 @@ and the API contract the app is built against:
   blueprint).
 - `app/models/va_users.py::load_user_from_device_token`: the Flask-Login
   `request_loader`.
-- `app/services/web_intake_service.py`: `submit_device_interview`,
+- `app/services/web_intake_service.py` (facade; code in `app/services/web_intake/`
+  by section, digitva-r8nh.12; import from the facade): `submit_device_interview`,
   `find_device_upload`, `serialize_device_upload`; cases (shared with the
   browser): `worklist_page`, `get_case_detail`, `serialize_case_detail`;
   also: `case_prefill`, `case_row`, `get_device_case`,

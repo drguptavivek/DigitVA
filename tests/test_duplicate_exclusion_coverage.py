@@ -105,7 +105,7 @@ EXEMPT = {
         "duplicate included, so the submitter sees what happened to each; never lists "
         "or counts coding work"
     ),
-    "services/web_intake_service.py::_revisable_now": (
+    "services/web_intake/revision.py::_revisable_now": (
         "reads one case's own workflow state to decide whether its submitter (or a supervisor "
         "who may correct it) may still revise it (revise_submission applies the same rule; "
         "a duplicate or cancelled case is refused); never lists or counts coding work"
@@ -179,7 +179,7 @@ EXEMPT = {
     "services/coder_workflow_service.py::AllocationError.__init__": "carries workflow_state on an error",
     "services/coder_workflow_service.py::_unavailable": "maps a workflow_state to an error code",
     "services/coder_workflow_service.py::release_own_coding_allocation": _ONE_ROW,
-    "services/web_intake_service.py::_worklist_select": (
+    "services/web_intake/worklist.py::_worklist_select": (
         "worklist rows are register rows; ready_for_coding excludes VaDeathRegister.status duplicate directly"
     ),
     "routes/api/intake.py::reopen_for_revision": (
@@ -197,16 +197,16 @@ EXEMPT = {
         "reads the caller's own one submission's state to decide the revision lock, not a "
         "coding list; a confirmed duplicate case is refused (409 case_closed)"
     ),
-    "services/web_intake_service.py::revise_submission": (
+    "services/web_intake/revision.py::revise_submission": (
         "the submitter's own one submission, not a coding list; a confirmed duplicate case is "
         "refused (409 case_closed)"
     ),
-    "services/web_intake_service.py::choose_interview": (
+    "services/web_intake/interview_choice.py::choose_interview": (
         "one named submitted case's submission under the case lock, to refuse a live reviewer "
         "session; a confirmed duplicate case is not submitted, so it is refused "
         "(409 case_not_submitted)"
     ),
-    "services/web_intake_service.py::_revision_reply": (
+    "services/web_intake/revision.py::_revision_reply": (
         "echoes the revised submission's own workflow state to its submitter"
     ),
     "routes/api/workflow.py::get_events": (

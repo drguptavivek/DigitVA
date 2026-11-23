@@ -36,6 +36,9 @@ export default function PinSetup() {
   const [offer, setOffer] = useState<{ biometric: boolean; screenLock: boolean }>();
   // Bumped when the PIN row fills: only then does the Confirm row take focus, so each row keeps its own digits.
   const [confirmFocus, setConfirmFocus] = useState(0);
+  // A mismatch starts over: both rows clear and the PIN row shakes and takes focus. Leaving them filled made the
+  // person type over full rows, which shifted digits (digitva-eqy8).
+  const [shake, setShake] = useState(0);
 
   if (!account) return <Redirect href="/" />;
   const toWorklist = () => router.replace({ pathname: homeRoute(account), params: { userId: account.user_id, ...(refresh === "1" ? { refresh: "1" } : {}) } });
@@ -45,6 +48,11 @@ export default function PinSetup() {
     const problem = pinProblem(pin, confirm);
     if (problem) {
       setError(t(problem));
+      if (problem === "pinMismatch") {
+        setPin("");
+        setConfirm("");
+        setShake((n) => n + 1);
+      }
       return;
     }
     setBusy(true);
@@ -79,7 +87,7 @@ export default function PinSetup() {
     <Screen title={t(reset ? "pinResetTitle" : "pinSetupTitle")}>
       <Text style={styles.muted}>{account.name}</Text>
       <Text style={styles.muted}>{t("pin")}</Text>
-      <PinBoxes value={pin} onChange={(value) => { setPin(value); setError(""); }} label={t("pin")} onFilled={() => setConfirmFocus((n) => n + 1)} />
+      <PinBoxes value={pin} onChange={(value) => { setPin(value); setError(""); }} label={t("pin")} shakeSignal={shake} onFilled={() => setConfirmFocus((n) => n + 1)} />
       <Text style={styles.muted}>{t("pinConfirm")}</Text>
       <PinBoxes value={confirm} onChange={(value) => { setConfirm(value); setError(""); }} label={t("pinConfirm")} autoFocus={false} focusSignal={confirmFocus} />
       <Notice tone="info">{t(reset ? "pinResetHint" : account.standalone ? "pinSetupHintStandalone" : "pinSetupHint")}</Notice>

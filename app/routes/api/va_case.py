@@ -70,6 +70,7 @@ from app.services.coder_cod_service import (
     other_conditions_choices,
     require_coding_session,
 )
+from app.services.authz.grants import has_tree_condition
 from app.services.cod_certificate_service import certificate_context, is_coded_tree_case, record_certificate_view
 from app.services.coder_workflow_service import get_active_coding_allocation
 from app.services.coding_service import _count_attachments_per_category
@@ -759,6 +760,8 @@ def workspace(va_sid):
             "certificate_available": bool(view and not case.intake_only and is_coded_tree_case(va_sid, case.project_id)),
             # The date of death on the death report this interview was started from (ISO), for DORIS to compare.
             "reported_date_of_death": _reported_date_of_death(va_sid),
+            # An organization project's site code is generated, not a place: the phone shows the project alone.
+            "is_org_project": bool(case.project_id and db.session.scalar(sa.select(has_tree_condition(case.project_id)))),
         },
         "categories": [
             {

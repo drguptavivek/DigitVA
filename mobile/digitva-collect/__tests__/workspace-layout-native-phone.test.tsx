@@ -96,3 +96,28 @@ test("tablet: categories stay a vertical sidebar and no rail floats", async () =
   expect(strips).toHaveLength(1);
   expect(strips[0].props.horizontal).toBeFalsy();
 });
+
+test("the case summary shows age, sex, district and state, Project / Site and DEMO, like the web (digitva-98ad)", async () => {
+  const { CaseSummary } = require("../src/workspace/WorkspaceLayout") as typeof import("../src/workspace/WorkspaceLayout");
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {
+    tree = create(<CaseSummary workspace={{ case: { instance_name: "form-1", age: 61, gender: "female", survey_district: "Shimla", survey_state: "Himachal", project_code: "TST001", site_code: "O002", is_demo_project: true } } as never} />);
+  });
+  const text = JSON.stringify(tree.toJSON());
+  expect(text).toContain("Age 61 · Female · Shimla, Himachal");
+  expect(text).toContain("Project / Site: TST001/O002");
+  expect(text).toContain("DEMO");
+  await act(async () => {
+    tree.update(<CaseSummary workspace={{ case: { instance_name: "form-1", age: null, gender: null, project_code: "P", site_code: "S", is_demo_project: false } } as never} />);
+  });
+  const bare = JSON.stringify(tree.toJSON());
+  expect(bare).toContain("Age - · -");
+  expect(bare).not.toContain("DEMO");
+  // An organization project's site code is generated: the project alone.
+  await act(async () => {
+    tree.update(<CaseSummary workspace={{ case: { instance_name: "form-1", age: 40, gender: "male", project_code: "TST001", site_code: "O002", is_org_project: true } } as never} />);
+  });
+  const org = JSON.stringify(tree.toJSON());
+  expect(org).toContain("Project: TST001");
+  expect(org).not.toContain("O002");
+});

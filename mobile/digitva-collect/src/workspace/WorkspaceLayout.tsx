@@ -26,6 +26,32 @@ export type WorkspaceLayoutProps = {
   nextBlockedReason?: string;
 };
 
+/**
+ * The case at a glance, as the web's VA Form Details card: age, sex, survey district and state, Project / Site, and
+ * DEMO for a testing project (digitva-98ad). Parts the server does not send (redacted or older) are left out.
+ */
+export function CaseSummary({ workspace }: { workspace: WorkspacePayload }) {
+  const styles = useUiStyles();
+  const { ui } = useTheme();
+  const kase = workspace.case;
+  const age = kase.age === null || kase.age === undefined ? "-" : String(kase.age);
+  const sex = kase.gender ? kase.gender.charAt(0).toUpperCase() + kase.gender.slice(1) : "-";
+  const place = [kase.survey_district?.trim(), kase.survey_state?.trim()].filter(Boolean).join(", ");
+  const line = [`Age ${age}`, sex, place].filter(Boolean).join(" · ");
+  return (
+    <View testID="case-summary" accessibilityLabel={`Age ${age}, ${sex}${place ? `, ${place}` : ""}${kase.is_demo_project ? ", DEMO" : ""}`}
+      style={[styles.card, { gap: 4 }]}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <Text style={[styles.text, { fontWeight: "600", flexShrink: 1 }]}>{line}</Text>
+        {kase.is_demo_project ? (
+          <Text style={{ color: ui.warningForeground, backgroundColor: ui.warning, borderRadius: 4, paddingHorizontal: 6, fontWeight: "700", fontSize: 12 }}>DEMO</Text>
+        ) : null}
+      </View>
+      <Text style={styles.muted}>{kase.is_org_project ? `Project: ${kase.project_code ?? "-"}` : `Project / Site: ${kase.project_code ?? "-"}/${kase.site_code ?? "-"}`}</Text>
+    </View>
+  );
+}
+
 /** Native workspace chrome. The browser has a platform-specific HTMX-like layout. */
 export function WorkspaceLayout({
   workspace,
@@ -63,6 +89,7 @@ export function WorkspaceLayout({
     <Screen title={workspace.case.deceased_name ? `${workspace.case.deceased_name} · ${workspace.case.instance_name}` : workspace.case.instance_name} sidebar={phone ? undefined : nav} scrollRef={scroller}>
       {/* The next section's title and placeholder cards while it loads: a one-line "Loading" collapsed the page and
           pulled Previous / Next up under the finger, then the content pushed them down again (digitva-2rm2). */}
+      <CaseSummary workspace={workspace} />
       {categoryLoading ? (
         <View style={{ gap: 8, minHeight: 480 }}>
           <Text accessibilityRole="header" style={[styles.headline, { textAlign: "center" }]}>{categories[index]?.label ?? ""}</Text>

@@ -1188,6 +1188,11 @@ describe("Step 1 result card and final cause picker (digitva-l5fw)", () => {
     expect(text).toContain("Or search ICD-11 for your own code");
     const at = (needle: string) => text.indexOf(needle);
     expect([at("Your Step 1 certificate"), at("DORIS result from Step 1"), at("Your Step 1 assigned causes"), at("SmartVA Analysis")].every((n, i, all) => n >= 0 && (i === 0 || n > all[i - 1]))).toBe(true);
+    // A bare saved code gains its ICD title; the free text "Pneumonia" is left as written (digitva-t0h1).
+    await act(async () => flush());
+    expect(allText(tree)).toContain("Step 1 underlying cause: |CA40 — Selected cause");
+    expect(allText(tree)).toContain("Immediate cause: |Pneumonia");
+    expect(api.getDorisCodeInfo).not.toHaveBeenCalledWith("sid-1", "Pneumonia");
     await act(async () => quickButton(tree, "Use Step 1 underlying cause").props.onPress());
     await act(async () => flush());
     const after = allText(tree);

@@ -192,6 +192,9 @@ class CodCertificateTests(BaseTestCase):
         db.session.commit()
         try:
             self.assertEqual(self._get(self.pii_viewer, sid).status_code, 404)
+            self._login(str(self.plain_viewer.user_id))
+            body = self.client.get(f"/api/v1/va/{sid}/workspace?mode=view").get_json()
+            self.assertIs(body["case"]["is_org_project"], False)
         finally:
             self.level.is_active = True
             db.session.commit()
@@ -216,6 +219,7 @@ class CodCertificateTests(BaseTestCase):
         self.assertIs(body["case"]["certificate_available"], True)
         # The death report's date, for DORIS to compare with its own date of death.
         self.assertEqual(body["case"]["reported_date_of_death"], datetime.now(UTC).date().isoformat())
+        self.assertIs(body["case"]["is_org_project"], True)
         uncoded = self._case(state="ready_for_coding")
         body = self.client.get(f"/api/v1/va/{uncoded}/workspace?mode=view").get_json()
         self.assertIs(body["case"]["certificate_available"], False)

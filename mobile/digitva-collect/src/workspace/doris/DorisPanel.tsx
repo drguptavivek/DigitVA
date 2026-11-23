@@ -713,9 +713,9 @@ export function DorisPanel({
         <EditorHeading title="Final underlying cause" />
         <CertificateReference certificate={workspace.doris.step1_certificate ?? null} />
         <Step1DorisCard saved={step1 ?? null} certificate={workspace.doris.step1_certificate ?? null} api={api} vaSid={identity.vaSid} chosenCode={selected?.code} onDetails={setDetailCode} />
-        <Step1AssignedCard initial={ownInitial} />
+        <Step1AssignedCard initial={ownInitial} api={api} vaSid={identity.vaSid} />
         {workspace.smartva !== null ? <SmartVaReference value={workspace.smartva} /> : null}
-        {ownFinal?.conclusive_cod ? <Muted>Previously saved final: {ownFinal.conclusive_cod}</Muted> : null}
+        {ownFinal?.conclusive_cod ? <Muted>Previously saved final: <CodeWithTitle api={api} vaSid={identity.vaSid} value={ownFinal.conclusive_cod} /></Muted> : null}
         <FinalCausePicker api={api} label="Choose and confirm the final underlying cause" value={selected} searching={pickerTarget !== null} onOpen={(query) => setPickerTarget({ kind: "final", query })}
           quick={step2QuickChoices(ownInitial, workspace.smartva)} onQuick={(codes) => void chooseCode(codes)} onDetails={setDetailCode} onClear={clearFinalCause} />
         <Textarea accessibilityLabel="COD remark" placeholder="Remark" value={state.remark} onChangeText={setRemark} />
@@ -932,13 +932,20 @@ function InfoButton({ code, onPress }: { code: string; onPress: (code: string) =
 }
 
 /** Step 1 assigned causes as the web Step 2 shows them (immediate, Step 1 underlying, other conditions). */
-function Step1AssignedCard({ initial }: { initial: WorkspaceAssessment | null }) {
+/** A saved cause as stored: a bare code ("BA41.Z") gains its ICD title; text the server already wrote stays as is. */
+function CodeWithTitle({ api, vaSid, value }: { api: WorkspaceApi; vaSid: string; value: string }) {
+  const bare = /^[A-Z0-9][A-Z0-9.&/]*$/.test(value.trim()) ? value.trim() : "";
+  const title = useCodeTitle(api, vaSid, bare, "");
+  return <>{bare && title ? `${bare} — ${title}` : value}</>;
+}
+
+function Step1AssignedCard({ initial, api, vaSid }: { initial: WorkspaceAssessment | null; api: WorkspaceApi; vaSid: string }) {
   const other = Array.isArray(initial?.other_conditions) ? initial.other_conditions.join(", ") : initial?.other_conditions ?? "";
   return (
     <Card>
       <CardTitle>Your Step 1 assigned causes</CardTitle>
-      <Body>Immediate cause: {initial?.immediate_cod || "-"}</Body>
-      <Body>Step 1 underlying cause: {initial?.antecedent_cod || "-"}</Body>
+      <Body>Immediate cause: {initial?.immediate_cod ? <CodeWithTitle api={api} vaSid={vaSid} value={initial.immediate_cod} /> : "-"}</Body>
+      <Body>Step 1 underlying cause: {initial?.antecedent_cod ? <CodeWithTitle api={api} vaSid={vaSid} value={initial.antecedent_cod} /> : "-"}</Body>
       <Body>Other conditions: {other || "-"}</Body>
     </Card>
   );

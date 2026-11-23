@@ -738,7 +738,7 @@ export function QueueScreen({
   const projects = catalogReady ? catalog?.projects : undefined;
 
   // The allocation snapshot carries only the SID; one workspace read per held case names its form and project.
-  const [heldCase, setHeldCase] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; vaSid: string; formId: string; deceasedName: string | null; projectCode: string | null; siteCode: string | null } | null>(null);
+  const [heldCase, setHeldCase] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; vaSid: string; formId: string; deceasedName: string | null; projectCode: string | null; siteCode: string | null; orgProject: boolean } | null>(null);
   const heldCaseRef = useRef(heldCase);
   heldCaseRef.current = heldCase;
   const allocationSid = allocation?.va_sid;
@@ -749,7 +749,7 @@ export function QueueScreen({
     void Promise.resolve()
       .then(() => api.getWorkspace(allocationSid, mode))
       .then((workspace) => {
-        if (active) setHeldCase({ api, mode, vaSid: allocationSid, formId: workspace.case.instance_name, deceasedName: workspace.case.deceased_name ?? null, projectCode: workspace.case.project_code ?? null, siteCode: workspace.case.site_code ?? null });
+        if (active) setHeldCase({ api, mode, vaSid: allocationSid, formId: workspace.case.instance_name, deceasedName: workspace.case.deceased_name ?? null, projectCode: workspace.case.project_code ?? null, siteCode: workspace.case.site_code ?? null, orgProject: workspace.case.is_org_project === true });
       })
       .catch(() => undefined);
     return () => { active = false; };
@@ -760,7 +760,7 @@ export function QueueScreen({
     ? projects?.project_options.find((option) => option.project_id === heldLabel.projectCode)?.project_name ?? null
     : null;
   const heldText = heldLabel
-    ? [heldLabel.deceasedName, heldLabel.formId, `Project / Site: ${heldLabel.projectCode ?? "-"}/${heldLabel.siteCode ?? "-"}`, heldProjectName].filter(Boolean).join(" · ")
+    ? [heldLabel.deceasedName, heldLabel.formId, heldLabel.orgProject ? `Project: ${heldLabel.projectCode ?? "-"}` : `Project / Site: ${heldLabel.projectCode ?? "-"}/${heldLabel.siteCode ?? "-"}`, heldProjectName].filter(Boolean).join(" · ")
     : "";
   const coderStats = mode === "coding" && stats && "random_ready" in stats ? stats : undefined;
   const reviewerStats = mode === "reviewing" && stats && "available" in stats ? stats : undefined;

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { Modal, ScrollView, Text, View } from "react-native";
+import { SafeAreaInsetsContext } from "react-native-safe-area-context";
 
 import { t } from "../i18n";
 import { controls } from "../theme";
@@ -48,9 +49,11 @@ export function CodingLanguagesModal({ request, onClose, onSaved }: { request: J
     }
   }
 
+  // A full-screen modal draws edge to edge on Android: keep the title clear of the status bar and the list of the nav bar.
+  const insets = useContext(SafeAreaInsetsContext) ?? { top: 0, bottom: 0 };
   return (
     <Modal visible transparent={false} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.safe}>
+      <View style={[styles.safe, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
         <View testID="coding-languages-header" style={[styles.body, { gap: 8 }]}>
           <Text accessibilityRole="header" style={styles.headline}>{t("codingLanguagesTitle")}</Text>
           {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
@@ -65,7 +68,7 @@ export function CodingLanguagesModal({ request, onClose, onSaved }: { request: J
               key={language.code}
               checked={selected.includes(language.code)}
               onChange={(checked) => toggle(language.code, checked)}
-              label={`${language.name} (${language.code})`}
+              label={language.name.toLowerCase() === language.code.toLowerCase() ? language.name : `${language.name} (${language.code})`}
               testID={`coding-language-${language.code}`}
             />
           ))}

@@ -12,7 +12,8 @@ jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
 jest.mock("../src/interviewerDb", () => ({ createInterviewerDb: jest.fn() }));
 jest.mock("../src/standalone/home", () => ({ homeRoute: () => "/" }));
 jest.mock("../src/UnlockOffer", () => ({ pendingUnlockOffer: jest.fn(), UnlockOffer: () => null }));
-jest.mock("../src/vault", () => ({ pinProblem: () => "pinTooShort", recordPinLength: jest.fn() }));
+const mockPinProblem = jest.fn((_pin: string, _confirm: string) => "pinTooShort" as string | null);
+jest.mock("../src/vault", () => ({ pinProblem: (pin: string, confirm: string) => mockPinProblem(pin, confirm), recordPinLength: jest.fn() }));
 jest.mock("../src/PinBoxes", () => ({ PinBoxes: () => null }));
 jest.mock("../src/ui", () => {
   const { Text } = require("react-native");
@@ -44,4 +45,18 @@ it("clears the PIN error when the PIN or Confirm value changes", async () => {
   expect(errorTexts(tree).length).toBeGreaterThan(0);
   await act(async () => { confirmBoxes.props.onChange("1234"); });
   expect(errorTexts(tree)).toHaveLength(0);
+});
+
+it("a mismatch clears both rows and shakes the PIN row, so nobody types over full rows (digitva-eqy8)", async () => {
+  mockPinProblem.mockReturnValueOnce("pinMismatch");
+  let tree!: ReturnType<typeof create>;
+  await act(async () => { tree = create(<PinSetup />); });
+  const boxes = () => tree.root.findAllByType(require("../src/PinBoxes").PinBoxes);
+  await act(async () => { boxes()[0].props.onChange("123456"); boxes()[1].props.onChange("123457"); });
+  const shakeBefore = boxes()[0].props.shakeSignal;
+  await act(async () => { tree.root.findByProps({ label: "pinSave" }).props.onPress(); });
+  expect(tree.root.findAll((n) => n.props.children === "pinMismatch").length).toBeGreaterThan(0);
+  expect(boxes()[0].props.value).toBe("");
+  expect(boxes()[1].props.value).toBe("");
+  expect(boxes()[0].props.shakeSignal).toBeGreaterThan(shakeBefore);
 });

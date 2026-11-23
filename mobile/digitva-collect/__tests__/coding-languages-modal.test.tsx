@@ -62,3 +62,12 @@ describe("CodingLanguagesModal", () => {
     expect(tree.root.findAll((node) => node.props.accessibilityRole === "alert").length).toBeGreaterThan(0);
   });
 });
+
+it("names a language once when its code only repeats the name, and keeps a differing code", async () => {
+  const request = jest.fn(async () => ({ languages: ["english"], available_languages: [{ code: "english", name: "English" }, { code: "or", name: "Odia" }] })) as unknown as JsonRequester;
+  const tree = await render(request);
+  const text = JSON.stringify(tree.toJSON());
+  expect(text).toContain("English");
+  expect(text).not.toContain("English (english)");
+  expect(text).toContain("Odia (or)");
+});

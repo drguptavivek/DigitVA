@@ -11,7 +11,7 @@ docs/policy/field-data-collection.md, docs/policy/api-v1.md.
 Errors are ``{"error": ..., "code": ...}`` plus ``fields`` when the refusal
 names the inputs to fix. Request bodies are capped
 (``_body_limit``) before anything reads them, the rate limiter's key functions
-included. Terms and maintenance gates are the app-level ones in app/__init__.py.
+included. Terms and maintenance gates are the app-level ones in app/hooks/terms_gate.py.
 """
 
 import logging

@@ -680,7 +680,7 @@ def load_user_from_device_token(request):
     Resolves only a live, unrevoked session on an unrevoked device
     (``device_auth_service.resolve_access_token``) and stamps it on
     ``g.device_session``. Flask-Login tries the session cookie first, so the
-    app's ``authenticate_bearer`` hook (app/__init__.py) calls this itself
+    app's ``authenticate_bearer`` hook (app/hooks/auth.py) calls this itself
     before anything else and pins the result on the request: a bearer wins
     over any cookie, and a bad one is refused, never a fallback. Outside
     ``/api/v1/`` this returns None, so a stolen device token can never drive

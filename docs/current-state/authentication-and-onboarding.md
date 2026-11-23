@@ -3,7 +3,7 @@ title: Authentication, Login and Onboarding (shipped APIs)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-24
 ---
 
 # Authentication, Login and Onboarding (shipped APIs)
@@ -37,7 +37,7 @@ Code:
 | Email sending | `app/services/email_service.py` |
 | Passkeys | `app/services/webauthn_service.py` |
 | CAPTCHA | `app/services/pow_captcha_service.py` |
-| Session gates (terms and maintenance) | `app/__init__.py` (`force_password_update`) |
+| Session gates (terms and maintenance) | `app/hooks/terms_gate.py` (`force_password_update`, registered in `create_app`) |
 | Loaders, session version | `app/models/va_users.py` (`load_user`, `load_user_from_device_token`) |
 | Forms | `app/forms/va_login_form.py`, `app/forms/password_reset_form.py`, `app/forms/va_pwresettnc_form.py` |
 | Admin and data-manager user endpoints | `app/routes/admin.py`, `app/routes/data_management.py`, `app/routes/admin_mentor_institute.py`, `app/routes/admin_organization.py` |
@@ -988,7 +988,7 @@ data call: the app must handle `terms_required`.
   request (`force_password_update`, JSON `terms_required` / `maintenance`;
   exempt: sign-out, `POST /api/v1/me/terms`, `POST /api/v1/profile/terms`).
 - **One credential rule for `/api/v1/`.** The `authenticate_bearer` hook
-  (`app/__init__.py`, first `before_request`) authenticates an
+  (`app/hooks/auth.py`, first `before_request`) authenticates an
   `Authorization: Bearer` request by the token alone and pins the user on the
   request, so a session or remember cookie on the same request is ignored; a
   bad, expired or revoked token is 401 `unauthorized`, never a cookie

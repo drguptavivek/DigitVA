@@ -1,18 +1,16 @@
 import gc
+import importlib
 import logging
-import re
-import uuid
 import os
 import weakref
 from datetime import datetime
-from time import perf_counter
 import pytz
 import warnings
 
 # Suppress deprecation warnings from libraries until they update to modern datetime APIs
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-from flask import Flask, g, request, redirect, session, url_for, jsonify, flash
+from flask import Flask, request, redirect, url_for, jsonify, flash
 from flask_migrate import Migrate
 from flask_login import LoginManager, current_user
 from flask_sqlalchemy import SQLAlchemy
@@ -24,7 +22,6 @@ from flask_limiter.util import get_remote_address
 from flask_talisman import Talisman
 from flask_caching import Cache
 from werkzeug.exceptions import RequestEntityTooLarge
-from werkzeug.http import http_date
 from werkzeug.middleware.proxy_fix import ProxyFix
 from cryptography.fernet import Fernet
 from config import (
@@ -85,9 +82,6 @@ def _reset_engines_after_fork():
 
 
 os.register_at_fork(before=_freeze_before_fork, after_in_child=_reset_engines_after_fork)
-#: API paths whose responses are never stored by a browser or proxy.
-_NO_STORE_API_PREFIXES = ("/api/v1/me/", "/api/v1/intake/", "/api/v1/cases",
-                         "/api/v1/coding/")
 
 
 def _rate_limit_key():
@@ -238,33 +232,9 @@ def create_app(config_class=None, register_routes=True):
     from app.utils import pii_crypto
     pii_crypto.init_app(app)
 
-    # /api/v1/ takes a session cookie or a device bearer token. Runs before
-    # every other hook (the logger, the limiter's key functions and the
-    # gates below all read the user): a bearer is authenticated alone, so the
-    # cookie on the same request is ignored, and a bad one is refused rather
-    # than falling back to the cookie.
-    @app.before_request
-    def authenticate_bearer():
-        from app.models.va_users import load_user_from_device_token
-        from app.services.device_auth_service import (
-            UNAUTHENTICATED_ENDPOINTS,
-            request_bearer_token,
-        )
+    from app.hooks.auth import register_authenticate_bearer
 
-        g.bearer_auth = False
-        g.pop("device_session", None)
-        if request_bearer_token(request) is None:
-            return None
-        # Sign-in endpoints take no token: a client may still send its stale one.
-        if request.endpoint in UNAUTHENTICATED_ENDPOINTS:
-            return None
-        user = load_user_from_device_token(request)
-        if user is None:
-            g._login_user = login.anonymous_user()  # no second lookup from the response logger
-            return jsonify({"error": "Authentication required.", "code": "unauthorized"}), 401
-        g._login_user = user  # Flask-Login's per-request cache: skips the cookie loaders
-        g.bearer_auth = True
-        return None
+    register_authenticate_bearer(app)
 
     # Idle sign-out and the retired remember cookie (app/utils/idle_session.py).
     from app.utils.idle_session import enforce_idle_timeout
@@ -277,36 +247,9 @@ def create_app(config_class=None, register_routes=True):
 
     app.before_request(open_trainer_tools)
 
-    # CSRFProtect parses the request body in its before_request hook, before any
-    # route can set its own cap. Config.MAX_CONTENT_LENGTH bounds every body; this
-    # hook, registered before the CSRF one, raises it only for the uploads that
-    # legitimately exceed it. Routes may still set a stricter cap of their own.
-    from app.services.attachment_service import MAX_BYTES as _ATTACHMENT_MAX_BYTES
-    from app.services.bundle_ingest_service import MAX_BYTES as _BUNDLE_MAX_BYTES
+    from app.hooks.upload_limits import register_upload_limits
 
-    _mib = 1024 * 1024
-    _slack = 64 * 1024  # multipart framing around a file
-    _upload_limits = (
-        ("PUT", r"/api/v1/intake/drafts/[^/]+/attachments/[^/]+", _ATTACHMENT_MAX_BYTES),
-        ("POST", r"/api/v1/intake/bundles(/validate)?", _BUNDLE_MAX_BYTES),
-        ("POST", r"/admin/api/organization/[^/]+/project-users/import", _mib + _slack),
-        ("POST", r"/admin/api/organization/[^/]+/import", 5 * _mib + _slack),
-        ("POST", r"/admin/api/instrument-translations/[^/]+/[^/]+/(import|xliff)", 5 * _mib + _slack),
-        ("POST", r"/admin/api/form-types/import", 10 * _mib + _slack),
-        # Policy and scheme JSON imports have no cap of their own.
-        ("POST", r"/admin/api/(icd10/2019-2|icd11/mms)/policy-import", 16 * _mib),
-        ("POST", r"/admin/api/cod-bucket-schemes/[^/]+/import", 16 * _mib),
-        ("POST", r"/api/v1/icd10/2019-2/policy-import", 16 * _mib),
-    )
-    _upload_limits = tuple((m, re.compile(p), cap) for m, p, cap in _upload_limits)
-
-    @app.before_request
-    def _raise_upload_body_limit():
-        for method, pattern, cap in _upload_limits:
-            if request.method == method and pattern.fullmatch(request.path):
-                request.max_content_length = cap
-                break
-        return None
+    register_upload_limits(app)
 
     @app.errorhandler(RequestEntityTooLarge)
     def _body_too_large(exc):
@@ -331,33 +274,10 @@ def create_app(config_class=None, register_routes=True):
     app.config["WTF_CSRF_CHECK_DEFAULT"] = False
     csrf.init_app(app)
 
-    @app.before_request
-    def csrf_protect_cookie_requests():
-        from app.services.device_auth_service import request_bearer_token
+    from app.hooks.csrf import register_csrf_protect_cookie_requests
 
-        # Mirrors flask_wtf.csrf.CSRFProtect's hook minus the bearer case.
-        if (
-            not app.config["WTF_CSRF_ENABLED"]
-            or request.method not in app.config["WTF_CSRF_METHODS"]
-            or not request.endpoint
-            or request_bearer_token(request) is not None
-            or app.blueprints.get(request.blueprint) in csrf._exempt_blueprints
-        ):
-            return None
-        view = app.view_functions.get(request.endpoint)
-        if f"{view.__module__}.{view.__name__}" in csrf._exempt_views:
-            return None
-        # A dead cookie session on /api/v1 is a sign-in problem, not a CSRF
-        # one: answer 401 so the client re-authenticates (digitva-fvbc).
-        if (
-            request.path.startswith("/api/v1/")
-            and not request.path.startswith("/api/v1/doris-demo/")
-            and not current_user.is_authenticated
-        ):
-            return jsonify({"error": "Authentication required.", "code": "unauthorized"}), 401
-        csrf.protect()
-        return None
-    
+    register_csrf_protect_cookie_requests(app)
+
     app.config['SESSION_SQLALCHEMY'] = db
     sess_manager.init_app(app)
     from app.utils.bearer_session import BearerBlindSessionInterface
@@ -438,7 +358,6 @@ def create_app(config_class=None, register_routes=True):
         from app.routes.va_errors import register_error_handlers
         register_error_handlers(app)
     from app.logging import va_logging
-    from app.logging.va_logger import slow_request_logger
     va_logging(app)
     
     from app import models #noqa
@@ -447,93 +366,41 @@ def create_app(config_class=None, register_routes=True):
     from app.tasks import ui_string_tasks #noqa
     from app.tasks import instrument_translation_tasks #noqa
 
-    from app.commands.odk_sync import init_app as init_odk_sync_commands
-    init_odk_sync_commands(app)
-
-    from app.commands.form_types import init_app as init_form_types_commands
-    init_form_types_commands(app)
-
-    from app.commands.seed import init_app as init_seed_commands
-    init_seed_commands(app)
-
-    from app.commands.organization_demo import init_app as init_organization_demo_commands
-    init_organization_demo_commands(app)
-
-    from app.commands.training_demo import init_app as init_training_demo_commands
-    init_training_demo_commands(app)
-    from app.commands.public_demo import init_app as init_public_demo_commands
-    init_public_demo_commands(app)
-
-    from app.commands.analytics import init_app as init_analytics_commands
-    init_analytics_commands(app)
-
-    from app.commands.users import init_app as init_users_commands
-    init_users_commands(app)
-
-    from app.commands.auth import init_app as init_auth_commands
-    init_auth_commands(app)
-
-    from app.commands.payload_backfill import init_app as init_payload_backfill_commands
-    init_payload_backfill_commands(app)
-
-    from app.commands.cod_buckets import init_app as init_cod_bucket_commands
-    init_cod_bucket_commands(app)
-
-    from app.commands.icd10 import init_app as init_icd10_commands
-    init_icd10_commands(app)
-    from app.commands.icd11 import init_app as init_icd11_commands
-    init_icd11_commands(app)
-    from app.commands.va_definitions import init_app as init_va_definition_commands
-    init_va_definition_commands(app)
-    from app.commands.ai_search import init_app as init_ai_search_commands
-    init_ai_search_commands(app)
-    from app.commands.ai_catalog import init_app as init_ai_catalog_commands
-    init_ai_catalog_commands(app)
-    from app.commands.organization import init_app as init_org_commands
-    init_org_commands(app)
-    from app.commands.mentor_institute import init_app as init_mentor_commands
-    init_mentor_commands(app)
-
-    from app.commands.instrument_translations import (
-        init_app as init_instrument_translation_commands,
-    )
-    init_instrument_translation_commands(app)
-
-    from app.commands.ui_strings import init_app as init_ui_string_commands
-    init_ui_string_commands(app)
-
-    from app.commands.translations import init_app as init_translation_commands
-    init_translation_commands(app)
-
-    from app.commands.repair import init_app as init_repair_commands
-    init_repair_commands(app)
-
-    from app.commands.odk_mappings import init_app as init_odk_mapping_commands
-    init_odk_mapping_commands(app)
-
-    from app.commands.attachments import init_app as init_attachment_commands
-    init_attachment_commands(app)
-
-    from app.commands.smartva import init_app as init_smartva_commands
-    init_smartva_commands(app)
-
-    from app.commands.backups import init_app as init_backup_commands
-    init_backup_commands(app)
-
-    from app.commands.web_intake import init_app as init_web_intake_commands
-    init_web_intake_commands(app)
-
-    from app.commands.devices import init_app as init_device_commands
-    init_device_commands(app)
-
-    from app.commands.schema_drift import init_app as init_schema_drift_commands
-    init_schema_drift_commands(app)
-
-    from app.commands.xlsform import init_app as init_xlsform_commands
-    init_xlsform_commands(app)
-
-    from app.commands.pii import init_app as init_pii_commands
-    init_pii_commands(app)
+    # CLI command groups (app/commands/<module>.init_app), in registration order.
+    for command_module in (
+        "odk_sync",
+        "form_types",
+        "seed",
+        "organization_demo",
+        "training_demo",
+        "public_demo",
+        "analytics",
+        "users",
+        "auth",
+        "payload_backfill",
+        "cod_buckets",
+        "icd10",
+        "icd11",
+        "va_definitions",
+        "ai_search",
+        "ai_catalog",
+        "organization",
+        "mentor_institute",
+        "instrument_translations",
+        "ui_strings",
+        "translations",
+        "repair",
+        "odk_mappings",
+        "attachments",
+        "smartva",
+        "backups",
+        "web_intake",
+        "devices",
+        "schema_drift",
+        "xlsform",
+        "pii",
+    ):
+        importlib.import_module(f"app.commands.{command_module}").init_app(app)
 
     # The coding screens' ICD classification switch
     # (va_form_partials/_icd_classification_switch.html).
@@ -628,226 +495,16 @@ def create_app(config_class=None, register_routes=True):
         local_dt = dt.astimezone(_current_user_timezone())
         return local_dt.strftime(format)
     
-    timed_prefixes = (
-        "/data-management",
-        "/api/v1/data-management",
-        "/api/v1/analytics",
-    )
+    from app.hooks.terms_gate import register_force_password_update
 
-    @app.before_request
-    def force_password_update():
-        if request.path.startswith("/static") or request.path == "/health":
-            return
-        if request.path.startswith(timed_prefixes):
-            g._request_started_at = perf_counter()
-        g._slow_started_at = perf_counter()
-        # g outlives the request when an app context is already pushed (tests).
-        g._sql_count, g._sql_ms = 0, 0.0
+    register_force_password_update(app)
 
-        from app.services.request_abuse_service import (
-            abuse_ban_message,
-            get_temporary_ban,
-        )
+    from app.hooks.onboarding import register_training_demo_onboarding
 
-        temporary_ban = get_temporary_ban(request.remote_addr)
-        if temporary_ban is not None:
-            app.logger.warning(
-                "blocked_temporarily_banned_ip ip=%s method=%s path=%s remaining_seconds=%s",
-                request.remote_addr,
-                request.method,
-                request.path,
-                temporary_ban["remaining_seconds"],
-            )
-            message = abuse_ban_message()
-            if request.path.startswith("/api/") or request.path.startswith("/admin/api/"):
-                response = jsonify({"error": message, "code": "temporarily_blocked"})
-            else:
-                response = app.response_class(
-                    f"{message}\n",
-                    status=403,
-                    mimetype="text/plain",
-                )
-            response.status_code = 403
-            response.headers["Retry-After"] = str(
-                temporary_ban["remaining_seconds"]
-            )
-            return response
+    register_training_demo_onboarding(app)
 
-        from app.models import VaUsers
-        from app.services.device_auth_service import request_bearer_token
+    from app.hooks.cache_headers import register_cache_headers
 
-        # A bearer request has no session: its user is the one
-        # authenticate_bearer pinned. The gates below answer it in JSON.
-        is_bearer = request_bearer_token(request) is not None
-        if is_bearer:
-            if not g.get("bearer_auth"):
-                return
-            fresh_user = current_user._get_current_object()
-        else:
-            # A cookie whose session version no longer matches (password
-            # reset) resolves to anonymous: no gating, so login can run.
-            if not current_user.is_authenticated:
-                return
-            current_user_id = session.get("_user_id")
-            if not current_user_id:
-                return
-            # Flask-Login's session value is VaUsers.get_id(), "<uuid>" or
-            # "<uuid>:<version>" once a session version is set — see
-            # VaUsers.get_id / load_user.
-            raw_uid, _sep, _version = current_user_id.rpartition(":")
-            try:
-                current_user_id = uuid.UUID(raw_uid or current_user_id)
-            except (TypeError, ValueError):
-                return
-
-            fresh_user = db.session.get(VaUsers, current_user_id)
-            if fresh_user is None or not fresh_user.is_active:
-                return
-
-        from app.services.site_maintenance_service import should_block_non_admin_after_cutoff
-        from flask_login import logout_user
-
-        if not fresh_user.is_admin() and should_block_non_admin_after_cutoff():
-            if is_bearer:
-                return jsonify({"error": "Site is under maintenance.", "code": "maintenance"}), 403
-            logout_user()
-            flash(
-                "Site is under maintenance. Only admin login is allowed right now.",
-                "warning",
-            )
-            if (
-                request.path.startswith("/api/")
-                or request.path.startswith("/admin/api/")
-                or request.path.startswith("/api/v1/")
-            ):
-                return jsonify(
-                    {
-                        "error": "Site is under maintenance. Only admin login is allowed right now.",
-                        "code": "maintenance",
-                    }
-                ), 401
-            return redirect(url_for("va_auth.va_login"))
-
-        allowed_endpoints = {
-            'static',
-            'profile.force_password_change',
-            'va_auth.va_logout',
-            'va_auth.va_login',
-            'va_auth.forgot_password',
-            'va_auth.reset_password',
-            'va_auth.verify_email',
-            'va_auth.resend_verification',
-            'api_v1.profile_api.accept_terms',
-            'api_v1.me_api.accept_terms',
-            # Sign-out must work while the terms are pending (onboarding
-            # policy 5.4); accepting is me_api.accept_terms above.
-            'api_v1.auth_api.end_session',
-        }
-        if fresh_user.pw_reset_t_and_c is False and request.endpoint not in allowed_endpoints:
-            if is_bearer:
-                return jsonify({
-                    "error": "Accept the terms of use to continue.",
-                    "code": "terms_required",
-                }), 403
-            from app.decorators.role_required import API_PATH_PREFIXES
-
-            # Every JSON path gets terms_required (onboarding policy 5.4).
-            if request.path.startswith(API_PATH_PREFIXES):
-                code = "terms_required"
-            else:
-                return redirect(url_for('profile.force_password_change'))
-            response = jsonify({
-                "error": "Accept the terms of use to continue.",
-                "code": code,
-                "redirect_url": url_for('profile.force_password_change'),
-            })
-            response.status_code = 403
-            response.headers["Cache-Control"] = "no-store"
-            # A browser client with pending terms cannot reach me/access for
-            # its CSRF token, so the refusal carries one for POST me/terms.
-            from flask_wtf.csrf import generate_csrf
-
-            response.headers["X-CSRFToken"] = generate_csrf()
-            return response
-
-    @app.before_request
-    def training_demo_onboarding():
-        """Send a trainee with a pending training session to its training page, once.
-
-        The page is the Expo ``/app/training`` while the export is present,
-        else the Flask welcome page. Browser page loads only: never the API,
-        htmx fragments, static files, auth pages, the welcome flow itself or
-        the Expo shell under ``/app/`` (``/app/`` is never redirected to a
-        Flask page; the Expo home sends a pending trainee itself). Cheap:
-        nothing runs unless the feature is configured, and the answer is cached
-        in the login session. docs/policy/training-demo-project.md.
-        """
-        if not app.config.get("DIGITVA_TRAINING_PROJECT_ID"):
-            return None
-        if (
-            request.method != "GET"
-            or request.headers.get("HX-Request")
-            or request.is_json
-            or request.path.startswith(
-                ("/static", "/api/", "/admin/api/", "/app/", "/demo", "/vaauth", "/profile", "/health", "/help")
-            )
-            or not request.endpoint
-            # The Expo shell is a role home (login lands there); its assets are not pages.
-            or request.endpoint == "expo_client.expo_asset"
-        ):
-            return None
-        user_id = session.get("_user_id")
-        if not user_id or g.get("bearer_auth"):
-            return None
-        from app.services import training_demo_service
-
-        raw_uid = user_id.rpartition(":")[0] or user_id
-        try:
-            uid = uuid.UUID(raw_uid)
-        except (TypeError, ValueError):
-            return None
-        if training_demo_service.should_redirect_to_welcome(uid):
-            from app.routes.expo_client import export_ready
-
-            return redirect("/app/training" if export_ready() else url_for("training_demo.welcome"))
-        return None
-
-    @app.after_request
-    def apply_static_cache_headers(response):
-        # Browser intake carries identifiers and questionnaire answers, and the
-        # case list and intake replies carry registration numbers. This
-        # applies to errors and redirects as well as successful JSON responses
-        # (also set by those blueprints; this covers a request refused before
-        # it reaches one, such as a CSRF or terms refusal).
-        if request.path.startswith(_NO_STORE_API_PREFIXES):
-            response.headers["Cache-Control"] = "no-store"
-        # The phone measures its clock offset from this header on every
-        # response (docs/policy/field-data-collection.md "Phone clock").
-        response.headers.setdefault("Date", http_date())
-        if request.path.startswith("/static/") and response.status_code == 200:
-            response.cache_control.public = True
-            response.cache_control.max_age = app.config["STATIC_ASSET_CACHE_MAX_AGE"]
-        started_at = getattr(g, "_request_started_at", None)
-        if started_at is not None:
-            duration_ms = (perf_counter() - started_at) * 1000
-            response.headers["Server-Timing"] = f"app;dur={duration_ms:.1f}"
-            response.headers["X-Response-Time"] = f"{duration_ms:.1f}ms"
-        slow_started_at = getattr(g, "_slow_started_at", None)
-        if slow_started_at is not None:
-            slow_ms = (perf_counter() - slow_started_at) * 1000
-            if slow_ms >= app.config["SLOW_REQUEST_LOG_MS"]:
-                # Route pattern, never request.path: paths carry case ids.
-                slow_request_logger.info(
-                    "event=slow_request method=%s endpoint=%s rule=%s status=%s "
-                    "duration_ms=%.1f sql_count=%d sql_ms=%.1f",
-                    request.method,
-                    request.endpoint or "-",
-                    request.url_rule.rule if request.url_rule else "-",
-                    response.status_code,
-                    slow_ms,
-                    getattr(g, "_sql_count", 0),
-                    getattr(g, "_sql_ms", 0.0),
-                )
-        return response
+    register_cache_headers(app)
 
     return app

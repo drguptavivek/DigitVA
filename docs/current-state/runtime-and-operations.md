@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-24
 ---
 
 # Runtime And Operations
@@ -489,7 +489,7 @@ the data key wrapped by a hybrid ML-KEM-768 + X25519 KEM. Policy and format:
   applies before the CSRF hook parses the form; the uploads that need more (draft
   attachments and offline bundles 50 MB, organization and translation imports,
   form-type and policy JSON imports) are listed in `_upload_limits` in
-  `app/__init__.py`, applied by a hook registered before CSRF. Over the cap is
+  `app/hooks/upload_limits.py`, applied by a hook registered before CSRF. Over the cap is
   413 `payload_too_large` JSON on `/api/` and `/admin/api/` paths. The reverse
   proxy still bounds the edge (`client_max_body_size 55m` in
   `deploy/ingress-routes.conf`). The same
@@ -1183,7 +1183,7 @@ new storage names, in whichever store is selected) and writes them in one
 transaction.
 
 Onboarding adds one hook after the terms check
-(`training_demo_onboarding` in `app/__init__.py`): browser GET page loads only,
+(`training_demo_onboarding` in `app/hooks/onboarding.py`): browser GET page loads only,
 one indexed query per login session, remembered in the session either way.
 Disabled when the setting is empty.
 

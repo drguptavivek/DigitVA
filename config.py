@@ -133,7 +133,7 @@ def _webauthn_origin_default(base_url: str) -> str:
 
 class Config:
     # Every request body is capped here; routes that take larger uploads raise it
-    # in the table in app/__init__.py (_upload_limits), before the CSRF hook.
+    # in the table in app/hooks/upload_limits.py (_upload_limits), before the CSRF hook.
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", str(2 * 1024 * 1024)))
 
     # SECURITY: SECRET_KEY must be set via environment variable in production.

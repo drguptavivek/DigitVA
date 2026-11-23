@@ -3,6 +3,19 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-24
+
+- Code audit refactors, wave 1 (epic `digitva-r8nh`, move-only first
+  slices, each with characterization tests written first, existing tests
+  unedited and an independent equivalence review): golden coding-rule
+  vectors shared by server and phone (`f09c13079`, `r8nh.25`, closed);
+  request hooks moved to `app/hooks/` (`05f04adca`, `r8nh.8`);
+  `device_auth_service` split into `app/services/device/` (`f93236605`,
+  `r8nh.17`); dm-kpi queries moved to `app/services/kpi/` (`6a19385b8`,
+  `r8nh.16`); `organization_service` split into `org_*` modules
+  (`17c7799e4`, `r8nh.14`). Old module paths remain as facades. Found and
+  filed, not fixed: `r8nh.30`, `r8nh.31`, `r8nh.32`.
+
 ## 2026-11-23
 
 - Published Collect 0.3.29 and Plus 0.3.29 releases and web

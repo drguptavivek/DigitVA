@@ -58,11 +58,19 @@ and maps stay in the browser).
    staging), `zkgx` (Hindi review). Partly done: `yeg3.1`, `9cll.22.3`,
    `r9lk`, `xjpk`, `xk41`, `rpqp`. Open: `yeg3.18`, `yeg3.24`, `342x`,
    `bx43`, `7amd.27` (due 2027-10), `9cll.18`, `1b50`, `p8uj`, `oux5`.
-5. Code audit refactors (epic `digitva-r8nh`, children `.5`-`.29`, filed
-   2026-11-23, not started; ask the owner before starting). Every one
-   follows the epic's behaviour-preservation protocol (bd memory
-   `refactor-behaviour-preservation`): characterization tests first, pure
-   refactor with tests unedited, equivalence review. `.19` waits on `.18`.
+5. Code audit refactors (epic `digitva-r8nh`). Wave 1 landed 2026-11-24:
+   `.25` done; `.8`, `.14`, `.16`, `.17` have slice 1 in, next slice in
+   each bead's notes. Not started: `.5`-`.7`, `.9`-`.13`, `.15`, `.18`-`.24`,
+   `.26`-`.29`; ask the owner before starting. Every one follows the epic's
+   behaviour-preservation protocol (bd memory
+   `refactor-behaviour-preservation`): characterization tests first,
+   committed before the refactor; tests unedited (check with a diff);
+   independent equivalence review. Run one writer at a time on
+   `app/__init__.py` (`.5`, `.6`, `.7`); `.19` waits on `.18`. Parallel
+   writers' full suites exhaust Postgres shared memory: writers run
+   targeted tests only, one full suite on the combined result. Expo
+   worktrees need `npm ci` plus the WHO `dist` copied into `vendor/` and
+   `node_modules` (no symlinks) for check-web.
 6. Backend performance epic `digitva-f41g` (owner: "dont fix for now").
 7. Collect: TalkBack/VoiceOver (`digitva-eizq`), Play screenshots
    (`digitva-fthd`; raw captures untracked), SM-E146B speed (`digitva-xxfz`),
@@ -78,6 +86,11 @@ and maps stay in the browser).
   them needs an old-APK check. The global admin toggle still does not
   invalidate the user's authz cache (as before `r8nh.3`). The public-demo
   dashboard can lag 5 minutes after a data-manager action.
+- Refactor findings, kept as they are until decided: phone and server word
+  the causing-condition-unknown refusal differently (`r8nh.30`); create_app
+  hook oddities (`r8nh.31`); device auth: a revoked device's refresh writes
+  no audit row, three routes may be missing from the unauthenticated list
+  (`r8nh.32`, old-APK check first).
 
 - Supervisors: `data_manager` on the phone: not done, needs a decision and policy. Phone death edit leaves out informant,
   phones, ABHA, GPS and registration numbers (browser has them).
@@ -110,7 +123,8 @@ and maps stay in the browser).
   APK build folders. Rebuilding `doris_public_service` (`--profile icd11`)
   still costs several GB; run `docker builder prune -f` after.
 - Full-suite noise under `-n 4`: `digitva-6igh`, contact form
-  (`digitva-wd09`). The export streaming failures were a leaked
+  (`digitva-wd09`). `tests/routes/test_bundle_ingest_api.py` fails as a
+  whole when the ODK host is unreachable (`digitva-z5t4`). The export streaming failures were a leaked
   `DB_BACKUP_TMP_DIR`, fixed in `f34093911`.
 - Untracked on purpose: the orientation deck files under `docs/manuscript/`,
   `.claude/launch.json`, the Play screenshots.

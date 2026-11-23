@@ -12,7 +12,9 @@
  * confirmation timestamp the caller passes in.
  */
 
-export type AgeGroup = "neonate" | "infant" | "child" | "adult";
+import { ageGroupForDays, DAYS_PER_MONTH, DAYS_PER_YEAR, type AgeGroup } from "./age";
+
+export { ageGroupForDays, type AgeGroup };
 export type Sex = "male" | "female";
 
 export interface AllowabilityPack {
@@ -142,9 +144,6 @@ export function ageRestrictionConfirmation(restriction: AgeRestriction, confirme
   };
 }
 
-const DAYS_PER_MONTH = 30.4375;
-const DAYS_PER_YEAR = 365.25;
-
 function number(value: unknown): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value !== "string" || value.trim() === "") return null;
@@ -203,14 +202,6 @@ export function normalizedAgeDays(data: Record<string, unknown>): number | null 
     return value === null ? null : value * DAYS_PER_YEAR;
   }
   return null;
-}
-
-/** neonate/infant/child/adult by the WHO 2022 boundaries (icd_coding_policy.coding_age_group_for_submission). */
-export function ageGroupForDays(days: number | null): AgeGroup | null {
-  if (days === null) return null;
-  if (days < 28) return "neonate";
-  if (days < 365) return "infant";
-  return days < 12 * DAYS_PER_YEAR ? "child" : "adult";
 }
 
 /** The age group and sex of the interview's deceased: male/female only, anything else adds no sex filter. */

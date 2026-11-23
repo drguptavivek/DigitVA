@@ -3,13 +3,13 @@
 // "Warn" = inline message under the field; never blocks Process or Save.
 // No React here so the rules are unit-testable on their own.
 
+import { DAYS_PER_YEAR } from "../../coding/age";
 import type { JsonObject, JsonValue } from "../contracts";
 import { INTERVAL_UNITS, parseInterval, serializeInterval } from "./interval";
 
 /** Soft pregnancy age band, inclusive. One place. */
 export const PREGNANCY_AGE_BAND: readonly [number, number] = [10, 54];
 
-const DAYS_PER_YEAR = 365.25;
 const UNIT_DAYS: Record<string, number> = { Y: DAYS_PER_YEAR, M: DAYS_PER_YEAR / 12, W: 7, D: 1, H: 1 / 24, MI: 1 / 1440, S: 1 / 86400 };
 
 /** Age at death. `years` is days / 365.25. */

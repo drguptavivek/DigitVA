@@ -5,6 +5,7 @@
  * Where the Python relies on a language rule it is kept: lengths count code points, `x.get(k)` is null for a missing
  * key and for an explicit null, and a stripped string is stripped of Unicode whitespace.
  */
+import { DAYS_PER_MONTH, DAYS_PER_YEAR } from "../coding/age";
 import { WHO_RELEASE, type WhoEngineApi } from "./whoEngineApi";
 import { codePointLength, isRecord, type JsonRecord } from "./whoText";
 
@@ -207,7 +208,7 @@ function normalizeConditions(raw: unknown, path: string): JsonRecord[] {
   return conditions;
 }
 
-const AGE_UNIT_DAYS: Record<string, number> = { Y: 365.25, M: 30.4375, W: 7, D: 1 };
+const AGE_UNIT_DAYS: Record<string, number> = { Y: DAYS_PER_YEAR, M: DAYS_PER_MONTH, W: 7, D: 1 };
 const TIME_UNIT_DAYS: Record<string, number> = { H: 1 / 24, M: 1 / 1440, S: 1 / 86400 };
 const AGE_RE = /^P(?:(\d+(?:\.\d+)?)([YMWD]))?(?:T(\d+(?:\.\d+)?)([HMS]))?$/;
 const EXTERNAL_CAUSE_KEYS = ["DateOfExternalCauseOrPoisoning", "DescriptionExternalCause", "PlaceOfOccuranceExternalCause"];

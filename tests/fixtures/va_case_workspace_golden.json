@@ -1,0 +1,2409 @@
+{
+ "coding_demo_training": {
+  "assessments": {
+   "coder_initial": null,
+   "final": null,
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": null,
+   "reviewer_final": null,
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": "<volatile>",
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd10",
+   "instance_name": "masked-SID",
+   "is_demo_project": true,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "unmasked_simple",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vacodassessment",
+    "count": 0,
+    "icon_name": "fa-stethoscope",
+    "label": "VA COD Assessment",
+    "nav_label": "COD Assessment",
+    "render_mode": "workflow_panel"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "event": "coding_allocated"
+   }
+  ],
+  "default_category": "cat1",
+  "doris": null,
+  "narrative_qa": null,
+  "other_conditions_options": [
+   "I10 - Essential Hypertension",
+   "E11 - Type 2 Diabetes Mellitus",
+   "E10 - Type 1 Diabetes Mellitus",
+   "E66 - Obesity",
+   "N18 - Chronic Kidney Disease",
+   "K74 - Chronic Liver Disease",
+   "J44 - Chronic Obstructive Pulmonary Disease",
+   "J45 - Asthma",
+   "E78 - Dyslipidemia",
+   "I50 - Congestive Heart Failure",
+   "I25 - Coronary Artery Disease",
+   "D64 - Chronic Anaemia",
+   "F03 - Dementia",
+   "I25.2 - Previous Myocardial Infarction",
+   "I69 - Previous Stroke/CVA",
+   "C80 - Cancer (non-primary, metastasis, history)",
+   "B24 - HIV/AIDS",
+   "Z86.1 - Past history of tuberculosis",
+   "D89 - Immunosuppression",
+   "E03 - Hypothyroidism",
+   "E05 - Hyperthyroidism",
+   "B18 - Chronic Viral Infections (Hepatitis)",
+   "I73.9 - Peripheral Vascular Disease",
+   "I09 - Chronic Rheumatic Heart Disease",
+   "Z98.8 - History of Major Surgery",
+   "Z79.3 - Long-term use of Immunosuppressants"
+  ],
+  "smartva": null,
+  "smartva_can_run": true,
+  "smartva_status": "not_requested",
+  "social_autopsy": null,
+  "step": "final"
+ },
+ "coding_doris_masked_saved": {
+  "assessments": {
+   "coder_initial": null,
+   "final": null,
+   "initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "initial_prefill": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "not_codeable": null,
+   "reviewer_final": null,
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": "<volatile>",
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd11",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "masked_doris",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vacodassessment",
+    "count": 0,
+    "icon_name": "fa-stethoscope",
+    "label": "VA COD Assessment",
+    "nav_label": "COD Assessment",
+    "render_mode": "workflow_panel"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "event": "coding_allocated"
+   },
+   {
+    "at": "2026-10-28T09:20:00+00:00",
+    "event": "initial_saved"
+   }
+  ],
+  "default_category": "cat1",
+  "doris": {
+   "initial_certificate": {
+    "AdministrativeData": {
+     "Sex": 1
+    },
+    "ICDVersion": "ICD11",
+    "Part1": [
+     {
+      "Conditions": []
+     }
+    ]
+   },
+   "prefill_provenance": {},
+   "reset_certificate": {
+    "AdministrativeData": {
+     "Sex": 2
+    },
+    "MannerOfDeath": {
+     "MannerOfDeath": 0
+    }
+   },
+   "reset_prefill_provenance": {
+    "AdministrativeData.Sex": {
+     "sources": [
+      "Id10019"
+     ]
+    },
+    "MannerOfDeath.MannerOfDeath": {
+     "sources": [
+      "Id10077"
+     ]
+    }
+   },
+   "saved_processing": {
+    "certificate": {
+     "AdministrativeData": {
+      "Sex": 1
+     },
+     "ICDVersion": "ICD11",
+     "Part1": [
+      {
+       "Conditions": []
+      }
+     ]
+    },
+    "codedit": {
+     "status": "ok"
+    },
+    "doris": {
+     "status": "ok"
+    },
+    "final_choice": "B20 HIV disease",
+    "ucod_parts": [],
+    "who_notes": []
+   },
+   "step1_certificate": {
+    "AdministrativeData": {
+     "Sex": 1
+    },
+    "ICDVersion": "ICD11",
+    "Part1": [
+     {
+      "Conditions": []
+     }
+    ]
+   },
+   "step1_processing": {
+    "codedit": {
+     "status": "ok"
+    },
+    "doris": {
+     "status": "ok"
+    },
+    "ucod_parts": [],
+    "who_notes": []
+   }
+  },
+  "narrative_qa": null,
+  "other_conditions_options": [
+   "I10 - Essential Hypertension",
+   "E11 - Type 2 Diabetes Mellitus",
+   "E10 - Type 1 Diabetes Mellitus",
+   "E66 - Obesity",
+   "N18 - Chronic Kidney Disease",
+   "K74 - Chronic Liver Disease",
+   "J44 - Chronic Obstructive Pulmonary Disease",
+   "J45 - Asthma",
+   "E78 - Dyslipidemia",
+   "I50 - Congestive Heart Failure",
+   "I25 - Coronary Artery Disease",
+   "D64 - Chronic Anaemia",
+   "F03 - Dementia",
+   "I25.2 - Previous Myocardial Infarction",
+   "I69 - Previous Stroke/CVA",
+   "C80 - Cancer (non-primary, metastasis, history)",
+   "B24 - HIV/AIDS",
+   "Z86.1 - Past history of tuberculosis",
+   "D89 - Immunosuppression",
+   "E03 - Hypothyroidism",
+   "E05 - Hyperthyroidism",
+   "B18 - Chronic Viral Infections (Hepatitis)",
+   "I73.9 - Peripheral Vascular Disease",
+   "I09 - Chronic Rheumatic Heart Disease",
+   "Z98.8 - History of Major Surgery",
+   "Z79.3 - Long-term use of Immunosuppressants"
+  ],
+  "smartva": null,
+  "smartva_can_run": true,
+  "smartva_status": "not_requested",
+  "social_autopsy": null,
+  "step": "final"
+ },
+ "coding_doris_redacted": {
+  "assessments": {
+   "coder_initial": null,
+   "final": null,
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": null,
+   "reviewer_final": null,
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": "<volatile>",
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd11",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "masked_doris",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vacodassessment",
+    "count": 0,
+    "icon_name": "fa-stethoscope",
+    "label": "VA COD Assessment",
+    "nav_label": "COD Assessment",
+    "render_mode": "workflow_panel"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "event": "coding_allocated"
+   }
+  ],
+  "default_category": "cat1",
+  "doris": {
+   "initial_certificate": {
+    "AdministrativeData": {
+     "Sex": 2
+    }
+   },
+   "prefill_provenance": {
+    "AdministrativeData.Sex": {
+     "sources": [
+      "Id10019"
+     ]
+    }
+   },
+   "reset_certificate": {
+    "AdministrativeData": {
+     "Sex": 2
+    }
+   },
+   "reset_prefill_provenance": {
+    "AdministrativeData.Sex": {
+     "sources": [
+      "Id10019"
+     ]
+    }
+   },
+   "saved_processing": null,
+   "step1_certificate": null,
+   "step1_processing": null
+  },
+  "narrative_qa": null,
+  "other_conditions_options": [
+   "I10 - Essential Hypertension",
+   "E11 - Type 2 Diabetes Mellitus",
+   "E10 - Type 1 Diabetes Mellitus",
+   "E66 - Obesity",
+   "N18 - Chronic Kidney Disease",
+   "K74 - Chronic Liver Disease",
+   "J44 - Chronic Obstructive Pulmonary Disease",
+   "J45 - Asthma",
+   "E78 - Dyslipidemia",
+   "I50 - Congestive Heart Failure",
+   "I25 - Coronary Artery Disease",
+   "D64 - Chronic Anaemia",
+   "F03 - Dementia",
+   "I25.2 - Previous Myocardial Infarction",
+   "I69 - Previous Stroke/CVA",
+   "C80 - Cancer (non-primary, metastasis, history)",
+   "B24 - HIV/AIDS",
+   "Z86.1 - Past history of tuberculosis",
+   "D89 - Immunosuppression",
+   "E03 - Hypothyroidism",
+   "E05 - Hyperthyroidism",
+   "B18 - Chronic Viral Infections (Hepatitis)",
+   "I73.9 - Peripheral Vascular Disease",
+   "I09 - Chronic Rheumatic Heart Disease",
+   "Z98.8 - History of Major Surgery",
+   "Z79.3 - Long-term use of Immunosuppressants"
+  ],
+  "smartva": null,
+  "smartva_can_run": true,
+  "smartva_status": "not_requested",
+  "social_autopsy": null,
+  "step": "initial"
+ },
+ "coding_full": {
+  "assessments": {
+   "coder_initial": null,
+   "final": {
+    "conclusive_cod": "A16 final result",
+    "created_at": "2026-10-28T10:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "remark"
+   },
+   "initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "initial_prefill": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "not_codeable": null,
+   "reviewer_final": null,
+   "reviewer_initial": null
+  },
+  "blocked_by": [
+   "narrative_qa",
+   "social_autopsy"
+  ],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": "<volatile>",
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd10",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": true,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "unmasked_simple",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": true,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vacodassessment",
+    "count": 0,
+    "icon_name": "fa-stethoscope",
+    "label": "VA COD Assessment",
+    "nav_label": "COD Assessment",
+    "render_mode": "workflow_panel"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "event": "coding_allocated"
+   },
+   {
+    "at": "2026-10-28T09:15:00+00:00",
+    "event": "doris_processed"
+   },
+   {
+    "at": "2026-10-28T09:20:00+00:00",
+    "event": "initial_saved"
+   },
+   {
+    "at": "2026-10-28T10:00:00+00:00",
+    "event": "final_saved"
+   }
+  ],
+  "default_category": "cat1",
+  "doris": null,
+  "narrative_qa": {
+   "fields": [
+    {
+     "key": "length",
+     "label": "Q1. Length of Narrative",
+     "options": [
+      {
+       "label": "< 3 sentences",
+       "value": 1
+      },
+      {
+       "label": "3\u20135 sentences",
+       "value": 2
+      },
+      {
+       "label": "> 5 sentences",
+       "value": 3
+      }
+     ]
+    },
+    {
+     "key": "pos_symptoms",
+     "label": "Q2. Number of Positive Symptoms",
+     "options": [
+      {
+       "label": "< 3 symptoms",
+       "value": 1
+      },
+      {
+       "label": "3\u20135 symptoms",
+       "value": 2
+      },
+      {
+       "label": "> 5 symptoms",
+       "value": 3
+      }
+     ]
+    },
+    {
+     "key": "neg_symptoms",
+     "label": "Q3. Presence of Negative Symptoms",
+     "options": [
+      {
+       "label": "Absent",
+       "value": 0
+      },
+      {
+       "label": "Present",
+       "value": 1
+      }
+     ]
+    },
+    {
+     "key": "chronology",
+     "label": "Q4. Chronology of Events",
+     "options": [
+      {
+       "label": "Cannot be established",
+       "value": 0
+      },
+      {
+       "label": "Can be established",
+       "value": 1
+      }
+     ]
+    },
+    {
+     "key": "doc_review",
+     "label": "Q5. Document Review",
+     "options": [
+      {
+       "label": "Not present / Inconclusive",
+       "value": 0
+      },
+      {
+       "label": "Provides useful data",
+       "value": 1
+      }
+     ]
+    },
+    {
+     "key": "comorbidity",
+     "label": "Q6. Comorbidities / Risk Factors",
+     "options": [
+      {
+       "label": "Not present",
+       "value": 0
+      },
+      {
+       "label": "Present",
+       "value": 1
+      }
+     ]
+    }
+   ],
+   "max_score": 10,
+   "saved": null
+  },
+  "other_conditions_options": [
+   "I10 - Essential Hypertension",
+   "E11 - Type 2 Diabetes Mellitus",
+   "E10 - Type 1 Diabetes Mellitus",
+   "E66 - Obesity",
+   "N18 - Chronic Kidney Disease",
+   "K74 - Chronic Liver Disease",
+   "J44 - Chronic Obstructive Pulmonary Disease",
+   "J45 - Asthma",
+   "E78 - Dyslipidemia",
+   "I50 - Congestive Heart Failure",
+   "I25 - Coronary Artery Disease",
+   "D64 - Chronic Anaemia",
+   "F03 - Dementia",
+   "I25.2 - Previous Myocardial Infarction",
+   "I69 - Previous Stroke/CVA",
+   "C80 - Cancer (non-primary, metastasis, history)",
+   "B24 - HIV/AIDS",
+   "Z86.1 - Past history of tuberculosis",
+   "D89 - Immunosuppression",
+   "E03 - Hypothyroidism",
+   "E05 - Hyperthyroidism",
+   "B18 - Chronic Viral Infections (Hepatitis)",
+   "I73.9 - Peripheral Vascular Disease",
+   "I09 - Chronic Rheumatic Heart Disease",
+   "Z98.8 - History of Major Surgery",
+   "Z79.3 - Long-term use of Immunosuppressants"
+  ],
+  "smartva": {
+   "age": null,
+   "causes": [
+    {
+     "cause": "Stroke",
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 1
+    },
+    {
+     "cause": null,
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 2
+    },
+    {
+     "cause": null,
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 3
+    }
+   ],
+   "gender": null,
+   "key_symptoms": [
+    null,
+    null,
+    null
+   ],
+   "symptoms": []
+  },
+  "smartva_can_run": true,
+  "smartva_status": "done",
+  "social_autopsy": {
+   "questions": [
+    {
+     "delay_level": "delay_1_decision",
+     "options": [
+      {
+       "description": "No delay factor from this delay level was identified for this case.",
+       "label": "None",
+       "option_code": "none"
+      },
+      {
+       "description": "Traditional practices, cultural beliefs, or reliance on home remedies influenced health-seeking behaviour and delayed seeking formal medical care.",
+       "label": "Traditions",
+       "option_code": "traditions"
+      },
+      {
+       "description": "Lack of recognition or awareness of serious illness, symptoms, or severity of disease led to delayed decision-making in seeking care.",
+       "label": "Recognition",
+       "option_code": "recognition"
+      },
+      {
+       "description": "Death occurred under circumstances where seeking care was unlikely to change the outcome, such as very advanced age or recognised terminal illness.",
+       "label": "Inevitability",
+       "option_code": "inevitability"
+      }
+     ],
+     "title": "Delay 1: Delay in decision to seek care"
+    },
+    {
+     "delay_level": "delay_2_reaching",
+     "options": [
+      {
+       "description": "No delay factor from this delay level was identified for this case.",
+       "label": "None",
+       "option_code": "none"
+      },
+      {
+       "description": "Difficulties in arranging or accessing transportation, long distances to health facilities, poor road connectivity, or lack of timely transport services delayed reaching appropriate care.",
+       "label": "Transport and Logistics",
+       "option_code": "transport_logistics"
+      },
+      {
+       "description": "Lack of money for transportation, consultation, or treatment costs made it difficult for the patient or family to reach a health facility in time.",
+       "label": "Financial Barrier",
+       "option_code": "financial_barrier"
+      },
+      {
+       "description": "Sudden and severe medical conditions progressed rapidly, leaving limited time to reach appropriate health care services.",
+       "label": "Emergencies",
+       "option_code": "emergencies"
+      }
+     ],
+     "title": "Delay 2: Delay in reaching health facility"
+    },
+    {
+     "delay_level": "delay_3_receiving",
+     "options": [
+      {
+       "description": "No delay factor from this delay level was identified for this case.",
+       "label": "None",
+       "option_code": "none"
+      },
+      {
+       "description": "Problems encountered within health facilities such as delays in admission, lack of treatment, unavailability of medicines, or referral issues affected care.",
+       "label": "Lack of Services at the first facility",
+       "option_code": "lack_of_services_first_facility"
+      },
+      {
+       "description": "Delay in referring the patient to an appropriate higher-level facility despite the need for advanced care, leading to loss of critical time for treatment.",
+       "label": "Delay in Referral",
+       "option_code": "delay_in_referral"
+      },
+      {
+       "description": "Inability to arrange funds for hospital admission, medicines, investigations, or treatment after reaching the health facility.",
+       "label": "Financial Barrier",
+       "option_code": "financial_barrier"
+      }
+     ],
+     "title": "Delay 3: Delay in receiving adequate care"
+    }
+   ],
+   "saved": null
+  },
+  "step": "final"
+ },
+ "coding_masked_empty": {
+  "assessments": {
+   "coder_initial": null,
+   "final": null,
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": null,
+   "reviewer_final": null,
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": "<volatile>",
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd10",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "masked_simple",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vacodassessment",
+    "count": 0,
+    "icon_name": "fa-stethoscope",
+    "label": "VA COD Assessment",
+    "nav_label": "COD Assessment",
+    "render_mode": "workflow_panel"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "event": "coding_allocated"
+   }
+  ],
+  "default_category": "cat1",
+  "doris": null,
+  "narrative_qa": null,
+  "other_conditions_options": [
+   "I10 - Essential Hypertension",
+   "E11 - Type 2 Diabetes Mellitus",
+   "E10 - Type 1 Diabetes Mellitus",
+   "E66 - Obesity",
+   "N18 - Chronic Kidney Disease",
+   "K74 - Chronic Liver Disease",
+   "J44 - Chronic Obstructive Pulmonary Disease",
+   "J45 - Asthma",
+   "E78 - Dyslipidemia",
+   "I50 - Congestive Heart Failure",
+   "I25 - Coronary Artery Disease",
+   "D64 - Chronic Anaemia",
+   "F03 - Dementia",
+   "I25.2 - Previous Myocardial Infarction",
+   "I69 - Previous Stroke/CVA",
+   "C80 - Cancer (non-primary, metastasis, history)",
+   "B24 - HIV/AIDS",
+   "Z86.1 - Past history of tuberculosis",
+   "D89 - Immunosuppression",
+   "E03 - Hypothyroidism",
+   "E05 - Hyperthyroidism",
+   "B18 - Chronic Viral Infections (Hepatitis)",
+   "I73.9 - Peripheral Vascular Disease",
+   "I09 - Chronic Rheumatic Heart Disease",
+   "Z98.8 - History of Major Surgery",
+   "Z79.3 - Long-term use of Immunosuppressants"
+  ],
+  "smartva": null,
+  "smartva_can_run": true,
+  "smartva_status": "not_requested",
+  "social_autopsy": null,
+  "step": "initial"
+ },
+ "coding_masked_not_codeable": {
+  "assessments": {
+   "coder_initial": null,
+   "final": null,
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": {
+    "created_at": "2026-10-28T09:30:00+00:00",
+    "other": "note",
+    "reason": "no_info"
+   },
+   "reviewer_final": null,
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": "<volatile>",
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd10",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "masked_simple",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vacodassessment",
+    "count": 0,
+    "icon_name": "fa-stethoscope",
+    "label": "VA COD Assessment",
+    "nav_label": "COD Assessment",
+    "render_mode": "workflow_panel"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "event": "coding_allocated"
+   }
+  ],
+  "default_category": "cat1",
+  "doris": null,
+  "narrative_qa": null,
+  "other_conditions_options": [
+   "I10 - Essential Hypertension",
+   "E11 - Type 2 Diabetes Mellitus",
+   "E10 - Type 1 Diabetes Mellitus",
+   "E66 - Obesity",
+   "N18 - Chronic Kidney Disease",
+   "K74 - Chronic Liver Disease",
+   "J44 - Chronic Obstructive Pulmonary Disease",
+   "J45 - Asthma",
+   "E78 - Dyslipidemia",
+   "I50 - Congestive Heart Failure",
+   "I25 - Coronary Artery Disease",
+   "D64 - Chronic Anaemia",
+   "F03 - Dementia",
+   "I25.2 - Previous Myocardial Infarction",
+   "I69 - Previous Stroke/CVA",
+   "C80 - Cancer (non-primary, metastasis, history)",
+   "B24 - HIV/AIDS",
+   "Z86.1 - Past history of tuberculosis",
+   "D89 - Immunosuppression",
+   "E03 - Hypothyroidism",
+   "E05 - Hyperthyroidism",
+   "B18 - Chronic Viral Infections (Hepatitis)",
+   "I73.9 - Peripheral Vascular Disease",
+   "I09 - Chronic Rheumatic Heart Disease",
+   "Z98.8 - History of Major Surgery",
+   "Z79.3 - Long-term use of Immunosuppressants"
+  ],
+  "smartva": null,
+  "smartva_can_run": true,
+  "smartva_status": "not_requested",
+  "social_autopsy": null,
+  "step": "done"
+ },
+ "reviewing_doris_masked": {
+  "assessments": {
+   "coder_initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "final": {
+    "conclusive_cod": "1B10.Z TB",
+    "created_at": "2026-10-28T10:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "coder remark"
+   },
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": {
+    "created_at": "2026-10-28T09:30:00+00:00",
+    "other": null,
+    "reason": "no_info"
+   },
+   "reviewer_final": null,
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": "<volatile>",
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd11",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "masked_doris",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "reviewer_coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vacodassessment",
+    "count": 0,
+    "icon_name": "fa-stethoscope",
+    "label": "VA COD Assessment",
+    "nav_label": "COD Assessment",
+    "render_mode": "workflow_panel"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [],
+  "default_category": "cat1",
+  "doris": {
+   "initial_certificate": {},
+   "prefill_provenance": {},
+   "reset_certificate": {},
+   "reset_prefill_provenance": {},
+   "saved_processing": null,
+   "step1_certificate": null,
+   "step1_processing": null
+  },
+  "narrative_qa": null,
+  "other_conditions_options": null,
+  "smartva": null,
+  "smartva_can_run": false,
+  "smartva_status": "not_requested",
+  "social_autopsy": null,
+  "step": "initial"
+ },
+ "reviewing_doris_unmasked": {
+  "assessments": {
+   "coder_initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "final": {
+    "conclusive_cod": "1B10.Z TB",
+    "created_at": "2026-10-28T10:00:00+00:00",
+    "doris_code": "1B10.Z",
+    "doris_status": "completed",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "coder remark"
+   },
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": {
+    "created_at": "2026-10-28T09:30:00+00:00",
+    "other": null,
+    "reason": "no_info"
+   },
+   "reviewer_final": null,
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": "<volatile>",
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd11",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "unmasked_doris",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "reviewer_coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vacodassessment",
+    "count": 0,
+    "icon_name": "fa-stethoscope",
+    "label": "VA COD Assessment",
+    "nav_label": "COD Assessment",
+    "render_mode": "workflow_panel"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [],
+  "default_category": "cat1",
+  "doris": {
+   "initial_certificate": {
+    "AdministrativeData": {
+     "Sex": 1
+    },
+    "ICDVersion": "ICD11",
+    "Part1": [
+     {
+      "Conditions": []
+     }
+    ]
+   },
+   "prefill_provenance": {},
+   "reset_certificate": {},
+   "reset_prefill_provenance": {}
+  },
+  "narrative_qa": null,
+  "other_conditions_options": null,
+  "smartva": null,
+  "smartva_can_run": false,
+  "smartva_status": "not_requested",
+  "social_autopsy": null,
+  "step": "final"
+ },
+ "reviewing_full": {
+  "assessments": {
+   "coder_initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "final": null,
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": {
+    "created_at": "2026-10-28T09:30:00+00:00",
+    "other": null,
+    "reason": "no_info"
+   },
+   "reviewer_final": {
+    "conclusive_cod": "1B10.Z TB",
+    "created_at": "2026-10-28T11:30:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "r"
+   },
+   "reviewer_initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T11:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   }
+  },
+  "blocked_by": [
+   "social_autopsy"
+  ],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": "<volatile>",
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd10",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": true,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "unmasked_simple",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": true,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "reviewer_coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vacodassessment",
+    "count": 0,
+    "icon_name": "fa-stethoscope",
+    "label": "VA COD Assessment",
+    "nav_label": "COD Assessment",
+    "render_mode": "workflow_panel"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [],
+  "default_category": "cat1",
+  "doris": null,
+  "narrative_qa": {
+   "fields": [
+    {
+     "key": "length",
+     "label": "Q1. Length of Narrative",
+     "options": [
+      {
+       "label": "< 3 sentences",
+       "value": 1
+      },
+      {
+       "label": "3\u20135 sentences",
+       "value": 2
+      },
+      {
+       "label": "> 5 sentences",
+       "value": 3
+      }
+     ]
+    },
+    {
+     "key": "pos_symptoms",
+     "label": "Q2. Number of Positive Symptoms",
+     "options": [
+      {
+       "label": "< 3 symptoms",
+       "value": 1
+      },
+      {
+       "label": "3\u20135 symptoms",
+       "value": 2
+      },
+      {
+       "label": "> 5 symptoms",
+       "value": 3
+      }
+     ]
+    },
+    {
+     "key": "neg_symptoms",
+     "label": "Q3. Presence of Negative Symptoms",
+     "options": [
+      {
+       "label": "Absent",
+       "value": 0
+      },
+      {
+       "label": "Present",
+       "value": 1
+      }
+     ]
+    },
+    {
+     "key": "chronology",
+     "label": "Q4. Chronology of Events",
+     "options": [
+      {
+       "label": "Cannot be established",
+       "value": 0
+      },
+      {
+       "label": "Can be established",
+       "value": 1
+      }
+     ]
+    },
+    {
+     "key": "doc_review",
+     "label": "Q5. Document Review",
+     "options": [
+      {
+       "label": "Not present / Inconclusive",
+       "value": 0
+      },
+      {
+       "label": "Provides useful data",
+       "value": 1
+      }
+     ]
+    },
+    {
+     "key": "comorbidity",
+     "label": "Q6. Comorbidities / Risk Factors",
+     "options": [
+      {
+       "label": "Not present",
+       "value": 0
+      },
+      {
+       "label": "Present",
+       "value": 1
+      }
+     ]
+    }
+   ],
+   "max_score": 10,
+   "saved": null
+  },
+  "other_conditions_options": null,
+  "smartva": null,
+  "smartva_can_run": false,
+  "smartva_status": "not_requested",
+  "social_autopsy": {
+   "questions": [
+    {
+     "delay_level": "delay_1_decision",
+     "options": [
+      {
+       "description": "No delay factor from this delay level was identified for this case.",
+       "label": "None",
+       "option_code": "none"
+      },
+      {
+       "description": "Traditional practices, cultural beliefs, or reliance on home remedies influenced health-seeking behaviour and delayed seeking formal medical care.",
+       "label": "Traditions",
+       "option_code": "traditions"
+      },
+      {
+       "description": "Lack of recognition or awareness of serious illness, symptoms, or severity of disease led to delayed decision-making in seeking care.",
+       "label": "Recognition",
+       "option_code": "recognition"
+      },
+      {
+       "description": "Death occurred under circumstances where seeking care was unlikely to change the outcome, such as very advanced age or recognised terminal illness.",
+       "label": "Inevitability",
+       "option_code": "inevitability"
+      }
+     ],
+     "title": "Delay 1: Delay in decision to seek care"
+    },
+    {
+     "delay_level": "delay_2_reaching",
+     "options": [
+      {
+       "description": "No delay factor from this delay level was identified for this case.",
+       "label": "None",
+       "option_code": "none"
+      },
+      {
+       "description": "Difficulties in arranging or accessing transportation, long distances to health facilities, poor road connectivity, or lack of timely transport services delayed reaching appropriate care.",
+       "label": "Transport and Logistics",
+       "option_code": "transport_logistics"
+      },
+      {
+       "description": "Lack of money for transportation, consultation, or treatment costs made it difficult for the patient or family to reach a health facility in time.",
+       "label": "Financial Barrier",
+       "option_code": "financial_barrier"
+      },
+      {
+       "description": "Sudden and severe medical conditions progressed rapidly, leaving limited time to reach appropriate health care services.",
+       "label": "Emergencies",
+       "option_code": "emergencies"
+      }
+     ],
+     "title": "Delay 2: Delay in reaching health facility"
+    },
+    {
+     "delay_level": "delay_3_receiving",
+     "options": [
+      {
+       "description": "No delay factor from this delay level was identified for this case.",
+       "label": "None",
+       "option_code": "none"
+      },
+      {
+       "description": "Problems encountered within health facilities such as delays in admission, lack of treatment, unavailability of medicines, or referral issues affected care.",
+       "label": "Lack of Services at the first facility",
+       "option_code": "lack_of_services_first_facility"
+      },
+      {
+       "description": "Delay in referring the patient to an appropriate higher-level facility despite the need for advanced care, leading to loss of critical time for treatment.",
+       "label": "Delay in Referral",
+       "option_code": "delay_in_referral"
+      },
+      {
+       "description": "Inability to arrange funds for hospital admission, medicines, investigations, or treatment after reaching the health facility.",
+       "label": "Financial Barrier",
+       "option_code": "financial_barrier"
+      }
+     ],
+     "title": "Delay 3: Delay in receiving adequate care"
+    }
+   ],
+   "saved": null
+  },
+  "step": "done"
+ },
+ "view_coded_collaborator_pii": {
+  "assessments": {
+   "coder_initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "final": {
+    "conclusive_cod": "A16 coder result",
+    "created_at": "2026-10-28T10:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "coder remark"
+   },
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": {
+    "created_at": "2026-10-28T09:30:00+00:00",
+    "other": "free text",
+    "reason": "other"
+   },
+   "reviewer_final": {
+    "conclusive_cod": "B20 reviewer result",
+    "created_at": "2026-10-28T11:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "r"
+   },
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": null,
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd10",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "unmasked_simple",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": "Raisen",
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coder_finalized"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "event": "coding_allocated"
+   },
+   {
+    "at": "2026-10-28T09:20:00+00:00",
+    "event": "initial_saved"
+   },
+   {
+    "at": "2026-10-28T10:00:00+00:00",
+    "event": "final_saved"
+   }
+  ],
+  "default_category": "cat1",
+  "doris": null,
+  "narrative_qa": null,
+  "other_conditions_options": null,
+  "smartva": {
+   "age": null,
+   "causes": [
+    {
+     "cause": "Stroke",
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 1
+    },
+    {
+     "cause": null,
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 2
+    },
+    {
+     "cause": null,
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 3
+    }
+   ],
+   "gender": null,
+   "key_symptoms": [
+    null,
+    null,
+    null
+   ],
+   "symptoms": []
+  },
+  "smartva_can_run": false,
+  "smartva_status": "done",
+  "social_autopsy": null,
+  "step": "view"
+ },
+ "view_coded_redacted": {
+  "assessments": {
+   "coder_initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "final": {
+    "conclusive_cod": "A16 coder result",
+    "created_at": "2026-10-28T10:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": null
+   },
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": {
+    "created_at": "2026-10-28T09:30:00+00:00",
+    "other": null,
+    "reason": "other"
+   },
+   "reviewer_final": {
+    "conclusive_cod": "B20 reviewer result",
+    "created_at": "2026-10-28T11:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": null
+   },
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": null,
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd10",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "unmasked_simple",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coder_finalized"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "event": "coding_allocated"
+   },
+   {
+    "at": "2026-10-28T09:20:00+00:00",
+    "event": "initial_saved"
+   },
+   {
+    "at": "2026-10-28T10:00:00+00:00",
+    "event": "final_saved"
+   }
+  ],
+  "default_category": "cat1",
+  "doris": null,
+  "narrative_qa": null,
+  "other_conditions_options": null,
+  "smartva": {
+   "age": null,
+   "causes": [
+    {
+     "cause": "Stroke",
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 1
+    },
+    {
+     "cause": null,
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 2
+    },
+    {
+     "cause": null,
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 3
+    }
+   ],
+   "gender": null,
+   "key_symptoms": [
+    null,
+    null,
+    null
+   ],
+   "symptoms": []
+  },
+  "smartva_can_run": false,
+  "smartva_status": "done",
+  "social_autopsy": null,
+  "step": "view"
+ },
+ "view_coded_reviewer": {
+  "assessments": {
+   "coder_initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "final": {
+    "conclusive_cod": "A16 coder result",
+    "created_at": "2026-10-28T10:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "coder remark"
+   },
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": {
+    "created_at": "2026-10-28T09:30:00+00:00",
+    "other": "free text",
+    "reason": "other"
+   },
+   "reviewer_final": {
+    "conclusive_cod": "B20 reviewer result",
+    "created_at": "2026-10-28T11:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "r"
+   },
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": null,
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd10",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "unmasked_simple",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": "Raisen",
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coder_finalized"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "event": "coding_allocated"
+   },
+   {
+    "at": "2026-10-28T09:20:00+00:00",
+    "event": "initial_saved"
+   },
+   {
+    "at": "2026-10-28T10:00:00+00:00",
+    "event": "final_saved"
+   }
+  ],
+  "default_category": "cat1",
+  "doris": null,
+  "narrative_qa": null,
+  "other_conditions_options": null,
+  "smartva": {
+   "age": null,
+   "causes": [
+    {
+     "cause": "Stroke",
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 1
+    },
+    {
+     "cause": null,
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 2
+    },
+    {
+     "cause": null,
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 3
+    }
+   ],
+   "gender": null,
+   "key_symptoms": [
+    null,
+    null,
+    null
+   ],
+   "symptoms": []
+  },
+  "smartva_can_run": false,
+  "smartva_status": "done",
+  "social_autopsy": null,
+  "step": "view"
+ },
+ "view_coded_unredacted": {
+  "assessments": {
+   "coder_initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "final": {
+    "conclusive_cod": "A16 coder result",
+    "created_at": "2026-10-28T10:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "coder remark"
+   },
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": {
+    "created_at": "2026-10-28T09:30:00+00:00",
+    "other": "free text",
+    "reason": "other"
+   },
+   "reviewer_final": {
+    "conclusive_cod": "B20 reviewer result",
+    "created_at": "2026-10-28T11:00:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "r"
+   },
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": null,
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd10",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "unmasked_simple",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": "Raisen",
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coder_finalized"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [
+   {
+    "at": "2026-10-28T09:00:00+00:00",
+    "event": "coding_allocated"
+   },
+   {
+    "at": "2026-10-28T09:20:00+00:00",
+    "event": "initial_saved"
+   },
+   {
+    "at": "2026-10-28T10:00:00+00:00",
+    "event": "final_saved"
+   }
+  ],
+  "default_category": "cat1",
+  "doris": null,
+  "narrative_qa": null,
+  "other_conditions_options": null,
+  "smartva": {
+   "age": null,
+   "causes": [
+    {
+     "cause": "Stroke",
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 1
+    },
+    {
+     "cause": null,
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 2
+    },
+    {
+     "cause": null,
+     "icd10": null,
+     "icd11": null,
+     "icd11_label": null,
+     "likelihood": null,
+     "rank": 3
+    }
+   ],
+   "gender": null,
+   "key_symptoms": [
+    null,
+    null,
+    null
+   ],
+   "symptoms": []
+  },
+  "smartva_can_run": false,
+  "smartva_status": "done",
+  "social_autopsy": null,
+  "step": "view"
+ },
+ "view_in_coding": {
+  "assessments": {
+   "coder_initial": null,
+   "final": null,
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": null,
+   "reviewer_final": null,
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": null,
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd10",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "unmasked_simple",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "catc",
+    "count": 0,
+    "icon_name": null,
+    "label": "Coder Only",
+    "nav_label": "Coder Only",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [],
+  "default_category": "cat1",
+  "doris": null,
+  "narrative_qa": null,
+  "other_conditions_options": null,
+  "smartva": null,
+  "smartva_can_run": false,
+  "smartva_status": "not_requested",
+  "social_autopsy": null,
+  "step": "view"
+ }
+}

@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-24
 ---
 
 # API v1 Reference
@@ -630,6 +630,9 @@ allocation (its demo allocation), as admin holds no coding scope
 same two 403 codes (`require_coding_access`).
 
 ## Workspace content (`GET /api/v1/va/<va_sid>/workspace` and `.../categories/<code>`, `app/routes/api/va_case.py`)
+
+The route authorizes the viewer, then `build_workspace` in
+`app/services/workspace_service.py` assembles the reply (digitva-r8nh.11).
 
 The coding and review workspace content for any client (digitva-xl43 phase 2).
 The reads are `app/services/case_content_service.py`, which the web partials

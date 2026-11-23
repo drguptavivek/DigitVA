@@ -19,6 +19,7 @@ from flask import Blueprint, Response, jsonify, request
 from werkzeug.http import is_resource_modified
 
 from app import limiter
+from app.routes.api.request_helpers import error
 from app.services.ui_string_service import (
     UiLanguageNotPublished,
     UiStringError,
@@ -51,7 +52,7 @@ def _unavailable(exc: UiStringError):
     # The export is missing or unreadable (mid-deploy). A 503, never a short
     # list: the app keeps its stored list and packs on any non-200.
     log.warning("ui strings unavailable | %s", exc)
-    return jsonify({"error": "UI strings are unavailable.", "code": "unavailable"}), 503
+    return error("UI strings are unavailable.", "unavailable", 503)
 
 
 @bp.get("", strict_slashes=False)
@@ -75,7 +76,7 @@ def ui_string_pack(locale: str):
     try:
         payload = pack((locale or "").strip())
     except UiLanguageNotPublished:
-        return jsonify({"error": "Translation not found.", "code": "not_found"}), 404
+        return error("Translation not found.", "not_found", 404)
     except UiStringError as exc:
         return _unavailable(exc)
     return _conditional(payload, payload["version"])

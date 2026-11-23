@@ -33,13 +33,6 @@ def _without_training():
     training_scope.use(training_scope.EXCLUDE)
 
 
-@bp.after_request
-def _no_store(response):
-    # Case rows carry identifiers, errors included.
-    response.headers["Cache-Control"] = "no-store"
-    return response
-
-
 @bp.errorhandler(WebIntakeError)
 def _bad_query(exc):
     db.session.rollback()

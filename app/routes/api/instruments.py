@@ -30,6 +30,7 @@ from flask_login import current_user, login_required
 
 from app import db, limiter
 from app.models import VaProjectMaster, VaStatuses
+from app.routes.api.request_helpers import error
 from app.services import served_form_service
 from app.services import training_scope
 from app.services.authz import reachable_unit_ids
@@ -119,7 +120,7 @@ def translations_response(code: str, locale: str):
 
 
 def _json_error(message: str, status: int, code: str):
-    return jsonify({"error": message, "code": code}), status
+    return error(message, code, status)
 
 
 @bp.get("/<instrument_code>/definition")

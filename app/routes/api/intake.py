@@ -144,13 +144,6 @@ def _keep_training_apart():
     return None
 
 
-@bp.after_request
-def _no_store(response):
-    # Intake carries identifiers and questionnaire answers, errors included.
-    response.headers["Cache-Control"] = "no-store"
-    return response
-
-
 #: The draft writes whose refusals are logged (``_log_draft_refusal``).
 _LOGGED_DRAFT_WRITES = frozenset({"save_draft", "submit_draft"})
 

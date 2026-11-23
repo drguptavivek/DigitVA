@@ -22,6 +22,7 @@ from app.models import (
     VaSubmissions,
     VaSubmissionsAuditlog,
 )
+from app.routes.api.request_helpers import error
 from app.services.coding_allocation_service import (
     lock_and_confirm_active_allocation,
     lock_coding_submission,
@@ -43,7 +44,7 @@ log = logging.getLogger(__name__)
 
 
 def _error(message: str, status_code: int, code: str):
-    return jsonify({"error": message, "code": code}), status_code
+    return error(message, code, status_code)
 
 
 def _nqa_score(length, pos_symptoms, neg_symptoms, chronology, doc_review, comorbidity) -> int:

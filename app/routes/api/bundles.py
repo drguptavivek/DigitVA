@@ -58,12 +58,6 @@ def _refuse_oversized_body():
     return None
 
 
-@bp.after_request
-def _no_store(response):
-    response.headers["Cache-Control"] = "no-store"
-    return response
-
-
 @bp.errorhandler(service.BundleRefusal)
 def _refused(exc):
     db.session.rollback()

@@ -18,8 +18,9 @@ def register_cache_headers(app):
         # Browser intake carries identifiers and questionnaire answers, and the
         # case list and intake replies carry registration numbers. This
         # applies to errors and redirects as well as successful JSON responses
-        # (also set by those blueprints; this covers a request refused before
-        # it reaches one, such as a CSRF or terms refusal).
+        # (including a request refused before it reaches a blueprint, such as
+        # a CSRF or terms refusal; the cases, intake and bundles blueprints
+        # rely on this hook alone, digitva-r8nh.5).
         if request.path.startswith(_NO_STORE_API_PREFIXES):
             response.headers["Cache-Control"] = "no-store"
         # The phone measures its clock offset from this header on every

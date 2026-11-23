@@ -40,8 +40,7 @@ def _account_security_is_cookie_only():
 
     endpoint = (request.endpoint or "").rsplit(".", 1)[-1]
     if request_bearer_token(request) is not None and endpoint not in _BEARER_ALLOWED:
-        return jsonify({"error": "Sign in on the web to manage account security.",
-                        "code": "cookie_session_required"}), 403
+        return api_error("Sign in on the web to manage account security.", "cookie_session_required", 403)
     return None
 
 # docs/policy/authentication-factors.md section 7: registering, renaming or
@@ -149,7 +148,7 @@ def generate_password():
     if reauth_error:
         return reauth_error
     if current_user.email and not current_user.email_verified:
-        return jsonify({"error": EMAIL_UNVERIFIED_GENERATE_MESSAGE, "code": "email_unverified"}), 409
+        return api_error(EMAIL_UNVERIFIED_GENERATE_MESSAGE, "email_unverified", 409)
     by_email = bool(current_user.email)
     try:
         if by_email:
@@ -403,7 +402,7 @@ def accept_terms():
     request.max_content_length = 16 * 1024  # the device /terms cap
     body = request.get_json(silent=True)
     if not isinstance(body, dict) or body.get("accept_terms") is not True:
-        return jsonify({"error": "Please accept the terms of use.", "code": "invalid_request"}), 400
+        return api_error("Please accept the terms of use.", "invalid_request", 400)
     record_acceptance(current_user._get_current_object(), via="device" if g.get("device_session") else "api")
     db.session.commit()
     return jsonify({"message": "Terms accepted.", "terms_accepted": True})

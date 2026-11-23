@@ -12,6 +12,16 @@ What landed, newest first. Details live in the commits and the linked docs;
   expo-client.md "Screen capture").
 - Supervisor Edit interview on the phone landed (`3aec13d32`, `5d093e821`);
   Maestro flow 75 drives it.
+- Code audit refactors, wave 2 (same protocol; landed unattended after
+  clean reviews and full suites): kpi services import-safe, `DmScope` in
+  `app/services/kpi/scope.py` (`4bdb1b566`, `r8nh.16` slice 2a); case
+  workspace built in `app/services/workspace_service.py` (`1beec5cc1`,
+  `r8nh.11`); Collect `src/api.ts` split into `src/api/` with an
+  entry-point guard test (`6ac5341b8`, `r8nh.20`); `web_intake_service`
+  split into `app/services/web_intake/` (`02e09fcd3`, `r8nh.12`); route
+  error replies through `request_helpers.error`, blueprint no-store hooks
+  dropped where the app hook covers them (`c51f926fe`, `r8nh.5`; the
+  reviewing and so helpers kept as they were).
 - Code audit refactors, wave 1 (epic `digitva-r8nh`, move-only first
   slices, each with characterization tests written first, existing tests
   unedited and an independent equivalence review): golden coding-rule

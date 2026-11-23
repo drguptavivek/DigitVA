@@ -15,6 +15,24 @@ from app.models import (
     VaSubmissions,
     VaSubmissionWorkflow,
 )
+from app.routes.api.cod_request import (
+    doris_fields as _doris_fields,
+)
+from app.routes.api.cod_request import (
+    flag as _flag,
+)
+from app.routes.api.cod_request import (
+    json_object as _json_object,
+)
+from app.routes.api.cod_request import (
+    parse_final_cod_body,
+)
+from app.routes.api.cod_request import (
+    text as _text,
+)
+from app.routes.api.cod_request import (
+    too_long as _too_long,
+)
 from app.routes.api.request_helpers import (
     BadQuery,
     intake_error,
@@ -438,9 +456,6 @@ def mark_reviewer_eligible_after_recode_window():
 # POST /api/v1/coding/initial|finalize|not-codeable/<sid>  — the coder's writes
 # ---------------------------------------------------------------------------
 
-_BODY_CAP = 1_200_000  # the DORIS certificate and its envelopes ride along
-_FREE_TEXT_CAP = 4000  # characters: remark, other, each other condition
-
 
 def _coder_refusal(exc: CoderCodingError):
     """``{error, code}`` for a refused write; blocking gates add ``messages``
@@ -457,61 +472,6 @@ def _coder_refusal(exc: CoderCodingError):
 @bp.errorhandler(RequestEntityTooLarge)
 def _body_too_large(_exc):
     return api_error("The request body is too large.", "payload_too_large", 413)
-
-
-def _too_long(*texts: str | None) -> bool:
-    return any(text and len(text) > _FREE_TEXT_CAP for text in texts)
-
-
-def _json_object() -> dict | None:
-    """The JSON object body, None when absent or not an object.
-
-    The size cap keys on the path only, so no lookup runs before authz. It
-    reads ``Content-Length``: CSRF protection has already built the request
-    stream without a limit, so ``request.max_content_length`` cannot enforce
-    it. Longer, or no length at all (a chunked body, which would be buffered
-    whole), raises ``RequestEntityTooLarge`` for the handler above.
-    """
-    if request.content_length is None or request.content_length > _BODY_CAP:
-        raise RequestEntityTooLarge()
-    try:
-        body = request.get_json(silent=True)
-    except RecursionError:  # absurdly nested JSON within the size cap
-        return None
-    return body if isinstance(body, dict) else None
-
-
-def _text(body: dict, name: str) -> str | None:
-    """The stripped text of *name*, None when absent; ValueError when not text."""
-    value = body.get(name)
-    if value is None:
-        return None
-    if not isinstance(value, str):
-        raise ValueError(f"{name} must be text.")
-    return value.strip()
-
-
-def _flag(body: dict, name: str) -> bool:
-    """The JSON boolean *name*, False when absent; ValueError when not a boolean."""
-    value = body.get(name, False)
-    if not isinstance(value, bool):
-        raise ValueError(f"{name} must be true or false.")
-    return value
-
-
-def _doris_fields(body: dict) -> dict:
-    """The DORIS envelopes of a body: objects, tokens as text (ValueError otherwise)."""
-    for name in ("doris_certificate", "doris_result", "codedit_result"):
-        if body.get(name) is not None and not isinstance(body[name], dict):
-            raise ValueError(f"{name} must be an object.")
-    return {
-        "doris_certificate": body.get("doris_certificate"),
-        "doris_result": body.get("doris_result"),
-        "codedit_result": body.get("codedit_result"),
-        "doris_process_token": _text(body, "doris_process_token"),
-        "doris_result_digest": _text(body, "doris_result_digest"),
-        "doris_client_revision": body.get("doris_client_revision", 0),
-    }
 
 
 @bp.post("/initial/<va_sid>")
@@ -588,38 +548,15 @@ def finalize(va_sid):
     if not training_scope.sid_allowed(va_sid):
         return _crossing_error()
     try:
-        conclusive_cod = _text(body, "conclusive_cod")
-        fields = {
-            "remark": _text(body, "remark"),
-            "immediate_cod": _text(body, "immediate_cod"),
-            "other_conditions": _text(body, "other_conditions"),
-            "age_restriction_confirmed": _flag(body, "age_restriction_confirmed"),
-            "causing_condition_unknown": _flag(body, "causing_condition_unknown"),
-            **_doris_fields(body),
-        }
-        cod_search_id = _text(body, "cod_search_id")
-        cod_chosen_code = _text(body, "cod_chosen_code")
-        cod_chosen_rank = body.get("cod_chosen_rank")
-        if cod_chosen_rank is not None and (
-            not isinstance(cod_chosen_rank, int) or isinstance(cod_chosen_rank, bool)
-        ):
-            raise ValueError("cod_chosen_rank must be an integer.")
+        fields = parse_final_cod_body(body, other_conditions_text=True)
     except ValueError as exc:
         return api_error(str(exc), "invalid_request", 400)
-    if not conclusive_cod:
+    if not fields["conclusive_cod"]:
         return api_error("conclusive_cod is required.", "invalid_request", 400)
     if _too_long(fields["remark"], fields["other_conditions"]):
         return api_error("remark or other_conditions is too long.", "invalid_request", 422)
     try:
-        saved = submit_coder_final_cod(
-            current_user,
-            va_sid,
-            conclusive_cod=conclusive_cod,
-            cod_search_id=cod_search_id,
-            cod_chosen_code=cod_chosen_code,
-            cod_chosen_rank=cod_chosen_rank,
-            **fields,
-        )
+        saved = submit_coder_final_cod(current_user, va_sid, **fields)
     except CoderCodingError as exc:
         return _coder_refusal(exc)
     return jsonify({

@@ -453,7 +453,8 @@ class TestReviewerCodingService(BaseTestCase):
                     remark="reviewer cod",
                 )
 
-        self.assertEqual(ctx.exception.status_code, 400)
+        # The coder's reply (owner 2026-11-23, digitva-r8nh.2).
+        self.assertEqual((ctx.exception.status_code, ctx.exception.code), (422, "final_blocked"))
         self.assertIn("Social Autopsy Analysis must be completed", ctx.exception.message)
 
     def test_submit_reviewer_final_cod_succeeds_after_social_autopsy(self):

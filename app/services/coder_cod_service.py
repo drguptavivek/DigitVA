@@ -57,12 +57,17 @@ from app.services.final_cod_authority_service import (
     get_authoritative_final_assessment,
     upsert_final_cod_authority,
 )
+from app.services.final_cod_core import (
+    FinalCodRefusal,
+    check_conclusive_cod,
+    check_immediate_cod,
+    conclusive_provenance,
+    refuse_doris_envelopes_on_masked_step2,
+)
 from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
 from app.services.icd_coding_value import (
-    InvalidCausingConditionFlag,
     NonLeafCategory,
     build_icd11_provenance_for_values,
-    check_causing_condition_unknown,
     record_final_cod_flags,
     validate_coding_value_for_submission,
 )
@@ -766,79 +771,61 @@ def submit_coder_final_cod(
     allocation = require_coding_session(user, va_sid, actiontype)
     project = _load_project(va_sid)
     mode = project_mode(project)
-    # Masked DORIS Step 2 only confirms the underlying cause; the
-    # certificate and its envelopes stay on the Step 1 row (decision 4).
-    if mode == "masked_doris" and any(
-        (doris_certificate, doris_result, codedit_result, doris_process_token, doris_result_digest)
-    ):
-        raise CoderCodingError(
-            "Step 2 confirms the underlying cause only; the DORIS certificate belongs to Step 1.",
-            400,
-            code="invalid_request",
-        )
-    active_payload_version = get_active_payload_version(va_sid)
-    blocking_messages: list[str] = []
-    if active_payload_version is None:
-        blocking_messages.append("This submission has no active payload version.")
-    conclusive_cod = (conclusive_cod or "").strip()
-    age_restriction = None
     try:
-        if causing_condition_unknown:
-            check_causing_condition_unknown(conclusive_cod)
-        validate_coding_value_for_submission(va_sid, conclusive_cod)
-    except InvalidCausingConditionFlag as exc:
-        raise CoderCodingError(str(exc), 422, code="INVALID_CAUSING_CONDITION_FLAG") from exc
-    except NonLeafCategory as exc:
-        raise CoderCodingError(str(exc), 422, code=exc.code) from exc
-    except AgeRestrictionConfirmationRequired as exc:
-        # Age warns, sex blocks (digitva-oh7j): asked before the other gates.
-        if not age_restriction_confirmed:
-            raise CoderCodingError(
-                str(exc),
-                422,
-                code="AGE_RESTRICTION_CONFIRMATION_REQUIRED",
-                details={"age_restriction": exc.details()},
-            ) from exc
-        age_restriction = exc.details()
-    except (LookupError, ValueError) as exc:
-        blocking_messages.append(str(exc))
-
-    immediate_icd11_provenance = None
-    verified_certificate = verified_doris = verified_codedit = None
-    saved_immediate_cod = None
-    saved_other_conditions = None
-    who_image_digest = str(current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or "").strip()
-    if mode == "unmasked_simple":
-        saved_immediate_cod = (immediate_cod or "").strip()
-        saved_other_conditions = (other_conditions or "").strip() or None
-        if not saved_immediate_cod:
-            blocking_messages.append("Immediate cause of death is required.")
-        else:
-            try:
-                validate_coding_value_for_submission(va_sid, saved_immediate_cod)
-                immediate_icd11_provenance = build_icd11_provenance_for_values(
-                    va_sid, {"immediate": saved_immediate_cod}
-                )
-            except NonLeafCategory as exc:
-                raise CoderCodingError(str(exc), 422, code=exc.code) from exc
-            except (LookupError, ValueError) as exc:
-                blocking_messages.append(str(exc))
-        saved_immediate_cod = saved_immediate_cod or None
-    elif mode == "unmasked_doris" and active_payload_version is not None:
-        who_image_digest = _who_image_digest()
-        verified = _verify_doris(
-            user, va_sid, allocation, active_payload_version, who_image_digest,
-            certificate=doris_certificate,
-            doris_result=doris_result,
-            codedit_result=codedit_result,
-            doris_process_token=doris_process_token,
-            doris_result_digest=doris_result_digest,
-            doris_client_revision=doris_client_revision,
-            doris_input_error=doris_input_error,
+        refuse_doris_envelopes_on_masked_step2(
+            mode, doris_certificate, doris_result, codedit_result, doris_process_token, doris_result_digest
         )
-        verified_certificate = verified["certificate"]
-        verified_doris = verified["doris"]
-        verified_codedit = verified["codedit"]
+        active_payload_version = get_active_payload_version(va_sid)
+        blocking_messages: list[str] = []
+        if active_payload_version is None:
+            blocking_messages.append("This submission has no active payload version.")
+        conclusive_cod = (conclusive_cod or "").strip()
+        # Age warns, sex blocks (digitva-oh7j): asked before the other gates.
+        age_restriction, block = check_conclusive_cod(
+            va_sid,
+            conclusive_cod,
+            causing_condition_unknown=causing_condition_unknown,
+            age_restriction_confirmed=age_restriction_confirmed,
+            validate=validate_coding_value_for_submission,
+        )
+        if block:
+            blocking_messages.append(block.message)
+
+        immediate_icd11_provenance = None
+        verified_certificate = verified_doris = verified_codedit = None
+        saved_immediate_cod = None
+        saved_other_conditions = None
+        who_image_digest = str(current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or "").strip()
+        if mode == "unmasked_simple":
+            saved_immediate_cod = (immediate_cod or "").strip() or None
+            saved_other_conditions = (other_conditions or "").strip() or None
+            immediate_icd11_provenance, block = check_immediate_cod(
+                va_sid,
+                saved_immediate_cod,
+                validate=validate_coding_value_for_submission,
+                provenance=build_icd11_provenance_for_values,
+            )
+            if block:
+                blocking_messages.append(block.message)
+        elif mode == "unmasked_doris" and active_payload_version is not None:
+            who_image_digest = _who_image_digest()
+            verified = _verify_doris(
+                user, va_sid, allocation, active_payload_version, who_image_digest,
+                certificate=doris_certificate,
+                doris_result=doris_result,
+                codedit_result=codedit_result,
+                doris_process_token=doris_process_token,
+                doris_result_digest=doris_result_digest,
+                doris_client_revision=doris_client_revision,
+                doris_input_error=doris_input_error,
+            )
+            verified_certificate = verified["certificate"]
+            verified_doris = verified["doris"]
+            verified_codedit = verified["codedit"]
+    except FinalCodRefusal as exc:
+        raise CoderCodingError(
+            exc.message, exc.status_code, code=exc.code, details=exc.details
+        ) from exc
 
     if project.narrative_qa_enabled and not get_current_payload_narrative_assessment(
         va_sid, user.user_id
@@ -856,12 +843,11 @@ def submit_coder_final_cod(
         )
     final_icd11_provenance = None
     if not blocking_messages:
-        try:
-            final_icd11_provenance = build_icd11_provenance_for_values(
-                va_sid, {"conclusive": conclusive_cod}
-            )
-        except (LookupError, ValueError) as exc:
-            blocking_messages.append(str(exc))
+        final_icd11_provenance, block = conclusive_provenance(
+            va_sid, conclusive_cod, provenance=build_icd11_provenance_for_values
+        )
+        if block:
+            blocking_messages.append(block.message)
     if blocking_messages:
         raise CoderCodingError(
             blocking_messages[0], 422, code="final_blocked", messages=blocking_messages

@@ -732,7 +732,9 @@ class TestMaskedDorisReviewing(BaseTestCase):
                 age_restriction_confirmed=True, causing_condition_unknown=True,
             )
 
-        self.assertEqual((sex.status_code, sex.code), (400, "invalid_cod"))
+        # The coder's reply to an invalid COD (owner 2026-11-23, digitva-r8nh.2).
+        self.assertEqual((sex.status_code, sex.code), (422, "final_blocked"))
+        self.assertEqual(sex.messages, [sex.message])
         self.assertEqual((age.status_code, age.code), (422, "AGE_RESTRICTION_CONFIRMATION_REQUIRED"))
         self.assertEqual(
             age.details,

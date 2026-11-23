@@ -472,11 +472,20 @@ device bearer. Authorised per request: `Action.REVIEW` on the case, plus the
 caller's own active reviewing allocation for the saves.
 
 Errors are flat `{error, code}` (a changed DORIS certificate adds the
-reprocessed `processing`; nothing is saved). The HTTP statuses are unchanged:
+reprocessed `processing`; nothing is saved). The final save answers a final-COD
+mistake as the coder's `/coding/finalize` does (owner 2026-11-23,
+`digitva-r8nh.2`, docs/policy/final-cod-authority.md "Refusals"): the same body
+checks (`cod_chosen_rank` an integer, the DORIS envelopes objects, `remark` and
+`other_conditions` at most 4000 characters, which is a 422 `invalid_request`;
+`other_conditions` may also be a list, joined with ` | `), 413
+`payload_too_large` over 1.2 MB or without a `Content-Length` in every mode,
+and 422 `final_blocked` with every blocking message in `messages` (an invalid or
+missing COD, no active payload, Social Autopsy not yet saved) and 422
+`non_leaf_category`. Otherwise:
 400 `invalid_request` (body not an object, wrong type, a missing required
-field, a DORIS certificate sent to masked Step 2), `invalid_cod` (an invalid
-COD or mixed ICD-10 and ICD-11), `wrong_state` (a masked final without the
-reviewer's own Step 1) and `final_blocked` (Social Autopsy not yet saved); 403
+field, a DORIS certificate sent to masked Step 2), `invalid_cod` (Step 1: an
+invalid COD or mixed ICD-10 and ICD-11), `wrong_state` (a masked final without
+the reviewer's own Step 1); 403
 `forbidden` (outside review scope, language not in the profile, closed
 project), `no_allocation`, `wrong_state` (the case is not `reviewer_eligible` /
 `reviewer_coding_in_progress`, or already has a reviewer final); 404
@@ -484,7 +493,7 @@ project), `no_allocation`, `wrong_state` (the case is not `reviewer_eligible` /
 `conflict` (retired or confirmed-duplicate case), `not_masked` (Step 1 on an
 unmasked project) and the DORIS conflicts `DORIS_CERTIFICATE_CHANGED` (carries
 `processing`), `DORIS_PROCESS_MISMATCH`, `DORIS_PROCESS_EXPIRED`; 413
-`payload_too_large` (a DORIS body over 1.2 MB); 422 `invalid_doris`; 503
+`payload_too_large` (a masked DORIS Step 1 body over 1.2 MB); 422 `invalid_doris`; 503
 `who_unavailable` / `who_not_configured`. `wrong_state` keeps the status each
 route always had: 403 on start and the saves (400 for a masked final without
 Step 1), 409 on reviewer release and when a release lands during a final save.

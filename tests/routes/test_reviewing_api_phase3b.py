@@ -255,12 +255,13 @@ class ReviewingApiPhase3bTests(BaseTestCase):
             self._flat(self._post(f"{_API}/finalize/uuid:missing", json=body), 404, "not_found")
             self._flat(self._post(f"{_API}/finalize/{eligible}", json=body), 403, "wrong_state")
             self._flat(self._post(f"{_API}/finalize/{in_session}", json=body), 403, "no_allocation")
-        # Not a code the catalogue knows.
+        # Not a code the catalogue knows: the coder's reply (owner 2026-11-23, digitva-r8nh.2).
         self._allocate(self.reviewer, in_session)
-        self._flat(
+        refused = self._flat(
             self._post(f"{_API}/finalize/{in_session}", json={"conclusive_cod": "NOT-A-CODE", "immediate_cod": "X"}),
-            400, "invalid_cod",
+            422, "final_blocked",
         )
+        self.assertEqual(len(refused["messages"]), 2)
         other_pair = self._case(WORKFLOW_REVIEWER_CODING_IN_PROGRESS, form_id=self.OTHER_FORM_ID)
         self._flat(self._post(f"{_API}/finalize/{other_pair}", json=body), 403, "forbidden")
 
@@ -338,10 +339,12 @@ class ReviewingApiPhase3bTests(BaseTestCase):
             "app.services.reviewer_coding_service._reviewer_social_autopsy_required",
             return_value=True,
         ):
-            self._flat(
+            # The coder's status and messages (owner 2026-11-23, digitva-r8nh.2).
+            refused = self._flat(
                 self._post(f"{_API}/finalize/{sid}", json={"conclusive_cod": "R99", "immediate_cod": "R99"}),
-                400, "final_blocked",
+                422, "final_blocked",
             )
+            self.assertEqual(refused["messages"], [refused["error"]])
 
     def test_a_release_between_the_state_check_and_the_transition_is_a_409_not_a_500(self):
         """The session ends after submit_reviewer_final_cod checked the state:

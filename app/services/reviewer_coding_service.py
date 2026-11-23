@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 import sqlalchemy as sa
@@ -45,11 +46,17 @@ from app.services.doris_process_proof import (
 from app.services.doris_processing import process_certificate
 from app.services.duplicate_exclusion import excluded_message, is_confirmed_duplicate
 from app.services.final_cod_authority_service import upsert_reviewer_final_cod_authority
+from app.services.final_cod_core import (
+    Block,
+    FinalCodRefusal,
+    check_conclusive_cod,
+    check_immediate_cod,
+    conclusive_provenance,
+    refuse_doris_envelopes_on_masked_step2,
+)
 from app.services.icd_coding_policy import AgeRestrictionConfirmationRequired
 from app.services.icd_coding_value import (
-    InvalidCausingConditionFlag,
     build_icd11_provenance_for_values,
-    check_causing_condition_unknown,
     record_final_cod_flags,
     validate_coding_value_for_submission,
 )
@@ -88,7 +95,8 @@ class ReviewerCodingError(Exception):
     """Raised when reviewer coding cannot proceed.
 
     ``details`` are extra response keys
-    (``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` carries ``age_restriction``).
+    (``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` carries ``age_restriction``);
+    ``messages`` lists every blocking message of a ``final_blocked``.
     """
 
     def __init__(
@@ -99,12 +107,14 @@ class ReviewerCodingError(Exception):
         code: str | None = None,
         processing: dict | None = None,
         details: dict | None = None,
+        messages: list[str] | None = None,
     ):
         self.message = message
         self.status_code = status_code
         self.code = code
         self.processing = processing
         self.details = details or {}
+        self.messages = messages
         super().__init__(message)
 
 
@@ -464,6 +474,17 @@ def start_reviewer_coding(user, va_sid: str) -> ReviewerCodingResult:
     return ReviewerCodingResult(va_sid=va_sid, actiontype="vastartreviewing")
 
 
+@contextmanager
+def _final_cod_refusals():
+    """A ``FinalCodRefusal`` as a ``ReviewerCodingError`` with the same reply."""
+    try:
+        yield
+    except FinalCodRefusal as exc:
+        raise ReviewerCodingError(
+            exc.message, exc.status_code, code=exc.code, details=exc.details
+        ) from exc
+
+
 def submit_reviewer_final_cod(
     user,
     va_sid: str,
@@ -483,6 +504,10 @@ def submit_reviewer_final_cod(
 ) -> VaReviewerFinalAssessments:
     """Save the reviewer's final COD.
 
+    A final-COD mistake gets the coder's reply (owner 2026-11-23,
+    docs/policy/final-cod-authority.md "Refusals"): 422 ``final_blocked``
+    carrying every blocking message in ``messages`` (invalid or missing COD,
+    no active payload, Social Autopsy not saved), 422 ``non_leaf_category``.
     An ICD-11 conclusive COD that fails only its age restriction is refused
     422 ``AGE_RESTRICTION_CONFIRMATION_REQUIRED`` unless
     ``age_restriction_confirmed``; the confirmation, and
@@ -510,25 +535,20 @@ def submit_reviewer_final_cod(
             "Reviewer final COD can only be submitted from reviewer_coding_in_progress.",
             code="wrong_state",
         )
-    age_restriction = None
-    try:
-        if causing_condition_unknown:
-            check_causing_condition_unknown(conclusive_cod)
-        validate_coding_value_for_submission(va_sid, conclusive_cod)
-    except InvalidCausingConditionFlag as exc:
-        raise ReviewerCodingError(str(exc), 422, code="INVALID_CAUSING_CONDITION_FLAG") from exc
-    except AgeRestrictionConfirmationRequired as exc:
-        # Age warns, sex blocks (digitva-oh7j).
-        if not age_restriction_confirmed:
-            raise ReviewerCodingError(
-                str(exc),
-                422,
-                code="AGE_RESTRICTION_CONFIRMATION_REQUIRED",
-                details={"age_restriction": exc.details()},
-            ) from exc
-        age_restriction = exc.details()
-    except (LookupError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
+    blocks: list[Block] = []
+    if submission.active_payload_version_id is None:
+        blocks.append(Block("This submission has no active payload version."))
+    # Age warns, sex blocks (digitva-oh7j): asked before the other gates.
+    with _final_cod_refusals():
+        age_restriction, block = check_conclusive_cod(
+            va_sid,
+            conclusive_cod,
+            causing_condition_unknown=causing_condition_unknown,
+            age_restriction_confirmed=age_restriction_confirmed,
+            validate=validate_coding_value_for_submission,
+        )
+    if block:
+        blocks.append(block)
 
     active_allocation = db.session.scalar(
         sa.select(VaAllocations).where(
@@ -559,15 +579,9 @@ def submit_reviewer_final_cod(
             400,
             code="wrong_state",
         )
-    # Masked DORIS Step 2 only confirms the underlying cause; the
-    # certificate and its envelopes stay on the reviewer's Step 1 row.
-    if mode == "masked_doris" and any(
-        (doris_certificate, doris_result, codedit_result, doris_process_token, doris_result_digest)
-    ):
-        raise ReviewerCodingError(
-            "Step 2 confirms the underlying cause only; the DORIS certificate belongs to Step 1.",
-            400,
-            code="invalid_request",
+    with _final_cod_refusals():
+        refuse_doris_envelopes_on_masked_step2(
+            mode, doris_certificate, doris_result, codedit_result, doris_process_token, doris_result_digest
         )
 
     immediate_provenance = None
@@ -578,18 +592,16 @@ def submit_reviewer_final_cod(
         current_app.config.get("DORIS_WHO_IMAGE_DIGEST") or ""
     ).strip()
     if mode == "unmasked_simple":
-        if not immediate_cod:
-            raise ReviewerCodingError(
-                "immediate_cod is required.", 400, code="invalid_request"
+        with _final_cod_refusals():
+            immediate_provenance, block = check_immediate_cod(
+                va_sid,
+                immediate_cod,
+                validate=validate_coding_value_for_submission,
+                provenance=build_icd11_provenance_for_values,
             )
-        try:
-            validate_coding_value_for_submission(va_sid, immediate_cod)
-            immediate_provenance = build_icd11_provenance_for_values(
-                va_sid, {"immediate": immediate_cod}
-            )
-        except (LookupError, ValueError) as exc:
-            raise ReviewerCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
-    elif mode == "unmasked_doris":
+        if block:
+            blocks.append(block)
+    elif mode == "unmasked_doris" and submission.active_payload_version_id is not None:
         who_image_digest = _who_image_digest()
         verified = verify_doris_submission(
             user,
@@ -628,12 +640,22 @@ def submit_reviewer_final_cod(
             smartva_icd11_alternatives(smartva),
         )
 
-    try:
-        final_provenance = build_icd11_provenance_for_values(
-            va_sid, {"conclusive": conclusive_cod}
+    if _reviewer_social_autopsy_required(
+        va_sid, submission
+    ) and not get_current_payload_social_autopsy_analysis(va_sid, user.user_id):
+        blocks.append(Block(
+            "Social Autopsy Analysis must be completed before submitting the reviewer final COD."
+        ))
+    final_provenance = None
+    if not blocks:
+        final_provenance, block = conclusive_provenance(
+            va_sid, conclusive_cod, provenance=build_icd11_provenance_for_values
         )
-    except (LookupError, ValueError) as exc:
-        raise ReviewerCodingError(str(exc), 400, code=getattr(exc, "code", "invalid_cod")) from exc
+        if block:
+            blocks.append(block)
+    if blocks:
+        messages = [block.message for block in blocks]
+        raise ReviewerCodingError(messages[0], 422, code="final_blocked", messages=messages)
     final_provenance = record_final_cod_flags(
         final_provenance,
         age_restriction=age_restriction,
@@ -643,18 +665,6 @@ def submit_reviewer_final_cod(
             reviewer_initial.doris_result if mode == "masked_doris" and reviewer_initial else None
         ),
     )
-
-    if _reviewer_social_autopsy_required(va_sid, submission):
-        social_autopsy_analysis = get_current_payload_social_autopsy_analysis(
-            va_sid,
-            user.user_id,
-        )
-        if not social_autopsy_analysis:
-            raise ReviewerCodingError(
-                "Social Autopsy Analysis must be completed before submitting the reviewer final COD.",
-                400,
-                code="final_blocked",
-            )
 
     active_payload_version_id = submission.active_payload_version_id
     prior_active_reviewer_finals = db.session.scalars(

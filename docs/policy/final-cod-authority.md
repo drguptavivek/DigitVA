@@ -3,7 +3,7 @@ title: Final COD Authority Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-03-23
+last_updated: 2026-11-23
 ---
 
 # Final COD Authority Policy
@@ -93,6 +93,44 @@ Once replacement final COD is successfully saved:
 - the previous authoritative coder COD becomes superseded
 - the replacement coder COD becomes authoritative unless a reviewer final COD
   later supersedes it
+
+## Refusals
+
+Owner decision 2026-11-23 (`digitva-r8nh.2`): a coder and a reviewer who make
+the same mistake on the final COD get the same HTTP status, the same error
+code and the same input checks. The coder's final save
+(`POST /api/v1/coding/finalize`) is the reference; the reviewer's
+(`POST /api/v1/reviewing/finalize`) answers as it does. The checks live once,
+in `app/services/final_cod_core.py` and `app/routes/api/cod_request.py`.
+
+Request checks, before anything is read or saved:
+
+- 413 `payload_too_large`: a body over 1.2 MB, or with no `Content-Length`,
+  on every project mode
+- 400 `invalid_request`: a body that is not an object, a missing
+  `conclusive_cod`, a text field that is not text, a DORIS envelope
+  (`doris_certificate`, `doris_result`, `codedit_result`) that is not an
+  object, a DORIS token or digest that is not text, a confirmation flag that is
+  not a boolean, a `cod_chosen_rank` that is not an integer
+- 422 `invalid_request`: `remark` or `other_conditions` over 4000 characters
+
+Final COD mistakes:
+
+- 422 `final_blocked`, every blocking message in `messages` (`error` is the
+  first): an invalid conclusive COD, a missing or invalid immediate COD
+  (unmasked simple), a conclusive COD whose ICD-11 provenance cannot be built,
+  no active payload version, Social Autopsy Analysis not saved (and, for the
+  coder, Narrative QA not done)
+- 422 `non_leaf_category`: an ICD-11 category with children
+- 422 `AGE_RESTRICTION_CONFIRMATION_REQUIRED` with `age_restriction`, unless
+  confirmed; 422 `INVALID_CAUSING_CONDITION_FLAG`
+- 400 `invalid_request`: a DORIS certificate sent to masked DORIS Step 2
+
+Kept per role (not part of this decision): the state and allocation replies
+(the reviewer's 403 `wrong_state`, and 400 `wrong_state` for a masked final
+without the reviewer's own Step 1, where the coder gets 409), and the shape of
+`other_conditions` (the reviewer's route also takes a list, joined with
+` | `).
 
 ## Not Codeable Rule
 

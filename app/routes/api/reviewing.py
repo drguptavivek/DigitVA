@@ -2,13 +2,14 @@
 
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.decorators import role_required
 from app.models import VaAllocation
+from app.routes.api.cod_request import BODY_CAP, json_object, parse_final_cod_body, too_long
 from app.routes.api.request_helpers import other_conditions_list
-from app.services import coding_search_telemetry_service
+from app.services import coding_search_telemetry_service, training_scope
 from app.services import reviewer_dashboard_service as _svc
-from app.services import training_scope
 from app.services.authz import Action, can
 from app.services.cod_entry_mode import project_mode
 from app.services.coder_dashboard_service import last_allocated_project_id
@@ -45,11 +46,13 @@ def _error(
 
 def _refusal(exc: ReviewerCodingError):
     # Every raise site in reviewer_coding_service carries a code.
+    extra = {"messages": exc.messages} if exc.messages else {}
     return _error(
         exc.message,
         exc.status_code,
         code=exc.code or "invalid_request",
         processing=exc.processing,
+        **extra,
         **exc.details,
     )
 
@@ -219,61 +222,49 @@ def history():
 @bp.post("/finalize/<va_sid>")
 @role_required("reviewer")
 def finalize(va_sid):
+    """Save the reviewer's final COD. The body and the input checks are the
+    coder's ``/coding/finalize`` (docs/policy/final-cod-authority.md,
+    "Refusals"), except that ``other_conditions`` may also be a list (joined
+    with `` | ``). 413 ``payload_too_large`` over 1.2 MB or without a
+    ``Content-Length``; 400 ``invalid_request`` for a wrong type; 422
+    ``invalid_request`` for a ``remark`` or ``other_conditions`` over 4000
+    characters; the service's refusals (422 ``final_blocked`` with
+    ``messages``)."""
     training_scope.resolve("review")
     if not training_scope.sid_allowed(va_sid):
         return _error("This case is not available in this area.", 409, code="not_available")
-    project = get_project_for_submission(va_sid)
-    if (
-        project is not None
-        and not project.masked_cod_required
-        and project.cod_entry_mode == "doris"
-        and (request.content_length is None or request.content_length > 1_200_000)
-    ):
-        return _error("DORIS final submission is too large.", 413, code="payload_too_large")
-    body = request.get_json(silent=True)
-    if not isinstance(body, dict):
+    try:  # caught here, not on the blueprint: other reviewing endpoints keep the app's 413 reply
+        body = json_object()
+    except RequestEntityTooLarge:
+        return _error("The request body is too large.", 413, code="payload_too_large")
+    if body is None:
         return _error("A JSON object is required.", 400, code="invalid_request")
-    for name in ("conclusive_cod", "remark", "immediate_cod"):
-        if body.get(name) is not None and not isinstance(body[name], str):
-            return _error(f"{name} must be text.", 400, code="invalid_request")
-    # Optional ICD-11 confirmations (digitva-oh7j, digitva-xmpx); absent is False.
-    for name in ("age_restriction_confirmed", "causing_condition_unknown"):
-        if not isinstance(body.get(name, False), bool):
-            return _error(f"{name} must be true or false.", 400, code="invalid_request")
-    conclusive_cod = (body.get("conclusive_cod") or "").strip()
-    remark = (body.get("remark") or "").strip() or None
-    immediate_cod = (body.get("immediate_cod") or "").strip() or None
     try:
+        fields = parse_final_cod_body(body)
         other_conditions = " | ".join(other_conditions_list(body) or []) or None
     except ValueError as exc:
         return _error(str(exc), 400, code="invalid_request")
-    if not conclusive_cod:
+    if not fields["conclusive_cod"]:
         return _error("conclusive_cod is required.", 400, code="invalid_request")
+    if too_long(fields["remark"], other_conditions):
+        return _error("remark or other_conditions is too long.", 422, code="invalid_request")
+    search_id = fields.pop("cod_search_id")
+    chosen_code = fields.pop("cod_chosen_code")
+    chosen_rank = fields.pop("cod_chosen_rank")
+    fields["remark"] = fields["remark"] or None
+    fields["immediate_cod"] = fields["immediate_cod"] or None
     try:
         reviewer_final = submit_reviewer_final_cod(
-            current_user,
-            va_sid,
-            conclusive_cod=conclusive_cod,
-            remark=remark,
-            immediate_cod=immediate_cod,
-            other_conditions=other_conditions,
-            doris_certificate=body.get("doris_certificate"),
-            doris_result=body.get("doris_result"),
-            codedit_result=body.get("codedit_result"),
-            doris_process_token=body.get("doris_process_token"),
-            doris_result_digest=body.get("doris_result_digest"),
-            doris_client_revision=body.get("doris_client_revision", 0),
-            age_restriction_confirmed=body.get("age_restriction_confirmed", False),
-            causing_condition_unknown=body.get("causing_condition_unknown", False),
+            current_user, va_sid, other_conditions=other_conditions, **fields
         )
     except ReviewerCodingError as exc:
         return _refusal(exc)
     # The reviewer's conclusive COD is stored: attach the picked code to the
     # search the browser says produced it (digitva-zpe.3). Never fatal.
     coding_search_telemetry_service.record_choice(
-        search_id=body.get("cod_search_id"),
-        chosen_code=body.get("cod_chosen_code"),
-        chosen_rank=body.get("cod_chosen_rank"),
+        search_id=search_id,
+        chosen_code=chosen_code,
+        chosen_rank=chosen_rank,
         role=coding_search_telemetry_service.role_label(current_user),
     )
     return jsonify(
@@ -299,7 +290,7 @@ def initial(va_sid):
     masked_doris = project is not None and project_mode(project) == "masked_doris"
     # Masked DORIS Step 1 carries the certificate and its envelopes.
     if masked_doris and (
-        request.content_length is None or request.content_length > 1_200_000
+        request.content_length is None or request.content_length > BODY_CAP
     ):
         return _error("DORIS submission is too large.", 413, code="payload_too_large")
     body = request.get_json(silent=True)

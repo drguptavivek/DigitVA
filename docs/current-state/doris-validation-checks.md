@@ -3,7 +3,7 @@ title: DORIS Validation Checks
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-13
+last_updated: 2026-11-23
 ---
 
 # DORIS Validation Checks
@@ -96,8 +96,10 @@ Process sends the certificate to WHO's DORIS and CoDEdit and shows both reports.
 
 ## 5. Final save
 
-`submit_coder_final_cod` in `app/services/coder_cod_service.py` (the reviewer and
-bundle-ingest paths refuse with the same `final_blocked` code) collects every blocking message and refuses
+`submit_coder_final_cod` in `app/services/coder_cod_service.py` (the reviewer's
+`submit_reviewer_final_cod` gives the same reply since 2026-11-23, both through
+`app/services/final_cod_core.py`; bundle ingest refuses with the same
+`final_blocked` code) collects every blocking message and refuses
 with `422 final_blocked`, listing them all:
 
 - the underlying cause must be a selectable ICD-11 code for this death

@@ -2,12 +2,15 @@
 
 ## Start here
 
-Staging runs `1dc8322` (deployed 2026-11-23 on the owner's go; web
-`expo-web-v2026.11.23.1`; no migration; rollback:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 2549743b06d2ed2b44ac0e8e2afbf524708bc923`).
-Collect 0.3.29 APK, Collect Plus APK and Play AAB were built on CI from
-`30b1578`; device-check them before any publish or Play upload (owner's
-command). 0.3.28 and older builds are stale: do not publish.
+Staging runs `b754a36` (deployed 2026-11-23 on the owner's go; web
+`expo-web-v2026.11.23.2`; includes the supervisor corrections and migration
+`a7d3e9c5b2f1`; rollback:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 1dc8322554703c6d6a78a726ab0c8214eb7207eb`).
+Published `android-v0.3.29` and `collect-plus-v0.3.29-plus.1` (from
+`8bb9420`), pinned and copied into staging's `private/android-hosted`;
+`/api/v1/app/android/latest` serves 0.3.29 for both variants. Play AAB 0.3.29
+(from `30b1578`) awaits the owner's upload. Only Collect was smoke-checked on
+the emulator (launch to Enrol, from `30b1578`).
 
 
 Owner rules: coding works the same on the web, Collect online and Collect
@@ -29,10 +32,9 @@ and maps stay in the browser).
   grepping celery_tasks.log / errors.log for "gave up".
 - Supervisor corrections (`digitva-hftq` open; policy interview-revisions.md
   "Supervisor correction", mobile-sign-in.md "Interview supervisors on the
-  phone"): server, browser and phone list/case/death edit landed
-  (`3a14cce2d`, `2aec4f0b9`; migration `a7d3e9c5b2f1` since staging). Left:
-  phone Edit interview, built on the revision-upload fix
-  (`digitva-r8nh.1`, landed `04b674f92`); owner design review of the new phone
+  phone"): server, browser and phone list/case/death edit and Edit
+  interview landed (migration `a7d3e9c5b2f1` since staging). Left: owner
+  design review of the new phone
   screens with emulator screenshots, then a CI APK device check. Before a
   staging deploy, audit for old APKs: interviewer+supervisor phones now get
   `supervises_deaths` true. Dev test DB `minerva_test_sup` kept for this.

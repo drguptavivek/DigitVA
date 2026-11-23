@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-23
 
+- Published Collect 0.3.29 and Plus 0.3.29 releases and web
+  `expo-web-v2026.11.23.2`; deployed `b754a36` to staging with the APKs in
+  the hosted download folder (metadata checked for both variants).
+- Supervisor Edit interview on the phone (`digitva-hftq`, policy
+  interview-revisions.md "Supervisor correction"): a separate native screen
+  loads the submitted interview online, keeps the answers in memory only and
+  sends a `supervisor_correction` at once; the interviewer's encrypted
+  revision queue is untouched. The shared revision snapshot hashes with
+  expo-crypto where the phone lacks `crypto.subtle`.
 - Code audit fixes, owner-approved (epic `digitva-r8nh`; `04b674f92`,
   `d47083f8a`, `822ab7d55`, `be70ec72c`): Collect revision upload skips only
   a paused project instead of stopping at the first 403 (`r8nh.1`, policy

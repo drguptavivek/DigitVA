@@ -849,6 +849,11 @@ nothing written. Each grant change is audited (`log_grant_action`) and the
 grantee's authorization cache invalidated, as the importer's
 `finalize_apply` does. An admin may not deactivate their own account here.
 
+Global admin (owner 2026-11-23, digitva-r8nh.3): granting or removing the
+global `admin` grant (the admin panel's toggle) is audited with
+`log_grant_action` like every other grant change: `grant_created`,
+`grant_reactivated` on grant, `grant_toggled_inactive` on removal.
+
 ## Project membership (owner 2026-11-16, digitva-plgm)
 
 A project member is a row in `map_project_members` (project, user, who

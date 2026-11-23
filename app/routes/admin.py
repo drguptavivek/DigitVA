@@ -2909,8 +2909,11 @@ def admin_toggle_user_admin(target_user_id):
     if grant and grant.grant_status == VaStatuses.active:
         grant.grant_status = VaStatuses.deactive
         is_admin = False
+        action = "grant_toggled_inactive"
     else:
+        action = "grant_reactivated"
         if grant is None:
+            action = "grant_created"
             grant = VaUserAccessGrants(
                 user_id=target_user.user_id,
                 role=VaAccessRoles.admin,
@@ -2925,6 +2928,18 @@ def admin_toggle_user_admin(target_user_id):
         is_admin = True
 
     db.session.commit()
+
+    from app.logging.va_logger import log_grant_action
+    log_grant_action(
+        action=action,
+        actor_user_id=current_user.user_id,
+        actor_role="admin",
+        target_user_id=target_user.user_id,
+        grant_id=grant.grant_id,
+        role=grant.role.value,
+        scope_type=grant.scope_type.value,
+        request_ip=request.remote_addr,
+    )
     return jsonify({
         "user_id": str(target_user.user_id),
         "is_admin": is_admin,

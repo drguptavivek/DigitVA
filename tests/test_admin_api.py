@@ -2504,6 +2504,73 @@ class AdminApiTests(BaseTestCase):
         self.assertIsNotNone(grant)
         self.assertEqual(grant.created_by_user_id, self.admin_user.user_id)
 
+    # -- global-admin toggle (digitva-r8nh.3): effects pinned, audited --
+
+    def _toggle_admin(self):
+        with patch("app.logging.va_logger.log_grant_action") as log:
+            response = self.client.post(
+                f"/admin/api/users/{self.target_id}/toggle-admin",
+                headers=self._csrf_headers(),
+            )
+        return response, log
+
+    def _admin_grant(self):
+        db.session.expire_all()
+        return db.session.scalar(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id == uuid.UUID(self.target_id),
+                VaUserAccessGrants.role == VaAccessRoles.admin,
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.global_scope,
+            )
+        )
+
+    def _assert_audited(self, log, action, grant):
+        self.assertIsNotNone(grant)
+        log.assert_called_once()
+        kwargs = log.call_args.kwargs
+        self.assertEqual(kwargs["action"], action)
+        self.assertEqual(kwargs["actor_user_id"], self.admin_user.user_id)
+        self.assertEqual(kwargs["actor_role"], "admin")
+        self.assertEqual(kwargs["target_user_id"], uuid.UUID(self.target_id))
+        self.assertEqual(kwargs["grant_id"], grant.grant_id)
+        self.assertEqual(kwargs["role"], "admin")
+        self.assertEqual(kwargs["scope_type"], "global")
+
+    def test_toggle_admin_grant_removal_and_regrant_effects_and_audit(self):
+        self._login(self.admin_user_id)
+
+        response, log = self._toggle_admin()
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(
+            response.get_json(), {"user_id": self.target_id, "is_admin": True}
+        )
+        grant = self._admin_grant()
+        self.assertEqual(grant.grant_status, VaStatuses.active)
+        self._assert_audited(log, "grant_created", grant)
+
+        response, log = self._toggle_admin()
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertFalse(response.get_json()["is_admin"])
+        grant = self._admin_grant()
+        self.assertEqual(grant.grant_status, VaStatuses.deactive)
+        self._assert_audited(log, "grant_toggled_inactive", grant)
+
+        response, log = self._toggle_admin()
+        self.assertTrue(response.get_json()["is_admin"])
+        grant = self._admin_grant()
+        self.assertEqual(grant.grant_status, VaStatuses.active)
+        self._assert_audited(log, "grant_reactivated", grant)
+
+    def test_toggle_admin_refusal_writes_no_audit(self):
+        self._login(self.admin_user_id)
+        with patch("app.logging.va_logger.log_grant_action") as log:
+            response = self.client.post(
+                f"/admin/api/users/{self.admin_user_id}/toggle-admin",
+                headers=self._csrf_headers(),
+            )
+        self.assertEqual(response.status_code, 400)
+        log.assert_not_called()
+
 
 class AdminWebFormLocalesApiTests(BaseTestCase):
     """GET /admin/api/web-form-locales — the bundled questionnaire's languages.

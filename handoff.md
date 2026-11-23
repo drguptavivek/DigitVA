@@ -33,9 +33,11 @@ and maps stay in the browser).
 - Supervisor corrections (`digitva-hftq` open; policy interview-revisions.md
   "Supervisor correction", mobile-sign-in.md "Interview supervisors on the
   phone"): server, browser and phone list/case/death edit and Edit
-  interview landed (migration `a7d3e9c5b2f1` since staging). Left: owner
-  design review of the new phone
-  screens with emulator screenshots, then a CI APK device check. Before a
+  interview landed (migration `a7d3e9c5b2f1` since staging); first design
+  review fixes in `c31195040` (screenshots in
+  private/screenshots/supervisor-phone-2026-11-24). Left: owner look at the
+  fixed screens, a CI APK device check, one full Maestro run with flow 75
+  (only run standalone so far; the fill flows' name condition is unrun). Before a
   staging deploy, audit for old APKs: interviewer+supervisor phones now get
   `supervises_deaths` true. Dev test DB `minerva_test_sup` kept for this.
 0. Consent withdrawal landed (`digitva-4gu7`); erasure of a withdrawn case

@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-24
 
+- Phone supervision tidy (`c31195040`, `digitva-hftq`): tiles stay in view,
+  state filters scroll on one labelled line, the phone's own back closes an
+  open case; e2e fill flows no longer append to a prefilled name. Dev Metro
+  allows screenshots until 31 Dec 2026 (`.env.development`, policy
+  expo-client.md "Screen capture").
+- Supervisor Edit interview on the phone landed (`3aec13d32`, `5d093e821`);
+  Maestro flow 75 drives it.
 - Code audit refactors, wave 1 (epic `digitva-r8nh`, move-only first
   slices, each with characterization tests written first, existing tests
   unedited and an independent equivalence review): golden coding-rule

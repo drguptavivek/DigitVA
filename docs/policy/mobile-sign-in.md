@@ -102,6 +102,11 @@ everything not said here.
   browser-only. A device credential never carries `data_manager`, `site_pi`
   or `project_pi`. Putting `data_manager` on the phone would be a separate
   owner decision.
+- **Mobile sign-in codes.** `interview_supervisor` is not a privileged role
+  for codes (owner 2026-11-23): a project's data manager may still issue a
+  code to a supervisor, though it now yields a phone that shows the
+  supervisor's register. The data manager already manages those supervisors
+  and sees the same records in the browser.
 - **Older apps.** A supervisor-only account on an app version without the
   supervision screens enrols, but sees the "no collection work" home and
   has nothing to do. Nothing is stored and nothing can be lost.

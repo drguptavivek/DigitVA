@@ -70,10 +70,7 @@ and maps stay in the browser).
 
 ## Open owner decisions
 
-- Supervisors: should `interview_supervisor` count as privileged for
-  data-manager-issued mobile codes (`mobile_sign_in_service._PRIVILEGED_ROLES`)
-  now that it yields a phone credential? `data_manager` on the phone: not
-  done, needs a decision and policy. Phone death edit leaves out informant,
+- Supervisors: `data_manager` on the phone: not done, needs a decision and policy. Phone death edit leaves out informant,
   phones, ABHA, GPS and registration numbers (browser has them).
 - Golden postcoordination fixtures: 12 re-recorded on 2026-11-19 then the
   change reverted; the corpus is unchanged and approved.

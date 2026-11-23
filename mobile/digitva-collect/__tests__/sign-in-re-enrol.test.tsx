@@ -12,6 +12,7 @@ const mockSignIn = jest.fn<Promise<{ user_id: string }>, unknown[]>();
 const mockRecover = jest.fn<Promise<void>, unknown[]>();
 const mockEnrol = jest.fn<Promise<{ account: { user_id: string } }>, unknown[]>();
 const mockLockNow = jest.fn(async () => true);
+const mockLoadDevice = jest.fn<Promise<{ server: string } | undefined>, []>(async () => undefined);
 
 let mockParams: Record<string, string> = {};
 jest.mock("expo-router", () => ({ useRouter: () => mockRouter, useLocalSearchParams: () => mockParams }));
@@ -23,7 +24,7 @@ jest.mock("../src/auth", () => ({
   signIn: (...args: unknown[]) => mockSignIn(...args),
   passwordEnrolAndSignIn: (...args: unknown[]) => mockEnrol(...args),
   loadActiveSlot: async () => "active",
-  loadDevice: async () => undefined,
+  loadDevice: () => mockLoadDevice(),
   forgetDevice: async () => undefined,
   recoverSignOut: (...args: unknown[]) => mockRecover(...args),
   verifyPasswordForDelete: async () => undefined,
@@ -85,6 +86,7 @@ beforeEach(() => {
   mockEnrol.mockReset();
   mockLockNow.mockClear();
   mockRouter.dismissTo.mockReset();
+  mockLoadDevice.mockReset().mockResolvedValue(undefined);
 });
 afterEach(() => jest.restoreAllMocks());
 
@@ -139,4 +141,18 @@ it("a refused re-enrolment returns to the form with its message", async () => {
   await act(async () => { button(tree, "notEnrolledConfirm").props.onClick(); });
   expect(title(tree)).toBe("signInTitle");
   expect(text(tree)).toContain("generic");
+});
+
+it("Add profile on a revoked phone offers to enrol again on the phone's server, not a dead end (digitva-koe3)", async () => {
+  mockParams = {};
+  mockLoadDevice.mockResolvedValue({ server: "https://dev.example.org" });
+  mockSignIn.mockReset().mockRejectedValue(new ApiError(403, "device_revoked"));
+  mockEnrol.mockResolvedValueOnce({ account: { user_id: "u2" } });
+  const tree = await render();
+  await submit(tree);
+  expect(title(tree)).toBe("notEnrolledTitle");
+
+  await act(async () => { button(tree, "notEnrolledConfirm").props.onClick(); });
+  expect(mockEnrol.mock.calls[0].slice(0, 3)).toEqual(["https://dev.example.org", "a@example.org", "pw"]);
+  expect(mockRouter.dismissTo).toHaveBeenCalledWith({ pathname: "/unlock", params: { userId: "u2", refresh: "1" } });
 });

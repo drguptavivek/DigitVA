@@ -2254,5 +2254,6 @@
   "supervisionWithdrawalDetail": "{who} ने {date} को अनुरोध किया ({channel})",
   "certificateButton": "मृत्यु कारण फ़ॉर्म (पीडीएफ)",
   "certificateConnect": "मृत्यु कारण फ़ॉर्म पाने के लिए इंटरनेट से जुड़ें।",
+  "certificateFailed": "इस फ़ोन पर मृत्यु कारण फ़ॉर्म नहीं बन सका। फिर से कोशिश करें।",
   "certificateUnavailable": "इस मामले के लिए मृत्यु कारण फ़ॉर्म उपलब्ध नहीं है।"
 }

@@ -2254,5 +2254,6 @@
   "supervisionWithdrawalDetail": "Asked by {who} on {date} ({channel})",
   "certificateButton": "COD form (PDF)",
   "certificateConnect": "Connect to the internet to get the COD form.",
+  "certificateFailed": "The COD form could not be made on this phone. Try again.",
   "certificateUnavailable": "The COD form is not available for this case."
 }

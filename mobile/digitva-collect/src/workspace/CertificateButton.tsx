@@ -39,8 +39,11 @@ export function CertificateButton({ workspace, api }: { workspace: WorkspacePayl
       const certificate = await getCertificate(vaSid);
       await sharePdf(certificateHtml(certificate), `COD-form-${certificate.case_id ?? vaSid}`);
     } catch (error) {
-      // A non-HTTP failure is the network: the certificate is built from server data, so it needs a connection.
-      setMessage(!(error instanceof ApiError) ? t("certificateConnect") : error.status === 404 ? t("certificateUnavailable") : errorText(error));
+      // fetch fails with a TypeError when offline (as elsewhere in the app); anything else that is not an HTTP reply
+      // failed on the phone (printing, the file) and must not be blamed on the network (digitva-hbvz).
+      setMessage(error instanceof ApiError
+        ? error.status === 404 ? t("certificateUnavailable") : errorText(error)
+        : error instanceof TypeError ? t("certificateConnect") : t("certificateFailed"));
     } finally {
       setBusy(false);
     }

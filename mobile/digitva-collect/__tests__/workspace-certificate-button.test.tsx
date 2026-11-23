@@ -67,6 +67,16 @@ describe("CertificateButton", () => {
     expect(JSON.stringify(tree.toJSON())).toContain(en.certificateUnavailable);
   });
 
+  it("native: a failure on the phone (printing) says so, not to connect (digitva-hbvz)", async () => {
+    Platform.OS = "android";
+    (sharePdf as jest.Mock).mockRejectedValueOnce(new Error("Cannot find native module 'ExpoPrint'"));
+    const tree = render(true, apiWith(jest.fn(async () => CERT)));
+    await act(async () => { await tree.root.findByType("button" as never).props.onClick(); });
+    const out = JSON.stringify(tree.toJSON());
+    expect(out).toContain(en.certificateFailed);
+    expect(out).not.toContain(en.certificateConnect);
+  });
+
   it("opens the certificate page in a new tab", () => {
     Platform.OS = "web";
     const open = jest.fn();

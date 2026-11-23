@@ -50,6 +50,8 @@ export default function SignIn() {
   /** "Sign in again" found this phone no longer enrolled (revoked or removed): the password to re-enrol with once
    * the person agrees, kept only while the prompt or its device-limit choice is open. */
   const [reEnrolSecret, setReEnrolSecret] = useState<string>();
+  /** The server to enrol on again: the returning account's, or the revoked device's, read before it is forgotten. */
+  const [reEnrolServer, setReEnrolServer] = useState("");
 
   /** The sign-in form, the sign-in code form (then Code accepted) or Forgot password. */
   const [view, setView] = useState<"form" | "code" | "forgot">("form");
@@ -156,14 +158,24 @@ export default function SignIn() {
       if (phones) return;
       // Retrying cannot work without a device: offer to enrol this phone again on the account's own server.
       if (plainSignIn && slot === "active" && returning?.server && caught instanceof Error && caught.message === "not_enrolled") {
+        setReEnrolServer(returning.server);
         setReEnrolSecret(secret);
         return;
       }
+      // Revoked: the device and its server are forgotten below, so keep the server now. On a plain sign-in (Add
+      // profile too, which has no returning account) offer the same re-enrol prompt: the bare "Enrol it again"
+      // offered no way to, and a retry then had no server ("Could not reach the server", digitva-koe3).
+      const revokedServer = caught instanceof ApiError && caught.code === "device_revoked" ? (await loadDevice())?.server ?? returning?.server ?? "" : "";
       // Forgetting the Demo device hands the phone back to Active, a slot change: lock first, or keep it.
       if (caught instanceof ApiError && caught.code === "device_revoked" && slot !== undefined
         && (slot === "active" || await lockNow())) {
         await forgetDevice(slot);
         await reload();
+        if (plainSignIn && slot === "active" && revokedServer) {
+          setReEnrolServer(revokedServer);
+          setReEnrolSecret(secret);
+          return;
+        }
       }
       setError(caught instanceof WrongAccountError ? t("signInWrongAccount") : errorText(caught));
     } finally {
@@ -176,12 +188,12 @@ export default function SignIn() {
    * own store secret and PIN, not the device, so its unsent work opens as before. */
   async function reEnrol(secret: string, replaceDeviceId?: string) {
     const submittedIdentifier = typedIdentifier();
-    if (!returning?.server || !submittedIdentifier) return;
+    if (!reEnrolServer || !submittedIdentifier) return;
     setBusy(true);
     setError("");
     try {
       if (!(await lockNow())) return;
-      const enrolled = await passwordEnrolAndSignIn(returning.server, submittedIdentifier, secret,
+      const enrolled = await passwordEnrolAndSignIn(reEnrolServer, submittedIdentifier, secret,
         Constants.deviceName ?? deviceFamilyLabel(), APP_VERSION, replaceDeviceId);
       setLimitPhones(undefined);
       setReEnrolSecret(undefined);

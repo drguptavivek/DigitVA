@@ -12,7 +12,6 @@ import logging
 import sqlalchemy as sa
 
 from app import db
-from app.routes.api.dm_kpi.dm_kpi_scope import DmScope
 from app.services import not_analysable
 from app.services.kpi.coders import (
     CODING_GRANT_CODES_SQL,
@@ -21,6 +20,7 @@ from app.services.kpi.coders import (
 )
 from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
 from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
+from app.services.kpi.scope import DmScope
 from app.services.odk_retirement_service import IN_ODK_BIND
 from app.services.workflow.definition import CODER_READY_POOL_STATES_SQL, PENDING_STATES_SQL
 from app.services.workflow.revision_request_sql import (

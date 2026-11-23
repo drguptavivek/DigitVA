@@ -69,7 +69,8 @@ step 2): `va_daily_kpi_aggregates` is not read, written or refreshed, and the
 `app/routes/api/dm_kpi/dm_kpi_grid.py`) runs three queries
 whatever the window: created submissions (Total, New), workflow events
 (Coded, Not analysable, Not Codeable) and `bucket_flow_by_day`
-(`app/routes/api/dm_kpi/dm_kpi_scope.py`) for Pending. Every day of the window
+(`app/routes/api/dm_kpi/dm_kpi_scope.py`; `DmScope` and the clock SQL
+helpers live in `app/services/kpi/scope.py`) for Pending. Every day of the window
 has a row. Days follow the project clock (docs/policy/kpis.md, "Days follow
 the project clock"): each submission and event falls on its own project's day
 (`va_project_master.timezone`, default Asia/Kolkata), joined as `clock_pm`

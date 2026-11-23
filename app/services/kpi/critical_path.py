@@ -12,13 +12,6 @@ import logging
 import sqlalchemy as sa
 
 from app import db
-from app.routes.api.dm_kpi.dm_kpi_scope import (
-    CLOCK_JOIN_SQL,
-    NOT_DEMO_OUTPUT_SQL,
-    DmScope,
-    clock_params,
-    in_last_days_sql,
-)
 from app.services.area_dashboard_service import PERCENT_MIN_WHOLE, _medians
 from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
 from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
@@ -27,6 +20,13 @@ from app.services.kpi.outcomes import (
     peer_units_sql,
     scope_clause,
     sibling_median,
+)
+from app.services.kpi.scope import (
+    CLOCK_JOIN_SQL,
+    NOT_DEMO_OUTPUT_SQL,
+    DmScope,
+    clock_params,
+    in_last_days_sql,
 )
 from app.services.kpi.workflow import STATE_LABELS
 from app.services.odk_retirement_service import IN_ODK_BIND

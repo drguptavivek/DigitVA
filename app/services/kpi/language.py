@@ -12,15 +12,15 @@ import logging
 import sqlalchemy as sa
 
 from app import db
-from app.routes.api.dm_kpi.dm_kpi_scope import (
+from app.services.kpi.coders import coders_covering_scope_sql
+from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
+from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
+from app.services.kpi.scope import (
     CLOCK_JOIN_SQL,
     DmScope,
     clock_params,
     in_last_days_sql,
 )
-from app.services.kpi.coders import coders_covering_scope_sql
-from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
-from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
 from app.services.odk_retirement_service import IN_ODK_BIND
 from app.services.workflow.definition import (
     CODER_READY_POOL_STATES_SQL,

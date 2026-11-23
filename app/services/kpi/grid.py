@@ -13,16 +13,15 @@ from datetime import UTC, timedelta
 import sqlalchemy as sa
 
 from app import db
-from app.routes.api.dm_kpi.dm_kpi_scope import (
+from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
+from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
+from app.services.kpi.scope import (
     CLOCK_JOIN_SQL,
     NOT_DEMO_OUTPUT_SQL,
     DmScope,
-    bucket_flow_by_day,
     clock_day_sql,
     clock_tz_sql,
 )
-from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
-from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
 from app.services.odk_retirement_service import IN_ODK_BIND
 from app.services.workflow.definition import (
     EVENT_CONSENT_REFUSED_SQL,
@@ -108,6 +107,10 @@ def compute_c01(scope: DmScope, period: int = 8, by: str | None = None) -> dict:
         params,
     ).mappings().all()
     events_by_day = {r["d"]: r for r in events}
+
+    # Lazy: bucket_flow_by_day stays in the route module (tests/test_duplicate_exclusion_coverage.py
+    # pins its path), and importing that module at load time re-enters this one.
+    from app.routes.api.dm_kpi.dm_kpi_scope import bucket_flow_by_day
 
     flow = bucket_flow_by_day(scope, PENDING_STATES, from_date, today)
     pending_by_day = {row["date"]: row["end_of_day"] for row in flow}

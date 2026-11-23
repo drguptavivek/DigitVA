@@ -8,19 +8,19 @@ parameters, calls these functions and returns JSON.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import sqlalchemy as sa
 
 from app import db
-from app.routes.api.dm_kpi.dm_kpi_scope import (
+from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
+from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
+from app.services.kpi.scope import (
     CLOCK_JOIN_SQL,
     DmScope,
     clock_params,
     in_last_days_sql,
 )
-from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
-from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
 from app.services.odk_retirement_service import IN_ODK_BIND
 
 log = logging.getLogger(__name__)
@@ -73,7 +73,7 @@ def compute_c03(scope, period=None, by: str | None = None) -> dict:
                 COUNT(*) FILTER (WHERE status IN ('error', 'partial')) AS errors_all
             FROM va_sync_runs
         """),
-        {"cutoff": datetime.now(timezone.utc) - timedelta(days=7)},
+        {"cutoff": datetime.now(UTC) - timedelta(days=7)},
     ).mappings().first()
 
     def pct(total, errors):
@@ -213,7 +213,7 @@ def compute_attachment_health(scope: DmScope):
 
 
 def compute_smartva_failure_rate():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     seven_days_ago = now - timedelta(days=7)
 
     rate_7d = db.session.execute(

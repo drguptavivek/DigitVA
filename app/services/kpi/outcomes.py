@@ -20,7 +20,6 @@ from app.models import (
     VaSubmissions,
     VaSubmissionWorkflow,
 )
-from app.routes.api.dm_kpi.dm_kpi_scope import DmScope
 from app.services.ai_analytics_tables import UNKNOWN_CAUSE_SECTION
 from app.services.area_dashboard_service import (
     CANCELLED_CASE_STATUS,
@@ -37,6 +36,7 @@ from app.services.duplicate_exclusion import (
 )
 from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
 from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
+from app.services.kpi.scope import DmScope
 from app.services.odk_retirement_service import IN_ODK_BIND, submission_is_in_odk
 from app.services.submission_analytics_mv import COD_SNAPSHOT_MV_NAME
 from app.services.workflow.definition import (

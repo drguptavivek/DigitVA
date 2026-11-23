@@ -12,7 +12,10 @@ import logging
 import sqlalchemy as sa
 
 from app import db
-from app.routes.api.dm_kpi.dm_kpi_scope import (
+from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
+from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
+from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
+from app.services.kpi.scope import (
     CLOCK_JOIN_SQL,
     GRANT_PROJECT_JOINS,
     GRANT_PROJECT_SQL,
@@ -20,9 +23,6 @@ from app.routes.api.dm_kpi.dm_kpi_scope import (
     clock_params,
     in_last_days_sql,
 )
-from app.services.duplicate_exclusion import not_confirmed_duplicate_sql
-from app.services.kpi.common import IN_ODK_SQL as _IN_ODK_SQL
-from app.services.kpi.common import NOT_DUPLICATE_SQL as _NOT_DUPLICATE_SQL
 from app.services.odk_retirement_service import IN_ODK_BIND, in_odk_sql
 
 log = logging.getLogger(__name__)

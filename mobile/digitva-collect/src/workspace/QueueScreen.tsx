@@ -247,9 +247,11 @@ function CaseCardDetails({ item }: { item: AnyQueueCase }) {
   );
 }
 
-function RefreshIcon({ onPress, disabled }: { onPress: () => void; disabled: boolean }) {
+function RefreshIcon({ onPress, disabled, loading = false }: { onPress: () => void; disabled: boolean; loading?: boolean }) {
   const { colors } = useTheme();
   const q = useQueueStyles();
+  // Loading shows in the icon's own spot: a spinner row above the cards pushed them down and back (a layout shift).
+  if (loading) return <View style={q.iconButton}><ActivityIndicator accessibilityLabel="Loading queue" /></View>;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel="Refresh cases" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[q.iconButton, disabled && { opacity: 0.5 }]}>
       {/* Tabler "refresh": two arrows round a circle, like the chevrons (Chevron.tsx). */}
@@ -1189,7 +1191,8 @@ export function QueueScreen({
           />
         </View>
       ) : null}
-      {loading ? <ActivityIndicator accessibilityLabel="Loading queue" /> : null}
+      {/* First load only: once a card is drawn its refresh icon spins instead. */}
+      {loading && !stats ? <ActivityIndicator accessibilityLabel="Loading queue" /> : null}
       {currentMessage ? <Text accessibilityRole={message?.success ? "text" : "alert"} style={[styles.error, message?.success && { color: ui.success }]}>{currentMessage}</Text> : null}
 
       {allocation && !currentData?.cachedHistoryAt ? (
@@ -1213,7 +1216,7 @@ export function QueueScreen({
               <Text style={styles.headline}>{randomMode ? "Random allocation" : "Pick a case"}</Text>
               <Text style={styles.muted}>{readyText}</Text>
             </View>
-            <RefreshIcon disabled={busy || loading} onPress={refreshCases} />
+            <RefreshIcon disabled={busy || loading} loading={loading} onPress={refreshCases} />
           </View>
           {renderLanguageLines()}
           {renderTrainingQueues()}
@@ -1302,7 +1305,7 @@ export function QueueScreen({
                 {reviewerStats ? `${reviewerStats.available} available · ${reviewerStats.completed} completed` : "Queue counts are loading."}
               </Text>
             </View>
-            <RefreshIcon disabled={busy || loading} onPress={refreshCases} />
+            <RefreshIcon disabled={busy || loading} loading={loading} onPress={refreshCases} />
           </View>
           {reviewerStats ? (
             <View style={q.statsGrid}>

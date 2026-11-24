@@ -1634,6 +1634,29 @@ def admin_project_user_panel(project_id, target_user_id):
     return response
 
 
+@admin.get("/api/projects/<project_id>/app-versions")
+@role_required("admin", "project_pi", "data_manager")
+def admin_project_app_versions(project_id):
+    """Read-only app versions for the project's devices and roster people
+    (digitva-jrzd; docs/policy/app-versions-screen.md). Same gate as the
+    roster panel (``_guard(roster=True)``: 403); unknown project 404.
+    ``app_version`` (optional, at most 32 characters; empty: no version
+    reported) limits the people list."""
+    from app.services.app_versions_service import project_app_versions
+
+    if err := _guard(project_id, roster=True):
+        return err
+    if db.session.get(VaProjectMaster, project_id) is None:
+        return _json_error("Project not found.", 404)
+    filter_version = "app_version" in request.args
+    app_version = request.args.get("app_version", "").strip() or None
+    if app_version is not None and len(app_version) > 32:
+        return _json_error("app_version is too long.", 400)
+    response = jsonify(project_app_versions(project_id, app_version=app_version, filter_version=filter_version))
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 def _panel_year_of_birth(p):
     """The year from ``year_of_birth`` or ``age`` (converted to a year);
     ``set_interviewer_profile`` validates the result. Raises ValueError."""

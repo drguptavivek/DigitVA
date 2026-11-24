@@ -368,6 +368,11 @@
             </button>
           </li>
           {% endif %}
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="setup-ptab-appver-btn" data-bs-toggle="tab" data-bs-target="#setup-people-pane-appver" type="button" role="tab">
+              <i class="fa-solid fa-code-branch me-1 text-secondary"></i>App Versions
+            </button>
+          </li>
         </ul>
 
         <div class="tab-content">
@@ -641,6 +646,27 @@
             </div>
           </div>
           {% endif %}
+
+          {# App Versions (digitva-jrzd): read-only, same gate as the roster.
+             JSON API admin_project_app_versions; policy docs/policy/app-versions-screen.md. #}
+          <div class="tab-pane fade" id="setup-people-pane-appver" role="tabpanel">
+            <div class="card" id="setup-appver">
+              <div class="card-body small">
+                <h6 class="card-title">App versions</h6>
+                <p class="text-muted mb-2">Active (not revoked) phones of this project by app version, and the
+                  roster people signed in on them. Behind = older than the release this server hosts.</p>
+                <div id="appver-latest" class="mb-2"></div>
+                <div id="appver-summary"><div class="text-muted py-1">Loading…</div></div>
+                <div class="d-flex align-items-end gap-2 mt-3 mb-2">
+                  <h6 class="mb-0 me-2">People</h6>
+                  <label class="form-label mb-0">Version
+                    <select class="form-select form-select-sm" id="appver-filter"><option value="*">All</option></select>
+                  </label>
+                </div>
+                <div id="appver-people"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
       {% if not roster_only %}
@@ -1007,6 +1033,78 @@
     });
 
     loadDevices();
+  }
+
+  // ── App versions (read-only; digitva-jrzd) ─────────────────────────────────
+  // Loaded when the tab is first shown, again when the version filter changes.
+  var appverBtn = document.getElementById('setup-ptab-appver-btn');
+  if (appverBtn) {
+    var appverUrl = '/admin/api/projects/' + encodeURIComponent(projectId) + '/app-versions';
+    var appverFmt;
+    try { appverFmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short', timeZone: {{ (current_user.timezone or 'UTC')|tojson }} }); }
+    catch (e) { appverFmt = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }); }
+    var appverDate = function (iso) { return iso ? esc(appverFmt.format(new Date(iso))) : '—'; };
+    var appverVersion = function (v) { return v === null ? '<span class="text-muted">not reported</span>' : esc(v); };
+    var appverBehind = function (b) {
+      if (b === true) return '<span class="badge text-bg-warning">Behind</span>';
+      if (b === false) return '<span class="badge text-bg-success">Latest</span>';
+      return '<span class="text-muted">—</span>';
+    };
+    var appverFilter = document.getElementById('appver-filter');
+    var appverLoaded = false;
+
+    var loadAppVersions = function () {
+      var choice = appverFilter.value;
+      var query = choice === '*' ? '' : '?app_version=' + encodeURIComponent(JSON.parse(choice) || '');
+      var people = document.getElementById('appver-people');
+      fetch(appverUrl + query, { headers: { 'Accept': 'application/json' } })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok) { people.innerHTML = '<div class="text-danger py-1">' + esc(res.data.error || 'Could not load app versions.') + '</div>'; return; }
+          var data = res.data;
+          var latest = data.latest || {};
+          document.getElementById('appver-latest').innerHTML = 'Hosted release: <strong>' +
+            (latest.normal ? esc(latest.normal) : 'none') + '</strong>' +
+            (latest.plus ? ' · Collect Plus <strong>' + esc(latest.plus) + '</strong>' : '');
+          var rows = (data.summary || []).map(function (s) {
+            return '<tr><td>' + esc(s.platform) + '</td><td>' + appverVersion(s.app_version) + '</td>' +
+              '<td>' + String(s.active_devices) + '</td><td>' + String(s.seen_7d) + '</td><td>' + String(s.seen_30d) + '</td>' +
+              '<td>' + appverDate(s.last_seen_at) + '</td><td>' + appverBehind(s.behind_latest) + '</td></tr>';
+          }).join('');
+          document.getElementById('appver-summary').innerHTML = rows
+            ? '<table class="table table-sm align-middle mb-0"><thead><tr><th>Platform</th><th>Version</th>' +
+              '<th>Active devices</th><th>Seen 7 days</th><th>Seen 30 days</th><th>Last seen</th><th></th></tr></thead><tbody>' +
+              rows + '</tbody></table>'
+            : '<div class="text-muted py-1">No active devices.</div>';
+          if (choice === '*') {
+            var seen = {};
+            appverFilter.innerHTML = '<option value="*">All</option>' + (data.summary || []).map(function (s) {
+              var key = JSON.stringify(s.app_version);
+              if (seen[key]) return '';
+              seen[key] = true;
+              return '<option value="' + esc(key) + '">' + esc(s.app_version === null ? 'Not reported' : s.app_version) + '</option>';
+            }).join('');
+          }
+          var list = (data.people || []).map(function (p) {
+            return '<tr><td>' + esc(p.name) + '</td><td>' + esc((p.roles || []).join(', ')) + '</td>' +
+              '<td>' + esc(p.platform) + '</td><td>' + appverVersion(p.app_version) + '</td>' +
+              '<td>' + appverDate(p.last_seen_at) + '</td><td>' + appverDate(p.enrolled_at) + '</td>' +
+              '<td>' + appverBehind(p.behind_latest) + '</td></tr>';
+          }).join('');
+          people.innerHTML = list
+            ? '<table class="table table-sm align-middle mb-0"><thead><tr><th>Name</th><th>Roles</th><th>Platform</th>' +
+              '<th>Version</th><th>Last seen</th><th>Phone enrolled</th><th></th></tr></thead><tbody>' + list + '</tbody></table>' +
+              (data.people_truncated ? '<div class="text-muted mt-1">Showing ' + String(data.people.length) + ' of ' +
+                String(data.people_total) + '; pick a version to narrow the list.</div>' : '')
+            : '<div class="text-muted py-1">No one on the roster is signed in on these phones.</div>';
+        })
+        .catch(function () { people.innerHTML = '<div class="text-danger py-1">Could not load app versions.</div>'; });
+    };
+
+    appverBtn.addEventListener('shown.bs.tab', function () {
+      if (!appverLoaded) { appverLoaded = true; loadAppVersions(); }
+    });
+    appverFilter.addEventListener('change', loadAppVersions);
   }
 
   // ── Live Runtime Controls (Overview & Gates) ──────────────────────────────

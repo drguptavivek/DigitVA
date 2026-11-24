@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-17
+last_updated: 2026-11-24
 ---
 
 # Admin And Setup Model
@@ -113,7 +113,15 @@ The `/admin` interface provides the following management panels:
        `Pick specific unit(s)…`, or `Project-wide`), resolving each user's home
        cadre automatically without a third dropdown. Subsequent sub-tabs host
        single Access Grants & Project PIs, the Capability Audit Matrix (`people_roles`),
-       and Mobile App Devices & Stations.
+       and Mobile App Devices & Stations (admin only), then **App Versions**
+       (digitva-jrzd; also on the roster-only page, so the project's PI and
+       project-scope data managers see it): read-only, from
+       `GET /admin/api/projects/<project_id>/app-versions`
+       (`app_versions_service.project_app_versions`, `_guard(roster=True)`):
+       a summary per platform and version of the project's non-revoked
+       devices (active, seen 7/30 days, last seen, behind the hosted APK)
+       and the roster people signed in on them with a server-side version
+       filter; policy `docs/policy/app-versions-screen.md`.
      - **Sync & activity (`sync`)** — Attachments filtered to the project and the
        lazy-loaded project Activity Log (`#setup-activity`).
   2. **One-Time Setup Wizard** (below on nav — initial project launch steps with

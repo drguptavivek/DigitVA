@@ -146,6 +146,19 @@ def _session_body(issued, user) -> dict:
     }
 
 
+def _enrolment_reply(device, secret) -> dict:
+    """``{device_id, device_secret, project, server_time}``, the reply every
+    enrolment route starts from; old APKs read these keys. Each route adds its
+    own extras (``signing_key_id``, ``projects``, session tokens)."""
+    project = db.session.get(VaProjectMaster, device.project_id)
+    return {
+        "device_id": str(device.device_id),
+        "device_secret": secret,
+        "project": {"project_id": project.project_id, "name": project.project_name},
+        "server_time": datetime.now(UTC).isoformat(),
+    }
+
+
 @bp.post("/enroll")
 @limiter.limit("10 per minute")
 def enroll():
@@ -162,19 +175,12 @@ def enroll():
         p.get("code"), device_name=p.get("device_name"), platform=p.get("platform"),
         app_version=p.get("app_version"), client_device_uuid=client_uuid,
     )
-    reply = {
-        "device_id": str(device.device_id),
-        "device_secret": secret,
-    }
+    extra = {}
     if public_key is not None:
-        reply["signing_key_id"] = signing.set_signing_key(device, public_key, via="enroll")
-    project = db.session.get(VaProjectMaster, device.project_id)
+        extra["signing_key_id"] = signing.set_signing_key(device, public_key, via="enroll")
+    reply = {**_enrolment_reply(device, secret), **extra}
     db.session.commit()
-    return jsonify({
-        **reply,
-        "project": {"project_id": project.project_id, "name": project.project_name},
-        "server_time": datetime.now(UTC).isoformat(),
-    }), 201
+    return jsonify(reply), 201
 
 
 @bp.post("/sessions")
@@ -204,13 +210,9 @@ def open_session():
     return jsonify(_session_body(issued, user)), 201
 
 
-def _refused_credentials(response) -> bool:
-    """A refused password (401), counted against the failure-only limits."""
-    return response.status_code == 401
-
-
-def _wrong_code(response) -> bool:
-    """A sign-in code that did not match (401 invalid_code)."""
+def _refused(response) -> bool:
+    """A refused password or a sign-in code that did not match (401): the
+    only replies the failure-only limits count."""
     return response.status_code == 401
 
 
@@ -219,7 +221,7 @@ def _wrong_code(response) -> bool:
 # so per IP all requests are only a flood guard; wrong passwords have their own
 # tighter per-IP budget against spraying one password across many accounts.
 @limiter.limit("120 per minute")
-@limiter.limit("60 per 10 minutes", deduct_when=_refused_credentials)
+@limiter.limit("60 per 10 minutes", deduct_when=_refused)
 @limiter.limit("20 per hour", key_func=_keyed_digest(_body_key("identifier")))
 def password_enroll():
     """Enrol and sign in with an email/mobile identifier and password.
@@ -242,13 +244,9 @@ def password_enroll():
         app_version=p.get("app_version"), client_device_uuid=p.get("client_device_uuid"),
         replace_device_id=p.get("replace_device_id"),
     )
-    project = db.session.get(VaProjectMaster, device.project_id)
     body = {
-        "device_id": str(device.device_id),
-        "device_secret": secret,
-        "project": {"project_id": project.project_id, "name": project.project_name},
+        **_enrolment_reply(device, secret),
         "projects": devices.eligible_device_projects(user),
-        "server_time": datetime.now(UTC).isoformat(),
         **_session_body(issued, user),
     }
     db.session.commit()
@@ -262,10 +260,10 @@ def password_enroll():
 @limiter.limit("200 per minute")
 # Wrong codes only: bounds guessing and the breach check each request makes
 # before the code is read, without throttling a room's successful redeems.
-@limiter.limit("100 per 10 minutes", deduct_when=_wrong_code)
+@limiter.limit("100 per 10 minutes", deduct_when=_refused)
 # Mismatches only, so a stranger cannot keep a trainee locked out with 400s,
 # and a correct code is never refused for someone else's typos.
-@limiter.limit("10 per hour", key_func=_keyed_digest(_body_key("identifier")), deduct_when=_wrong_code)
+@limiter.limit("10 per hour", key_func=_keyed_digest(_body_key("identifier")), deduct_when=_refused)
 def redeem_sign_in_code():
     """"I have a sign-in code" in the app (docs/policy/mobile-sign-in.md
     section 3): ``{identifier, code, accept_terms}``, the web page's
@@ -347,15 +345,13 @@ def redeem_sign_in_qr():
         app_version=p.get("app_version"), client_device_uuid=client_uuid,
         replace_device_id=p.get("replace_device_id"),
     )
-    reply = {"device_id": str(device.device_id), "device_secret": secret}
+    extra = {}
     if public_key is not None:
-        reply["signing_key_id"] = signing.set_signing_key(device, public_key, via="enroll")
-    project = db.session.get(VaProjectMaster, device.project_id)
+        extra["signing_key_id"] = signing.set_signing_key(device, public_key, via="enroll")
     body = {
-        **reply,
-        "project": {"project_id": project.project_id, "name": project.project_name},
+        **_enrolment_reply(device, secret),
+        **extra,
         "projects": devices.eligible_device_projects(user),
-        "server_time": datetime.now(UTC).isoformat(),
         **_session_body(issued, user),
     }
     db.session.commit()
@@ -396,14 +392,9 @@ def demo_enroll():
         platform=p.get("platform"), app_version=p.get("app_version"), client_device_uuid=client_uuid,
         replace_device_id=p.get("replace_device_id"),
     )
-    project = db.session.get(VaProjectMaster, device.project_id)
+    reply = _enrolment_reply(device, secret)
     db.session.commit()
-    return jsonify({
-        "device_id": str(device.device_id),
-        "device_secret": secret,
-        "project": {"project_id": project.project_id, "name": project.project_name},
-        "server_time": datetime.now(UTC).isoformat(),
-    }), 201
+    return jsonify(reply), 201
 
 
 @bp.get("/demo-signup/challenge")

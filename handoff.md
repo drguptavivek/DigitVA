@@ -60,9 +60,12 @@ and maps stay in the browser).
    staging), `zkgx` (Hindi review). Partly done: `yeg3.1`, `9cll.22.3`,
    `r9lk`, `xjpk`, `xk41`, `rpqp`. Open: `yeg3.18`, `yeg3.24`, `342x`,
    `bx43`, `7amd.27` (due 2027-10), `9cll.18`, `1b50`, `p8uj`, `oux5`.
-5. Code audit refactors (epic `digitva-r8nh`). Waves 1 and 2 landed
-   2026-11-24: `.25` done; `.5`, `.8`, `.11`, `.12`, `.14`, `.16`, `.17`,
-   `.20` have a first slice in, next slice in each bead's notes. Not
+5. Code audit refactors (epic `digitva-r8nh`). Waves 1-3 landed
+   2026-11-24: `.25`, `.12`, `.16` closed (owner holds their behaviour
+   changes `.33`, `.34`); `.5`, `.8`, `.11`, `.14`, `.17`, `.20` have
+   slices in, next slice in each bead's notes (`.5` api_v1 errorhandler:
+   read-only pass first, owner if uncaught-exception replies change; then
+   `.20` transport/authed retry). Not
    started: `.6`, `.7`, `.9`, `.10`, `.13`, `.15`, `.18`, `.19`, `.21`-`.24`,
    `.26`-`.29`; ask the owner before starting. Every one follows the epic's
    behaviour-preservation protocol (bd memory

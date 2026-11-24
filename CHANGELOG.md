@@ -5,6 +5,17 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-24
 
+- Code audit refactors, wave 3 (same protocol; second slices): terms gate
+  split into its steps and template helpers in `app/template_helpers.py`
+  (`86e0b78ec`, `75c56e519`, `r8nh.8`); bulk grid operations through an
+  `OPERATIONS` registry (`8deb42cdf`, `3bf569cd5`, `r8nh.14`); workspace
+  redaction evaluated once, `_Case` in the workspace service (`81e3963fd`,
+  `a0f82281d`, `r8nh.11`); one enrolment reply builder for the four enrol
+  routes (`8ab54897a`, `6231a7dde`, `29125de92`, `9c9129196`, `r8nh.17`);
+  Collect `ErrorCode` constants for server error codes (`a225937b8`,
+  `4f33b9469`, `r8nh.20`). KPI golden test no longer fails before 13:00
+  UTC (`618337718`, `r8nh.35`). Owner held `r8nh.16` and `r8nh.12`
+  (closed; behaviour changes filed as `r8nh.33`, `r8nh.34`).
 - Phone supervision tidy (`c31195040`, `digitva-hftq`): tiles stay in view,
   state filters scroll on one labelled line, the phone's own back closes an
   open case; e2e fill flows no longer append to a prefilled name. Dev Metro

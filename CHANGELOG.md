@@ -5,6 +5,12 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-24
 
+- App versions screen (`digitva-jrzd`, owner-requested): a read-only "App
+  Versions" tab in project setup and on the data-manager roster page shows
+  active devices per app version (seen in 7 and 30 days, behind the hosted
+  release) and the roster people seen on them in the last 30 days. Same
+  roster gate; no contact details or device ids. Policy
+  `docs/policy/app-versions-screen.md`. Additive only.
 - Code audit refactors, wave 3 (same protocol; second slices): terms gate
   split into its steps and template helpers in `app/template_helpers.py`
   (`86e0b78ec`, `75c56e519`, `r8nh.8`); bulk grid operations through an

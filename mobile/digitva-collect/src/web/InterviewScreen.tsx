@@ -11,11 +11,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 
 import { isTrainingProject, TRAINING_INTERVIEW_HOME } from "../training";
-import { ClientApiError, getCaseDetail, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, requestClientJson, requestRaw, startDraft, submitDraft, type DraftLastChange, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
+import { ClientApiError, getDraft, getInstrumentTranslations, getIntakeContext, getProjectFormOptions, requestClientJson, requestRaw, submitDraft, type DraftLastChange, type DraftResponse, type FormOptions, type IntakeBootstrap } from "../client/api";
 import { ServerDraftStore } from "../client/serverDraftStore";
 import { RevisionMemoryStore } from "../client/revisionMemoryStore";
-import { createRevisionSnapshot, getRevisionDetail, isPartialOutcome, postRevision, revisionOutcome, type RevisionDetail, type RevisionReasonCode, type RevisionSnapshot } from "../client/revisions";
-import { formTagExtensions, PinnedDefinitionError, readDefinitionPin, resolveNewInterviewDefinition, resolveSavedEnvelopeDefinition, withDefinitionPin, type DefinitionCache, type DefinitionPin, type ResolvedInstrument } from "../formDefinitionRuntime";
+import { createRevisionSnapshot, isPartialOutcome, postRevision, revisionOutcome, type RevisionDetail, type RevisionReasonCode, type RevisionSnapshot } from "../client/revisions";
+import { formTagExtensions, PinnedDefinitionError, withDefinitionPin, type DefinitionCache, type DefinitionPin, type ResolvedInstrument } from "../formDefinitionRuntime";
 import { FormDefinitionError, type DefinitionRequest } from "../formDefinitions";
 import { FormDefinitionHistoryError } from "../formDefinitionHistory";
 import type { Prefill } from "../cases";
@@ -42,8 +42,10 @@ import type { WhoCoreRuntime } from "../whoCoreRuntime";
 import { RefusalPanel } from "../RefusalPanel";
 import { useWhoNoConfirm } from "../useWhoNoConfirm";
 import { ConfirmDialog } from "../ConfirmDialog";
-import { agreeConsentOnPage, isRefused, refusalAnswers, type ConsentSession } from "../refusalBoundary";
+import { agreeConsentOnPage, isRefused, type ConsentSession } from "../refusalBoundary";
 import { formUiTranslations, useFormPackRevision } from "../uiPacks";
+import { useRespondentConsent, type ConsentPersistence } from "../interview/useRespondentConsent";
+import { instrumentCode, openInterviewDraft, resolveDraftDefinition, type WebDraftOpenContext } from "../interview/webDraftOpen";
 
 /**
  * The package's own UI strings (en, plus its built-in Hindi and French packs)
@@ -119,24 +121,6 @@ export const INTERVIEW_FORM_CSS = `
     }
   }
 `;
-
-function instrumentCode(options: FormOptions): string {
-  const code = options.form_types?.find((formType) => formType.is_default)?.instrument_code;
-  if (code !== "WHO_2022_VA") throw new Error("unsupported_instrument");
-  return code;
-}
-
-function narrationLanguageCodes(options: FormOptions): string[] {
-  return (options.narration_languages ?? []).map((language) => language.code);
-}
-
-function definitionOptions(options: FormOptions) {
-  return {
-    instrumentVersion: options.instrument_version ?? null,
-    definitionSha256: options.definition_sha256 ?? null,
-    extensions: options.enabled_extensions ?? [],
-  };
-}
 
 function definitionRequest(
   csrf: { header: string; token: string },
@@ -346,11 +330,10 @@ export default function InterviewScreen() {
   const [caseStripHeight, setCaseStripHeight] = useState(0);
   const [formOptions, setFormOptions] = useState<FormOptions>();
   const [liveAnswers, setLiveAnswers] = useState<Record<string, unknown>>({});
-  const [whoRefused, setWhoRefused] = useState(false);
-  const [refusalAge, setRefusalAge] = useState("");
-  const [refusalSex, setRefusalSex] = useState("");
-  const [changingConsent, setChangingConsent] = useState(false);
-  const [confirmWhoGrant, setConfirmWhoGrant] = useState(false);
+  const {
+    whoRefused, setWhoRefused, refusalAge, setRefusalAge, refusalSex, setRefusalSex,
+    changingConsent, setChangingConsent, confirmWhoGrant, setConfirmWhoGrant, restoreFrom, refusalHandlers,
+  } = useRespondentConsent();
   // Bumped when a cancelled No remounts the form so it reloads the server's copy (the No was never sent).
   const [formEpoch, setFormEpoch] = useState(0);
   const whoNo = useWhoNoConfirm({
@@ -450,136 +433,28 @@ export default function InterviewScreen() {
     const nextIntake = await getIntakeContext(requestCsrf, "interview", "all");
     if (!isCurrent()) return;
     setIntake(nextIntake);
-    let nextDraftId = params.draftId;
-    let nextRevision: RevisionDetail | undefined;
-    let options: FormOptions | undefined;
-    let resolved: ResolvedInstrument | undefined;
+    const context: WebDraftOpenContext = {
+      core: loadedRuntime.core,
+      accountId: bootstrap.user.user_id,
+      links: bootstrap.links,
+      csrf: requestCsrf,
+      request: definitionRequest(requestCsrf, isCurrent),
+      cache: currentDefinitionCache,
+      isCurrent,
+      hasServedDefinition,
+      markServedDefinition,
+    };
+    const opened = await openInterviewDraft(context, params, nextIntake, setDraftId);
+    if (!opened) return;
+    const { draftId: nextDraftId, revision: nextRevision } = opened;
+    let { options, resolved } = opened;
     let adopted = false;
-    const request = definitionRequest(requestCsrf, isCurrent);
-    const accountId = bootstrap.user.user_id;
-
-    async function resolveNew(projectId: string, formOptions: FormOptions): Promise<ResolvedInstrument> {
-      instrumentCode(formOptions);
-      const bundled = loadedRuntime.core.createWhoVa2022Instrument(formOptions.enabled_extensions ?? []);
-      return resolveNewInterviewDefinition({
-        accountId,
-        projectId,
-        options: definitionOptions(formOptions),
-        request,
-        cache: currentDefinitionCache,
-        narrationLanguageCodes: narrationLanguageCodes(formOptions),
-        interviewLanguages: formOptions.narration_languages ?? [],
-        bundledOriginal: {
-          instrument: bundled,
-          instrumentVersion: bundled.version,
-          extensions: formOptions.enabled_extensions ?? [],
-        },
-        canUseBundledFallback: async () => isCurrent() && !hasServedDefinition(projectId),
-        onServedDefinition: async () => {
-          if (!isCurrent()) throw new Error("request_superseded");
-          await markServedDefinition(projectId);
-          if (!isCurrent()) throw new Error("request_superseded");
-        },
-      });
-    }
-
-    if (params.revisionDraftId) {
-      if (!params.revisionProjectId || !params.revisionSiteId || !params.revisionVaSid) {
-        throw new ClientApiError(400, "malformed_response");
-      }
-      nextRevision = await getRevisionDetail(bootstrap.links.intakeDrafts, params.revisionDraftId, requestCsrf, {
-        draft_id: params.revisionDraftId,
-        project_id: params.revisionProjectId,
-        site_id: params.revisionSiteId,
-        va_sid: params.revisionVaSid,
-      });
-      if (!isCurrent()) return;
-      nextDraftId = nextRevision.draft.draft_id;
-      setDraftId(nextDraftId);
-    }
-    if (!nextDraftId && params.deathId) {
-      const { case: caseRow } = await getCaseDetail(bootstrap.links.intakeCases, params.deathId, requestCsrf);
-      if (!isCurrent()) return;
-      if (!caseRow?.prefill) throw new Error("caseActionsUnavailable");
-      if (!caseRow.project_id || !caseRow.site_id) throw new Error("case_context_missing");
-      if (caseRow.my_draft_id) {
-        nextDraftId = caseRow.my_draft_id;
-        setDraftId(nextDraftId);
-      } else {
-        options = await getProjectFormOptions(caseRow.project_id, requestCsrf);
-        if (!isCurrent()) return;
-        resolved = await resolveNew(caseRow.project_id, options);
-        if (!isCurrent()) return;
-        const started = await startDraft(
-          bootstrap.links.intakeDrafts,
-          {
-            project_id: caseRow.project_id,
-            site_id: caseRow.site_id,
-            ...(caseRow.org_unit_id ? { org_unit_id: caseRow.org_unit_id } : {}),
-            death_id: params.deathId
-          },
-          requestCsrf
-        );
-        if (!isCurrent()) return;
-        nextDraftId = started.draft.draft_id;
-        setDraftId(nextDraftId);
-      }
-    }
-    if (!nextDraftId && !params.deathId && params.projectId && params.siteId) {
-      const context = nextIntake.context.find((entry) => entry.project_id === params.projectId && entry.site_id === params.siteId);
-      if (!context || !["direct", "both"].includes(context.web_intake_mode ?? "")) throw new Error("intake_configuration_unavailable");
-      options = await getProjectFormOptions(params.projectId, requestCsrf);
-      if (!isCurrent()) return;
-      resolved = await resolveNew(params.projectId, options);
-      if (!isCurrent()) return;
-      const started = await startDraft(
-        bootstrap.links.intakeDrafts,
-        {
-          project_id: params.projectId,
-          site_id: params.siteId,
-          ...(params.orgUnitId ? { org_unit_id: params.orgUnitId } : {})
-        },
-        requestCsrf
-      );
-      if (!isCurrent()) return;
-      nextDraftId = started.draft.draft_id;
-      setDraftId(nextDraftId);
-    }
-    if (!nextDraftId) throw new Error("draft_missing");
     const nextDraft = nextRevision ?? await getDraft(bootstrap.links.intakeDrafts, nextDraftId, requestCsrf);
     if (!isCurrent()) return;
     options ??= await getProjectFormOptions(nextDraft.draft.project_id, requestCsrf);
     if (!isCurrent()) return;
     instrumentCode(options);
-    if (!resolved) {
-      if (!nextRevision && !readDefinitionPin(nextDraft.envelope) && !nextDraft.envelope.instrumentVersion) {
-        resolved = await resolveNew(nextDraft.draft.project_id, options);
-      } else {
-        const bundledFallback = loadedRuntime.core.createWhoVa2022Instrument(options.enabled_extensions ?? []);
-        const projectId = nextDraft.draft.project_id;
-        const formOptions = options;
-        resolved = await resolveSavedEnvelopeDefinition({
-          accountId: bootstrap.user.user_id,
-          projectId: nextDraft.draft.project_id,
-          envelope: nextDraft.envelope,
-          request,
-          cache: currentDefinitionCache,
-          narrationLanguageCodes: narrationLanguageCodes(options),
-          interviewLanguages: options.narration_languages ?? [],
-          bundledLegacyDefinitions: [],
-          bundledOriginal: {
-            instrument: bundledFallback,
-            instrumentVersion: bundledFallback.version,
-            extensions: options.enabled_extensions ?? [],
-          },
-          // A revision must keep its submitted form, so only a draft moves on.
-          adoptCurrentDefinition: nextRevision ? undefined : async () => {
-            adopted = true;
-            return resolveNew(projectId, formOptions);
-          },
-        });
-      }
-    }
+    if (!resolved) ({ resolved, adopted } = await resolveDraftDefinition(context, nextDraft, nextRevision, options));
     if (!isCurrent()) return;
     const base = resolved.instrument;
     const normalizedRevision = nextRevision
@@ -749,10 +624,8 @@ export default function InterviewScreen() {
         if (status.decision === "refused" && store instanceof ServerDraftStore) store.enterRefusal();
         setConsentGate({ status, config });
         const saved = draft.envelope.data;
-        setWhoRefused(saved?.Id10013 === "no");
+        restoreFrom(saved);
         if (saved?.Id10013 === "no" && store instanceof ServerDraftStore) store.enterRefusal();
-        setRefusalAge(typeof saved?.refusal_age_group === "string" ? saved.refusal_age_group : "");
-        setRefusalSex(typeof saved?.refusal_sex === "string" ? saved.refusal_sex : "");
       }
     })().catch((error) => { if (live) setMessage(interviewErrorText(error)); });
     return () => { live = false; };
@@ -1267,44 +1140,48 @@ export default function InterviewScreen() {
     }
   }, [store]);
 
-  async function saveRefusal() {
-    if (!bootstrap || !draftId || !(store instanceof ServerDraftStore)) return;
-    setBusy(true);
-    try {
-      await store.flush();
-      const current = await getDraft(bootstrap.links.intakeDrafts, draftId, requestCsrf!);
-      const data = refusalAnswers({ ...current.envelope.data, ...(whoRefused ? { Id10013: "no" } : {}), refusal_age_group: refusalAge, refusal_sex: refusalSex }) as SubmissionData;
-      await submitDraft(bootstrap.links.intakeDrafts, draftId, { valid: true, issues: [], data }, requestCsrf!, current.draft.updated_at);
-      dirtyRef.current = false;
-      router.replace({ pathname: collectionPath as never, params: { submitted: "1" } });
-    } catch (error) { setMessage(interviewErrorText(error)); } finally { setBusy(false); }
-  }
-
-  async function changeRefusal() {
-    if (!bootstrap || !draftId || !draft || !consentGate) return;
-    if (consentRefused) {
+  // In the browser the refusal is the server draft's: submitted as the refusal, or PATCHed back to Id10013 "yes".
+  const consentPersistence: ConsentPersistence = {
+    consentRefused,
+    async saveRefusal(refusalData) {
+      if (!bootstrap || !draftId || !(store instanceof ServerDraftStore)) return;
+      setBusy(true);
       try {
-        const config = await fetchProjectConsentConfig(draft.draft.project_id, requestCsrf!);
-        setConsentGate({ ...consentGate, config });
+        await store.flush();
+        const current = await getDraft(bootstrap.links.intakeDrafts, draftId, requestCsrf!);
+        const data = refusalData(current.envelope.data);
+        await submitDraft(bootstrap.links.intakeDrafts, draftId, { valid: true, issues: [], data }, requestCsrf!, current.draft.updated_at);
+        dirtyRef.current = false;
+        router.replace({ pathname: collectionPath as never, params: { submitted: "1" } });
+      } catch (error) { setMessage(interviewErrorText(error)); } finally { setBusy(false); }
+    },
+    // Called only past changeRefusal's guard below, so the draft and the consent gate are loaded.
+    async reopenConsent() {
+      try {
+        const config = await fetchProjectConsentConfig(draft!.draft.project_id, requestCsrf!);
+        setConsentGate({ ...consentGate!, config });
         setChangingConsent(true);
       } catch (error) { setMessage(interviewErrorText(error)); }
-      return;
-    }
-    setConfirmWhoGrant(true);
-  }
-
-  async function grantWhoConsent() {
-    if (!bootstrap || !draftId || !(store instanceof ServerDraftStore)) return;
-    setBusy(true);
-    try {
-      await store.flush();
-      const current = await getDraft(bootstrap.links.intakeDrafts, draftId, requestCsrf!);
-      await requestClientJson(`${bootstrap.links.intakeDrafts}/${encodeURIComponent(draftId)}`, {
-        method: "PATCH", csrf: requestCsrf!, json: { sections: { _other: { Id10013: "yes" } }, resume_refused: true, if_updated_at: current.draft.updated_at },
-      });
-      dirtyRef.current = false;
-      if (typeof window !== "undefined") window.location.replace(draftReloadUrl(window.location.href, draftId));
-    } catch (error) { setMessage(interviewErrorText(error)); } finally { setBusy(false); setConfirmWhoGrant(false); }
+    },
+    async grantWhoConsent() {
+      if (!bootstrap || !draftId || !(store instanceof ServerDraftStore)) return;
+      setBusy(true);
+      try {
+        await store.flush();
+        const current = await getDraft(bootstrap.links.intakeDrafts, draftId, requestCsrf!);
+        await requestClientJson(`${bootstrap.links.intakeDrafts}/${encodeURIComponent(draftId)}`, {
+          method: "PATCH", csrf: requestCsrf!, json: { sections: { _other: { Id10013: "yes" } }, resume_refused: true, if_updated_at: current.draft.updated_at },
+        });
+        dirtyRef.current = false;
+        if (typeof window !== "undefined") window.location.replace(draftReloadUrl(window.location.href, draftId));
+      } catch (error) { setMessage(interviewErrorText(error)); } finally { setBusy(false); setConfirmWhoGrant(false); }
+    },
+  };
+  const refusal = refusalHandlers(consentPersistence);
+  /** Change consent does nothing until the draft and its consent gate are loaded. */
+  function changeRefusal() {
+    if (!bootstrap || !draftId || !draft || !consentGate) return;
+    refusal.onChangeConsent();
   }
 
   const leaveToCollection = () => guardedNavigate(() => router.replace(collectionPath as never));
@@ -1462,9 +1339,9 @@ export default function InterviewScreen() {
               />
             ) : <Text style={styles.muted}>{t("loading")}</Text>
           ) : null}
-          {(consentRefused || whoRefused) && !changingConsent ? <RefusalPanel locale={locale} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} onSave={() => void saveRefusal()} onChangeConsent={() => void changeRefusal()} onNew={() => { dirtyRef.current = false; router.replace(collectionPath as never); }} /> : null}
+          {(consentRefused || whoRefused) && !changingConsent ? <RefusalPanel locale={locale} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} onSave={refusal.onSave} onChangeConsent={changeRefusal} onNew={() => { dirtyRef.current = false; router.replace(collectionPath as never); }} /> : null}
           {whoNo.dialog}
-          {confirmWhoGrant ? <ConfirmDialog title={locale.startsWith("hi") ? "सहमति की पुष्टि करें" : "Confirm consent"} message={locale.startsWith("hi") ? "क्या उत्तरदाता ने अब साक्षात्कार के लिए सहमति दी है? हटाए गए उत्तर वापस नहीं आएंगे।" : "Has the respondent now agreed to the interview? Removed answers will not be restored."} confirmLabel={locale.startsWith("hi") ? "हाँ, सहमति दी" : "Yes, consent granted"} cancelLabel={t("cancel")} onConfirm={() => void grantWhoConsent()} onCancel={() => setConfirmWhoGrant(false)} /> : null}
+          {confirmWhoGrant ? <ConfirmDialog title={locale.startsWith("hi") ? "सहमति की पुष्टि करें" : "Confirm consent"} message={locale.startsWith("hi") ? "क्या उत्तरदाता ने अब साक्षात्कार के लिए सहमति दी है? हटाए गए उत्तर वापस नहीं आएंगे।" : "Has the respondent now agreed to the interview? Removed answers will not be restored."} confirmLabel={locale.startsWith("hi") ? "हाँ, सहमति दी" : "Yes, consent granted"} cancelLabel={t("cancel")} onConfirm={() => void consentPersistence.grantWhoConsent()} onCancel={() => setConfirmWhoGrant(false)} /> : null}
           {!consentPending && !changingConsent && !consentRefused && !whoRefused && welcomePending && formOptions?.intake_note?.trim() ? (
             <View
               testID="interview-welcome-card"

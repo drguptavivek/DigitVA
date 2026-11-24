@@ -14,12 +14,10 @@
  */
 import { deleteCoveredAttachments } from "../attachmentStore";
 import {
-  createWhoVa2022Instrument,
   ENGLISH_UI_MESSAGE_TEMPLATES,
   WHO_VA_BUILT_IN_UI_TRANSLATIONS,
   WHO_VA_FORM_VERSION,
   type InstrumentDefinition,
-  type SubmissionData,
   type SubmissionValidationResult,
 } from "@drguptavivek/who-2022-va";
 import {
@@ -37,11 +35,8 @@ import { ActivityIndicator, AppState, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useAppState } from "../AppState";
-import { getOfflineProfile, profileInterviewerAnswers, standaloneProfileMissing, standalonePrefill } from "../offlineProfile";
-import { standaloneProfileMissingText } from "../offlineProfileForm";
+import { getOfflineProfile, standaloneProfileMissing, standalonePrefill } from "../offlineProfile";
 import { standaloneConsentConfigWithSavedNotice } from "../standalone/noticeSettings";
-import { STANDALONE_DEFAULT_EXTENSIONS } from "../standalone/config";
-import { STANDALONE_SITE_ID, standaloneDefinition, standaloneDraftMismatch, standaloneProject, standaloneProjectId } from "../standalone/project";
 import { standaloneTranslationsForDraft, standaloneTranslationVersion } from "../standalone/translations";
 import { saveStandaloneConsent } from "../standaloneConsentStore";
 import { useStableAccount } from "../useStableAccount";
@@ -49,10 +44,7 @@ import {
   getCase,
   getRegistration,
   prefillFromRegistration,
-  resolveDraftHost,
-  type DraftHost,
   type Prefill,
-  joinResidence,
 } from "../cases";
 import {
   createDraftStore,
@@ -67,37 +59,21 @@ import {
   stripDraftCovered,
   type Db,
 } from "../drafts";
-import { authedRawRequest, SessionRevokedError, SignInRequiredError, trainingProjectFor } from "../auth";
-import { scopeFor } from "../training";
-import { canStartDeathInterview } from "../deathWorkflow";
-import { isLocaleCode, questionnaireDefault, questionnaireLocales, t } from "../i18n";
+import { SessionRevokedError, SignInRequiredError } from "../auth";
+import { questionnaireLocales, t } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
-import { createNativeDefinitionCache } from "../formDefinitionCache";
-import {
-  PinnedDefinitionError,
-  resolveNewInterviewDefinition,
-  resolveSavedEnvelopeDefinition,
-  type ResolvedInstrument,
-} from "../formDefinitionRuntime";
+import { PinnedDefinitionError } from "../formDefinitionRuntime";
 import { FormDefinitionError } from "../formDefinitions";
 import { platformServices } from "../platform";
 import { useAttachmentServices } from "../attachmentServices";
 import { initialDataFromPrefill } from "../prefill";
-import { RECALL_META_KEY, recallChanged, recallFromData, withInterviewerRecall, type InterviewerRecall } from "../interviewerRecall";
+import { RECALL_META_KEY, recallChanged, recallFromData, withInterviewerRecall } from "../interviewerRecall";
 import {
   getCachedReferenceData,
-  canUseBundledFallbackForProject,
-  draftSyncDefaults,
-  fetchCaseDetail,
   isUploadable,
-  startsDirectly,
-  targetsFrom,
   translationsForDraft,
-  markProjectDefinitionServed,
-  type ProjectSettings,
-  type ReferenceData,
 } from "../sync";
-import { recoverRefusalDraft, recordDraftMilestones, recordDraftTimeline, reconcileCaseDraft } from "../draftSync";
+import { recoverRefusalDraft, recordDraftMilestones, recordDraftTimeline } from "../draftSync";
 import { applyTranslations } from "../translations";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { useLeaveGuard } from "../leaveGuard";
@@ -124,53 +100,27 @@ import { clearSendError, sendRefusal, type SendRefusal } from "../unsentWork";
 import { coalesceLatest } from "../coalesceSaves";
 import { Button, errorText, Screen, useUiStyles } from "../ui";
 import { useWhoFormTheme } from "../whoWebTheme";
-import {
-  isSmartVaOptionsSnapshot,
-  projectSmartVaSnapshot,
-  standaloneSmartVaSnapshot,
-  standaloneSmartVaSnapshotFromAnswers,
-  type SmartVaOptionsSnapshot,
-  type SmartVaTarget,
-} from "../smartva/options";
+import { standaloneSmartVaSnapshotFromAnswers } from "../smartva/options";
 import { RefusalPanel } from "../RefusalPanel";
-import { agreeConsentOnPage, isRefused, refusalAnswers, withConsentAgreed } from "../refusalBoundary";
+import { agreeConsentOnPage, isRefused, withConsentAgreed } from "../refusalBoundary";
 import { useWhoNoConfirm } from "../useWhoNoConfirm";
 import { runInTransaction } from "../dbTransaction";
 import { ensureLocalSmartVa } from "../smartva/ensureLocal";
+import { useRespondentConsent, type ConsentPersistence } from "../interview/useRespondentConsent";
+import { readStoredAnswers, resetEnvelopeToWhoYes } from "../interview/formDraftSql";
+import {
+  draftConfigKey,
+  isDraftConfig,
+  loadProjectDraft,
+  loadStandaloneDraft,
+  mergeProjectPrefill,
+  type DraftConfig,
+  type FormLoadContext,
+  type FormRouteParams,
+  type Loaded,
+} from "../interview/nativeFormLoad";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-interface Loaded extends DraftHost {
-  db: Db;
-  project: ProjectSettings;
-  config: DraftConfig;
-  definition: ResolvedInstrument;
-  accessVersion: number;
-  hasStartedSection: boolean;
-  /** The interviewer's own details from their last interview (src/interviewerRecall.ts). */
-  recall?: InterviewerRecall;
-  /** The interviewer's profile answers, which outrank the recall (owner decision 2026-11-14). */
-  profileAnswers?: InterviewerRecall;
-  accountName?: string;
-  /** Path C: no server project; the bundled form, the bundled consent notice, local translations only. */
-  standalone?: boolean;
-  /**
-   * Standalone draft made on a different questionnaire than the bundled one (digitva-5bzf.12): its stored answers,
-   * shown read-only. The form never mounts, so nothing is edited, completed or saved over them.
-   */
-  readOnlyData?: Record<string, unknown>;
-}
-
-interface DraftConfig {
-  projectId: string;
-  locale: string;
-  enabledExtensions: string[];
-  instrumentCode: string;
-  translationVersion?: number;
-  intakeNote?: string | null;
-  /** Exact SmartVA form/site options captured at draft creation; null freezes a missing target. */
-  smartva?: SmartVaOptionsSnapshot | null;
-}
 
 type ConsentDecision = "granted" | "refused" | "none";
 type ConsentView =
@@ -183,70 +133,6 @@ type ConsentView =
    * cached, so the decision can be changed. `decision`: what applies now (its own, else its registration's).
    */
   | { kind: "ready"; covered: string[]; unavailable?: boolean; decision: ConsentDecision; required: boolean; config?: ProjectConsentConfig };
-
-const draftConfigKey = (draftId: string) => `draft-config:${draftId}`;
-
-function configFromReference(project: ProjectSettings): DraftConfig {
-  const options = project.form_options;
-  const locale = questionnaireDefault(
-    options?.available_locales,
-    options?.default_locale,
-  );
-  const instrumentCode =
-    options?.form_types?.find((ft) => ft.is_default)?.instrument_code ??
-    "WHO_2022_VA";
-  return {
-    projectId: project.project_id,
-    locale,
-    enabledExtensions: [...(options?.enabled_extensions ?? [])],
-    instrumentCode,
-    translationVersion: options?.translation_versions?.[locale],
-    intakeNote: options?.intake_note ?? null,
-  };
-}
-
-function isDraftConfig(value: unknown): value is DraftConfig {
-  if (!value || typeof value !== "object") return false;
-  const config = value as Partial<DraftConfig>;
-  return (
-    typeof config.locale === "string" &&
-    typeof config.projectId === "string" &&
-    Array.isArray(config.enabledExtensions) &&
-    config.enabledExtensions.every((entry) => typeof entry === "string") &&
-    typeof config.instrumentCode === "string" &&
-    (config.translationVersion === undefined ||
-      typeof config.translationVersion === "number") &&
-    (config.intakeNote === undefined ||
-      config.intakeNote === null ||
-      typeof config.intakeNote === "string") &&
-    (!Object.prototype.hasOwnProperty.call(value, "smartva") || config.smartva === null || isSmartVaOptionsSnapshot(config.smartva))
-  );
-}
-
-function withEnvelopeLocale(config: DraftConfig, value: unknown): DraftConfig {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("invalid_draft_envelope");
-  }
-  const envelope = value as Record<string, unknown>;
-  const next = { ...config };
-  if (Object.prototype.hasOwnProperty.call(envelope, "locale")) {
-    if (!isLocaleCode(envelope.locale)) {
-      throw new Error("invalid_draft_locale");
-    }
-    next.locale = envelope.locale;
-  }
-  if (Object.prototype.hasOwnProperty.call(envelope, "translation_version")) {
-    if (
-      typeof envelope.translation_version !== "number" ||
-      !Number.isInteger(envelope.translation_version) ||
-      envelope.translation_version < 0
-    ) {
-      throw new Error("invalid_draft_translation_version");
-    }
-    next.translationVersion = envelope.translation_version;
-  }
-  return next;
-}
 
 /**
  * The intake note as the welcome dialog's body: a leading "Before you begin:" (the dialog title already says it, in
@@ -314,66 +200,11 @@ async function storeResumedPrefill(db: Db, loaded: Loaded, draftId: string, pref
   await restoreResumedPrefill(db, draftId, prefill, withConsentAgreed(withoutCovered(initial, covered), decision) as Record<string, unknown>);
 }
 
-function mergeProjectPrefill(
-  project: ProjectSettings | undefined,
-  orgUnitId: string | null | undefined,
-  registration: Prefill | undefined,
-): Prefill | undefined {
-  const policy = project?.prefill_policy as
-    | {
-        direct?: Prefill;
-        units?: Record<string, Prefill>;
-      }
-    | undefined;
-  const direct = policy?.direct;
-  const unit = orgUnitId ? policy?.units?.[orgUnitId] : undefined;
-  if (!direct && !unit && !registration) return undefined;
-  return {
-    ...((direct?.interviewer ?? unit?.interviewer ?? registration?.interviewer)
-      ? {
-          interviewer:
-            direct?.interviewer ??
-            unit?.interviewer ??
-            registration?.interviewer,
-        }
-      : {}),
-    ...((direct?.deceased ?? unit?.deceased ?? registration?.deceased)
-      ? {
-          deceased:
-            registration?.deceased ?? unit?.deceased ?? direct?.deceased,
-        }
-      : {}),
-    answers: {
-      ...(direct?.answers ?? {}),
-      ...(unit?.answers ?? {}),
-      ...(registration?.answers ?? {}),
-      ...(typeof unit?.answers?.Id10055 === "string" && typeof registration?.answers?.Id10055 === "string"
-        ? { Id10055: joinResidence(unit.answers.Id10055, registration.answers.Id10055) }
-        : {}),
-    },
-    lockedQuestionNames: [
-      ...new Set([
-        ...(direct?.lockedQuestionNames ?? []),
-        ...(unit?.lockedQuestionNames ?? []),
-        ...(registration?.lockedQuestionNames ?? []),
-      ]),
-    ],
-  };
-}
-
 export default function Form() {
   const styles = useUiStyles();
   const whoTheme = useWhoFormTheme();
   const router = useRouter();
-  const params = useLocalSearchParams<{
-    userId: string;
-    draftId: string;
-    projectId?: string;
-    siteId?: string;
-    orgUnitId?: string;
-    deathId?: string;
-    clientDeathId?: string;
-  }>();
+  const params = useLocalSearchParams<FormRouteParams>();
   const { accounts, activity, onBeforeLock, chooseUiLocale, reload, lockVersion, holdRefresh } =
     useAppState();
   useEffect(() => holdRefresh?.(), [holdRefresh]);
@@ -409,14 +240,16 @@ export default function Form() {
   // Respondent consent (docs/policy/respondent-consent-notice-draft.md, "Phone flow"): the questionnaire opens
   // once a decision applies; a refusal (or missing settings) locks the covered questions empty.
   const [consentView, setConsentView] = useState<ConsentView>({ kind: "checking" });
-  // The consent screen opened from the top bar to change the decision on file (the form is closed meanwhile).
-  const [changingConsent, setChangingConsent] = useState(false);
-  const [whoRefused, setWhoRefused] = useState(false);
+  // The WHO No, the refusal profile, the confirm before a WHO No is withdrawn, and `changingConsent`: the consent
+  // screen opened from the top bar to change the decision on file (the form is closed meanwhile).
+  const {
+    whoRefused, setWhoRefused, refusalAge, setRefusalAge, refusalSex, setRefusalSex,
+    changingConsent, setChangingConsent, confirmWhoGrant, setConfirmWhoGrant, restoreFrom, refusalHandlers,
+  } = useRespondentConsent();
   const [serverRefused, setServerRefused] = useState(false);
   const [refusalRecoveryError, setRefusalRecoveryError] = useState(false);
   const [refusalRecoveryAttempt, setRefusalRecoveryAttempt] = useState(0);
   const [refusalRecovered, setRefusalRecovered] = useState(false);
-  const [confirmWhoGrant, setConfirmWhoGrant] = useState(false);
   // True while the consent No is awaiting confirmation: the draft store drops a save that holds it (it would strip the draft).
   const noHeld = useRef(false);
   const whoNo = useWhoNoConfirm({
@@ -431,8 +264,6 @@ export default function Form() {
       void controller.current?.saveDraft().catch((error: unknown) => setMessage(errorText(error)));
     },
   });
-  const [refusalAge, setRefusalAge] = useState("");
-  const [refusalSex, setRefusalSex] = useState("");
   // "Delete draft": offered only while the draft was never sent; `deleted` stops any later autosave re-creating the row.
   const [canDelete, setCanDelete] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -483,79 +314,17 @@ export default function Form() {
         return;
       }
       if (!db || !active || generation !== loadGeneration.current) return;
+      const context: FormLoadContext = {
+        db, account, draftId, params, lockVersion, router, setLoaded, setLocale, setTrainingDraft,
+        isCurrent: () => active && generation === loadGeneration.current,
+        block: (text) => {
+          setBlockedReferenceData(true);
+          setMessage(text);
+        },
+      };
       if (account.standalone) {
-        // Path C: no server project, reference pack or definition fetch. The bundled instrument and the
-        // standalone default extensions; the draft's own saved config wins on reopen.
         try {
-          const projectId = standaloneProjectId(account.user_id);
-          const [row, savedConfig, recall] = await Promise.all([
-            getDraftRow(db, draftId),
-            getMeta<DraftConfig>(db, draftConfigKey(draftId)),
-            getMeta<InterviewerRecall>(db, RECALL_META_KEY),
-          ]);
-          if (row?.completed) {
-            router.back();
-            return;
-          }
-          let config: DraftConfig = isDraftConfig(savedConfig) && savedConfig.projectId === projectId
-            ? savedConfig
-            : { projectId, locale: "en", enabledExtensions: [...STANDALONE_DEFAULT_EXTENSIONS], instrumentCode: "WHO_2022_VA" };
-          const definition = standaloneDefinition(config.enabledExtensions);
-          const needsSmartVaSnapshot = !Object.prototype.hasOwnProperty.call(config, "smartva");
-          const profile = !row || needsSmartVaSnapshot ? await getOfflineProfile().catch(() => null) : null;
-          // A new interview starts only from a complete profile, which it prefills and locks (digitva-0vz7);
-          // nothing is written for it. A draft with a row opens as before, with the prefill it started from.
-          let prefill: Prefill | undefined;
-          if (!row) {
-            const missing = standaloneProfileMissing(profile);
-            if (missing.length) {
-              if (!active || generation !== loadGeneration.current) return;
-              setBlockedReferenceData(true);
-              setMessage(standaloneProfileMissingText(missing));
-              return;
-            }
-            prefill = standalonePrefill(profile!);
-          }
-          if (needsSmartVaSnapshot) {
-            config = {
-              ...config,
-              smartva: await standaloneSmartVaSnapshot(profile, config.instrumentCode, definition.instrument.version),
-            };
-          }
-          if (row) {
-            const stored = await db.getFirstAsync<{ envelope: string; prefill?: string | null }>("SELECT envelope, prefill FROM drafts WHERE id = ?", [draftId]);
-            if (!stored) throw new Error("draft_missing");
-            const envelope = JSON.parse(stored.envelope) as { data?: Record<string, unknown> };
-            config = withEnvelopeLocale(config, envelope);
-            prefill = stored.prefill ? (JSON.parse(stored.prefill) as Prefill) : undefined;
-            if (standaloneDraftMismatch(envelope, definition)) {
-              if (!active || generation !== loadGeneration.current) return;
-              setLoaded({
-                db, project: standaloneProject(projectId), config, definition, accessVersion: lockVersion,
-                hasStartedSection: true, recall, accountName: account.name, standalone: true, projectId,
-                siteId: STANDALONE_SITE_ID, binding: { projectId }, readOnlyData: envelope.data ?? {},
-              });
-              return;
-            }
-          }
-          if (!row || needsSmartVaSnapshot) await setMeta(db, draftConfigKey(draftId), config);
-          if (!active || generation !== loadGeneration.current) return;
-          setLoaded({
-            db,
-            project: standaloneProject(projectId),
-            config,
-            definition,
-            accessVersion: lockVersion,
-            hasStartedSection: Boolean(row),
-            recall,
-            accountName: account.name,
-            standalone: true,
-            projectId,
-            siteId: STANDALONE_SITE_ID,
-            prefill,
-            binding: { projectId, ...(prefill ? { prefill } : {}) },
-          });
-          setLocale(config.locale);
+          await loadStandaloneDraft(context);
         } catch (error) {
           if (!active || generation !== loadGeneration.current) return;
           setBlockedReferenceData(true);
@@ -564,300 +333,7 @@ export default function Form() {
         return;
       }
       try {
-        const [
-          referenceData,
-          localDraft,
-          savedConfig,
-          foundCase,
-          registration,
-        ] = await Promise.all([
-          getCachedReferenceData(db),
-          getDraftRow(db, draftId),
-          getMeta<DraftConfig>(db, draftConfigKey(draftId)),
-          params.deathId
-            ? getCase(db, params.deathId)
-            : Promise.resolve(undefined),
-          params.clientDeathId
-            ? getRegistration(db, params.clientDeathId)
-            : Promise.resolve(undefined),
-        ]);
-        let existingDraft = localDraft;
-        let caseDetail = foundCase;
-        let draftConflict = false;
-        let importedDraft = false;
-        const hostProjectId =
-          params.projectId ??
-          existingDraft?.project_id ??
-          foundCase?.project_id ??
-          registration?.project_id;
-        setTrainingDraft(scopeFor(trainingProjectFor(account.user_id), existingDraft?.project_id ?? hostProjectId));
-        if (!hostProjectId) {
-          setBlockedReferenceData(true);
-          setMessage(t("referenceDataUnavailable"));
-          return;
-        }
-        if (params.deathId) {
-          try {
-            caseDetail = await fetchCaseDetail(account.user_id, db, params.deathId, {
-              expectedProjectId: hostProjectId,
-            });
-            if (!active || generation !== loadGeneration.current) return;
-            const project = referenceData?.projects.find(
-              ({ project: candidate }) => candidate.project_id === hostProjectId,
-            )?.project;
-            const reconciled = await reconcileCaseDraft(
-              account.user_id,
-              db,
-              caseDetail,
-              existingDraft,
-              draftId,
-              project ? draftSyncDefaults(project) : undefined,
-            );
-            existingDraft = reconciled.draft;
-            draftConflict = reconciled.conflict;
-            importedDraft = reconciled.imported;
-            if (existingDraft && existingDraft.id !== draftId) {
-              router.replace({
-                pathname: "/form",
-                params: { ...params, draftId: existingDraft.id },
-              });
-              return;
-            }
-          } catch (error) {
-            // A saved interview can still be opened when only the network is unavailable.
-            if (!(error instanceof TypeError) || !existingDraft) throw error;
-            caseDetail = foundCase;
-          }
-          if (!active || generation !== loadGeneration.current) return;
-        }
-        let host = await resolveDraftHost(db, draftId, {
-          ...params,
-          projectId: hostProjectId,
-        });
-        if (!active || generation !== loadGeneration.current) return;
-        if (
-          !existingDraft &&
-          params.deathId &&
-          (!caseDetail || !caseDetail.prefill || !canStartDeathInterview(caseDetail.state))
-        ) {
-          router.back();
-          return;
-        }
-        if (
-          !existingDraft &&
-          params.clientDeathId &&
-          (!registration || registration.state !== "pending")
-        ) {
-          router.back();
-          return;
-        }
-        if (!host || host === "completed") {
-          router.back();
-          return;
-        }
-        const project = referenceData?.projects.find(
-          ({ project: candidate }) => candidate.project_id === hostProjectId,
-        )?.project;
-        if (
-          params.clientDeathId &&
-          registration &&
-          referenceData?.bootstrap.user
-        ) {
-          const interviewer = {
-            id: referenceData.bootstrap.user.user_id,
-            name: referenceData.bootstrap.user.name,
-          };
-          const prefill = mergeProjectPrefill(
-            project,
-            registration.org_unit_id,
-            prefillFromRegistration(registration.fields, interviewer),
-          );
-          host = { ...host, prefill, binding: { ...host.binding, prefill } };
-        }
-        if (!project) {
-          setBlockedReferenceData(true);
-          setMessage(t("referenceDataUnavailable"));
-          return;
-        }
-        const hasSavedConfig =
-          existingDraft &&
-          isDraftConfig(savedConfig) &&
-          savedConfig.projectId === hostProjectId;
-        const hasServerBase = Boolean(
-          existingDraft?.server_draft_id && existingDraft.base_updated_at,
-        );
-        if (
-          (!referenceData && !hasSavedConfig) ||
-          (existingDraft && !hasSavedConfig && !importedDraft && !hasServerBase)
-        ) {
-          setBlockedReferenceData(true);
-          setMessage(t("referenceDataUnavailable"));
-          return;
-        }
-        const newCollection =
-          !existingDraft &&
-          Boolean(params.siteId) &&
-          !params.deathId &&
-          !params.clientDeathId;
-        const projectPack = referenceData?.projects.find(
-          ({ project: candidate }) => candidate.project_id === hostProjectId,
-        );
-        const validDirectTarget = projectPack
-          ? targetsFrom(projectPack.project, projectPack.units).some(
-              (target) =>
-                target.siteId === params.siteId &&
-                (target.orgUnitId ?? undefined) ===
-                  (params.orgUnitId ?? undefined),
-            )
-          : false;
-        if (
-          newCollection &&
-          (!projectPack ||
-            !startsDirectly(projectPack.project, params.siteId) ||
-            !validDirectTarget)
-        ) {
-          setBlockedReferenceData(true);
-          setMessage(t("referenceDataUnavailable"));
-          return;
-        }
-        let config =
-          isDraftConfig(savedConfig) && savedConfig.projectId === hostProjectId
-            ? savedConfig
-            : configFromReference(project!);
-        const needsSmartVaSnapshot = !hasSavedConfig && !Object.prototype.hasOwnProperty.call(config, "smartva");
-        if (needsSmartVaSnapshot) {
-          const targets = (project as ProjectSettings & { smartva_targets?: SmartVaTarget[] }).smartva_targets;
-          config = {
-            ...config,
-            smartva: projectSmartVaSnapshot(targets, { siteId: host.siteId, orgUnitId: host.orgUnitId }),
-          };
-        }
-        const serverEnvelopeChanged = Boolean(
-          existingDraft?.server_draft_id &&
-            existingDraft.base_updated_at !== localDraft?.base_updated_at,
-        );
-        let envelope: Record<string, unknown> | undefined;
-        if (importedDraft || hasServerBase) {
-          const stored = await db.getFirstAsync<{ envelope: string }>(
-            "SELECT envelope FROM drafts WHERE id = ?",
-            [draftId],
-          );
-          if (!stored) throw new Error("draft_missing");
-          try {
-            const parsed = JSON.parse(stored.envelope) as unknown;
-            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-              throw new Error("invalid_draft_envelope");
-            }
-            envelope = parsed as Record<string, unknown>;
-          } catch {
-            throw new Error("invalid_draft_envelope");
-          }
-          config = withEnvelopeLocale(config, envelope);
-        } else if (existingDraft) {
-          const stored = await db.getFirstAsync<{ envelope: string }>(
-            "SELECT envelope FROM drafts WHERE id = ?",
-            [draftId],
-          );
-          if (!stored) throw new Error("draft_missing");
-          const parsed = JSON.parse(stored.envelope) as unknown;
-          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-            throw new Error("invalid_draft_envelope");
-          }
-          envelope = parsed as Record<string, unknown>;
-          config = withEnvelopeLocale(config, envelope);
-        }
-        const options = project.form_options as ProjectSettings["form_options"] & {
-          narration_languages?: Array<{ code: string; label: string }>;
-        };
-        const narrationLanguageCodes = (options.narration_languages ?? []).map(
-          ({ code }) => code,
-        );
-        const cache = createNativeDefinitionCache(
-          db as Parameters<typeof createNativeDefinitionCache>[0],
-          account.user_id,
-        );
-        await cache.initialize();
-        if (!active || generation !== loadGeneration.current) return;
-        const request = (path: string, requestOptions: { ifNoneMatch?: string }) =>
-          authedRawRequest(account.user_id, path, {
-            ifNoneMatch: requestOptions.ifNoneMatch,
-            acceptGzip: true,
-            projectId: hostProjectId,
-          });
-        const bundledInstrument = createWhoVa2022Instrument(config.enabledExtensions);
-        const definition = envelope
-          ? await resolveSavedEnvelopeDefinition({
-              accountId: account.user_id,
-              projectId: hostProjectId,
-              envelope,
-              request,
-              cache,
-              narrationLanguageCodes,
-              interviewLanguages: options.narration_languages ?? [],
-              bundledLegacyDefinitions: [{
-                instrument: bundledInstrument,
-                instrumentVersion: bundledInstrument.version,
-                extensions: config.enabledExtensions,
-              }],
-              legacyDefinitionExtensions: hasSavedConfig
-                ? config.enabledExtensions
-                : undefined,
-            })
-          : await resolveNewInterviewDefinition({
-              accountId: account.user_id,
-              projectId: hostProjectId,
-              options: {
-                instrumentVersion: project.form_options.instrument_version ?? null,
-                definitionSha256: project.form_options.definition_sha256 ?? null,
-                extensions: project.form_options.enabled_extensions ?? [],
-              },
-              request,
-              cache,
-              narrationLanguageCodes,
-              interviewLanguages: options.narration_languages ?? [],
-              bundledOriginal: {
-                instrument: bundledInstrument,
-                instrumentVersion: bundledInstrument.version,
-                extensions: config.enabledExtensions,
-              },
-              canUseBundledFallback: () =>
-                canUseBundledFallbackForProject(account.user_id, db!, hostProjectId),
-              onServedDefinition: () =>
-                markProjectDefinitionServed(account.user_id, db!, hostProjectId),
-            });
-        if (!active || generation !== loadGeneration.current) return;
-        if (!hasSavedConfig || needsSmartVaSnapshot || importedDraft || draftConflict || serverEnvelopeChanged || hasServerBase) {
-          await setMeta(db, draftConfigKey(draftId), config);
-        }
-        if (!active || generation !== loadGeneration.current) return;
-        if (
-          project &&
-          !host.prefill &&
-          (!params.deathId || !caseDetail) &&
-          params.siteId
-        ) {
-          host = {
-            ...host,
-            prefill: mergeProjectPrefill(project, params.orgUnitId, undefined),
-          };
-        }
-        const recall = await getMeta<InterviewerRecall>(db, RECALL_META_KEY);
-        const profileAnswers = profileInterviewerAnswers(await getOfflineProfile().catch(() => null));
-        if (!active || generation !== loadGeneration.current) return;
-        const hasStartedSection = Boolean(existingDraft && (!envelope || envelope.currentSection));
-        setLoaded({
-          db,
-          project: project!,
-          config,
-          definition,
-          accessVersion: lockVersion,
-          hasStartedSection,
-          recall,
-          profileAnswers,
-          accountName: referenceData?.bootstrap.user?.name,
-          ...host,
-        });
-        setLocale(config.locale);
+        await loadProjectDraft(context);
       } catch (error) {
         if (!active || generation !== loadGeneration.current) return;
         if (
@@ -912,13 +388,10 @@ export default function Form() {
           return;
         }
       }
-      const saved = await loaded.db.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [draftId]);
-      const answers = saved ? (JSON.parse(saved.envelope) as { data?: Record<string, unknown> }).data : undefined;
+      const answers = await readStoredAnswers(loaded.db, draftId);
       if (live) {
         setServerRefused(row?.upload_issue === "consent_refused");
-        setWhoRefused(answers?.Id10013 === "no");
-        setRefusalAge(typeof answers?.refusal_age_group === "string" ? answers.refusal_age_group : "");
-        setRefusalSex(typeof answers?.refusal_sex === "string" ? answers.refusal_sex : "");
+        restoreFrom(answers);
       }
       const applied = await consentForDraft(loaded.db, {
         id: draftId,
@@ -1229,27 +702,28 @@ export default function Form() {
   if (consentView.kind !== "ready") return <ActivityIndicator style={{ flex: 1 }} />;
 
   if (whoRefused || serverRefused || consentView.decision === "refused") {
-    const saveRefusal = async () => {
-      try {
-        const now = new Date().toISOString();
-        const existing = await draftStore.load?.(draftId);
-        const data = refusalAnswers({ ...(existing?.data ?? {}), ...(whoRefused ? { Id10013: "no" } : {}), refusal_age_group: refusalAge, refusal_sex: refusalSex }) as SubmissionData;
-        await draftStore.save(existing ? { ...existing, updatedAt: now, data } : {
-          schemaVersion: 1, formVersion: WHO_VA_FORM_VERSION, id: draftId, instrumentId: instrument.id,
-          instrumentVersion: instrument.version, currentSection: instrument.sections[0].name, createdAt: now, updatedAt: now, data,
-        });
-        await markCompleted(loaded.db, draftId, { valid: true, issues: [] });
-        leaveGuard.release();
-        router.back();
-      } catch (error) { setMessage(errorText(error)); }
-    };
-    const changeRefusal = async () => {
-      if (serverRefused || consentView.decision === "refused") {
+    // On the phone the refusal lives in the encrypted draft store: saved, marked complete, sent with the next upload.
+    const persistence: ConsentPersistence = {
+      consentRefused: serverRefused || consentView.decision === "refused",
+      saveRefusal: async (refusalData) => {
+        try {
+          const now = new Date().toISOString();
+          const existing = await draftStore.load?.(draftId);
+          const data = refusalData(existing?.data);
+          await draftStore.save(existing ? { ...existing, updatedAt: now, data } : {
+            schemaVersion: 1, formVersion: WHO_VA_FORM_VERSION, id: draftId, instrumentId: instrument.id,
+            instrumentVersion: instrument.version, currentSection: instrument.sections[0].name, createdAt: now, updatedAt: now, data,
+          });
+          await markCompleted(loaded.db, draftId, { valid: true, issues: [] });
+          leaveGuard.release();
+          router.back();
+        } catch (error) { setMessage(errorText(error)); }
+      },
+      reopenConsent: () => {
         if (consentView.config) setChangingConsent(true);
         else setMessage(t("consentUnavailableInterview"));
-        return;
-      }
-      setConfirmWhoGrant(true);
+      },
+      grantWhoConsent: () => grantWhoConsent(),
     };
     const grantWhoConsent = async () => {
       try {
@@ -1257,12 +731,7 @@ export default function Form() {
         await clearRefusedDraft(loaded.db, draftId);
         const prefill = await rebuiltPrefill(loaded);
         await runInTransaction(loaded.db, async (tx) => {
-          const row = await tx.getFirstAsync<{ envelope: string }>("SELECT envelope FROM drafts WHERE id = ?", [draftId]);
-          if (row) {
-            const draft = JSON.parse(row.envelope) as { data: Record<string, unknown> };
-            draft.data = { Id10013: "yes" };
-            const result = await tx.runAsync("UPDATE drafts SET envelope = ?, completed = 0, completion = NULL, upload_issue = NULL, draft_sync_dirty = 1 WHERE id = ? AND envelope = ?", [JSON.stringify(draft), draftId, row.envelope]);
-            if (!result || typeof result !== "object" || !("changes" in result) || Number(result.changes) !== 1) throw new Error("draft_conflict");
+          if (await resetEnvelopeToWhoYes(tx, draftId)) {
             await setMeta(tx, `consent:resume-who:${draftId}`, true);
             await storeResumedPrefill(tx, loaded, draftId, prefill, covered);
           }
@@ -1272,7 +741,7 @@ export default function Form() {
         setConfirmWhoGrant(false);
       } catch (error) { setMessage(errorText(error)); }
     };
-    return <Screen title={t("appName")}>{refusalRecovered ? <Text style={styles.text}>{locale.startsWith("hi") ? "सर्वर पर इनकार दर्ज है। पुराने उत्तर हटा दिए गए हैं; आगे बढ़ने के लिए सहमति की फिर पुष्टि करें।" : "The server recorded a refusal. Previous answers were removed; confirm consent again to continue."}</Text> : null}<RefusalPanel locale={locale} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} onSave={() => void saveRefusal()} onChangeConsent={() => void changeRefusal()} onNew={() => { leaveGuard.release(); router.back(); }} />{confirmWhoGrant ? <ConfirmDialog title={locale.startsWith("hi") ? "सहमति की पुष्टि करें" : "Confirm consent"} message={locale.startsWith("hi") ? "क्या उत्तरदाता ने अब साक्षात्कार के लिए सहमति दी है? हटाए गए उत्तर वापस नहीं आएंगे।" : "Has the respondent now agreed to the interview? Removed answers will not be restored."} confirmLabel={locale.startsWith("hi") ? "हाँ, सहमति दी" : "Yes, consent granted"} cancelLabel={t("cancel")} onConfirm={() => void grantWhoConsent()} onCancel={() => setConfirmWhoGrant(false)} /> : null}{message ? <Text style={styles.error}>{message}</Text> : null}</Screen>;
+    return <Screen title={t("appName")}>{refusalRecovered ? <Text style={styles.text}>{locale.startsWith("hi") ? "सर्वर पर इनकार दर्ज है। पुराने उत्तर हटा दिए गए हैं; आगे बढ़ने के लिए सहमति की फिर पुष्टि करें।" : "The server recorded a refusal. Previous answers were removed; confirm consent again to continue."}</Text> : null}<RefusalPanel locale={locale} age={refusalAge} sex={refusalSex} onAge={setRefusalAge} onSex={setRefusalSex} {...refusalHandlers(persistence)} onNew={() => { leaveGuard.release(); router.back(); }} />{confirmWhoGrant ? <ConfirmDialog title={locale.startsWith("hi") ? "सहमति की पुष्टि करें" : "Confirm consent"} message={locale.startsWith("hi") ? "क्या उत्तरदाता ने अब साक्षात्कार के लिए सहमति दी है? हटाए गए उत्तर वापस नहीं आएंगे।" : "Has the respondent now agreed to the interview? Removed answers will not be restored."} confirmLabel={locale.startsWith("hi") ? "हाँ, सहमति दी" : "Yes, consent granted"} cancelLabel={t("cancel")} onConfirm={() => void persistence.grantWhoConsent()} onCancel={() => setConfirmWhoGrant(false)} /> : null}{message ? <Text style={styles.error}>{message}</Text> : null}</Screen>;
   }
 
   const intakeNote = (loaded.config.intakeNote ?? loaded.project.form_options?.intake_note ?? "").trim();

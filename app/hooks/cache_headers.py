@@ -3,6 +3,8 @@ from time import perf_counter
 from flask import g, request
 from werkzeug.http import http_date
 
+from app.logging.va_logger import slow_request_logger
+
 #: API paths whose responses are never stored by a browser or proxy.
 _NO_STORE_API_PREFIXES = ("/api/v1/me/", "/api/v1/intake/", "/api/v1/cases",
                          "/api/v1/coding/")
@@ -11,8 +13,6 @@ _NO_STORE_API_PREFIXES = ("/api/v1/me/", "/api/v1/intake/", "/api/v1/cases",
 def register_cache_headers(app):
     """Cache-Control, Date and request-timing headers on every response, and
     the slow-request log line (timers started by force_password_update)."""
-    from app.logging.va_logger import slow_request_logger
-
     @app.after_request
     def apply_static_cache_headers(response):
         # Browser intake carries identifiers and questionnaire answers, and the

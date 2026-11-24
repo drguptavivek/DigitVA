@@ -1,6 +1,9 @@
 from flask import jsonify, request
 from flask_login import current_user
 
+from app import csrf
+from app.services import device_auth_service
+
 
 def register_csrf_protect_cookie_requests(app):
     """Register after ``csrf.init_app`` with ``WTF_CSRF_CHECK_DEFAULT`` off:
@@ -9,15 +12,12 @@ def register_csrf_protect_cookie_requests(app):
 
     @app.before_request
     def csrf_protect_cookie_requests():
-        from app import csrf
-        from app.services.device_auth_service import request_bearer_token
-
         # Mirrors flask_wtf.csrf.CSRFProtect's hook minus the bearer case.
         if (
             not app.config["WTF_CSRF_ENABLED"]
             or request.method not in app.config["WTF_CSRF_METHODS"]
             or not request.endpoint
-            or request_bearer_token(request) is not None
+            or device_auth_service.request_bearer_token(request) is not None
             or app.blueprints.get(request.blueprint) in csrf._exempt_blueprints
         ):
             return None

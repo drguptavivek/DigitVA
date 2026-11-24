@@ -2,6 +2,8 @@ import uuid
 
 from flask import g, redirect, request, session, url_for
 
+from app.services import training_demo_service
+
 
 def register_training_demo_onboarding(app):
     @app.before_request
@@ -33,8 +35,6 @@ def register_training_demo_onboarding(app):
         user_id = session.get("_user_id")
         if not user_id or g.get("bearer_auth"):
             return None
-        from app.services import training_demo_service
-
         raw_uid = user_id.rpartition(":")[0] or user_id
         try:
             uid = uuid.UUID(raw_uid)

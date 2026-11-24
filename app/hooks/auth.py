@@ -1,5 +1,9 @@
 from flask import g, jsonify, request
 
+from app import login
+from app.models.va_users import load_user_from_device_token
+from app.services import device_auth_service
+
 
 def register_authenticate_bearer(app):
     # /api/v1/ takes a session cookie or a device bearer token. Runs before
@@ -9,19 +13,12 @@ def register_authenticate_bearer(app):
     # than falling back to the cookie.
     @app.before_request
     def authenticate_bearer():
-        from app import login
-        from app.models.va_users import load_user_from_device_token
-        from app.services.device_auth_service import (
-            UNAUTHENTICATED_ENDPOINTS,
-            request_bearer_token,
-        )
-
         g.bearer_auth = False
         g.pop("device_session", None)
-        if request_bearer_token(request) is None:
+        if device_auth_service.request_bearer_token(request) is None:
             return None
         # Sign-in endpoints take no token: a client may still send its stale one.
-        if request.endpoint in UNAUTHENTICATED_ENDPOINTS:
+        if request.endpoint in device_auth_service.UNAUTHENTICATED_ENDPOINTS:
             return None
         user = load_user_from_device_token(request)
         if user is None:

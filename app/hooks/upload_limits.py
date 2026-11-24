@@ -2,15 +2,15 @@ import re
 
 from flask import request
 
+from app.services.attachment_service import MAX_BYTES as _ATTACHMENT_MAX_BYTES
+from app.services.bundle_ingest_service import MAX_BYTES as _BUNDLE_MAX_BYTES
+
 
 def register_upload_limits(app):
     # CSRFProtect parses the request body in its before_request hook, before any
     # route can set its own cap. Config.MAX_CONTENT_LENGTH bounds every body; this
     # hook, registered before the CSRF one, raises it only for the uploads that
     # legitimately exceed it. Routes may still set a stricter cap of their own.
-    from app.services.attachment_service import MAX_BYTES as _ATTACHMENT_MAX_BYTES
-    from app.services.bundle_ingest_service import MAX_BYTES as _BUNDLE_MAX_BYTES
-
     _mib = 1024 * 1024
     _slack = 64 * 1024  # multipart framing around a file
     _upload_limits = (

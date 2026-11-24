@@ -24,7 +24,7 @@ import { AssociatedVaCodes, CodeDetailsSheet } from "./CodeDetailsSheet";
 import { SmartVaReference } from "../SmartVaReference";
 import { UCOD_CLUSTER_EXPLANATION, certificateTitle, collapseBlankLines, icd11Alternatives, summaryChecks, ucodClusterLines } from "./resultSummary";
 import { dorisWarningCodes } from "./dorisWarnings";
-import { browserDraftGeneration, clearCaseBrowserDraft, clearCodDraft, draftContext, readCodDraft, saveCodDraft, type CodDraft } from "./browserDraft";
+import { browserDraftGeneration, clearCaseBrowserDraft, clearCodDraft, draftContext, readCodDraft, saveCodDraft, type CodDraft, type DraftContext } from "./browserDraft";
 
 /**
  * Where a native client keeps the unsaved certificate across a process kill (digitva-9cll.15): synchronous to the
@@ -328,6 +328,19 @@ export function DorisPanel({
   const generation = useRef(0);
   const live = useRef(true);
   const identityKey = `${identity.vaSid}:${identity.mode}:${workspace.step}:${workspace.case.project_mode}:${workspace.case.doris_draft_context ?? ""}:${owner.recoveryGeneration}`;
+  // The unsaved COD's two persistent stores, written together: the per-tab browser draft, then the native store.
+  const keepDraft = (context: DraftContext | undefined, cod: CodDraft) => {
+    saveCodDraft(context, cod);
+    draftStore?.save(cod);
+  };
+  // The case is done with its unsaved certificate: memory, the browser draft, then the native store. A Step 1 save
+  // clears only the browser COD draft (`codOnly`), keeping the case's other browser drafts; every other end clears them.
+  const discardDrafts = (codOnly = false) => {
+    forgetDraft(owner);
+    if (codOnly) clearCodDraft(draftContext(workspace, identity));
+    else clearCaseBrowserDraft(draftContext(workspace, identity));
+    draftStore?.clear();
+  };
   const masked = workspace.case.project_mode === "masked_doris";
   const isInitial = workspace.step === "initial";
   const canEdit = identity.mode !== "view" && (workspace.step === "initial" || (workspace.step === "final" && !masked));
@@ -394,8 +407,7 @@ export function DorisPanel({
       return;
     }
     const cod = { step: stored.owner.step, certificate: stored.certificate, selectedCause: stored.selectedCause, remark: stored.remark };
-    saveCodDraft(draftContext(workspaceRef.current, { vaSid: stored.owner.vaSid, mode: stored.owner.mode }), cod);
-    draftStore?.save(cod);
+    keepDraft(draftContext(workspaceRef.current, { vaSid: stored.owner.vaSid, mode: stored.owner.mode }), cod);
     const { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge, remark } = stored;
     draftsFor(stored.owner.request).set(draftKey(stored.owner), { certificate: draftCertificate, revision: draftRevision, processing, selectedCause, notice, reconfirm, adminSeen, derivedAge, remark });
   }, [stored]);
@@ -449,9 +461,7 @@ export function DorisPanel({
 
   const clearAllocation = () => {
     if (!live.current || !sameOwner(ownerRef.current, owner) || owner.recoveryGeneration !== browserDraftGeneration()) return;
-    forgetDraft(owner);
-    clearCaseBrowserDraft(draftContext(workspace, identity));
-    draftStore?.clear();
+    discardDrafts();
     generation.current += 1;
     live.current = false;
     setStored((current) => sameOwner(current.owner, owner) ? { ...current, certificate: {}, processing: null, selectedCause: null, busy: false, cleared: true } : current);
@@ -526,18 +536,14 @@ export function DorisPanel({
           ...dorisFields,
         }, identity.mode === "reviewing" ? "reviewing" : "coding");
         if (!currentRequest(requestId, sentRevision)) return;
-        forgetDraft(owner);
-        clearCodDraft(draftContext(workspace, identity));
-        draftStore?.clear();
+        discardDrafts(true);
         await onSaved();
       } else {
         const body: JsonObject = { conclusive_cod: state.selectedCause.code, remark: state.remark, ...finalFlags(state.selectedCause, ageConfirmed) };
         Object.assign(body, dorisFields);
         await api.saveFinal(identity.vaSid, body, identity.mode === "reviewing" ? "reviewing" : "coding");
         if (!currentRequest(requestId, sentRevision)) return;
-        forgetDraft(owner);
-        clearCaseBrowserDraft(draftContext(workspace, identity));
-        draftStore?.clear();
+        discardDrafts();
         onDone();
       }
     } catch (saveError) {
@@ -571,9 +577,7 @@ export function DorisPanel({
     try {
       await api.saveNotCodeable(identity.vaSid, { reason: notCodeableReason, other: notCodeableReason === "others" ? notCodeableOther.trim() : "" });
       if (!currentRequest(requestId, sentRevision)) return;
-      forgetDraft(owner);
-      clearCaseBrowserDraft(draftContext(workspace, identity));
-      draftStore?.clear();
+      discardDrafts();
       onDone();
     } catch (reportError) {
       if (!currentRequest(requestId, sentRevision)) return;
@@ -610,8 +614,7 @@ export function DorisPanel({
     update((current) => {
       const next = { ...current, certificate: seed.certificate, derivedAge: seed.derivedAge, revision: current.revision + 1, processing: null, selectedCause: null, reconfirm: false, busy: false, error: "", notice: demo ? tr("dorisDemoResetNotice") : "DORIS reset to the interview data. Remarks, notes and SmartVA results are retained." };
       const cod = { step: workspaceRef.current.step, certificate: next.certificate, selectedCause: null, remark: next.remark };
-      saveCodDraft(draftContext(workspaceRef.current, identity), cod);
-      draftStore?.save(cod);
+      keepDraft(draftContext(workspaceRef.current, identity), cod);
       return next;
     });
   };
@@ -748,9 +751,7 @@ export function DorisPanel({
     try {
       await api.saveFinal(identity.vaSid, { conclusive_cod: state.selectedCause.code, remark: state.remark, ...finalFlags(state.selectedCause, ageConfirmed) }, identity.mode === "reviewing" ? "reviewing" : "coding");
       if (!currentRequest(requestId, sentRevision)) return;
-      forgetDraft(owner);
-      clearCaseBrowserDraft(draftContext(workspace, identity));
-      draftStore?.clear();
+      discardDrafts();
       onDone();
     } catch (saveError) {
       if (!currentRequest(requestId, sentRevision)) return;

@@ -24,6 +24,7 @@ Current policy docs:
 - [COD Bucket Reporting Policy](cod-bucket-reporting.md)
 - [Cause-of-Death Certificate Export](cod-certificate-export.md) — printable WHO-form certificate of a coded org-project case, PII by the viewer gate
 - [Data Manager User and Grant Management Policy](dm-user-grant-management.md)
+- [App Versions Screen](app-versions-screen.md) — read-only per-project view of which people run which app version, roster-gated
 - [Data Manager Workflow Policy](data-manager-workflow.md)
 - [Demo Coding Retention Policy](demo-coding-retention.md)
 - [Field Data Collection Policy](field-data-collection.md) — permitted collection paths, unmasked collection vs masked coding, device encryption rules

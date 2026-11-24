@@ -240,6 +240,71 @@ export function isSignedOutError(error: unknown): boolean {
   return error instanceof ApiError && (error.status === 401 || (error.status === 400 && error.code === ErrorCode.CSRF_FAILED));
 }
 
+/** Bearer token, or for cookie and local-station calls the CSRF, launch-token and background headers. */
+function addCredentialHeaders(
+  headers: Record<string, string>,
+  server: string,
+  options: { token?: string; csrf?: ClientCsrf; background?: boolean },
+): void {
+  if (options.token !== undefined) {
+    headers.Authorization = `Bearer ${options.token}`;
+    return;
+  }
+  const csrfToken = cookieCsrfHeader(server, options.csrf);
+  if (csrfToken) headers["X-CSRFToken"] = csrfToken;
+  const launchToken = !server ? getLocalStationLaunchToken() : undefined;
+  if (launchToken) headers["X-DigitVA-Launch-Token"] = launchToken;
+  if (options.background || backgroundDepth > 0) headers[BACKGROUND_HEADER] = "1";
+}
+
+/**
+ * The one fetch path of requestOnce and requestRaw. Fails offline before fetching; aborts on the caller's
+ * signal or after `timeoutMs` (default 30 s), and that deadline also covers *read*; tracks cookie-session
+ * requests for abortClientRequests; keeps the response's CSRF token (cookie calls only); notes the server
+ * Date and a good network on 2xx. *read* turns the response into the result or an ApiError while the
+ * request is still tracked. *body* is built only once online, just before fetching; without it the fetch
+ * options have no body key at all.
+ */
+async function send<R>(
+  server: string,
+  path: string,
+  options: ClientRequestOptions & { token?: string },
+  headers: Record<string, string>,
+  body: (() => BodyInit | undefined) | undefined,
+  read: (response: Response, csrf: ClientCsrf | undefined, signal: AbortSignal) => Promise<R>,
+): Promise<R> {
+  const controller = new AbortController();
+  const timeoutMs = options.timeoutMs ?? 30_000;
+  const abortFromCaller = () => controller.abort(options.signal?.reason);
+  if (options.signal?.aborted) abortFromCaller();
+  else options.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const tracked = options.token === undefined && !server;
+  if (tracked) cookieRequests.add(controller);
+  try {
+    assertOnline();
+    const response = await serverFetch(`${server}${scopedPath(path, options.csrf)}`, {
+      method: options.method ?? "GET",
+      credentials: options.token !== undefined || server ? "omit" : "include",
+      cache: "no-store",
+      headers,
+      ...(body ? { body: body() } : {}),
+      signal: controller.signal,
+      redirect: options.allowRedirect ? "manual" : "follow",
+    });
+    const csrf = tracked ? rememberCsrf(response) : undefined;
+    if (response.ok) {
+      recordServerDate(response.headers.get("Date"));
+      noteRequestOk();
+    }
+    return await read(response, csrf, controller.signal);
+  } finally {
+    clearTimeout(timeout);
+    if (tracked) cookieRequests.delete(controller);
+    options.signal?.removeEventListener("abort", abortFromCaller);
+  }
+}
+
 let csrfRefresh: Promise<unknown> | undefined;
 
 /** Re-read /me/access once for a fresh token; concurrent csrf_failed refusals share the one request. */
@@ -281,38 +346,9 @@ async function requestOnce<T>(
     headers["Content-Type"] = "application/octet-stream";
     if (raw.sha256) headers["X-Content-SHA256"] = raw.sha256;
   } else if (json !== undefined) headers["Content-Type"] = "application/json";
-  if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
-  else {
-    const csrfToken = cookieCsrfHeader(server, options.csrf);
-    if (csrfToken) headers["X-CSRFToken"] = csrfToken;
-    const launchToken = !server ? getLocalStationLaunchToken() : undefined;
-    if (launchToken) headers["X-DigitVA-Launch-Token"] = launchToken;
-    if (options.background || backgroundDepth > 0) headers[BACKGROUND_HEADER] = "1";
-  }
-  const controller = new AbortController();
-  const timeoutMs = options.timeoutMs ?? 30_000;
-  const abortFromCaller = () => controller.abort(options.signal?.reason);
-  if (options.signal?.aborted) abortFromCaller();
-  else options.signal?.addEventListener("abort", abortFromCaller, { once: true });
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  const tracked = options.token === undefined && !server;
-  if (tracked) cookieRequests.add(controller);
-  try {
-    assertOnline();
-    const response = await serverFetch(`${server}${scopedPath(path, options.csrf)}`, {
-      method: options.method ?? "GET",
-      credentials: options.token !== undefined || server ? "omit" : "include",
-      cache: "no-store",
-      headers,
-      body: raw ? raw.bytes : json === undefined ? undefined : JSON.stringify(json),
-      signal: controller.signal,
-      redirect: options.allowRedirect ? "manual" : "follow",
-    });
-    const csrf = options.token === undefined && !server ? rememberCsrf(response) : undefined;
-    if (response.ok) {
-      recordServerDate(response.headers.get("Date"));
-      noteRequestOk();
-    }
+  addCredentialHeaders(headers, server, options);
+  const requestBody = () => (raw ? raw.bytes : json === undefined ? undefined : JSON.stringify(json));
+  return send(server, path, options, headers, requestBody, async (response, csrf, signal) => {
     if (response.status === 204) return { status: 204, body: undefined as T };
     const contentType = response.headers.get("content-type") ?? "";
     let body: Record<string, unknown> = {};
@@ -331,7 +367,7 @@ async function requestOnce<T>(
           malformedJson = true;
         }
       } catch (error) {
-        if (controller.signal.aborted) throw error;
+        if (signal.aborted) throw error;
         malformedJson = true;
         body = {};
       }
@@ -339,7 +375,7 @@ async function requestOnce<T>(
       try {
         await response.text();
       } catch (error) {
-        if (controller.signal.aborted) throw error;
+        if (signal.aborted) throw error;
       }
     }
     const redirectUrl = sameOriginRedirect(response);
@@ -373,11 +409,7 @@ async function requestOnce<T>(
       throw withRoute(new ApiError(response.status, code, redirectUrl, csrf, body), path, options.method);
     }
     return { status: response.status, body: (list ?? body) as T, ...(csrf ? { csrf } : {}) };
-  } finally {
-    clearTimeout(timeout);
-    if (tracked) cookieRequests.delete(controller);
-    options.signal?.removeEventListener("abort", abortFromCaller);
-  }
+  });
 }
 
 /** Count UTF-8 bytes without relying on TextEncoder in the native runtime. */
@@ -419,43 +451,15 @@ export async function requestRaw(
   } = {},
 ): Promise<RawApiResponse> {
   const headers: Record<string, string> = { Accept: "application/json" };
-  if (options.token !== undefined) headers.Authorization = `Bearer ${options.token}`;
-  else {
-    const csrfToken = cookieCsrfHeader(server, options.csrf);
-    if (csrfToken) headers["X-CSRFToken"] = csrfToken;
-    const launchToken = !server ? getLocalStationLaunchToken() : undefined;
-    if (launchToken) headers["X-DigitVA-Launch-Token"] = launchToken;
-    if (options.background || backgroundDepth > 0) headers[BACKGROUND_HEADER] = "1";
-  }
+  addCredentialHeaders(headers, server, options);
   if (options.ifNoneMatch !== undefined) {
     if (!/^"[0-9a-f]{64}"$/.test(options.ifNoneMatch)) throw withRoute(new ApiError(400, "invalid_request"), path, options.method);
     headers["If-None-Match"] = options.ifNoneMatch;
   }
   if (options.acceptGzip && Platform.OS !== "web") headers["Accept-Encoding"] = "gzip";
 
-  const controller = new AbortController();
-  const timeoutMs = options.timeoutMs ?? 30_000;
-  const abortFromCaller = () => controller.abort(options.signal?.reason);
-  if (options.signal?.aborted) abortFromCaller();
-  else options.signal?.addEventListener("abort", abortFromCaller, { once: true });
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  const tracked = options.token === undefined && !server;
-  if (tracked) cookieRequests.add(controller);
-  try {
-    assertOnline();
-    const response = await serverFetch(`${server}${scopedPath(path, options.csrf)}`, {
-      method: options.method ?? "GET",
-      credentials: options.token !== undefined || server ? "omit" : "include",
-      cache: "no-store",
-      headers,
-      signal: controller.signal,
-      redirect: options.allowRedirect ? "manual" : "follow",
-    });
-    const csrf = options.token === undefined && !server ? rememberCsrf(response) : undefined;
-    if (response.ok) {
-      recordServerDate(response.headers.get("Date"));
-      noteRequestOk();
-    }
+  // No body key at all: this transport never sends a request body.
+  return send(server, path, options, headers, undefined, async (response, csrf, signal) => {
     const responseHeaders = {
       etag: response.headers.get("ETag"),
       definitionSha256: response.headers.get("X-Definition-SHA256"),
@@ -483,7 +487,7 @@ export async function requestRaw(
     try {
       body = await response.text();
     } catch (error) {
-      if (controller.signal.aborted) throw error;
+      if (signal.aborted) throw error;
       throw withRoute(new ApiError(response.status, "malformed_response"), path, options.method);
     }
     if (utf8ByteLength(body) > 8 * 1024 * 1024) throw withRoute(new ApiError(response.status, "response_too_large"), path, options.method);
@@ -501,11 +505,7 @@ export async function requestRaw(
       throw withRoute(new ApiError(response.status, code, redirectUrl, csrf, payload), path, options.method);
     }
     return { status: response.status, body, headers: responseHeaders, ...(csrf ? { csrf } : {}) };
-  } finally {
-    clearTimeout(timeout);
-    if (tracked) cookieRequests.delete(controller);
-    options.signal?.removeEventListener("abort", abortFromCaller);
-  }
+  });
 }
 
 /** Cookie-session wrapper over the same transport used by bearer clients. */

@@ -1212,38 +1212,12 @@ export async function authedRequest<T>(
   if (!tokens) throw new SignInRequiredError();
   const { bodyFactory, projectId, ...requestInit } = init;
   path = trainingScopedPath(path, scopeFor(trainingProjects.get(userId), projectId));
-  const initialBody = bodyFactory ? bodyFactory() : requestInit.body;
-  let unauthorized: ApiError | undefined;
-  try {
-    return await requestJson<T>(device.server, path, {
-      ...requestInit,
-      body: initialBody,
-      token: tokens.access_token,
-    });
-  } catch (error) {
-    if (!(error instanceof ApiError) || error.status !== 401)
-      throw await classifyAuthError(userId, error);
-    if (error.code === ErrorCode.SESSION_REVOKED)
-      throw await classifyAuthError(userId, error);
-    unauthorized = error;
-  }
-  const latest = await loadTokens(userId);
-  if (tokens.access_token === refreshingAccessTokens.get(userId)) {
-    throw await classifyAuthError(userId, unauthorized);
-  }
-  const next = latest && latest.access_token !== tokens.access_token
-    ? latest
-    : await refresh(userId, device.server);
-  const retryBody = bodyFactory ? bodyFactory() : requestInit.body;
-  try {
-    return await requestJson<T>(device.server, path, {
-      ...requestInit,
-      body: retryBody,
-      token: next.access_token,
-    });
-  } catch (error) {
-    throw await classifyAuthError(userId, error);
-  }
+  let body = bodyFactory ? bodyFactory() : requestInit.body;
+  return withAuthRetry(
+    userId, device.server, tokens, true,
+    (token) => requestJson<T>(device.server, path, { ...requestInit, body, token }),
+    () => { body = bodyFactory ? bodyFactory() : requestInit.body; },
+  );
 }
 
 /** Authenticated raw response with the same refresh lock and one-401 retry as JSON calls. */
@@ -1256,18 +1230,46 @@ export async function authedRawRequest(
   const tokens = await loadTokens(userId);
   if (!tokens) throw new SignInRequiredError();
   path = trainingScopedPath(path, scopeFor(trainingProjects.get(userId), projectId));
+  return withAuthRetry(userId, device.server, tokens, false, (token) => requestRaw(device.server, path, { ...init, token }));
+}
+
+/**
+ * The one 401 -> refresh -> retry-once path of authedRequest and authedRawRequest. *send* makes one attempt
+ * with the given access token. A 401 other than `session_revoked` is retried once, with tokens another call
+ * already rotated or else after the shared single-flight refresh (whose refusal is already classified and
+ * surfaces as is); *beforeRetry* runs just before that retry. Every other first-attempt failure and any
+ * failure of the retry goes through classifyAuthError. *guardOwnRefresh*: a 401 on the token the in-flight
+ * refresh just minted is classified instead of retried. Only authedRequest has ever had that guard;
+ * authedRawRequest passes false to keep its behaviour.
+ */
+async function withAuthRetry<R>(
+  userId: string,
+  server: string,
+  tokens: Tokens,
+  guardOwnRefresh: boolean,
+  send: (accessToken: string) => Promise<R>,
+  beforeRetry?: () => void,
+): Promise<R> {
+  let unauthorized: ApiError | undefined;
   try {
-    return await requestRaw(device.server, path, { ...init, token: tokens.access_token });
+    return await send(tokens.access_token);
   } catch (error) {
-    if (!(error instanceof ApiError) || error.status !== 401) throw await classifyAuthError(userId, error);
-    if (error.code === ErrorCode.SESSION_REVOKED) throw await classifyAuthError(userId, error);
+    if (!(error instanceof ApiError) || error.status !== 401)
+      throw await classifyAuthError(userId, error);
+    if (error.code === ErrorCode.SESSION_REVOKED)
+      throw await classifyAuthError(userId, error);
+    unauthorized = error;
   }
   const latest = await loadTokens(userId);
+  if (guardOwnRefresh && tokens.access_token === refreshingAccessTokens.get(userId)) {
+    throw await classifyAuthError(userId, unauthorized);
+  }
   const next = latest && latest.access_token !== tokens.access_token
     ? latest
-    : await refresh(userId, device.server);
+    : await refresh(userId, server);
+  beforeRetry?.();
   try {
-    return await requestRaw(device.server, path, { ...init, token: next.access_token });
+    return await send(next.access_token);
   } catch (error) {
     throw await classifyAuthError(userId, error);
   }

@@ -1,0 +1,135 @@
+{
+ "reviewing_doris_redacted": {
+  "assessments": {
+   "coder_initial": {
+    "antecedent_cod": "B20 HIV disease",
+    "antecedent_cod_label": "B20 HIV disease",
+    "created_at": "2026-10-28T09:20:00+00:00",
+    "id": "<volatile>",
+    "immediate_cod": "I24-Other acute ischaemic heart diseases",
+    "other_conditions": [
+     "I10 - Essential Hypertension",
+     "E11 - Diabetes"
+    ]
+   },
+   "final": {
+    "conclusive_cod": "1B10.Z TB",
+    "created_at": "2026-10-28T10:00:00+00:00",
+    "doris_code": "1B10.Z",
+    "doris_status": "completed",
+    "id": "<volatile>",
+    "immediate_cod": null,
+    "other_conditions": [],
+    "remark": "coder remark"
+   },
+   "initial": null,
+   "initial_prefill": null,
+   "not_codeable": {
+    "created_at": "2026-10-28T09:30:00+00:00",
+    "other": null,
+    "reason": "no_info"
+   },
+   "reviewer_final": null,
+   "reviewer_initial": null
+  },
+  "blocked_by": [],
+  "case": {
+   "age": 60,
+   "certificate_available": false,
+   "deceased_name": null,
+   "doris_draft_context": "<volatile>",
+   "form_type_code": "XL43P2_VA",
+   "gender": "Male",
+   "history_available": true,
+   "icd_classification": "icd11",
+   "instance_name": "masked-SID",
+   "is_demo_project": false,
+   "is_org_project": false,
+   "narrative_qa_enabled": false,
+   "payload_version_id": "<volatile>",
+   "project_code": "BASE01",
+   "project_mode": "unmasked_doris",
+   "reported_date_of_death": null,
+   "site_code": "BS01",
+   "social_autopsy_enabled": false,
+   "survey_district": null,
+   "survey_state": null,
+   "va_sid": "SID",
+   "workflow_state": "reviewer_coding_in_progress"
+  },
+  "categories": [
+   {
+    "attachment_count": 0,
+    "code": "cat1",
+    "count": 0,
+    "icon_name": null,
+    "label": "Category One",
+    "nav_label": "Category One",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vanarrationanddocuments",
+    "count": 0,
+    "icon_name": null,
+    "label": "Narrative",
+    "nav_label": "Narrative",
+    "render_mode": "attachments"
+   },
+   {
+    "attachment_count": 0,
+    "code": "social_autopsy",
+    "count": 0,
+    "icon_name": null,
+    "label": "Social Autopsy",
+    "nav_label": "Social Autopsy",
+    "render_mode": "table_sections"
+   },
+   {
+    "attachment_count": 0,
+    "code": "vacodassessment",
+    "count": 0,
+    "icon_name": "fa-stethoscope",
+    "label": "VA COD Assessment",
+    "nav_label": "COD Assessment",
+    "render_mode": "workflow_panel"
+   }
+  ],
+  "code_titles": {},
+  "codingTimelineV1": [],
+  "default_category": "cat1",
+  "doris": {
+   "initial_certificate": {
+    "AdministrativeData": {
+     "Sex": 1
+    },
+    "ICDVersion": "ICD11",
+    "Part1": [
+     {
+      "Conditions": []
+     }
+    ]
+   },
+   "prefill_provenance": {},
+   "reset_certificate": {
+    "AdministrativeData": {
+     "Sex": 2
+    }
+   },
+   "reset_prefill_provenance": {
+    "AdministrativeData.Sex": {
+     "sources": [
+      "Id10019"
+     ]
+    }
+   }
+  },
+  "narrative_qa": null,
+  "other_conditions_options": null,
+  "smartva": null,
+  "smartva_can_run": false,
+  "smartva_status": "not_requested",
+  "social_autopsy": null,
+  "step": "final"
+ }
+}

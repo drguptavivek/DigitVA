@@ -54,6 +54,16 @@ BAD_UUID = {"error": "client_device_uuid must be a UUID.", "code": "invalid_requ
 WRONG_PASSWORD = {"error": "Invalid email or password.", "code": "invalid_credentials"}
 
 
+#: Timing headers ride on any response once g carries a request start time,
+#: which a timed request earlier in the same app context can leave behind under
+#: xdist; they are diagnostics, not part of the enrolment contract.
+_TIMING_HEADERS = {"Server-Timing", "X-Response-Time"}
+
+
+def _header_names(response) -> list:
+    return sorted(k for k in response.headers.keys() if k not in _TIMING_HEADERS)
+
+
 def _keys(response) -> list:
     """Top-level keys in the order they are on the wire."""
     return json.loads(response.get_data(), object_pairs_hook=lambda pairs: [k for k, _v in pairs])
@@ -82,7 +92,7 @@ class _WireAsserts:
         self.assertEqual(response.status_code, 201, response.get_json())
         self.assertEqual(_keys(response), keys)
         self.assertEqual(response.headers["Content-Type"], "application/json")
-        self.assertEqual(sorted(response.headers.keys()), REPLY_HEADERS)
+        self.assertEqual(_header_names(response), REPLY_HEADERS)
         body = response.get_json()
         db.session.expire_all()
         row = db.session.get(AuthDevice, uuid.UUID(body["device_id"]))
@@ -99,7 +109,7 @@ class _WireAsserts:
 
     def _assert_error(self, response, status, body):
         self.assertEqual((response.status_code, response.get_json()), (status, body))
-        self.assertEqual(sorted(response.headers.keys()), REPLY_HEADERS)
+        self.assertEqual(_header_names(response), REPLY_HEADERS)
         self.assertEqual(response.headers["Content-Type"], "application/json")
 
     def _device_count(self):

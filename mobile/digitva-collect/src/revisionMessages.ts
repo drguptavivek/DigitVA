@@ -1,37 +1,16 @@
-import { ErrorCode } from "./errorCodes";
 import { ApiError } from "./api";
 import { SessionRevokedError, SignInRequiredError } from "./auth";
 import { FormDefinitionError } from "./formDefinitions";
 import { PinnedDefinitionError } from "./formDefinitionRuntime";
+import { revisionOpenKey, revisionRefusalKey } from "./errorMessages";
 import { t } from "./i18n";
 import { errorText } from "./ui";
 
 /** User-facing text for a revision in the attention state, and for a failed revision open. */
 export function attentionMessage(code: string | null): string {
-  switch (code) {
-    case "revision_locked":
-      return t("revisionLocked");
-    case "case_already_submitted":
-      return t("revisionAlreadySubmitted");
-    case "case_closed":
-      return t("revisionCaseClosed");
-    case "case_state_conflict":
-      return t("revisionCaseConflict");
-    case "invalid_reason":
-    case "required_finish_partial":
-      return t("revisionInvalidReason");
-    case "not_found":
-      return t("revisionUnavailable");
-    case "invalid_definition_pin":
-      return t("revisionPinInvalid");
-    case "answers_hash_invalid":
-    case "local_hash_mismatch":
-    case "invalid_revision_snapshot":
-    case "invalid_revision_ack":
-      return t("revisionRetry");
-    default:
-      return t("revisionRetry");
-  }
+  if (code === "invalid_definition_pin") return t("revisionPinInvalid");
+  // answers_hash_invalid, local_hash_mismatch, invalid_revision_snapshot, invalid_revision_ack and any unknown code retry.
+  return t(revisionRefusalKey(code) ?? "revisionRetry");
 }
 
 export function loadFailureMessage(error: unknown): string {
@@ -45,11 +24,8 @@ export function loadFailureMessage(error: unknown): string {
     return t("revisionUnavailable");
   }
   if (error instanceof ApiError) {
-    if (error.code === ErrorCode.REVISION_LOCKED) return t("revisionLocked");
-    if (error.code === ErrorCode.CASE_ALREADY_SUBMITTED) return t("revisionAlreadySubmitted");
-    if (error.code === ErrorCode.CASE_CLOSED) return t("revisionCaseClosed");
-    if (error.code === ErrorCode.CASE_STATE_CONFLICT) return t("revisionCaseConflict");
-    if (error.status === 404) return t("revisionUnavailable");
+    const key = revisionOpenKey(error.code, error.status);
+    if (key) return t(key);
   }
   if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) {
     return errorText(error);

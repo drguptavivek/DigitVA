@@ -1,5 +1,4 @@
 /** Shared screen chrome and controls. */
-import { ErrorCode } from "./errorCodes";
 import type { ReactNode, Ref } from "react";
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AccessibilityInfo, ActivityIndicator, findNodeHandle, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View, useWindowDimensions, type StyleProp, type SwitchProps, type TextInputProps, type ViewStyle } from "react-native";
@@ -10,6 +9,7 @@ import { APP_VERSION } from "./appVersion";
 import { outdatedBrowser } from "./browserSupport";
 import { OutdatedBrowserNotice } from "./OutdatedBrowserNotice";
 import { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError, SessionRevokedError, SignInRequiredError } from "./authErrors";
+import { errorKeyFor } from "./errorMessages";
 import { describeError, recordError } from "./errorLog";
 import { Icon, icons, type IconName } from "./Icon";
 import { isStorageFull } from "./storageErrors";
@@ -882,31 +882,8 @@ export function errorText(error: unknown): string {
   if (error instanceof NotInSlotError) return t("errSlotChanged");
   if (error instanceof Error && error.message === "workspace_stale") return t("workspaceStale");
   if (error instanceof ApiError) {
-    if (error.code === ErrorCode.DEVICE_LIMIT) return t("deviceLimit");
-    if (error.code === ErrorCode.ENROLMENT_INVALID) return t("errEnrolInvalid");
-    if (error.code === ErrorCode.CSRF_FAILED) return t("csrfRefreshed");
-    if (error.code === ErrorCode.COOKIE_SESSION_REQUIRED) return t("loginRequiredAction");
-    if (error.code === ErrorCode.MAINTENANCE) return t("serverUnavailable");
-    // A proxy's maintenance page is HTML, which the client reports as redirected_response.
-    if (error.code === ErrorCode.REDIRECTED_RESPONSE && [502, 503, 504].includes(error.status)) return t("serverUnavailable");
-    // Training session types (docs/policy/training-session-types.md); before the generic forbidden.
-    if (error.code === ErrorCode.NOT_IN_YOUR_TRAINING_SET) return t("errNotInTrainingSet");
-    if (error.code === ErrorCode.ROLE_NOT_IN_SESSION_TYPE) return t("errRoleNotInSessionType");
-    if (error.code === ErrorCode.CORPUS_MISSING || error.code === ErrorCode.CORPUS_CASES_INELIGIBLE) return t("errCorpusMissing");
-    if (error.code === ErrorCode.APP_UPDATE_REQUIRED) return t("errAppUpdateRequired");
-    if (error.code === ErrorCode.FORBIDDEN || error.code === ErrorCode.PROJECT_FORBIDDEN) return t("serverForbidden");
-    if (error.code === ErrorCode.PASSWORD_CHANGE_REQUIRED || error.code === ErrorCode.TERMS_REQUIRED) return t("termsRequired");
-    // A mobile-only account until a sign-in code is redeemed, or an email not yet verified.
-    if (error.code === ErrorCode.EMAIL_UNVERIFIED) return t("errAccountNotActivated");
-    if (error.code === ErrorCode.NO_INTERVIEWER_GRANT) return t("errNoGrant");
-    if (error.code === ErrorCode.PROJECT_INTAKE_OFF) return t("errProjectIntakeOff");
-    if (error.code === ErrorCode.NO_COLLECTION_ACCESS) return t("noCollectionAccess");
-    if (error.code === ErrorCode.DEVICE_REVOKED) return t("errDeviceRevoked");
-    if (error.code === ErrorCode.DEMO_LIMIT) return t("demoLimit");
-    if (error.code === ErrorCode.CAP_REACHED) return t("demoFull");
-    if (error.status === 429) return t("errRateLimited");
-    if (error.status === 401) return t("errSignIn");
-    return `${t("errGeneric")}\n${errorReference(error)}`;
+    const { key, ref } = errorKeyFor({ code: error.code, status: error.status, platform: "phone" });
+    return ref ? `${t(key)}\n${errorReference(error)}` : t(key);
   }
   if (error instanceof TypeError) return t("errNetwork");
   return `${t("errGeneric")}\n${errorReference(error)}`;

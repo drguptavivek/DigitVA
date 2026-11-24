@@ -6,6 +6,7 @@
 import type { CaseDetail, CaseRow, Registration } from "../cases";
 import { canStartDeathInterview } from "../deathWorkflow";
 import type { DraftRow } from "../drafts";
+import { revisionRefusalKey } from "../errorMessages";
 import { t, uiLanguageTag, type StringKey } from "../i18n";
 import { revisionName } from "../revisionLabel";
 import type { SendRefusal } from "../unsentWork";
@@ -105,18 +106,10 @@ function caseLines(row: FlatCase, sync?: { lastAt?: number }): InterviewItem["li
 
 /** Why a local revision row is where it is (server refusal, saved, retry, or still being edited). */
 export function localRevisionStatus(row: RevisionRow): string {
-  switch (row.refusal_code) {
-    case "revision_locked": return t("revisionLocked");
-    case "case_already_submitted": return t("revisionAlreadySubmitted");
-    case "case_closed": return t("revisionCaseClosed");
-    case "case_state_conflict": return t("revisionCaseConflict");
-    case "invalid_reason":
-    case "required_finish_partial": return t("revisionInvalidReason");
-    case "not_found": return t("revisionUnavailable");
-    default:
-      if (row.state === "ready") return t("revisionSaved");
-      return row.state === "attention" ? t("revisionRetry") : t("draftInProgress");
-  }
+  const key = revisionRefusalKey(row.refusal_code);
+  if (key) return t(key);
+  if (row.state === "ready") return t("revisionSaved");
+  return row.state === "attention" ? t("revisionRetry") : t("draftInProgress");
 }
 
 /** "Not accepted: <the server's reason>" for an item the server refused (409 or 422), else nothing. */

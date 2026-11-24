@@ -1,4 +1,3 @@
-import { ErrorCode } from "../errorCodes";
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import Svg, { Path } from "react-native-svg";
@@ -6,6 +5,7 @@ import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWind
 
 import { useAppState } from "../AppState";
 import { ClientApiError } from "../client/api";
+import { errorKeyFor } from "../errorMessages";
 import { t } from "../i18n";
 import { useUiLanguages } from "../uiPacks";
 import { radius, useTheme } from "../theme";
@@ -23,13 +23,8 @@ const SIDEBAR_WIDTH = 240;
 
 export function browserErrorText(error: unknown): string {
   if (error instanceof ClientApiError) {
-    if (error.code === ErrorCode.UNAUTHORIZED || error.status === 401) return t("serverUnauthorized");
-    if (error.code === ErrorCode.TERMS_REQUIRED) return t("loginRequiredAction");
-    if (error.status === 403) return t("serverForbidden");
-    if (error.code === ErrorCode.CSRF_FAILED) return t("csrfRefreshed");
-    if (error.status === 422 || error.status === 400) return `${t("serverValidation")}\n${errorReference(error)}`;
-    if (error.status >= 500) return `${t("serverUnavailable")}\n${errorReference(error)}`;
-    return `${t("serverError")}\n${errorReference(error)}`;
+    const { key, ref } = errorKeyFor({ code: error.code, status: error.status, platform: "web" });
+    return ref ? `${t(key)}\n${errorReference(error)}` : t(key);
   }
   if (error instanceof TypeError) return t("errNetwork");
   return `${t("serverError")}\n${errorReference(error)}`;

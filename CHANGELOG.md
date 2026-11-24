@@ -3,6 +3,22 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-25
+
+- Code audit refactors, wave 4, Collect app (same protocol: characterization
+  tests first, refactor with tests unedited, independent equivalence review;
+  no API, request, response code or error-code change): one code-to-message
+  table for web and phone error texts (`063646862`, `04f885738`, `r8nh.23`);
+  coding workspace guard list `withGuard`, `WorkspaceApi` split in four,
+  DorisPanel draft writes in one place (`08a9540de`..`d120993b6`,
+  `r8nh.24`); case actions, staff form, settings hooks, online paging and
+  revision helpers moved out of the mega-screens, supervisor paths pinned
+  first (`2e3e8f315`..`6486cfa0f`, `r8nh.26`); interview consent/refusal
+  shared, draft SQL and loading out of `form.tsx` (1,603 to 1,072 lines)
+  (`c7243188a`, `5c9dea321`, `r8nh.22`). tsc, full Jest, `make check-web`;
+  Maestro 60/70/75/81 pass on the new bundle (flow 70 runs about 36-61 min,
+  so `run-suite.sh` needs per-flow caps above an hour: `digitva-flkc`).
+
 ## 2026-11-24
 
 - App versions screen (`digitva-jrzd`, owner-requested): a read-only "App

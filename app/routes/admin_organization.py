@@ -1652,6 +1652,8 @@ def admin_project_app_versions(project_id):
     app_version = request.args.get("app_version", "").strip() or None
     if app_version is not None and len(app_version) > 32:
         return _json_error("app_version is too long.", 400)
+    if app_version is not None and "\x00" in app_version:
+        return _json_error("app_version is not valid.", 400)
     response = jsonify(project_app_versions(project_id, app_version=app_version, filter_version=filter_version))
     response.headers["Cache-Control"] = "no-store"
     return response

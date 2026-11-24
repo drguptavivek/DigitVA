@@ -240,6 +240,10 @@ class AppVersionsScreenTests(BaseTestCase):
 
     # -- behind the latest release ------------------------------------------
 
+    def test_version_filter_with_a_nul_byte_is_400_not_500(self):
+        self._login(self.base_admin_id)
+        self.assertEqual(self._get(query="?app_version=0.3%0015").status_code, 400)
+
     def test_behind_latest_for_normal_plus_and_none(self):
         latest = {"normal": (0, 3, 10), "plus": (0, 3, 12)}
         cases = [

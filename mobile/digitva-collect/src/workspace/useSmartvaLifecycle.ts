@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ApiError } from "../api";
@@ -104,7 +105,7 @@ export function useSmartvaLifecycle({
     } catch (caught) {
       if (!current(generation)) return;
       // A race with another browser tab is authoritative, not a user-facing failure.
-      if (caught instanceof ApiError && caught.status === 409 && caught.code === "already_done") {
+      if (caught instanceof ApiError && caught.status === 409 && caught.code === ErrorCode.ALREADY_DONE) {
         setState(previous => ({ ...previous, busy: false }));
         inFlightRef.current = false;
         await refreshRef.current?.();

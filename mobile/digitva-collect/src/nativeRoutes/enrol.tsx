@@ -11,6 +11,7 @@
  * redeems a data manager's code (POST /sign-in-code/redeem), shows the generated password once ("Code accepted"),
  * then signs in with it through the same manual enrolment, so nobody retypes it (docs/policy/mobile-sign-in.md s.3).
  */
+import { ErrorCode } from "../errorCodes";
 import Constants from "expo-constants";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
@@ -165,7 +166,7 @@ export default function Enrol() {
     } catch (caught) {
       // Field sign-in 2026-11-16: people typed their sign-in code here. A refused password with a code's shape
       // opens the code form with it. The password goes first: one set before generated passwords may look alike.
-      if (caught instanceof ApiError && caught.code === "invalid_credentials" && looksLikeSignInCode(password)) {
+      if (caught instanceof ApiError && caught.code === ErrorCode.INVALID_CREDENTIALS && looksLikeSignInCode(password)) {
         setSignInCode(formatSignInCode(password));
         setCodeFromPassword(true);
         setView("code");

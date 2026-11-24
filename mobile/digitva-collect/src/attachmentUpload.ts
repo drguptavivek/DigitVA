@@ -8,6 +8,7 @@
  * the interview only when this returns "done". An interview with a file the server has not confirmed is never
  * submitted (owner rule, digitva-jkvl).
  */
+import { ErrorCode } from "./errorCodes";
 import { CryptoDigestAlgorithm, digest } from "expo-crypto";
 
 import { ApiError, INTAKE_API } from "./api";
@@ -23,11 +24,11 @@ const FILE_REFUSED = new Set([400, 413, 415, 422]);
  * JSON code), says nothing about the file: it is sent again.
  */
 function transferFault(status: number, code: string | undefined): boolean {
-  return (status === 400 && (code === "checksum_mismatch" || code === "invalid_request")) ||
-    (status === 413 && code !== "payload_too_large");
+  return (status === 400 && (code === ErrorCode.CHECKSUM_MISMATCH || code === ErrorCode.INVALID_REQUEST)) ||
+    (status === 413 && code !== ErrorCode.PAYLOAD_TOO_LARGE);
 }
 /** The server's per-draft file count is full: the interview is held, but the file itself is fine. */
-const isLimit = (status: number, code: string | undefined) => status === 422 && code === "attachment_limit";
+const isLimit = (status: number, code: string | undefined) => status === 422 && code === ErrorCode.ATTACHMENT_LIMIT;
 const fileRefused = (status: number, code: string | undefined) => FILE_REFUSED.has(status) && !transferFault(status, code);
 /** The draft or case is gone or closed: held like a refused submit, until the interviewer asks again. */
 const CASE_REFUSED = new Set([404, 409]);

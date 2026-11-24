@@ -3,6 +3,7 @@
  * Server answers are fetched only when an interviewer opens a revision; the
  * local row is kept only while that revision is being edited or sent.
  */
+import { ErrorCode } from "./errorCodes";
 import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument, reduceNationalIdData, type SubmissionData, type WhoVaDraft, type WhoVaDraftStore } from "@drguptavivek/who-2022-va";
@@ -561,7 +562,7 @@ export async function syncQueuedRevisions(userId: string, db: Db, authorizedProj
         try {
           acknowledgement = await send();
         } catch (error) {
-          if (!(error instanceof ApiError) || error.status !== 422 || error.code !== "answers_hash_invalid") throw error;
+          if (!(error instanceof ApiError) || error.status !== 422 || error.code !== ErrorCode.ANSWERS_HASH_INVALID) throw error;
           const retryHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, row.frozen_json)).toLowerCase();
           if (retryHash !== row.answers_sha256) {
             await markAttention(db, rowJson, row, "local_hash_mismatch");
@@ -572,7 +573,7 @@ export async function syncQueuedRevisions(userId: string, db: Db, authorizedProj
           try {
             acknowledgement = await send();
           } catch (retryError) {
-            if (!(retryError instanceof ApiError) || retryError.status !== 422 || retryError.code !== "answers_hash_invalid") throw retryError;
+            if (!(retryError instanceof ApiError) || retryError.status !== 422 || retryError.code !== ErrorCode.ANSWERS_HASH_INVALID) throw retryError;
             await markAttention(db, rowJson, row, "answers_hash_invalid");
             attentionIds.push(row.draft_id);
             failed += 1;

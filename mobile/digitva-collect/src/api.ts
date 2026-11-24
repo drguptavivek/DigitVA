@@ -4,6 +4,7 @@
  * payloads are available for handling and must never be logged.
  */
 
+import { ErrorCode } from "./errorCodes";
 import { assertOnline, noteRequestOk, serverFetch } from "./network";
 import { recordServerDate } from "./phoneClock";
 
@@ -213,11 +214,11 @@ export async function runAsBackground<T>(task: () => Promise<T>): Promise<T> {
 
 /** The server signed the session out for inactivity; the app goes to the sign-in page. */
 function signalSessionIdle(code: string | undefined, cookie: boolean): void {
-  if (cookie && code === "session_expired" && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+  if (cookie && code === ErrorCode.SESSION_EXPIRED && typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
     window.dispatchEvent(new Event("digitva-session-expired"));
     return;
   }
-  if (code !== "session_idle" || !cookie) return;
+  if (code !== ErrorCode.SESSION_IDLE || !cookie) return;
   if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
     window.dispatchEvent(new Event("digitva-session-idle"));
   }
@@ -236,7 +237,7 @@ function signalAccessStale(status: number, code: string | undefined, path: strin
  * so retrying cannot help; they pause and ask the user to sign in (digitva-fvbc).
  */
 export function isSignedOutError(error: unknown): boolean {
-  return error instanceof ApiError && (error.status === 401 || (error.status === 400 && error.code === "csrf_failed"));
+  return error instanceof ApiError && (error.status === 401 || (error.status === 400 && error.code === ErrorCode.CSRF_FAILED));
 }
 
 let csrfRefresh: Promise<unknown> | undefined;
@@ -262,7 +263,7 @@ export async function requestJson<T>(
   } catch (error) {
     const cookie = options.token === undefined && !server;
     if (!cookie || path === "/api/v1/me/access" || !(error instanceof ApiError)
-      || error.status !== 400 || error.code !== "csrf_failed" || options.signal?.aborted) throw error;
+      || error.status !== 400 || error.code !== ErrorCode.CSRF_FAILED || options.signal?.aborted) throw error;
     await refreshCsrf();
     return requestOnce<T>(server, path, options);
   }
@@ -544,10 +545,10 @@ export async function fetchClientBootstrap(options: { background?: boolean } = {
       links: { login, logout: "/vaauth/valogout", coding: "/coding/", reviewing: "/reviewing/", intakeCases: `${INTAKE_API}/cases`, intakeDrafts: `${INTAKE_API}/drafts` }
     } };
   } catch (error) {
-    if (error instanceof ApiError && error.code === "unauthorized") {
+    if (error instanceof ApiError && error.code === ErrorCode.UNAUTHORIZED) {
       return { authenticated: false, loginUrl: login };
     }
-    if (error instanceof ApiError && error.status === 403 && error.code === "terms_required") {
+    if (error instanceof ApiError && error.status === 403 && error.code === ErrorCode.TERMS_REQUIRED) {
       return { authenticated: false,
         loginUrl: "/profile/force-password-change",
         actionCode: error.code, ...(error.csrf ? { csrf: error.csrf } : {})

@@ -11,6 +11,7 @@
  * account's Account section also has Enrol this phone, and an unlocked one gets Export and backup (export, back up,
  * restore: src/standalone/DataActions.tsx), which moved off the standalone home (digitva-axim).
  */
+import { ErrorCode } from "../errorCodes";
 import { useRouter } from "expo-router";
 
 import { goHome } from "../goHome";
@@ -451,8 +452,8 @@ export default function NativeSettings() {
   /** The refusal a demo self-delete shows, by the server's code and guard reason. */
   function deleteErrorText(caught: unknown): string {
     if (!(caught instanceof ApiError)) return errorText(caught);
-    if (caught.code === "wrong_password") return t("deleteAccountWrongPassword");
-    if (caught.code !== "deletion_refused") return errorText(caught);
+    if (caught.code === ErrorCode.WRONG_PASSWORD) return t("deleteAccountWrongPassword");
+    if (caught.code !== ErrorCode.DELETION_REFUSED) return errorText(caught);
     const reason = caught.payload?.reason;
     if (reason === "shared_case") return t("deleteAccountRefusedShared");
     if (reason === "grant_outside_demo" || reason === "not_demo_project") return t("deleteAccountRefusedOutside");

@@ -4,6 +4,7 @@
  * per-project type cache and the two calls the UI makes. Browser calls go through the shared
  * requester, which sends X-CSRFToken on every mutation.
  */
+import { ErrorCode } from "./errorCodes";
 import { ApiError, INTAKE_API, requestClientJson, type ClientCsrf } from "./api";
 import { formatPhone, normalisePhone as normalisePhoneStrict, PY_SPACE } from "./phoneFormat";
 
@@ -180,7 +181,7 @@ export function identifierWarnings(reply: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   if (!Array.isArray(warnings)) return out;
   for (const warning of warnings as IdentifierWarning[]) {
-    if (warning?.code === "identifier_in_use" && typeof warning.field === "string" && warning.field.startsWith("identifiers.")) {
+    if (warning?.code === ErrorCode.IDENTIFIER_IN_USE && typeof warning.field === "string" && warning.field.startsWith("identifiers.")) {
       out[warning.field.slice("identifiers.".length)] = String(warning.message ?? "");
     }
   }

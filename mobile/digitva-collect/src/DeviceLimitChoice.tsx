@@ -4,6 +4,7 @@
  * with `replace_device_id`, or cancel back to the form. The enrol screen's project choice is the pattern: a Screen,
  * one grouped card of rows, a text Cancel; the confirm is Settings' device-removal Alert.
  */
+import { ErrorCode } from "./errorCodes";
 import { Alert, Text, View } from "react-native";
 
 import { ApiError } from "./api";
@@ -19,7 +20,7 @@ export type LimitPhone = { device_id: string; label: string | null; last_seen_at
  * any other error or an older server's reply without them, which keeps the plain `deviceLimit` message.
  */
 export function deviceLimitPhones(error: unknown): LimitPhone[] | undefined {
-  if (!(error instanceof ApiError) || error.code !== "device_limit" || !Array.isArray(error.payload?.devices)) return undefined;
+  if (!(error instanceof ApiError) || error.code !== ErrorCode.DEVICE_LIMIT || !Array.isArray(error.payload?.devices)) return undefined;
   const phones = (error.payload.devices as unknown[]).filter((item): item is LimitPhone => {
     const phone = item as Partial<LimitPhone> | null;
     return typeof phone?.device_id === "string" && !!phone.device_id

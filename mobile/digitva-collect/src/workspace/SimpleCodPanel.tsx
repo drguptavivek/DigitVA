@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CardInput } from "./CardInput";
 import { useScrollIntoView } from "./scrollTarget";
@@ -139,7 +140,7 @@ export function SimpleCodPanel({
       }
     } catch (saveError) {
       if (!current()) return;
-      if (saveError instanceof ApiError && saveError.status === 422 && saveError.code === "final_blocked") {
+      if (saveError instanceof ApiError && saveError.status === 422 && saveError.code === ErrorCode.FINAL_BLOCKED) {
         await onSaved(blockedMessages(saveError));
         // The reason also shows here, by the button pressed: the blocking panel can be on another section.
         if (current()) setError(blockedMessages(saveError) || "Complete the required assessments before the final cause of death.");
@@ -708,7 +709,7 @@ function conditionList(assessment: WorkspaceAssessment | null | undefined): stri
 
 /** Read final-blocking messages from the documented 422 response without exposing other server text. */
 function blockedMessages(error: unknown): string {
-  if (!(error instanceof ApiError) || error.code !== "final_blocked" || !error.payload || typeof error.payload !== "object") return "";
+  if (!(error instanceof ApiError) || error.code !== ErrorCode.FINAL_BLOCKED || !error.payload || typeof error.payload !== "object") return "";
   const messages = (error.payload as Record<string, unknown>).messages;
   return Array.isArray(messages) ? messages.filter((message): message is string => typeof message === "string").join("\n") : "";
 }

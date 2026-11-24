@@ -8,6 +8,7 @@
  * are never retried on their own, and a failed security check gets a fresh
  * challenge only when the user presses the button again.
  */
+import { ErrorCode } from "../errorCodes";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
@@ -117,7 +118,7 @@ export default function Demo() {
         setLimitPhones(phones);
         return;
       }
-      setLimited(caught instanceof ApiError && caught.code === "demo_limit");
+      setLimited(caught instanceof ApiError && caught.code === ErrorCode.DEMO_LIMIT);
       setError(demoErrorText(caught));
     } finally {
       // A refused attempt that is not offering the choice drops the old limit state.

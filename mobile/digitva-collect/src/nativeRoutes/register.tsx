@@ -9,6 +9,7 @@
  * fields while hidden. Only Save or Discard (confirmed) removes the copy.
  * The browser registration keeps its wipe-on-hide rule (src/web).
  */
+import { ErrorCode } from "../errorCodes";
 import { randomUUID } from "expo-crypto";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -1141,13 +1142,13 @@ export default function Register() {
       });
     } catch (error) {
       if (!current()) return;
-      if (error instanceof ApiError && error.status === 409 && error.code === "death_stale" && serverDeathId) {
+      if (error instanceof ApiError && error.status === 409 && error.code === ErrorCode.DEATH_STALE && serverDeathId) {
         try {
           await reloadServerRegistration(account.user_id, serverDeathId, current);
         } catch {
           if (current()) setMessage(t("registerLoadFailed"));
         }
-      } else if (error instanceof ApiError && error.status === 409 && serverDeathId && ["case_completed", "details_pending"].includes(error.code ?? "")) {
+      } else if (error instanceof ApiError && error.status === 409 && serverDeathId && ([ErrorCode.CASE_COMPLETED, ErrorCode.DETAILS_PENDING] as string[]).includes(error.code ?? "")) {
         setServerReadOnly(true);
         setMessage(t("registerSaveFailed"));
       } else {

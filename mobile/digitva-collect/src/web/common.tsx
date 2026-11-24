@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import { useGlobalSearchParams, usePathname, useRouter } from "expo-router";
 import { Fragment, useEffect, useId, useRef, useState } from "react";
 import Svg, { Path } from "react-native-svg";
@@ -22,10 +23,10 @@ const SIDEBAR_WIDTH = 240;
 
 export function browserErrorText(error: unknown): string {
   if (error instanceof ClientApiError) {
-    if (error.code === "unauthorized" || error.status === 401) return t("serverUnauthorized");
-    if (error.code === "terms_required") return t("loginRequiredAction");
+    if (error.code === ErrorCode.UNAUTHORIZED || error.status === 401) return t("serverUnauthorized");
+    if (error.code === ErrorCode.TERMS_REQUIRED) return t("loginRequiredAction");
     if (error.status === 403) return t("serverForbidden");
-    if (error.code === "csrf_failed") return t("csrfRefreshed");
+    if (error.code === ErrorCode.CSRF_FAILED) return t("csrfRefreshed");
     if (error.status === 422 || error.status === 400) return `${t("serverValidation")}\n${errorReference(error)}`;
     if (error.status >= 500) return `${t("serverUnavailable")}\n${errorReference(error)}`;
     return `${t("serverError")}\n${errorReference(error)}`;

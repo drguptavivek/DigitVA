@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
@@ -202,7 +203,7 @@ export default function SettingsScreen() {
       );
     } catch (error) {
       const fingerprint = error instanceof ApiError ? error.payload?.server_key_fingerprint : undefined;
-      if (error instanceof ApiError && error.code === "server_key_unconfirmed" && typeof fingerprint === "string") {
+      if (error instanceof ApiError && error.code === ErrorCode.SERVER_KEY_UNCONFIRMED && typeof fingerprint === "string") {
         setPendingFingerprint(fingerprint);
       } else {
         setTransferError(t("stationConfigImportFailed"));

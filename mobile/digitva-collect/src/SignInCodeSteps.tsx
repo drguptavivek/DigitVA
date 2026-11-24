@@ -3,6 +3,7 @@
  * enrol.tsx) and the sign-in screen (src/nativeRoutes/sign-in.tsx): the code form, then "Code accepted" showing the
  * generated password once. The screens own the state, the identifier fields and what signing in with the password means.
  */
+import { ErrorCode } from "./errorCodes";
 import type { ReactNode } from "react";
 import { Text, TextInput } from "react-native";
 
@@ -14,7 +15,7 @@ import { spacing } from "./theme";
 
 /** A refused redemption's message; `fallback` maps everything but a wrong code and a server without the endpoint. */
 export function signInCodeErrorText(caught: unknown, fallback: (caught: unknown) => string): string {
-  if (caught instanceof ApiError && caught.code === "invalid_code") return t("errSignInCodeInvalid");
+  if (caught instanceof ApiError && caught.code === ErrorCode.INVALID_CODE) return t("errSignInCodeInvalid");
   if (caught instanceof ApiError && caught.status === 404) return t("errSignInCodeUnsupported");
   return fallback(caught);
 }

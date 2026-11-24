@@ -4,6 +4,7 @@
  * password" posts the identifier (POST /auth/forgot-password) and shows the server's answer. Neither opens a server
  * page (docs/policy/mobile-sign-in.md, owner 2026-11-19).
  */
+import { ErrorCode } from "../errorCodes";
 import Constants from "expo-constants";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
@@ -165,9 +166,9 @@ export default function SignIn() {
       // Revoked: the device and its server are forgotten below, so keep the server now. On a plain sign-in (Add
       // profile too, which has no returning account) offer the same re-enrol prompt: the bare "Enrol it again"
       // offered no way to, and a retry then had no server ("Could not reach the server", digitva-koe3).
-      const revokedServer = caught instanceof ApiError && caught.code === "device_revoked" ? (await loadDevice())?.server ?? returning?.server ?? "" : "";
+      const revokedServer = caught instanceof ApiError && caught.code === ErrorCode.DEVICE_REVOKED ? (await loadDevice())?.server ?? returning?.server ?? "" : "";
       // Forgetting the Demo device hands the phone back to Active, a slot change: lock first, or keep it.
-      if (caught instanceof ApiError && caught.code === "device_revoked" && slot !== undefined
+      if (caught instanceof ApiError && caught.code === ErrorCode.DEVICE_REVOKED && slot !== undefined
         && (slot === "active" || await lockNow())) {
         await forgetDevice(slot);
         await reload();

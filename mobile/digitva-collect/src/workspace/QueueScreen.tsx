@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { ActivityIndicator, Alert, AppState, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
@@ -153,7 +154,7 @@ export function codingServerStatusText(item: Pick<CoderHistoryCase, "server_stat
   if (item.server_status === "pending") return t("codingServerPending");
   if (item.server_status !== "refused") return null;
   const code = item.server_code ?? "";
-  if (code === "coded_version_superseded") return t("codingStaleRecode");
+  if (code === ErrorCode.CODED_VERSION_SUPERSEDED) return t("codingStaleRecode");
   const key = `codingRefused_${code}` as StringKey;
   // t() answers the key itself for a code this release has no words for.
   const known = /^[a-z_]+$/.test(code) ? t(key) : key;
@@ -343,7 +344,7 @@ export function QueueScreen({
 
   // A training queue the caller may not use answers 400/403 (training_scope.resolve_queue).
   const errorText = (error: unknown) => trainingQueue === "own" && error instanceof ApiError && (error.status === 400 || error.status === 403)
-    && (error.code === "forbidden" || error.code === "invalid_request") ? t("errTrainingQueue") : uiErrorText(error);
+    && (error.code === ErrorCode.FORBIDDEN || error.code === ErrorCode.INVALID_REQUEST) ? t("errTrainingQueue") : uiErrorText(error);
 
   function clearMessage() {
     actionError.current = null;

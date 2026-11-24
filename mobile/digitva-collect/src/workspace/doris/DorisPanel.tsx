@@ -1,3 +1,4 @@
+import { ErrorCode } from "../../errorCodes";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AppState as NativeAppState, Pressable, Text, View } from "react-native";
 
@@ -554,7 +555,7 @@ export function DorisPanel({
         } catch { /* malformed conflict result is shown below */ }
       }
       const message = makeSaveError(saveError);
-      if (saveError instanceof ApiError && (saveError.status === 422 || saveError.code === "final_blocked")) {
+      if (saveError instanceof ApiError && (saveError.status === 422 || saveError.code === ErrorCode.FINAL_BLOCKED)) {
         try { await onSaved(); } catch { /* preserve the original validation response */ }
       }
       if (!currentRequest(requestId, sentRevision)) return;
@@ -759,7 +760,7 @@ export function DorisPanel({
         return;
       } else {
         const message = makeSaveError(saveError);
-        if (saveError instanceof ApiError && (saveError.status === 422 || saveError.code === "final_blocked")) {
+        if (saveError instanceof ApiError && (saveError.status === 422 || saveError.code === ErrorCode.FINAL_BLOCKED)) {
           try { await onSaved(); } catch { /* keep the save refusal visible */ }
         }
         if (currentRequest(requestId, sentRevision)) update((current) => ({ ...current, busy: false, error: message }));

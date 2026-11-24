@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { ApiError, type ClientCsrf } from "../api";
@@ -43,7 +44,7 @@ export interface StationActorBarProps {
 export function pinFailureText(error: unknown, fallbackKey: "stationPinUnlockFailed" | "stationStoreUnlockFailed"): string {
   if (error instanceof ApiError) {
     const payload = error.payload ?? {};
-    if (error.status === 429 && error.code === "pin_locked_out") {
+    if (error.status === 429 && error.code === ErrorCode.PIN_LOCKED_OUT) {
       const secs = Number(payload.retry_after_secs);
       const minutes = Number.isFinite(secs) && secs > 0 ? Math.ceil(secs / 60) : 1;
       return t("stationPinLockedOut", { minutes });

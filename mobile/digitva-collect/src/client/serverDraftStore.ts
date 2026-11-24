@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import type { SubmissionData, WhoVaDraft, WhoVaDraftStore } from "@drguptavivek/who-2022-va";
 
 import { ClientApiError, isSignedOutError, readLastChange, requestClientJson, type ClientCsrf, type DraftLastChange, type DraftResponse } from "./api";
@@ -366,7 +367,7 @@ export class ServerDraftStore implements WhoVaDraftStore {
   /** The newer server version a held `draft_stale` refusal reported (who changed it, when), else undefined. */
   heldStaleChange(): { updatedAt: string; change: DraftLastChange } | undefined {
     const error = this.held;
-    if (!(error instanceof ClientApiError) || error.code !== "draft_stale") return undefined;
+    if (!(error instanceof ClientApiError) || error.code !== ErrorCode.DRAFT_STALE) return undefined;
     const change = readLastChange(error.payload?.last_change);
     const updatedAt = error.payload?.updated_at;
     return change && typeof updatedAt === "string" ? { updatedAt, change } : undefined;

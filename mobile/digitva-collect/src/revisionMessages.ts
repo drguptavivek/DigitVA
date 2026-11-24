@@ -1,3 +1,4 @@
+import { ErrorCode } from "./errorCodes";
 import { ApiError } from "./api";
 import { SessionRevokedError, SignInRequiredError } from "./auth";
 import { FormDefinitionError } from "./formDefinitions";
@@ -44,10 +45,10 @@ export function loadFailureMessage(error: unknown): string {
     return t("revisionUnavailable");
   }
   if (error instanceof ApiError) {
-    if (error.code === "revision_locked") return t("revisionLocked");
-    if (error.code === "case_already_submitted") return t("revisionAlreadySubmitted");
-    if (error.code === "case_closed") return t("revisionCaseClosed");
-    if (error.code === "case_state_conflict") return t("revisionCaseConflict");
+    if (error.code === ErrorCode.REVISION_LOCKED) return t("revisionLocked");
+    if (error.code === ErrorCode.CASE_ALREADY_SUBMITTED) return t("revisionAlreadySubmitted");
+    if (error.code === ErrorCode.CASE_CLOSED) return t("revisionCaseClosed");
+    if (error.code === ErrorCode.CASE_STATE_CONFLICT) return t("revisionCaseConflict");
     if (error.status === 404) return t("revisionUnavailable");
   }
   if (error instanceof SessionRevokedError || error instanceof SignInRequiredError) {

@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import type {
   SubmissionData,
   InstrumentDefinition,
@@ -209,8 +210,8 @@ export function interviewErrorText(error: unknown, instrument?: InstrumentDefini
   const definitionText = definitionErrorText(error);
   if (definitionText) return definitionText;
   // The page sends its files before it submits; this is the server finding one that has not arrived.
-  if (error instanceof ClientApiError && error.code === "attachments_pending") return t("webAttachmentsPendingServer");
-  if (error instanceof ClientApiError && error.code === "draft_stale") {
+  if (error instanceof ClientApiError && error.code === ErrorCode.ATTACHMENTS_PENDING) return t("webAttachmentsPendingServer");
+  if (error instanceof ClientApiError && error.code === ErrorCode.DRAFT_STALE) {
     const message = error.payload?.error;
     if (typeof message === "string" && message.trim()) return message.trim().slice(0, 500);
   }
@@ -996,7 +997,7 @@ export default function InterviewScreen() {
       }
     } catch (error) {
       // The project began requiring consent after this page checked: ask for it now.
-      if (isCurrent() && error instanceof ClientApiError && error.code === "consent_required") setConsentCheck((n) => n + 1);
+      if (isCurrent() && error instanceof ClientApiError && error.code === ErrorCode.CONSENT_REQUIRED) setConsentCheck((n) => n + 1);
       // A refused submit that names what to fix goes to the problems popup; any other error stays a message.
       const refused =
         isCurrent() && error instanceof ClientApiError && error.status === 422 && !(store instanceof RevisionMemoryStore)

@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import { useEffect, useRef, useState } from "react";
 import { Alert, Platform, Text } from "react-native";
 
@@ -111,20 +112,20 @@ export function CodeNowButton({
         return;
       } catch (error) {
         if (!isCurrent(context)) return;
-        if (error instanceof ApiError && error.code === "not_ready" && retry < MAX_NOT_READY_RETRIES) {
+        if (error instanceof ApiError && error.code === ErrorCode.NOT_READY && retry < MAX_NOT_READY_RETRIES) {
           setMessage(t("codeNowPreparing"));
           if (!await waitForRetry(context)) return;
           continue;
         }
         busyRef.current = false;
         setBusy(false);
-        if (error instanceof ApiError && error.code === "not_ready") {
+        if (error instanceof ApiError && error.code === ErrorCode.NOT_READY) {
           setMessage(t("codeNowStillPreparing"));
-        } else if (error instanceof ApiError && error.code === "held_by_another") {
+        } else if (error instanceof ApiError && error.code === ErrorCode.HELD_BY_ANOTHER) {
           setReleaseRequired(false);
           setUnavailable(true);
           setMessage(t("codeNowHeldByAnother"));
-        } else if (error instanceof ApiError && error.code === "allocation_exists") {
+        } else if (error instanceof ApiError && error.code === ErrorCode.ALLOCATION_EXISTS) {
           setReleaseRequired(true);
           setMessage(t("codeNowReleaseFirst"));
         } else {

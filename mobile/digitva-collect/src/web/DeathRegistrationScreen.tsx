@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
@@ -825,27 +826,27 @@ export default function DeathRegistrationScreen() {
       await finishCreate();
     } catch (error) {
       if (!current()) return;
-      if (editingDeathId && error instanceof ApiError && error.status === 409 && error.code === "death_stale") {
+      if (editingDeathId && error instanceof ApiError && error.status === 409 && error.code === ErrorCode.DEATH_STALE) {
         try {
           await refreshEditedRegistration(editingDeathId, bootstrap, current);
         } catch {
           if (current()) setMessage(t("serverError"));
         }
-      } else if (editingDeathId && error instanceof ApiError && error.status === 409 && ["case_completed", "details_pending"].includes(error.code ?? "")) {
+      } else if (editingDeathId && error instanceof ApiError && error.status === 409 && ([ErrorCode.CASE_COMPLETED, ErrorCode.DETAILS_PENDING] as string[]).includes(error.code ?? "")) {
         setEditingReadOnly(true);
         setMessage(t("serverValidation"));
       } else {
-        if (error instanceof ApiError && error.status === 422 && error.code === "consent_required_for_informant") {
+        if (error instanceof ApiError && error.status === 422 && error.code === ErrorCode.CONSENT_REQUIRED_FOR_INFORMANT) {
           setMessage(t("stationConsentBlocked"));
           return;
         }
-        if (error instanceof ApiError && error.status === 422 && error.code === "consent_notice_unavailable") {
+        if (error instanceof ApiError && error.status === 422 && error.code === ErrorCode.CONSENT_NOTICE_UNAVAILABLE) {
           setMessage(t("stationConsentNoNotice"));
           return;
         }
         // Web: the server requires a decision this page did not know about (the config was not
         // loaded, or the project switched consent on): load it again so the consent screen shows.
-        if (!station && error instanceof ApiError && error.status === 422 && ["consent_required", "consent_conflict"].includes(error.code ?? "")) {
+        if (!station && error instanceof ApiError && error.status === 422 && ([ErrorCode.CONSENT_REQUIRED, ErrorCode.CONSENT_CONFLICT] as string[]).includes(error.code ?? "")) {
           setMessage(t("consentRegistrationBlocked"));
           setConsentCheck((n) => n + 1);
           return;

@@ -25,6 +25,7 @@
  * re-enrolment wipe nothing: they drop the tokens and keep the store, its PIN
  * and biometric entries (owner decision 2026-10-27).
  */
+import { ErrorCode } from "./errorCodes";
 import * as SecureStore from "expo-secure-store";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { Platform } from "react-native";
@@ -359,7 +360,7 @@ async function refreshAccessSummaryOnce(userId: string): Promise<AccessSummary |
     // when the device is offline or the terms gate is still open; the next
     // authenticated call will retry after terms acceptance.
     if (error instanceof TypeError) return undefined;
-    if (error instanceof ApiError && error.status === 403 && error.code === "terms_required") {
+    if (error instanceof ApiError && error.status === 403 && error.code === ErrorCode.TERMS_REQUIRED) {
       await setTermsRequired(userId, true);
       return undefined;
     }
@@ -458,7 +459,7 @@ async function setAccountAccess(
 }
 
 function isGlobalAccessGate(code: string | undefined): code is "maintenance" {
-  return code === "maintenance";
+  return code === ErrorCode.MAINTENANCE;
 }
 
 interface EnrolReply {
@@ -1146,7 +1147,7 @@ export async function classifyAuthError(
   error: unknown,
 ): Promise<unknown> {
   if (!(error instanceof ApiError)) return error;
-  if (error.status === 403 && error.code === "terms_required") {
+  if (error.status === 403 && error.code === ErrorCode.TERMS_REQUIRED) {
     await setTermsRequired(userId, true);
     return error;
   }
@@ -1156,10 +1157,10 @@ export async function classifyAuthError(
     // mounted native screens cannot continue using stale scope.
     if (!accessRefreshes.has(userId)) await refreshAccessSummary(userId);
   }
-  if (error.status === 401 && error.code === "session_revoked") return revokeInterviewer(userId);
+  if (error.status === 401 && error.code === ErrorCode.SESSION_REVOKED) return revokeInterviewer(userId);
   if (
     error.status === 401 ||
-    (error.status === 409 && error.code === "refresh_retry_race")
+    (error.status === 409 && error.code === ErrorCode.REFRESH_RETRY_RACE)
   ) {
     await markSignInRequired(userId);
     return new SignInRequiredError();
@@ -1222,7 +1223,7 @@ export async function authedRequest<T>(
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 401)
       throw await classifyAuthError(userId, error);
-    if (error.code === "session_revoked")
+    if (error.code === ErrorCode.SESSION_REVOKED)
       throw await classifyAuthError(userId, error);
     unauthorized = error;
   }
@@ -1259,7 +1260,7 @@ export async function authedRawRequest(
     return await requestRaw(device.server, path, { ...init, token: tokens.access_token });
   } catch (error) {
     if (!(error instanceof ApiError) || error.status !== 401) throw await classifyAuthError(userId, error);
-    if (error.code === "session_revoked") throw await classifyAuthError(userId, error);
+    if (error.code === ErrorCode.SESSION_REVOKED) throw await classifyAuthError(userId, error);
   }
   const latest = await loadTokens(userId);
   const next = latest && latest.access_token !== tokens.access_token

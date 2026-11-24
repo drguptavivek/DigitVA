@@ -6,6 +6,7 @@
  * authoritative (app/services/user_account_service.py `clean_username`,
  * app/services/public_demo_service.py `_check_password`).
  */
+import { ErrorCode } from "./errorCodes";
 import Constants from "expo-constants";
 
 import { ApiError, AUTH_API, requestJson } from "./api";
@@ -29,17 +30,17 @@ export const demoServer = () => demoServerOrigin(__DEV__, process.env.EXPO_PUBLI
 export function demoErrorText(error: unknown): string {
   if (error instanceof ApiError) {
     const code = error.code;
-    if (code === "demo_limit") return t("demoLimit");
+    if (code === ErrorCode.DEMO_LIMIT) return t("demoLimit");
     if (error.status === 429) return t("demoRateLimited");
-    if (code === "cap_reached") return t("demoFull");
-    if (code === "captcha_failed") return t("demoCaptchaFailed");
-    if (code === "invalid_username") return t("demoErrUsernameRule");
-    if (code === "username_taken") return t("demoErrUsernameTaken");
-    if (code === "invalid_password") return t("demoErrPasswordShort");
-    if (code === "breached_password") return t("demoErrBreached");
-    if (code === "breach_check_unavailable") return t("demoErrBreachUnavailable");
-    if (code === "invalid_credentials") return t("demoErrCredentials");
-    if (code === "wrong_database" || code === "project_missing" || error.status === 404) return t("demoNotAvailable");
+    if (code === ErrorCode.CAP_REACHED) return t("demoFull");
+    if (code === ErrorCode.CAPTCHA_FAILED) return t("demoCaptchaFailed");
+    if (code === ErrorCode.INVALID_USERNAME) return t("demoErrUsernameRule");
+    if (code === ErrorCode.USERNAME_TAKEN) return t("demoErrUsernameTaken");
+    if (code === ErrorCode.INVALID_PASSWORD) return t("demoErrPasswordShort");
+    if (code === ErrorCode.BREACHED_PASSWORD) return t("demoErrBreached");
+    if (code === ErrorCode.BREACH_CHECK_UNAVAILABLE) return t("demoErrBreachUnavailable");
+    if (code === ErrorCode.INVALID_CREDENTIALS) return t("demoErrCredentials");
+    if (code === ErrorCode.WRONG_DATABASE || code === ErrorCode.PROJECT_MISSING || error.status === 404) return t("demoNotAvailable");
   }
   return errorText(error);
 }

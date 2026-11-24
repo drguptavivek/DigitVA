@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 
@@ -106,9 +107,9 @@ function AddIdentifierPanel({ row, csrf, onChanged }: { row: Editable; csrf?: Cl
       }
     } catch (error) {
       if (!alive.current) return;
-      if (error instanceof ApiError && error.status === 409 && error.code === "case_closed") {
+      if (error instanceof ApiError && error.status === 409 && error.code === ErrorCode.CASE_CLOSED) {
         setMessage(t("idCaseClosed"));
-      } else if (error instanceof ApiError && error.status === 409 && error.code === "death_stale") {
+      } else if (error instanceof ApiError && error.status === 409 && error.code === ErrorCode.DEATH_STALE) {
         setMessage(t("idStaleReloaded"));
         onChanged();
         close();
@@ -116,7 +117,7 @@ function AddIdentifierPanel({ row, csrf, onChanged }: { row: Editable; csrf?: Cl
         const fieldErrors = identifierFieldErrors(error);
         setErrors(fieldErrors);
         setMessage(Object.keys(fieldErrors).length ? t("serverValidation")
-          : error instanceof ApiError && error.code === "csrf_failed" ? t("csrfRefreshed") : t("serverError"));
+          : error instanceof ApiError && error.code === ErrorCode.CSRF_FAILED ? t("csrfRefreshed") : t("serverError"));
       }
     } finally {
       if (alive.current) setBusy(false);

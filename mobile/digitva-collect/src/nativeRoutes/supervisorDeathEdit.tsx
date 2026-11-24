@@ -8,6 +8,7 @@
  * settings (registration-number types, consent config) and filled by a live fetch where it has none (a
  * supervisor-only phone); no case value is ever written to it.
  */
+import { ErrorCode } from "../errorCodes";
 import { FormThemeContext } from "@drguptavivek/who-2022-va";
 import { randomUUID } from "expo-crypto";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -48,8 +49,8 @@ import {
 export const SUPERVISOR_EDIT = "supervisor";
 /** PATCH refusals the supervisor can act on (app/routes/api/intake.py). */
 const DEATH_STALE = "death_stale";
-const NOT_EDITABLE = ["case_completed", "details_pending"];
-const CASE_CLOSED = "case_closed";
+const NOT_EDITABLE: string[] = [ErrorCode.CASE_COMPLETED, ErrorCode.DETAILS_PENDING];
+const CASE_CLOSED = ErrorCode.CASE_CLOSED;
 
 const BIRTH_LABELS: Record<BirthMode, StringKey> = { exact: "dobExact", "month-year": "dobMonthYear", year: "dobYear", unknown: "dobUnknown" };
 

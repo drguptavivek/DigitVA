@@ -1,3 +1,4 @@
+import { ErrorCode } from "../errorCodes";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -292,7 +293,7 @@ export function SignInQrDialog({ request, user, onClose }: { request: JsonReques
       .catch((caught) => {
         if (!active) return;
         setError(qrErrorText(caught));
-        if (caught instanceof ApiError && (caught.code === "not_found" || caught.status === 404)) setBlocked(true);
+        if (caught instanceof ApiError && (caught.code === ErrorCode.NOT_FOUND || caught.status === 404)) setBlocked(true);
       });
     return () => { active = false; };
   }, [request, user.user_id]);

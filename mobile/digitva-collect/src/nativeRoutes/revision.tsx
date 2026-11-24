@@ -1,4 +1,5 @@
 /** Edit one submitted interview in the encrypted revision queue. */
+import { ErrorCode } from "../errorCodes";
 import {
   createWhoVa2022Instrument,
   WHO_VA_FORM_VERSION,
@@ -626,7 +627,7 @@ export default function Revision() {
         return;
       }
       if (
-        (error instanceof ApiError && error.code === "required_finish_partial") ||
+        (error instanceof ApiError && error.code === ErrorCode.REQUIRED_FINISH_PARTIAL) ||
         (error instanceof Error && error.message === "finish_partial_required")
       ) {
         setReason("finish_partial");

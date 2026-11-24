@@ -1,4 +1,5 @@
 /** Sync unfinished phone drafts with the interviewer's server-side web draft. */
+import { ErrorCode } from "./errorCodes";
 import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { decodeWhoVaDraft } from "@drguptavivek/who-2022-va";
@@ -526,7 +527,7 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
   try {
     response = await send();
   } catch (error) {
-    if (error instanceof ApiError && error.status === 409 && error.code === "refusal_stale") {
+    if (error instanceof ApiError && error.status === 409 && error.code === ErrorCode.REFUSAL_STALE) {
       const serverId = error.payload?.draft_id;
       if (typeof serverId === "string" && UUID_RE.test(serverId)) {
         await db.runAsync("UPDATE drafts SET server_draft_id = ? WHERE id = ? AND (server_draft_id IS NULL OR server_draft_id = ?)", [serverId, item.id, serverId]);
@@ -534,18 +535,18 @@ export async function syncDraftSnapshot(userId: string, db: Db, item: DraftSyncI
       await db.runAsync("UPDATE drafts SET upload_issue = 'refusal_stale' WHERE id = ? AND envelope = ? AND updated_at = ?", [item.id, item.envelope, item.updated_at]);
       throw error;
     }
-    if (error instanceof ApiError && error.status === 409 && error.code === "conflict") {
+    if (error instanceof ApiError && error.status === 409 && error.code === ErrorCode.CONFLICT) {
       await db.runAsync(`UPDATE drafts SET draft_sync_blocked = 1
         WHERE id = ? AND envelope = ? AND updated_at = ? AND completed = 0 AND draft_sync_blocked = 0`,
       [item.id, item.envelope, item.updated_at]);
       throw error;
     }
-    if (!(error instanceof ApiError) || error.status !== 422 || error.code !== "answers_hash_invalid") throw error;
+    if (!(error instanceof ApiError) || error.status !== 422 || error.code !== ErrorCode.ANSWERS_HASH_INVALID) throw error;
     answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
     try {
       response = await send();
     } catch (retryError) {
-      if (!(retryError instanceof ApiError) || retryError.status !== 422 || retryError.code !== "answers_hash_invalid") throw retryError;
+      if (!(retryError instanceof ApiError) || retryError.status !== 422 || retryError.code !== ErrorCode.ANSWERS_HASH_INVALID) throw retryError;
       await db.runAsync(`UPDATE drafts SET upload_issue = 'answers_hash_invalid',
         upload_issue_unique_id = NULL, draft_sync_dirty = 1
         WHERE id = ? AND envelope = ? AND updated_at = ? AND completed = 0 AND draft_sync_blocked = 0`,

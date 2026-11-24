@@ -31,6 +31,7 @@
  *
  * Logs carry client ids and error codes only, never answers or names.
  */
+import { ErrorCode } from "./errorCodes";
 import { clockOffsetField } from "./phoneClock";
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { createWhoVa2022Instrument } from "@drguptavivek/who-2022-va";
@@ -173,7 +174,7 @@ function refusal(error: unknown): ApiError {
 }
 
 /** The public demo's per-account limits (docs/policy/public-demo.md section 8): 429 `demo_limit`. */
-export const isDemoLimit = (error: ApiError) => error.status === 429 && error.code === "demo_limit";
+export const isDemoLimit = (error: ApiError) => error.status === 429 && error.code === ErrorCode.DEMO_LIMIT;
 
 const PAUSED_META_PREFIX = "paused:";
 
@@ -650,7 +651,7 @@ export async function uploadQueuedWork(
     if (files.state !== "done") {
       const refused = files.error instanceof Error ? refusal(files.error) : undefined;
       if (refused) await notePausedRefusal(db, item.project_id, refused);
-      if (refused?.status === 422 && refused.code === "consent_refused") await holdServerRefusal(db, item.id);
+      if (refused?.status === 422 && refused.code === ErrorCode.CONSENT_REFUSED) await holdServerRefusal(db, item.id);
       console.warn(`attachment upload ${files.state} draft=${item.id} status=${refused?.status ?? "-"} code=${refused?.code ?? "-"}`);
       failed += 1;
       continue draftLoop;
@@ -696,12 +697,12 @@ export async function uploadQueuedWork(
           acknowledgement = await send();
         }
       } catch (error) {
-        if (error instanceof ApiError && error.status === 422 && error.code === "answers_hash_invalid") {
+        if (error instanceof ApiError && error.status === 422 && error.code === ErrorCode.ANSWERS_HASH_INVALID) {
           answersHash = (await digestStringAsync(CryptoDigestAlgorithm.SHA256, answersJson)).toLowerCase();
           try {
             acknowledgement = await send();
           } catch (retryError) {
-            if (retryError instanceof ApiError && retryError.status === 422 && retryError.code === "answers_hash_invalid") {
+            if (retryError instanceof ApiError && retryError.status === 422 && retryError.code === ErrorCode.ANSWERS_HASH_INVALID) {
               await setDraftUploadIssue(db, item.id, "answers_hash_invalid");
               await noteSendError(db, item.id, retryError);
               console.warn(`submission refused draft=${item.id} status=${retryError.status} code=${retryError.code}`);
@@ -791,19 +792,19 @@ export async function uploadQueuedWork(
       console.warn(`submission refused draft=${item.id} status=${refused.status} code=${refused.code ?? "-"}`);
       await notePausedRefusal(db, item.project_id, refused);
       // A standalone record refused as it stands is held and shown (a 409 by case_conflict below), never reopened.
-      const standaloneHeld = standalone && ((refused.status === 403 && refused.code === "device_mismatch") ||
+      const standaloneHeld = standalone && ((refused.status === 403 && refused.code === ErrorCode.DEVICE_MISMATCH) ||
         (refused.status === 422 && STANDALONE_HELD_422.has(refused.code ?? "")));
-      if (refused.status === 409 && refused.code === "refusal_stale") {
+      if (refused.status === 409 && refused.code === ErrorCode.REFUSAL_STALE) {
         const serverId = refused.payload?.draft_id;
         if (typeof serverId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(serverId)) {
           await db.runAsync("UPDATE drafts SET server_draft_id = ? WHERE id = ? AND (server_draft_id IS NULL OR server_draft_id = ?)", [serverId, item.id, serverId]);
         }
         await setDraftUploadIssue(db, item.id, "refusal_stale");
-      } else if (refused.status === 422 && refused.code === "consent_refused") {
+      } else if (refused.status === 422 && refused.code === ErrorCode.CONSENT_REFUSED) {
         await holdServerRefusal(db, item.id);
       } else if (standaloneHeld) {
         await setDraftUploadIssue(db, item.id, "standalone_refused");
-      } else if (refused.status === 422 && refused.code !== "answers_hash_invalid") {
+      } else if (refused.status === 422 && refused.code !== ErrorCode.ANSWERS_HASH_INVALID) {
         // Its own decision is dropped; an inherited one (the registration's) is shared, so only this draft is told to ask again.
         if (refused.code?.startsWith("consent_")) {
           if (applied?.own) await deleteDraftConsent(db, item.id);
@@ -814,7 +815,7 @@ export async function uploadQueuedWork(
       // The server lost the files (its draft was purged): send the ones the phone holds again on the next pass. A
       // referenced file the phone does not hold (kept only on the server, now gone) cannot be resent: hold the
       // interview until the interviewer replaces or removes it. Nothing is deleted either way.
-      if (refused.status === 409 && refused.code === "attachments_pending") {
+      if (refused.status === 409 && refused.code === ErrorCode.ATTACHMENTS_PENDING) {
         const { missing } = await sendableAttachments(db, item.id, sentData);
         if (missing.length) {
           const gone = new Set(missing);
@@ -822,7 +823,7 @@ export async function uploadQueuedWork(
           await setDraftUploadIssue(db, item.id, "attachment_missing");
         } else await markDraftUnconfirmed(db, item.id);
       }
-      else if (refused.status === 409 && refused.code !== "refusal_stale") await setDraftUploadIssue(db, item.id, "case_conflict");
+      else if (refused.status === 409 && refused.code !== ErrorCode.REFUSAL_STALE) await setDraftUploadIssue(db, item.id, "case_conflict");
       // Final until the interviewer asks again (retryHeldDraft): sync skips it.
       if (isDemoLimit(refused)) await setDraftUploadIssue(db, item.id, "demo_limit");
       failed += 1;

@@ -16,6 +16,7 @@ import { SmartvaStatusPanel } from "./SmartvaStatusPanel";
 import { useSmartvaLifecycle } from "./useSmartvaLifecycle";
 import { WorkflowHistory } from "./WorkflowHistory";
 import type { WorkspaceApi } from "./api";
+import { withGuard } from "./withGuard";
 import type { CategoryPayload, NotePayload, WorkspaceAssessment, WorkspaceIdentity, WorkspacePayload, WorkflowEvents } from "./contracts";
 import { browserSessionStore, clearScroll, resolveSection } from "./viewState";
 import { WorkspaceLayout } from "./WorkspaceLayout";
@@ -397,18 +398,7 @@ export function CaseWorkspaceScreen({
           current.step !== workspaceStep) throw new Error("workspace_stale");
       if (current.case.icd_classification === "icd11") await assertIcd11DorisEnabled();
     };
-    return {
-      ...api,
-      async searchIcd(...args) { await assertCurrentEditorAllowed(); return api.searchIcd(...args); },
-      async searchDorisTerms(...args) { await assertCurrentEditorAllowed(); return api.searchDorisTerms(...args); },
-      async getDorisCodeInfo(...args) { await assertCurrentEditorAllowed(); return api.getDorisCodeInfo(...args); },
-      async getVaDefinitionForIcd(...args) { await assertCurrentEditorAllowed(); return api.getVaDefinitionForIcd(...args); },
-      async checkDorisSelection(...args) { await assertCurrentEditorAllowed(); return api.checkDorisSelection(...args); },
-      async processDoris(...args) { await assertCurrentEditorAllowed(); return api.processDoris(...args); },
-      async saveInitial(...args) { await assertCurrentEditorAllowed(); return api.saveInitial(...args); },
-      async saveFinal(...args) { await assertCurrentEditorAllowed(); return api.saveFinal(...args); },
-      async saveNotCodeable(...args) { await assertCurrentEditorAllowed(); return api.saveNotCodeable(...args); },
-    };
+    return withGuard(api, assertCurrentEditorAllowed);
   }, [api, assertIcd11DorisEnabled, identity.vaSid, identity.mode, payloadVersionId, dorisDraftContext, workspaceStep]);
 
   const identityKey = `${identity.mode}:${identity.vaSid}`;

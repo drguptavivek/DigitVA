@@ -3,7 +3,7 @@ title: Sign-in by Mobile Number
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-24
 ---
 
 # Sign-in by Mobile Number
@@ -91,17 +91,35 @@ everything not said here.
 - **What the phone may do with it.** Online only, and the same rules as the
   browser:
   - the supervision list and case screen, with their actions;
-  - editing the death report;
+  - editing the death report, with the same fields as the browser (owner
+    2026-11-24, "match the browser"): the deceased, place and notes fields,
+    and also the informant's name and phones, ABHA number and address, the
+    GPS fix and the registration numbers. The server's own validation and
+    authorization apply unchanged (`PATCH /intake/deaths/<id>`: the phone
+    rule that a stored phone is checked only when it changes, the
+    registration-number write permission, the closed-case refusal). Where the
+    project requires respondent consent, an informant field the edit fills
+    needs a granted decision recorded in the same edit, as in the browser;
+    the decision is sent with the change.
   - correcting interviews where the supervisor's cadre has "Can edit
     interviews" ticked ([Interview Revisions](interview-revisions.md),
     "Supervisor correction").
   A supervisor's interview correction is sent at once and never queued on
   the phone. The answers stay in memory only while the screen is open.
+- **Personal data on the phone.** The death report edit reads the case from
+  the server when it opens and holds its values, the informant details, ABHA,
+  GPS and registration numbers included, in memory only while the screen is
+  open. Nothing of the case is written to the phone's database or files, and
+  no value is logged, put in an error report or a URL. Leaving the screen,
+  locking the app, signing out or a revoked device drops them; there is no
+  stored copy to clear. Only non-personal project settings (registration
+  number types, the consent setting) are read live, or from the account's
+  encrypted SQLCipher cache where the phone already keeps them.
 - **Only the explicit supervisor grant counts on the phone.** The powers an
   In-charge, project PI or data manager holds as supervisors stay
   browser-only. A device credential never carries `data_manager`, `site_pi`
-  or `project_pi`. Putting `data_manager` on the phone would be a separate
-  owner decision.
+  or `project_pi`. `data_manager` on the phone: "not now" (owner
+  2026-11-24); data managers supervise in the browser only.
 - **Mobile sign-in codes.** `interview_supervisor` is not a privileged role
   for codes (owner 2026-11-23): a project's data manager may still issue a
   code to a supervisor, though it now yields a phone that shows the
@@ -109,7 +127,10 @@ everything not said here.
   and sees the same records in the browser.
 - **Older apps.** A supervisor-only account on an app version without the
   supervision screens enrols, but sees the "no collection work" home and
-  has nothing to do. Nothing is stored and nothing can be lost.
+  has nothing to do. Nothing is stored and nothing can be lost. An older
+  app's death report edit simply leaves the informant, ABHA, GPS and
+  registration-number keys out of its request; the server changes only the
+  keys a request names, so an absent key is never read as a clear.
 
 ### Manual native device enrolment
 

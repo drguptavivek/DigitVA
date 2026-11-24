@@ -115,6 +115,28 @@ export async function patchNativeDeathRegistration(
   return body.case;
 }
 
+/**
+ * A supervisor's correction (PATCH /intake/deaths/<id>). A caller who reaches the case only by supervision gets the
+ * trimmed supervisor row back (app/routes/api/intake.py `_identifier_reply`: no informant, address or links), so only
+ * the case id is checked; the caller reloads the full detail with GET /cases/<id> when it stays on the screen.
+ * Returns the reply-level duplicate-number warnings (identifierWarnings reads them).
+ */
+export async function patchSupervisedDeath(
+  userId: string,
+  deathId: string,
+  changes: RegistrationChanges,
+  ifUpdatedAt?: string,
+): Promise<{ warnings?: unknown }> {
+  const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/deaths/${encodeURIComponent(deathId)}`, {
+    method: "PATCH",
+    body: { ...changes, ...(ifUpdatedAt ? { if_updated_at: ifUpdatedAt } : {}) },
+  });
+  if (!record(body) || !record(body.case) || body.case.death_id !== deathId) {
+    throw new ApiError(200, "malformed_response");
+  }
+  return body.warnings ? { warnings: body.warnings } : {};
+}
+
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }

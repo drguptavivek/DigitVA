@@ -3,7 +3,7 @@ title: Interview Revisions Policy (editing submitted interviews)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-24
 ---
 
 # Interview Revisions Policy
@@ -219,7 +219,10 @@ help to correct mistakes, a supervisor may edit the interview themselves.
   and 4 are unchanged; a case sent back or reopened under them is revisable
   again, so a supervisor who reopens a coded case may then correct it.
   In the browser and in the Collect app (online; the app sends a correction at once and never queues it). Web and device interviews only; ODK interviews are
-  corrected in ODK.
+  corrected in ODK. The supervisor's correction of the death report itself
+  (not the interview) follows [Sign-in by Mobile Number](mobile-sign-in.md),
+  "Interview supervisors on the phone": the same fields as the browser,
+  held in memory only.
 - **How.** The supervisor opens the stored answers in the WHO VA form, edits
   and saves. The save is a revision like the interviewer's: a new version,
   the no-change rule, the coding release, the earlier versions kept in

@@ -8,8 +8,17 @@ appId: com.causeofdeathindia.digitvacollect.plus
 - launchApp:
     stopApp: true
 - extendedWaitUntil:
-    visible: "Profiles on this phone|Enrol this device|Help improve the app\\?"
+    visible: "Profiles on this phone|Enrol this device|Help improve the app\\?|Choose your language"
     timeout: 60000
+# A fresh install asks the UI language first (no language saved yet).
+- runFlow:
+    when:
+      visible: "Choose your language"
+    commands:
+      - tapOn: "English"
+      - extendedWaitUntil:
+          visible: "Profiles on this phone|Enrol this device|Help improve the app\\?"
+          timeout: 60000
 # The usage-reporting prompt on a fresh install: decline it (privacy default).
 - tapOn:
     text: "Not now"

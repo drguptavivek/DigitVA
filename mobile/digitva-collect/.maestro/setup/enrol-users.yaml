@@ -4,9 +4,10 @@ appId: com.causeofdeathindia.digitvacollect.plus
 ---
 # A cleared Collect Plus asks "Enable ICD-11 / DORIS coding in this app?" first: answer it.
 - launchApp
-# The coding prompt can render a moment after launch: wait for it or the enrol screen first.
+# A cleared app asks up to three first-run questions (ICD-11 / DORIS coding on Plus, usage
+# reporting, the UI language), in an order that depends on timing: answer each as it shows.
 - extendedWaitUntil:
-    visible: "Enable coding|Profiles on this phone|Enrol this device"
+    visible: "Enable coding|Profiles on this phone|Enrol this device|Help improve the app\\?|Choose your language"
     timeout: 30000
 - runFlow:
     when:
@@ -16,6 +17,58 @@ appId: com.causeofdeathindia.digitvacollect.plus
           text: "Enable coding"
           retryTapIfNoChange: false
           waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible: "Help improve the app\\?"
+    commands:
+      - tapOn: "Not now"
+- runFlow:
+    when:
+      visible: "Choose your language"
+    commands:
+      - tapOn: "English"
+- extendedWaitUntil:
+    visible: "Enable coding|Profiles on this phone|Enrol this device|Help improve the app\\?|Choose your language"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Enable coding"
+    commands:
+      - tapOn:
+          text: "Enable coding"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible: "Help improve the app\\?"
+    commands:
+      - tapOn: "Not now"
+- runFlow:
+    when:
+      visible: "Choose your language"
+    commands:
+      - tapOn: "English"
+- extendedWaitUntil:
+    visible: "Enable coding|Profiles on this phone|Enrol this device|Help improve the app\\?|Choose your language"
+    timeout: 30000
+- runFlow:
+    when:
+      visible: "Enable coding"
+    commands:
+      - tapOn:
+          text: "Enable coding"
+          retryTapIfNoChange: false
+          waitToSettleTimeoutMs: 200
+- runFlow:
+    when:
+      visible: "Help improve the app\\?"
+    commands:
+      - tapOn: "Not now"
+- runFlow:
+    when:
+      visible: "Choose your language"
+    commands:
+      - tapOn: "English"
 - runFlow:
     when:
       true: ${MAESTRO_ENROL_INTERVIEWER == '1'}

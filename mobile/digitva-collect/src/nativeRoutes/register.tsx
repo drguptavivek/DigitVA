@@ -156,7 +156,7 @@ export function registrationFieldsFromCase(value: RegistrationCase | CaseRow): R
  * The GPS fix held by a server case (household_address), a register row or a queued registration's fields
  * (flat latitude/longitude/accuracy_m); null without a full fix. Never logged (docs/policy/native-location-capture.md).
  */
-function fixFrom(value: unknown): GpsFix | null {
+export function fixFrom(value: unknown): GpsFix | null {
   if (!isRecord(value)) return null;
   const source = isRecord(value.household_address) && "latitude" in value.household_address ? value.household_address : value;
   const { latitude, longitude, accuracy_m: accuracy } = source;
@@ -164,7 +164,7 @@ function fixFrom(value: unknown): GpsFix | null {
   return { latitude, longitude, accuracy_m: typeof accuracy === "number" && Number.isFinite(accuracy) ? accuracy : null };
 }
 
-const sameFix = (a: GpsFix | null, b: GpsFix | null) =>
+export const sameFix = (a: GpsFix | null, b: GpsFix | null) =>
   a === b || (!!a && !!b && a.latitude === b.latitude && a.longitude === b.longitude && a.accuracy_m === b.accuracy_m);
 
 /** Registration fields plus the fix, as the web sends them; the queue's upload spreads these into its POST. */
@@ -204,10 +204,10 @@ export const TEXT_FIELDS: Array<{
  * The form's groups under their section labels (design sheet 01): who died, where, the identifiers, then notes.
  * Fields the consent notice covers are drawn in the Informant group instead, wherever they are listed here.
  */
-const DECEASED_FIELDS: Field[] = ["father_name", "mother_name"];
-const PLACE_FIELDS: Field[] = ["place_of_death", "address", "address_house_street", "address_village_ward", "address_landmark"];
-const IDENTIFIER_FIELDS: Field[] = ["abha_number", "abha_address"];
-const NOTE_FIELDS: Field[] = ["remarks"];
+export const DECEASED_FIELDS: Field[] = ["father_name", "mother_name"];
+export const PLACE_FIELDS: Field[] = ["place_of_death", "address", "address_house_street", "address_village_ward", "address_landmark"];
+export const IDENTIFIER_FIELDS: Field[] = ["abha_number", "abha_address"];
+export const NOTE_FIELDS: Field[] = ["remarks"];
 
 /** Restore the DOB choice without inventing precision for age-only records. */
 export function birthModeFor(fields: RegistrationFields): BirthMode {

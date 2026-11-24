@@ -7,7 +7,7 @@ jest.mock("../src/auth", () => ({
   refreshAccessSummaryForAction: (...args: unknown[]) => mockRefresh(...args),
 }));
 
-import { getDeathRegistrationAccess, getNativeRegisteredDeaths, getNativeRegistrationCase, patchNativeDeathRegistration } from "../src/deathRegistrationApi";
+import { getDeathRegistrationAccess, getNativeRegisteredDeaths, getNativeRegistrationCase, patchNativeDeathRegistration, patchSupervisedDeath } from "../src/deathRegistrationApi";
 
 beforeEach(() => {
   mockRefresh.mockReset();
@@ -54,4 +54,16 @@ it("rejects malformed detail age data before the form consumes it", async () => 
     deceased: { age_years: Number.NaN }, household_address: {}, informant: {}, links: { update: "/api/v1/intake/deaths/d1" },
   } } });
   await expect(getNativeRegistrationCase("u1", "d1")).rejects.toMatchObject({ code: "malformed_response" });
+});
+
+test("a supervisor's PATCH accepts the trimmed supervisor row and returns only its warnings", async () => {
+  const warnings = [{ code: "identifier_in_use", field: "identifiers.CRN", message: "Already on another case." }];
+  // _identifier_reply for a caller who reaches the case only by supervision: no deceased/informant/links records.
+  mockRequest.mockResolvedValue({ body: { case: { death_id: "d1", state: "registered", updated_at: "t2" }, warnings } });
+  await expect(patchSupervisedDeath("u1", "d1", { informant_name: "Ravi" }, "t1")).resolves.toEqual({ warnings });
+  expect(mockRequest).toHaveBeenCalledWith("u1", "/api/v1/intake/deaths/d1", {
+    method: "PATCH", body: { informant_name: "Ravi", if_updated_at: "t1" },
+  });
+  mockRequest.mockResolvedValue({ body: { case: { death_id: "other" } } });
+  await expect(patchSupervisedDeath("u1", "d1", { remarks: "x" })).rejects.toMatchObject({ code: "malformed_response" });
 });

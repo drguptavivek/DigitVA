@@ -8,7 +8,7 @@ import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 
 import { t } from "../i18n";
 import { clock } from "../nativeShell/shellContext";
-import { controlText, controls, radius, spacing, useTheme } from "../theme";
+import { controls, radius, spacing, useTheme } from "../theme";
 import { Button, Card, ListRow, Notice as UiNotice, SectionLabel, Separator, TextField, TextLink, useUiStyles, type NoticeTone } from "../ui";
 import { Chevron } from "../web/Chevron";
 import { CaseCard } from "../ui/CaseCard";
@@ -26,6 +26,7 @@ import { isInternalPlaceholderUnit } from "../ui/placeholderUnit";
 import { pickerModel, recentTarget, type PickerTarget } from "../ui/sitePicker";
 import { OfflineNotice, SkeletonCards, StateView } from "../ui/StateView";
 import type { RecentTarget } from "../recentTarget";
+import { chipStyle, chipTextStyle, foregroundBody, mutedCaption, mutedSubhead } from "./worklistStyles";
 
 /**
  * "GUJ026 · Gujarat Health System" (code and display name); tapping it opens the project chooser when the account has
@@ -196,23 +197,23 @@ export function HomeView(p: HomeViewProps) {
         </Card>
       ) : null}
       {offerSend ? <Button testID="home-send-now" label={t("homeSendNow")} onPress={p.onSend} disabled={p.busy || p.offline} loading={p.busy} /> : null}
-      {offerSend && p.offline ? <Text testID="home-send-offline" style={{ ...typography.caption, color: ui.mutedForeground }}>{t("offlineSendNow")}</Text> : null}
+      {offerSend && p.offline ? <Text testID="home-send-offline" style={mutedCaption({ ui, typography })}>{t("offlineSendNow")}</Text> : null}
       <View style={{ gap: spacing.xs }}>
         <SectionLabel>{t("homeNextStep")}</SectionLabel>
         <Card testID="home-next-step">
           {latest ? (
             <>
-              <Text style={{ ...typography.body, color: ui.foreground }}>
+              <Text style={foregroundBody({ ui, typography })}>
                 {editedKnown ? t("homeResumeLine", { name: latest.title, time: clock(edited.getTime()) }) : latest.title}
               </Text>
-              {count > 1 ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{t("homeDraftsMany", { count })}</Text> : null}
+              {count > 1 ? <Text style={mutedSubhead({ ui, typography })}>{t("homeDraftsMany", { count })}</Text> : null}
               <Button testID="home-next-primary" kind={nextKind} label={t("homeResumeDraft")} onPress={() => p.onResume(latest)} />
-              {p.canStart ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{t("homeStartHint")}</Text> : null}
+              {p.canStart ? <Text style={mutedSubhead({ ui, typography })}>{t("homeStartHint")}</Text> : null}
               {p.canStart ? <Button kind="secondary" label={t("newInterview")} disabled={Boolean(p.startClosed)} onPress={p.onStart} /> : null}
             </>
           ) : (
             <>
-              <Text style={{ ...typography.body, color: ui.foreground }}>{t("homeStartHint")}</Text>
+              <Text style={foregroundBody({ ui, typography })}>{t("homeStartHint")}</Text>
               <Button testID="home-next-primary" kind={nextKind} label={t("homeStartInterview")} disabled={!p.canStart || Boolean(p.startClosed)} onPress={p.onStart} />
             </>
           )}
@@ -300,9 +301,9 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
             onPress={() => onChange(on ? "all" : chip.key)}
             // 36pt chips; the slop makes the 44pt target.
             hitSlop={{ top: 4, bottom: 4 }}
-            style={{ minHeight: controls.compactHeight * Math.max(1, textScale), paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radius.full, backgroundColor: on ? ui.primaryTint : ui.card }}
+            style={chipStyle({ ui }, textScale, on)}
           >
-            <Text numberOfLines={1} style={{ ...typography.subhead, ...controlText, lineHeight: 22 * textScale, fontWeight: on ? "600" : "400", color: on ? ui.primary : ui.foreground }}>{text}</Text>
+            <Text numberOfLines={1} style={chipTextStyle({ ui, typography }, textScale, on)}>{text}</Text>
           </Pressable>
         );
       })}
@@ -312,9 +313,9 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
         accessibilityState={{ selected: moreOn }}
         onPress={() => setMore(true)}
         hitSlop={{ top: 4, bottom: 4 }}
-        style={{ minHeight: controls.compactHeight * Math.max(1, textScale), paddingHorizontal: spacing.sm, alignItems: "center", justifyContent: "center", borderRadius: radius.full, backgroundColor: moreOn ? ui.primaryTint : ui.card }}
+        style={chipStyle({ ui }, textScale, moreOn)}
       >
-        <Text numberOfLines={1} style={{ ...typography.subhead, ...controlText, lineHeight: 22 * textScale, fontWeight: moreOn ? "600" : "400", color: moreOn ? ui.primary : ui.foreground }}>{moreText}</Text>
+        <Text numberOfLines={1} style={chipTextStyle({ ui, typography }, textScale, moreOn)}>{moreText}</Text>
       </Pressable>
       <ChoiceSheet visible={more} title={t("filterMore")} searchLabel={t("pickerSearch")} searchable={false} onClose={() => setMore(false)} build={build} />
     </View>
@@ -474,9 +475,9 @@ export function InterviewsView(p: InterviewsViewProps) {
           }
           return (
             <View style={{ gap: spacing.xs }}>
-              {p.loadFailed ? <Text style={{ ...typography.subhead, color: ui.mutedForeground }}>{p.loadFailedText ?? (p.offline ? t("revisionsNeedConnection") : t("revisionRetry"))}</Text> : null}
+              {p.loadFailed ? <Text style={mutedSubhead({ ui, typography })}>{p.loadFailedText ?? (p.offline ? t("revisionsNeedConnection") : t("revisionRetry"))}</Text> : null}
               {p.hasMore ? <Button kind="secondary" loading={p.loadingMore} label={t("loadMore")} onPress={p.onLoadMore} /> : null}
-              {p.offline ? <Text style={{ ...typography.caption, color: ui.mutedForeground }}>{t("refreshNeedsConnection")}</Text> : null}
+              {p.offline ? <Text style={mutedCaption({ ui, typography })}>{t("refreshNeedsConnection")}</Text> : null}
               {p.footer}
             </View>
           );

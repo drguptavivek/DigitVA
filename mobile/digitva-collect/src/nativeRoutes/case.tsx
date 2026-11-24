@@ -13,18 +13,14 @@ import {
   useRouter,
 } from "expo-router";
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Linking, Platform, Share, Text, TextInput, View } from "react-native";
+import { Text, TextInput, View } from "react-native";
 
 import { useAppState } from "../AppState";
 import {
   CONTACT_OUTCOMES,
-  deleteAction,
-  discardRegistration,
   getCase,
   getRegistration,
   listActions,
-  queueAction,
-  visitAt,
   type CaseAction,
   type CaseDetail,
   type ContactOutcome,
@@ -37,16 +33,15 @@ import { sendRefusal } from "../unsentWork";
 import {
   canFollowUpDeath,
   canStartDeathInterview,
-  deathDirectionsUrls,
   deathFix,
   deathPhoneUrl,
-  deathShareUrl,
 } from "../deathWorkflow";
 import { draftSyncDefaults, fetchCaseDetail, getCachedReferenceData } from "../sync";
 import { reconcileCaseDraft } from "../draftSync";
 import { fetchSubmittedRevisions } from "../revisions";
 import { Button, Card, ChoiceRow, errorText, Notice, Row, Screen, Separator, stateLabel, useUiStyles } from "../ui";
 import { otherDraftWarning } from "../ui/CaseCard";
+import { useCaseActions } from "./useCaseActions";
 import { useShell } from "../nativeShell/shellContext";
 
 function displayDate(value: string | null | undefined): string | undefined {
@@ -235,6 +230,11 @@ export default function Case() {
     }, [account, load, routeIdentity]),
   );
 
+  const { saveAction, discard, discardThisRegistration, callPhone, openDirections, shareLocation } = useCaseActions({
+    db, found, registration, mode, editingId, outcome, date, actionBusy, params, deathId, clientDeathId,
+    requestGeneration, routeIdentityRef, routeIdentity, router, load, setActionBusy, setMessage, setMode,
+  });
+
   if (!account) return <Redirect href="/" />;
   if (!isUnlocked(account.user_id)) {
     return (
@@ -328,176 +328,9 @@ export default function Case() {
     setMessage("");
   }
 
-  async function saveAction() {
-    if (!db || !mode || actionBusy) return;
-    if (
-      !(found
-        ? canFollowUpDeath(found.state)
-        : registration?.state === "pending")
-    ) {
-      setMessage(t("caseActionsUnavailable"));
-      return;
-    }
-    const generation = requestGeneration.current;
-    const identity = routeIdentity;
-    const isCurrent = () =>
-      requestGeneration.current === generation &&
-      routeIdentityRef.current === identity;
-    setActionBusy(true);
-    setMessage("");
-    const at = date.trim() ? visitAt(date.trim()) : null;
-    const day = 86_400_000;
-    const time = at ? new Date(at).getTime() : 0;
-    // The server takes yesterday to 366 days ahead (web_intake_service._clean_visit_at).
-    if (
-      (date.trim() && !at) ||
-      (mode === "visit" && !at) ||
-      (at && (time < Date.now() - day || time > Date.now() + 366 * day))
-    ) {
-      setMessage(t("errVisitDate"));
-      setActionBusy(false);
-      return;
-    }
-    if (mode === "attempt" && !outcome) {
-      setMessage(t("errRequired"));
-      setActionBusy(false);
-      return;
-    }
-    try {
-      await queueAction(db, {
-        project_id:
-          found?.project_id ??
-          registration?.project_id ??
-          params.projectId ??
-          "",
-        client_id: editingId ?? randomUUID(),
-        kind: mode,
-        death_id: deathId ?? null,
-        client_death_id: clientDeathId ?? null,
-        body:
-          mode === "attempt"
-            ? {
-                outcome,
-                ...(at && outcome !== "refused" ? { next_visit_at: at } : {}),
-              }
-            : { next_visit_at: at },
-      });
-      if (!isCurrent()) return;
-      setMode(undefined);
-      setMessage(t("queued"));
-      await load(db, isCurrent);
-    } catch (error) {
-      if (isCurrent()) setMessage(errorText(error));
-    } finally {
-      if (isCurrent()) setActionBusy(false);
-    }
-  }
-
-  async function discard(action: CaseAction) {
-    if (!db || actionBusy) return;
-    const generation = requestGeneration.current;
-    const identity = routeIdentity;
-    const isCurrent = () =>
-      requestGeneration.current === generation &&
-      routeIdentityRef.current === identity;
-    setActionBusy(true);
-    setMessage("");
-    try {
-      await deleteAction(db, action.client_id);
-      if (!isCurrent()) return;
-      await load(db, isCurrent);
-    } catch (error) {
-      if (isCurrent()) setMessage(errorText(error));
-    } finally {
-      if (isCurrent()) setActionBusy(false);
-    }
-  }
-
-  async function discardThisRegistration() {
-    if (!db || !clientDeathId || actionBusy) return;
-    const generation = requestGeneration.current;
-    const identity = routeIdentity;
-    const isCurrent = () =>
-      requestGeneration.current === generation &&
-      routeIdentityRef.current === identity;
-    setActionBusy(true);
-    setMessage("");
-    try {
-      await discardRegistration(db, clientDeathId);
-      if (isCurrent()) router.back();
-    } catch (error) {
-      if (isCurrent()) setMessage(errorText(error));
-    } finally {
-      if (isCurrent()) setActionBusy(false);
-    }
-  }
-
-  async function callPhone(phone: string) {
-    const url = deathPhoneUrl(phone);
-    if (!url || actionBusy) return;
-    const generation = requestGeneration.current;
-    const identity = routeIdentity;
-    const isCurrent = () =>
-      requestGeneration.current === generation &&
-      routeIdentityRef.current === identity;
-    setActionBusy(true);
-    setMessage("");
-    try {
-      await Linking.openURL(url);
-    } catch (error) {
-      if (isCurrent()) setMessage(errorText(error));
-    } finally {
-      if (isCurrent()) setActionBusy(false);
-    }
-  }
-
   const foundFix = deathFix(found?.household_address);
   // A registration not yet sent keeps its fix flat in its fields.
   const localFix = registration ? deathFix(registration.fields as { latitude?: unknown; longitude?: unknown; accuracy_m?: unknown }) : null;
-
-  // Same busy and error handling as callPhone. Coordinates are never logged.
-  async function openDirections(fix: NonNullable<typeof foundFix>, iosApp?: "apple" | "google") {
-    if (actionBusy) return;
-    if (Platform.OS === "ios" && !iosApp) {
-      // Map app names are brand names, the same in every language.
-      Alert.alert(t("directions"), undefined, [
-        { text: "Google Maps", onPress: () => void openDirections(fix, "google") },
-        { text: "Apple Maps", onPress: () => void openDirections(fix, "apple") },
-        { text: t("cancel"), style: "cancel" },
-      ]);
-      return;
-    }
-    setActionBusy(true);
-    setMessage("");
-    let failure: unknown;
-    try {
-      for (const url of deathDirectionsUrls(fix, Platform.OS, iosApp)) {
-        try {
-          await Linking.openURL(url);
-          failure = undefined;
-          break;
-        } catch (error) {
-          failure = error;
-        }
-      }
-      if (failure) setMessage(errorText(failure));
-    } finally {
-      setActionBusy(false);
-    }
-  }
-
-  async function shareLocation(fix: NonNullable<typeof foundFix>) {
-    if (actionBusy) return;
-    setActionBusy(true);
-    setMessage("");
-    try {
-      await Share.share({ message: deathShareUrl(fix) });
-    } catch (error) {
-      setMessage(errorText(error));
-    } finally {
-      setActionBusy(false);
-    }
-  }
 
   // Directions and Share for a fix from the server case or this phone's queued registration.
   function locationActions(fix: NonNullable<typeof foundFix>) {

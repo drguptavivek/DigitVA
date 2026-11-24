@@ -8,7 +8,6 @@ import {
   getMentoringSummary,
   listMentorInstituteStaff,
   removeMentorInstituteStaff,
-  type CreateMentorStaffPayload,
   type MentoringInstituteSummary,
   type MentoringLanguage,
   type MentoringSummary,
@@ -21,6 +20,7 @@ import { BulletItem } from "../ui/controls";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { RoleSentence } from "../ui/RoleChip";
+import { validateStaffForm } from "./staffForm";
 import { describeProjectGrantRows, openServerPage, projectActionItems } from "./roleHome";
 
 interface InstituteRosterProps {
@@ -85,47 +85,24 @@ function InstituteStaffRoster({
   }
 
   async function handleCreateStaff() {
-    const trimmedName = formName.trim();
-    const trimmedEmail = formEmail.trim().toLowerCase();
-    const trimmedConfirm = formEmailConfirm.trim().toLowerCase();
-    const trimmedJob = formJobTitle.trim();
-    const cleanedPhone = formPhone.trim().replace(/[\s-]/g, "");
-
     setFormError("");
 
-    if (!trimmedName) {
-      setFormError("Full Name is required.");
+    const checked = validateStaffForm(
+      {
+        name: formName,
+        email: formEmail,
+        emailConfirm: formEmailConfirm,
+        jobTitle: formJobTitle,
+        phone: formPhone,
+        selectedLanguages,
+      },
+      languages.length,
+    );
+    if (checked.error !== undefined) {
+      setFormError(checked.error);
       return;
     }
-    if (!trimmedEmail) {
-      setFormError("Email is required.");
-      return;
-    }
-    if (!trimmedConfirm) {
-      setFormError("Confirm Email is required.");
-      return;
-    }
-    if (trimmedEmail !== trimmedConfirm) {
-      setFormError("Email confirmation does not match.");
-      return;
-    }
-    if (languages.length > 0 && selectedLanguages.length === 0) {
-      setFormError("At least one coding language must be selected.");
-      return;
-    }
-    if (cleanedPhone && !/^\d{10}$/.test(cleanedPhone)) {
-      setFormError("Enter a valid 10-digit mobile number.");
-      return;
-    }
-
-    const payload: CreateMentorStaffPayload = {
-      name: trimmedName,
-      email: trimmedEmail,
-      email_confirm: trimmedConfirm,
-      languages: selectedLanguages,
-    };
-    if (trimmedJob) payload.job_title = trimmedJob;
-    if (cleanedPhone) payload.phone = cleanedPhone;
+    const { email: trimmedEmail, payload } = checked;
 
     setFormBusy(true);
     try {

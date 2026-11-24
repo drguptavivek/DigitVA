@@ -2,7 +2,6 @@
 import { ErrorCode } from "../errorCodes";
 import {
   createWhoVa2022Instrument,
-  WHO_VA_FORM_VERSION,
   type InstrumentDefinition,
   type SubmissionValidationResult,
 } from "@drguptavivek/who-2022-va";
@@ -21,18 +20,13 @@ import { useAppState } from "../AppState";
 import { useStableAccount } from "../useStableAccount";
 import { ApiError } from "../api";
 import { authedRawRequest, SessionRevokedError, SignInRequiredError } from "../auth";
-import type { Prefill } from "../cases";
 import { type Completion, type Db, type DeviceTimedDraft } from "../drafts";
 import { createNativeDefinitionCache } from "../formDefinitionCache";
 import {
   resolveSavedEnvelopeDefinition,
   type ResolvedInstrument,
 } from "../formDefinitionRuntime";
-import {
-  questionnaireDefault,
-  t,
-  isLocaleCode,
-} from "../i18n";
+import { t } from "../i18n";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { initialDataFromPrefill } from "../prefill";
 import { revisionName } from "../revisionLabel";
@@ -67,37 +61,9 @@ import { useTheme } from "../theme";
 import { Button, Row, Screen, useUiStyles } from "../ui";
 import { Chevron } from "../web/Chevron";
 import { useWhoFormTheme } from "../whoWebTheme";
+import { configForRevision, isPrefill, normalizeEnvelope, REASONS, type RevisionConfig } from "./revisionPure";
 
-const REASONS: Array<{ code: RevisionReason; label: string; message: string }> = [
-  {
-    code: "interviewer_correction",
-    label: "revisionReasonInterviewerCorrection",
-    message: "revisionReasonMessageInterviewerCorrection",
-  },
-  {
-    code: "respondent_correction",
-    label: "revisionReasonRespondentCorrection",
-    message: "revisionReasonMessageRespondentCorrection",
-  },
-  {
-    code: "more_information",
-    label: "revisionReasonMoreInformation",
-    message: "revisionReasonMessageMoreInformation",
-  },
-  {
-    code: "finish_partial",
-    label: "revisionReasonFinishPartial",
-    message: "revisionReasonMessageFinishPartial",
-  },
-];
-
-interface RevisionConfig {
-  projectId: string;
-  locale: string;
-  translationVersion?: number;
-  enabledExtensions: string[];
-  instrumentCode: string;
-}
+export { configForRevision, isPrefill, normalizeEnvelope };
 
 interface LoadedRevision {
   db: Db;
@@ -107,74 +73,6 @@ interface LoadedRevision {
   definition?: ResolvedInstrument;
   generation: number;
   accessVersion: number;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function isPrefill(value: Record<string, unknown>): value is Record<string, unknown> & Prefill {
-  return (
-    (value.interviewer === undefined || isRecord(value.interviewer)) &&
-    (value.deceased === undefined || isRecord(value.deceased)) &&
-    (value.answers === undefined || isRecord(value.answers)) &&
-    (value.lockedQuestionNames === undefined ||
-      (Array.isArray(value.lockedQuestionNames) &&
-        value.lockedQuestionNames.every((name) => typeof name === "string")))
-  );
-}
-
-export function configForRevision(row: RevisionRow, project: ProjectSettings): RevisionConfig {
-  if (row.config?.projectId && row.config.projectId !== project.project_id) {
-    throw new Error("revision_project_mismatch");
-  }
-  const options = project.form_options;
-  const instrumentCode =
-    row.config?.instrumentCode ??
-    options?.form_types?.find((formType) => formType.is_default)?.instrument_code ??
-    "WHO_2022_VA";
-  const enabledExtensions = [
-    ...(row.config?.enabledExtensions ?? options?.enabled_extensions ?? []),
-  ];
-  const savedLocale = row.envelope.locale || row.config?.locale;
-  const locale = savedLocale ??
-    questionnaireDefault(options?.available_locales, options?.default_locale);
-  if (!isLocaleCode(locale)) {
-    throw new Error("revision_locale_unavailable");
-  }
-  const translationVersion =
-    row.envelope.translation_version ??
-    row.config?.translationVersion ??
-    options?.translation_versions?.[locale];
-  return {
-    projectId: project.project_id,
-    locale,
-    ...(translationVersion === undefined ? {} : { translationVersion }),
-    enabledExtensions,
-    instrumentCode,
-  };
-}
-
-export function normalizeEnvelope(
-  envelope: DeviceTimedDraft,
-  instrument: InstrumentDefinition,
-): DeviceTimedDraft {
-  if (
-    (envelope.formVersion && envelope.formVersion !== WHO_VA_FORM_VERSION) ||
-    (envelope.instrumentId && envelope.instrumentId !== instrument.id) ||
-    (envelope.instrumentVersion && envelope.instrumentVersion !== instrument.version)
-  ) {
-    throw new Error("revision_instrument_mismatch");
-  }
-  return {
-    ...envelope,
-    formVersion: envelope.formVersion || WHO_VA_FORM_VERSION,
-    instrumentId: envelope.instrumentId || instrument.id,
-    instrumentVersion: envelope.instrumentVersion || instrument.version,
-    // A submitted draft usually has no current section; the form refuses an
-    // empty one and would then open blank, so it starts at the first section.
-    currentSection: envelope.currentSection || instrument.sections[0]?.name || "_root",
-  };
 }
 
 /** Resolve the saved definition pin; failures leave the encrypted revision unchanged. */

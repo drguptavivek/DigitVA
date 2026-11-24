@@ -21,19 +21,18 @@ import { canUseBiometricAuthentication } from "expo-secure-store";
 import { Alert, Linking, Platform, Text, View } from "react-native";
 import { platformLabel } from "../platformLabel";
 
-import { ApiError, type AccessSummary, type AccountDevice } from "../api";
-import { decommissionMyDevice, deleteDemoAccount, listMyDevices, refreshAccessSummary, requestAccountDeletion, type Slot } from "../auth";
+import { ApiError, type AccountDevice } from "../api";
+import { deleteDemoAccount, requestAccountDeletion, type Slot } from "../auth";
 import { useAppState } from "../AppState";
-import type { Db } from "../drafts";
-import { isUnlocked, openInterviewerDb } from "../interviewerDb";
+import { isUnlocked } from "../interviewerDb";
+import { useBackup, useDevices, usePermissions } from "./settingsHooks";
 import { DataActions } from "../standalone/DataActions";
-import { dataActionsAllowed } from "../standalone/export";
 import StandaloneConsentNoticeSettings from "../standalone/StandaloneConsentNoticeSettings";
 import { APP_VERSION } from "../appVersion";
 import { isPlayDistribution, isPlusVariant } from "../appVariant";
 import { iosAppStoreId } from "../platformFamily";
 import { canUseOfflineCoding } from "../codingCapabilities";
-import { readDevicePermissions, requestDevicePermission, type DevicePermissionName, type DevicePermissionState } from "../devicePermissions.native";
+import type { DevicePermissionName, DevicePermissionState } from "../devicePermissions.native";
 import { IDLE_LOCK_MS } from "../autoLock";
 import { exportErrors } from "../errorExport";
 import { t } from "../i18n";
@@ -130,15 +129,6 @@ export default function NativeSettings() {
   const [update, setUpdate] = useState<UpdateResult>();
   const [compatibility, setCompatibility] = useState<CompatibilityResult>();
   const serverGeneration = useRef(0);
-  const [devicePermissions, setDevicePermissions] = useState<Record<DevicePermissionName, DevicePermissionState>>();
-  const [accessSummary, setAccessSummary] = useState<AccessSummary>();
-  const [permissionsBusy, setPermissionsBusy] = useState(false);
-  const [permissionsError, setPermissionsError] = useState("");
-  const [permissionsMessage, setPermissionsMessage] = useState("");
-  const [devices, setDevices] = useState<AccountDevice[]>();
-  const [devicesBusy, setDevicesBusy] = useState(false);
-  const [deviceBusyId, setDeviceBusyId] = useState<string>();
-  const [devicesError, setDevicesError] = useState("");
   /** Delete my account: undefined = closed; on the Demo slot, the password field is open. */
   const [deletePassword, setDeletePassword] = useState<string>();
   const [deleteMessage, setDeleteMessage] = useState("");
@@ -169,54 +159,16 @@ export default function NativeSettings() {
   const account = accounts.find((item) => item.user_id === shell.userId);
   // Project access is read only after the PIN unlocks an account; before that Settings shows the phone's own permissions.
   const unlocked = Boolean(account && isUnlocked(account.user_id));
-  useEffect(() => {
-    let active = true;
-    const userId = account?.user_id;
-    if (!shell.server || !userId || account?.needs_sign_in) {
-      setDevices(undefined);
-      setDevicesError("");
-      return () => { active = false; };
-    }
-    setDevicesBusy(true);
-    void listMyDevices(userId).then((listed) => {
-      if (!active) return;
-      setDevices(listed);
-      setDevicesError("");
-    }).catch((caught) => {
-      if (active) setDevicesError(errorText(caught));
-    }).finally(() => {
-      if (active) setDevicesBusy(false);
-    });
-    return () => { active = false; };
-  }, [shell.server, account?.user_id, account?.needs_sign_in]);
+  const { devices, devicesBusy, deviceBusyId, devicesError, retryDevices, removeDevice } = useDevices({ server: shell.server, account, lockNow, reload });
   useEffect(() => {
     serverGeneration.current += 1;
     setUpdate(undefined);
     setCompatibility(undefined);
     setChecking(false);
     setCheckingCompatibility(false);
-    setAccessSummary(undefined);
   }, [shell.server]);
-  useEffect(() => {
-    let active = true;
-    void readDevicePermissions().then((permissions) => {
-      if (active) setDevicePermissions(permissions);
-    }).catch((caught) => {
-      if (active) setPermissionsError(errorText(caught));
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-  // Encrypted backup of unsent work for an enrolled account (Plus), and export, backup and restore of a standalone
-  // account's records; each needs the unlocked interviewer database.
-  const [backupDb, setBackupDb] = useState<Db>();
-  const standaloneData = unlocked && dataActionsAllowed(account);
-  const backupUserId = account && unlocked && (standaloneData || (isPlusVariant() && !account.standalone)) ? account.user_id : undefined;
-  useEffect(() => {
-    setBackupDb(undefined);
-    if (backupUserId) void openInterviewerDb(backupUserId).then(setBackupDb).catch(() => undefined);
-  }, [backupUserId]);
+  const { devicePermissions, accessSummary, permissionsBusy, permissionsError, permissionsMessage, checkPermissions, enableDevicePermission, openDeviceSettings } = usePermissions({ server: shell.server, userId: shell.userId, offline: shell.sync.offline, standalone: account?.standalone, reload });
+  const { backupDb, backupUserId, standaloneData } = useBackup(account, unlocked);
   async function requestBiometric(userId: string) {
     setBusy(true);
     setError("");
@@ -363,85 +315,6 @@ export default function NativeSettings() {
     if (!value) return t("permissionsStatusUnknown");
     if (value.granted) return t("permissionsStatusAllowed");
     return value.canAskAgain ? t("permissionsStatusNotGranted") : t("permissionsStatusBlocked");
-  }
-  async function checkPermissions() {
-    setPermissionsBusy(true);
-    setPermissionsError("");
-    try {
-      setDevicePermissions(await readDevicePermissions());
-      if (shell.sync.offline || account?.standalone) {
-        setAccessSummary(undefined);
-        setPermissionsMessage(t("permissionsOffline"));
-      } else if (!shell.server || !shell.userId) {
-        setAccessSummary(undefined);
-        setPermissionsMessage(t("permissionsStatusUnknown"));
-      } else {
-        const refreshed = await refreshAccessSummary(shell.userId);
-        if (!refreshed) {
-          setAccessSummary(undefined);
-          setPermissionsMessage(t("permissionsOffline"));
-        } else {
-          setAccessSummary(refreshed);
-          setPermissionsMessage("");
-          await reload();
-        }
-      }
-    } catch (caught) {
-      setPermissionsError(errorText(caught));
-    } finally {
-      setPermissionsBusy(false);
-    }
-  }
-  async function enableDevicePermission(name: DevicePermissionName) {
-    setPermissionsBusy(true);
-    setPermissionsError("");
-    try {
-      const permission = await requestDevicePermission(name);
-      setDevicePermissions((current) => ({ ...(current ?? { camera: permission, microphone: permission }), [name]: permission }));
-    } catch (caught) {
-      setPermissionsError(errorText(caught));
-    } finally {
-      setPermissionsBusy(false);
-    }
-  }
-  function openDeviceSettings() {
-    void Linking.openSettings().catch((caught) => setPermissionsError(errorText(caught)));
-  }
-  async function retryDevices() {
-    const userId = account?.user_id;
-    if (!shell.server || !userId || account?.needs_sign_in) return;
-    setDevicesBusy(true);
-    setDevicesError("");
-    try {
-      setDevices(await listMyDevices(userId));
-    } catch (caught) {
-      setDevicesError(errorText(caught));
-    } finally {
-      setDevicesBusy(false);
-    }
-  }
-  async function removeDevice(deviceToRemove: AccountDevice) {
-    if (!shell.server || !account) return;
-    setDeviceBusyId(deviceToRemove.device_id);
-    setDevicesError("");
-    try {
-      if (deviceToRemove.current && !(await lockNow())) {
-        setDevicesError(t("errGeneric"));
-        return;
-      }
-      const result = await decommissionMyDevice(account.user_id, deviceToRemove.device_id);
-      if (result.current) {
-        setDevices((current) => current?.filter((item) => item.device_id !== deviceToRemove.device_id));
-        await reload();
-      } else {
-        // Removing another phone changes no local session or encrypted data; just refresh this list.
-        setDevices(await listMyDevices(account.user_id));
-      }
-    } catch (caught) {
-      setDevicesError(errorText(caught));
-    } finally {
-      setDeviceBusyId(undefined);
-    }
   }
   function confirmDeviceRemoval(deviceToRemove: AccountDevice) {
     Alert.alert(t("deviceDecommission"), t("deviceDecommissionConfirm"), [

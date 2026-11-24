@@ -70,6 +70,7 @@ import type { PickerTarget } from "../ui/sitePicker";
 import RegisteredDeaths from "./RegisteredDeaths";
 import { SupervisionEntry } from "./supervisionEntry";
 import { TrainingCodingEntry, TrainingOnboarding } from "./trainingOnboarding";
+import { useOnlineCases } from "./worklistOnline";
 import { HomeView, InterviewsView, Notice, ProjectLine, ProjectSheet, SitePickerSheet } from "./worklistParts";
 
 type ClosedGate = Exclude<GateDecision, { open: true }>;
@@ -120,9 +121,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   // Keep the current project while authorized, else the saved pick, else the project this phone was enrolled on, else the first.
   const defaultProject = useCallback((ids: string[], current?: string) =>
     [current, pickedProjectRef.current, deviceProjectRef.current].find((id) => id && ids.includes(id)) ?? ids[0], []);
-  const [onlineCases, setOnlineCases] = useState<CaseRow[]>(held?.onlineCases ?? []);
-  const [onlineCursor, setOnlineCursor] = useState<string | null>(null);
-  const [onlineBusy, setOnlineBusy] = useState(false);
+  const { onlineCases, setOnlineCases, onlineCursor, setOnlineCursor, onlineBusy, onlineRequestGenerationRef, loadMore } = useOnlineCases(held?.onlineCases);
   const [registrations, setRegistrations] = useState<Registration[]>(held?.registrations ?? []);
   const [actions, setActions] = useState<CaseAction[]>(held?.actions ?? []);
   const [pausedProjects, setPausedProjects] = useState<PausedProject[]>(held?.pausedProjects ?? []);
@@ -155,7 +154,6 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
   const [reopening, setReopening] = useState<DraftRow | undefined>();
   const focusedRef = useRef(false);
   const dbRef = useRef<Db | undefined>(undefined);
-  const onlineRequestGenerationRef = useRef(0);
   const submittedRequestGenerationRef = useRef(0);
   const selectedProjectRef = useRef<string | undefined>(held?.selectedProjectId);
   const referenceDataRef =
@@ -810,33 +808,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     }
   }
 
-  async function loadOnlineMore() {
-    if (!account || !selectedProjectId || onlineBusy) return;
-    const projectId = selectedProjectId;
-    const requestGeneration = onlineRequestGenerationRef.current;
-    const cursor = onlineCursor;
-    setOnlineBusy(true);
-    try {
-      const page = await fetchCasePage(account.user_id, projectId, {
-        limit: 50,
-        ...(cursor ? { cursor } : {}),
-      });
-      if (
-        isCurrent() &&
-        requestGeneration === onlineRequestGenerationRef.current &&
-        selectedProjectRef.current === projectId
-      ) {
-        setOnlineCases((current) =>
-          cursor ? [...current, ...page.cases] : page.cases,
-        );
-        setOnlineCursor(page.next_cursor ?? null);
-      }
-    } catch (error) {
-      if (isCurrent()) await handleError(error);
-    } finally {
-      setOnlineBusy(false);
-    }
-  }
+  const loadOnlineMore = () => loadMore({ account, selectedProjectId, selectedProjectRef, isCurrent, handleError });
 
   async function send() {
     if (!db || !account) return;

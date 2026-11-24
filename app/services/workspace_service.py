@@ -8,11 +8,10 @@ body. Behaviour is pinned by ``tests/routes/test_va_case_workspace_characterizat
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import hashlib
 import hmac
 import json
+from dataclasses import dataclass
 from datetime import UTC
 
 import sqlalchemy as sa
@@ -26,6 +25,7 @@ from app.models import (
     VaAllocations,
     VaFinalAssessments,
     VaStatuses,
+    VaSubmissions,
     VaSubmissionsAuditlog,
 )
 from app.services import smartva_service
@@ -69,8 +69,26 @@ from app.services.workflow_timeline_service import (
     server_event,
 )
 
-if TYPE_CHECKING:
-    from app.routes.api.va_case import _Case
+@dataclass
+class _Case:
+    mode: str
+    va_action: str
+    submission: VaSubmissions
+    project: object
+    project_code: str | None
+    site_code: str | None
+    is_demo_project: bool
+    project_mode: str
+    form_type_code: str
+    active_version: object
+    visible_category_codes: list[str]
+    recode_active: bool = False
+    intake_only: bool = False
+
+    @property
+    def project_id(self) -> str | None:
+        """The case's project, for per-project PII (digitva-ssg7.3); None redacts."""
+        return getattr(self.project, "project_id", None)
 
 
 def _reported_date_of_death(va_sid: str) -> str | None:
@@ -365,11 +383,17 @@ def build_workspace(
     route puts the returned *wf_state* in ``body["case"]`` itself, so this module
     names no coding state (tests/test_duplicate_exclusion_coverage.py exempts the
     route function, one allocated or viewed case, not a coding list).
-    Evaluation order and the number of ``redact_pii`` calls are those of the
-    former in-route code; the body is otherwise unchanged.
+    ``redact_pii`` is evaluated once per request (it only reads grants), and the
+    body is otherwise unchanged.
     """
     uid = user.user_id
     view = case.mode == "view"
+    redacted = redact_pii(user, project_id=case.project_id)
+    icd_classification = (
+        case.project.icd_classification
+        if case.project and case.project.icd_classification
+        else DEFAULT_ICD_CLASSIFICATION
+    )
     category_service = get_category_rendering_service()
     nav = category_service.get_category_nav(
         case.form_type_code, case.va_action, case.visible_category_codes
@@ -439,7 +463,7 @@ def build_workspace(
             assessments["reviewer_final"] = _reviewer_final_json(
                 get_latest_active_reviewer_final_assessment(va_sid, None)
             )
-        if redact_pii(user, project_id=case.project_id):
+        if redacted:
             # Staff free text can name people; a redacted viewer gets the codes only.
             for key, field in (("final", "remark"), ("reviewer_final", "remark"), ("not_codeable", "other")):
                 if assessments[key] is not None:
@@ -492,9 +516,9 @@ def build_workspace(
         case,
         nav,
         viewer_payload_of(
-            viewer_source_payload(case.active_version, redact_pii(user, project_id=case.project_id)),
+            viewer_source_payload(case.active_version, redacted),
             case.form_type_code,
-            redact_pii(user, project_id=case.project_id),
+            redacted,
         ),
     )
     body = {
@@ -516,11 +540,7 @@ def build_workspace(
             "project_mode": case.project_mode,
             # get_icd_classification_for_submission's answer from the project
             # already loaded (same submission -> form -> project path).
-            "icd_classification": (
-                case.project.icd_classification
-                if case.project and case.project.icd_classification
-                else DEFAULT_ICD_CLASSIFICATION
-            ),
+            "icd_classification": icd_classification,
             "narrative_qa_enabled": not view and bool(case.project and case.project.narrative_qa_enabled),
             "social_autopsy_enabled": not view and social_autopsy_enabled(case.project, case.va_action),
             # False for an intake-only view: its workflow events stay READ_EVENTS's.
@@ -562,7 +582,7 @@ def build_workspace(
         "assessments": assessments,
         # Additive (older apps ignore it): ICD-10 code -> title for the codes above.
         "code_titles": _icd10_code_titles(assessments)
-        if ((case.project and case.project.icd_classification) or DEFAULT_ICD_CLASSIFICATION) != "icd11"
+        if icd_classification != "icd11"
         else {},
         "codingTimelineV1": coding_timeline,
         "smartva": smartva,
@@ -579,7 +599,7 @@ def build_workspace(
             project_mode=case.project_mode,
             submission=case.submission,
             active_version=case.active_version,
-            redact_pii=redact_pii(user, project_id=case.project_id),
+            redact_pii=redacted,
             step1=prefill if case.mode == "coding" else None,
             reviewer_initial=artifacts.va_reviewer_initial_assess,
             reviewer_final=artifacts.va_reviewer_final_assess,
@@ -587,8 +607,7 @@ def build_workspace(
     }
     if body["doris"] is not None:
         reset_certificate, reset_provenance = doris_initial(
-            None, case.submission, case.project_mode,
-            redact_pii(user, project_id=case.project_id), case.active_version,
+            None, case.submission, case.project_mode, redacted, case.active_version,
         )
         body["doris"].update(reset_certificate=reset_certificate, reset_prefill_provenance=reset_provenance)
     return body, wf_state

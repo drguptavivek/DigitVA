@@ -70,7 +70,7 @@ from app.services.workflow.definition import (
 )
 from app.services.workflow.state_store import get_submission_workflow_state
 from app.services.workspace_service import SESSION_ACTIONTYPE as _SESSION_ACTIONTYPE
-from app.services.workspace_service import _iso, build_workspace
+from app.services.workspace_service import _Case, _iso, build_workspace
 from app.services.workspace_service import (  # noqa: F401 - re-export: scripts/export_offline_va_display_golden.py
     _category_counts,
 )
@@ -84,28 +84,6 @@ bp = Blueprint("va_case_api", __name__)
 _ACTION_BY_MODE = {"coding": "vacode", "reviewing": "vareview", "view": "vaarea"}
 _SESSION_MODES = ("coding", "reviewing")
 _CODING_ROLES = frozenset({"coder", "coding_tester"})
-
-
-@dataclass
-class _Case:
-    mode: str
-    va_action: str
-    submission: VaSubmissions
-    project: object
-    project_code: str | None
-    site_code: str | None
-    is_demo_project: bool
-    project_mode: str
-    form_type_code: str
-    active_version: object
-    visible_category_codes: list[str]
-    recode_active: bool = False
-    intake_only: bool = False
-
-    @property
-    def project_id(self) -> str | None:
-        """The case's project, for per-project PII (digitva-ssg7.3); None redacts."""
-        return getattr(self.project, "project_id", None)
 
 
 def _private(response):

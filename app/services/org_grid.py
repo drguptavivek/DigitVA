@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from enum import IntEnum
+from typing import NamedTuple
 
 import sqlalchemy as sa
 
@@ -859,6 +863,609 @@ _BULK_ROLE_MAP: dict[str, tuple[list[VaAccessRoles], list[VaAccessRoles]]] = {
 }
 
 
+@dataclass
+class ApplyContext:
+    """State shared by one ``bulk_apply_project_users_grid`` call and its operations.
+
+    ``load`` preloads the project's units, cadre permissions, workers and existing
+    grants in bulk; ``validate_scope`` checks the custom-unit and level inputs of
+    ``scope_mode``. ``summary`` and ``changed_grants`` are what the call returns.
+    The grant helpers keep the grant maps current, so a later helper in the same
+    call sees the writes of an earlier one.
+    """
+
+    project: object
+    project_id: str
+    actor: VaUsers
+    operation: str
+    scope_mode: str
+    sync_scope: bool
+    payload: dict
+    target_user_uuids: list[uuid.UUID]
+    users_map: dict[uuid.UUID, VaUsers]
+    summary: dict
+    changed_grants: list[tuple[dict, str]] = field(default_factory=list)
+
+    def load(self) -> None:
+        # Preload project units, level_cadres, workers, and existing grants in bulk
+        self.active_units = {
+            u.org_unit_id: u
+            for u in db.session.scalars(
+                sa.select(MasOrgUnit).where(
+                    MasOrgUnit.project_id == self.project_id,
+                    MasOrgUnit.is_active.is_(True),
+                )
+            ).all()
+        }
+        self.all_project_unit_ids = list(
+            db.session.scalars(
+                sa.select(MasOrgUnit.org_unit_id).where(MasOrgUnit.project_id == self.project_id)
+            ).all()
+        )
+        self.units_by_level_id: dict[uuid.UUID, list[MasOrgUnit]] = {}
+        for u in self.active_units.values():
+            self.units_by_level_id.setdefault(u.org_level_id, []).append(u)
+
+        self.project_sites = list(
+            db.session.scalars(
+                sa.select(VaProjectSites).where(VaProjectSites.project_id == self.project_id)
+            ).all()
+        )
+        ps_ids = [ps.project_site_id for ps in self.project_sites]
+
+        # Preload active MapOrgLevelCadre for automatic cadre resolution
+        lc_rows = db.session.execute(
+            sa.select(MapOrgLevelCadre, MasCadre)
+            .join(MasCadre, MasCadre.cadre_id == MapOrgLevelCadre.cadre_id)
+            .join(MasOrgLevel, MasOrgLevel.org_level_id == MapOrgLevelCadre.org_level_id)
+            .where(
+                MasOrgLevel.project_id == self.project_id,
+                MapOrgLevelCadre.is_active.is_(True),
+                MasCadre.is_active.is_(True),
+            )
+            .order_by(MasCadre.cadre_code)
+        ).all()
+        self.lc_by_pair: dict[tuple[uuid.UUID, uuid.UUID], MapOrgLevelCadre] = {}
+        self.lc_by_level: dict[uuid.UUID, list[tuple[MapOrgLevelCadre, MasCadre]]] = {}
+        for lc, cadre in lc_rows:
+            self.lc_by_pair[(lc.org_level_id, lc.cadre_id)] = lc
+            self.lc_by_level.setdefault(lc.org_level_id, []).append((lc, cadre))
+
+        # Preload workers for target users
+        self.worker_rows = db.session.scalars(
+            sa.select(MasOrgUnitWorker)
+            .where(
+                MasOrgUnitWorker.project_id == self.project_id,
+                MasOrgUnitWorker.user_id.in_(self.target_user_uuids),
+            )
+            .order_by(MasOrgUnitWorker.is_active.desc(), MasOrgUnitWorker.worker_code)
+        ).all()
+        self.primary_worker_by_user: dict[uuid.UUID, MasOrgUnitWorker] = {}
+        for w in self.worker_rows:
+            if w.user_id and w.user_id not in self.primary_worker_by_user:
+                self.primary_worker_by_user[w.user_id] = w
+
+        # Preload all existing grants in this project for target users
+        grant_conds = [
+            sa.and_(
+                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
+                VaUserAccessGrants.project_id == self.project_id,
+            )
+        ]
+        if ps_ids:
+            grant_conds.append(
+                sa.and_(
+                    VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
+                    VaUserAccessGrants.project_site_id.in_(ps_ids),
+                )
+            )
+        if self.all_project_unit_ids:
+            grant_conds.append(
+                sa.and_(
+                    VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
+                    VaUserAccessGrants.org_unit_id.in_(self.all_project_unit_ids),
+                )
+            )
+        existing_grant_rows = db.session.scalars(
+            sa.select(VaUserAccessGrants).where(
+                VaUserAccessGrants.user_id.in_(self.target_user_uuids),
+                sa.or_(*grant_conds),
+            )
+        ).all()
+
+        self.proj_grants_map: dict[tuple[uuid.UUID, VaAccessRoles], VaUserAccessGrants] = {}
+        self.site_grants_map: dict[tuple[uuid.UUID, VaAccessRoles, uuid.UUID], VaUserAccessGrants] = {}
+        self.unit_grants_map: dict[tuple[uuid.UUID, VaAccessRoles, uuid.UUID], VaUserAccessGrants] = {}
+        self.all_user_project_grants: dict[uuid.UUID, list[VaUserAccessGrants]] = {}
+
+        for g in existing_grant_rows:
+            self.all_user_project_grants.setdefault(g.user_id, []).append(g)
+            if g.scope_type == VaAccessScopeTypes.project:
+                self.proj_grants_map[(g.user_id, g.role)] = g
+            elif g.scope_type == VaAccessScopeTypes.project_site and g.project_site_id:
+                self.site_grants_map[(g.user_id, g.role, g.project_site_id)] = g
+            elif g.scope_type == VaAccessScopeTypes.org_unit and g.org_unit_id:
+                self.unit_grants_map[(g.user_id, g.role, g.org_unit_id)] = g
+
+        self.actor_grants = authz.resolve_grants(self.actor)
+
+    def validate_scope(self) -> None:
+        self.custom_unit_uuids: list[uuid.UUID] = []
+        if self.scope_mode == "custom":
+            raw_custom = self.payload.get("custom_unit_ids") or []
+            if not isinstance(raw_custom, list) or not raw_custom:
+                raise OrganizationError("Pick at least one target unit when using custom unit selection.")
+            for raw_cu in raw_custom:
+                cu_uuid = _uuid(raw_cu, what="Unit id")
+                if cu_uuid not in self.active_units:
+                    raise OrganizationError("Selected unit does not belong to this project or is inactive.")
+                if cu_uuid not in self.custom_unit_uuids:
+                    self.custom_unit_uuids.append(cu_uuid)
+
+        self.level_scope_uuid: uuid.UUID | None = None
+        if self.scope_mode.startswith("level:"):
+            self.level_scope_uuid = _uuid(self.scope_mode.split(":", 1)[1], what="Level id")
+            if not self.units_by_level_id.get(self.level_scope_uuid):
+                raise OrganizationError("There are no active units at the selected hierarchy level.")
+
+    def revoke_grant(self, g: VaUserAccessGrants) -> None:
+        if g.grant_status != VaStatuses.active:
+            return
+        if not authz.can_grant(
+            self.actor,
+            authz.GrantTarget(
+                role=g.role,
+                scope_type=g.scope_type,
+                project_id=g.project_id,
+                project_site_id=g.project_site_id,
+                org_unit_id=g.org_unit_id,
+            ),
+            _grants=self.actor_grants,
+        ):
+            raise OrganizationError(f"You are not permitted to revoke {g.role.value!r}.")
+        g.grant_status = VaStatuses.deactive
+        self.summary["grants_revoked"] += 1
+        self.changed_grants.append((
+            {
+                "user_id": g.user_id,
+                "grant_id": g.grant_id,
+                "role": g.role.value,
+                "scope_type": g.scope_type.value,
+                "project_id": g.project_id,
+                "project_site_id": g.project_site_id,
+                "org_unit_id": g.org_unit_id,
+                "cadre_id": g.cadre_id,
+            },
+            "grant_revoked",
+        ))
+
+    def resolve_user_target_units(self, uid: uuid.UUID) -> list[uuid.UUID]:
+        if self.scope_mode == "custom":
+            return list(self.custom_unit_uuids)
+        if self.level_scope_uuid is not None:
+            return [u.org_unit_id for u in self.units_by_level_id.get(self.level_scope_uuid, [])]
+        worker = self.primary_worker_by_user.get(uid)
+        if worker is None or worker.org_unit_id not in self.active_units:
+            if len(self.target_user_uuids) == 1:
+                raise OrganizationError(
+                    f"{self.users_map[uid].name or self.users_map[uid].email} has no home unit placement in this project yet. "
+                    "Choose 'All units at Level…', 'Pick specific unit(s)…', or 'Project-wide' in Dropdown 2."
+                )
+            return []
+        home_unit = self.active_units[worker.org_unit_id]
+        if self.scope_mode == "own":
+            return [home_unit.org_unit_id]
+        lv_units = [u.org_unit_id for u in self.units_by_level_id.get(home_unit.org_level_id, [])]
+        if self.scope_mode == "cross_level":
+            other_units = [u_id for u_id in lv_units if u_id != home_unit.org_unit_id]
+            if not other_units and len(self.target_user_uuids) == 1:
+                raise OrganizationError(
+                    f"There are no other active units at {home_unit.level.level_name!r} besides {home_unit.unit_code!r}."
+                )
+            return other_units
+        if self.scope_mode == "all_user_level":
+            return lv_units
+        raise OrganizationError(f"Unsupported scope_mode {self.scope_mode!r}.")
+
+    def resolve_cadre_for_unit_grant(self,
+        uid: uuid.UUID,
+        role: VaAccessRoles,
+        unit: MasOrgUnit,
+    ) -> uuid.UUID | None:
+        from app.services.org_grant_service import CADRE_FLAG_BY_ROLE
+
+        worker = self.primary_worker_by_user.get(uid)
+        home_cadre_id = worker.cadre_id if worker else None
+        if role in CADRE_FLAG_BY_ROLE:
+            flag, permits = CADRE_FLAG_BY_ROLE[role]
+            # 1. If the user has a worker home cadre, it must carry the required flag at this unit's level
+            if home_cadre_id is not None:
+                lc = self.lc_by_pair.get((unit.org_level_id, home_cadre_id))
+                if lc is None:
+                    cadre_code = worker.cadre.cadre_code if worker and worker.cadre else str(home_cadre_id)
+                    raise OrganizationError(
+                        f"Cadre {cadre_code!r} is not defined at level "
+                        f"{unit.level.level_code!r}; add it in the level permissions grid first."
+                    )
+                if not getattr(lc, flag):
+                    cadre_code = worker.cadre.cadre_code if worker and worker.cadre else str(home_cadre_id)
+                    raise OrganizationError(
+                        f"Cadre {cadre_code!r} may not {permits} at level "
+                        f"{unit.level.level_code!r}."
+                    )
+                return home_cadre_id
+            # 2. Otherwise pick the first active cadre at this unit's level that carries the flag
+            for lc, cadre in self.lc_by_level.get(unit.org_level_id, []):
+                if getattr(lc, flag):
+                    return cadre.cadre_id
+            raise OrganizationError(
+                f"To grant {role.value!r} at {unit.unit_code!r} ({unit.level.level_name}), "
+                f"enable '{permits}' for at least one cadre at that level in the Cadres & Role Matrix first."
+            )
+        # Non-flagged unit role: attach home cadre if valid at this level, else None
+        if home_cadre_id and (unit.org_level_id, home_cadre_id) in self.lc_by_pair:
+            return home_cadre_id
+        return None
+
+    def ensure_unit_grant(self, uid: uuid.UUID, role: VaAccessRoles, unit_id: uuid.UUID) -> None:
+        from app.services.org_grant_service import validate_org_unit_grant
+
+        if self.users_map[uid].user_status != VaStatuses.active:
+            raise OrganizationError("DigitVA user is inactive.")
+        unit = self.active_units[unit_id]
+        cadre_id = self.resolve_cadre_for_unit_grant(uid, role, unit)
+        validate_org_unit_grant(
+            role=role,
+            org_unit_id=unit_id,
+            cadre_id=cadre_id,
+            user_id=uid,
+        )
+        if not authz.can_grant(
+            self.actor,
+            authz.GrantTarget(
+                role=role,
+                scope_type=VaAccessScopeTypes.org_unit,
+                project_id=None,
+                org_unit_id=unit_id,
+            ),
+            _grants=self.actor_grants,
+        ):
+            raise OrganizationError(f"You are not permitted to grant {role.value!r} on {unit.unit_code!r}.")
+
+        g = self.unit_grants_map.get((uid, role, unit_id))
+        if g is None:
+            g = VaUserAccessGrants(
+                user_id=uid,
+                role=role,
+                scope_type=VaAccessScopeTypes.org_unit,
+                project_id=None,
+                org_unit_id=unit_id,
+                cadre_id=cadre_id,
+                grant_status=VaStatuses.active,
+                created_by_user_id=self.actor.user_id,
+            )
+            db.session.add(g)
+            db.session.flush()
+            self.unit_grants_map[(uid, role, unit_id)] = g
+            self.all_user_project_grants.setdefault(uid, []).append(g)
+            self.summary["grants_created"] += 1
+            self.changed_grants.append((
+                {
+                    "user_id": uid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.org_unit.value,
+                    "org_unit_id": unit_id,
+                    "cadre_id": cadre_id,
+                },
+                "grant_created",
+            ))
+        elif g.grant_status != VaStatuses.active or (cadre_id is not None and g.cadre_id != cadre_id):
+            was_active = g.grant_status == VaStatuses.active
+            g.grant_status = VaStatuses.active
+            if cadre_id is not None:
+                g.cadre_id = cadre_id
+            if not was_active:
+                self.summary["grants_reactivated"] += 1
+            self.changed_grants.append((
+                {
+                    "user_id": uid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.org_unit.value,
+                    "org_unit_id": unit_id,
+                    "cadre_id": g.cadre_id,
+                },
+                "grant_updated" if was_active else "grant_reactivated",
+            ))
+
+    def ensure_project_grant(self, uid: uuid.UUID, role: VaAccessRoles) -> None:
+        from app.services.mentor_institute_service import check_mentor_grant
+
+        if self.users_map[uid].user_status != VaStatuses.active:
+            raise OrganizationError("DigitVA user is inactive.")
+        check_mentor_grant(uid, role, None)
+        if role == VaAccessRoles.project_pi and not self.actor.is_admin():
+            raise OrganizationError("Only a platform Admin can grant Project PI.")
+        if role == VaAccessRoles.site_pi:
+            # site_pi cannot use 'project' scope; grant across all active project_sites of this project
+            active_project_sites = [
+                ps for ps in self.project_sites if ps.project_site_status == VaStatuses.active
+            ]
+            if not active_project_sites:
+                raise OrganizationError("This project has no sites configured yet.")
+            for ps in active_project_sites:
+                if not authz.can_grant(
+                    self.actor,
+                    authz.GrantTarget(
+                        role=role,
+                        scope_type=VaAccessScopeTypes.project_site,
+                        project_site_id=ps.project_site_id,
+                    ),
+                    _grants=self.actor_grants,
+                ):
+                    raise OrganizationError("You are not permitted to grant Site PI on this site.")
+                g = self.site_grants_map.get((uid, role, ps.project_site_id))
+                if g is None:
+                    g = VaUserAccessGrants(
+                        user_id=uid,
+                        role=role,
+                        scope_type=VaAccessScopeTypes.project_site,
+                        project_site_id=ps.project_site_id,
+                        grant_status=VaStatuses.active,
+                        created_by_user_id=self.actor.user_id,
+                    )
+                    db.session.add(g)
+                    db.session.flush()
+                    self.site_grants_map[(uid, role, ps.project_site_id)] = g
+                    self.all_user_project_grants.setdefault(uid, []).append(g)
+                    self.summary["grants_created"] += 1
+                    self.changed_grants.append((
+                        {
+                            "user_id": uid,
+                            "grant_id": g.grant_id,
+                            "role": role.value,
+                            "scope_type": VaAccessScopeTypes.project_site.value,
+                            "project_site_id": ps.project_site_id,
+                        },
+                        "grant_created",
+                    ))
+                elif g.grant_status != VaStatuses.active:
+                    g.grant_status = VaStatuses.active
+                    self.summary["grants_reactivated"] += 1
+                    self.changed_grants.append((
+                        {
+                            "user_id": uid,
+                            "grant_id": g.grant_id,
+                            "role": role.value,
+                            "scope_type": VaAccessScopeTypes.project_site.value,
+                            "project_site_id": ps.project_site_id,
+                        },
+                        "grant_reactivated",
+                    ))
+            return
+
+        if role in (VaAccessRoles.interview_supervisor, VaAccessRoles.death_reporter):
+            raise OrganizationError(f"Role {role.value!r} is unit-scoped and cannot be granted project-wide.")
+
+        if not authz.can_grant(
+            self.actor,
+            authz.GrantTarget(
+                role=role,
+                scope_type=VaAccessScopeTypes.project,
+                project_id=self.project_id,
+            ),
+            _grants=self.actor_grants,
+        ):
+            raise OrganizationError(f"You are not permitted to grant {role.value!r} at project scope.")
+
+        g = self.proj_grants_map.get((uid, role))
+        if g is None:
+            g = VaUserAccessGrants(
+                user_id=uid,
+                role=role,
+                scope_type=VaAccessScopeTypes.project,
+                project_id=self.project_id,
+                grant_status=VaStatuses.active,
+                created_by_user_id=self.actor.user_id,
+            )
+            db.session.add(g)
+            db.session.flush()
+            self.proj_grants_map[(uid, role)] = g
+            self.all_user_project_grants.setdefault(uid, []).append(g)
+            self.summary["grants_created"] += 1
+            self.changed_grants.append((
+                {
+                    "user_id": uid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.project.value,
+                    "project_id": self.project_id,
+                },
+                "grant_created",
+            ))
+        elif g.grant_status != VaStatuses.active:
+            g.grant_status = VaStatuses.active
+            self.summary["grants_reactivated"] += 1
+            self.changed_grants.append((
+                {
+                    "user_id": uid,
+                    "grant_id": g.grant_id,
+                    "role": role.value,
+                    "scope_type": VaAccessScopeTypes.project.value,
+                    "project_id": self.project_id,
+                },
+                "grant_reactivated",
+            ))
+
+
+def _set_account_status(ctx: ApplyContext) -> None:
+    """Admin-only: activate or deactivate the selected accounts."""
+    if not ctx.actor.is_admin():
+        raise OrganizationError("Only a platform Admin can activate or deactivate user accounts.")
+    desired_status = VaStatuses.active if ctx.operation == "activate_users" else VaStatuses.deactive
+    for uid in ctx.target_user_uuids:
+        if desired_status == VaStatuses.deactive and uid == ctx.actor.user_id:
+            raise OrganizationError("You cannot deactivate your own account.")
+        u_obj = ctx.users_map[uid]
+        if u_obj.user_status != desired_status:
+            u_obj.user_status = desired_status
+            ctx.summary["accounts_updated"] += 1
+
+
+def _revoke_all(ctx: ApplyContext) -> None:
+    """Revoke every grant the selected users hold in the project."""
+    for uid in ctx.target_user_uuids:
+        for g in ctx.all_user_project_grants.get(uid, []):
+            ctx.revoke_grant(g)
+
+
+def _revoke_pii(ctx: ApplyContext) -> None:
+    """Downgrade to non-PII: revoke collaborator_pii at project or target-unit scope."""
+    for uid in ctx.target_user_uuids:
+        if ctx.scope_mode == "project":
+            g = ctx.proj_grants_map.get((uid, VaAccessRoles.collaborator_pii))
+            if g:
+                ctx.revoke_grant(g)
+            for u_id in ctx.all_project_unit_ids:
+                ug = ctx.unit_grants_map.get((uid, VaAccessRoles.collaborator_pii, u_id))
+                if ug:
+                    ctx.revoke_grant(ug)
+        else:
+            target_units = ctx.resolve_user_target_units(uid)
+            for u_id in target_units:
+                ug = ctx.unit_grants_map.get((uid, VaAccessRoles.collaborator_pii, u_id))
+                if ug:
+                    ctx.revoke_grant(ug)
+
+
+def _revoke_coder(ctx: ApplyContext) -> None:
+    """Revoke the coding roles (coder, reviewer, coding_tester) at the target scope."""
+    coding_roles = (VaAccessRoles.coder, VaAccessRoles.reviewer, VaAccessRoles.coding_tester)
+    for uid in ctx.target_user_uuids:
+        if ctx.scope_mode == "project":
+            for r in coding_roles:
+                g = ctx.proj_grants_map.get((uid, r))
+                if g:
+                    ctx.revoke_grant(g)
+                for u_id in ctx.all_project_unit_ids:
+                    ug = ctx.unit_grants_map.get((uid, r, u_id))
+                    if ug:
+                        ctx.revoke_grant(ug)
+        else:
+            target_units = ctx.resolve_user_target_units(uid)
+            for u_id in target_units:
+                for r in coding_roles:
+                    ug = ctx.unit_grants_map.get((uid, r, u_id))
+                    if ug:
+                        ctx.revoke_grant(ug)
+
+
+def _apply_cadre_defaults(ctx: ApplyContext) -> None:
+    """Grant each user's home cadre default roles at the target units."""
+    if ctx.project.project_structure_mode != "organization":
+        raise OrganizationError("Cadre default roles apply to organization-mode projects.")
+    # A placement edit names its own worker; the primary one may be
+    # another placement of the same person (replace_placement_grants).
+    override = ctx.payload.get("worker_id")
+    for uid in ctx.target_user_uuids:
+        worker = ctx.primary_worker_by_user.get(uid)
+        if override is not None:
+            worker = next((w for w in ctx.worker_rows if w.worker_id == override and w.is_active), None)
+        if worker is None or worker.org_unit_id not in ctx.active_units:
+            if len(ctx.target_user_uuids) == 1:
+                raise OrganizationError("Selected user does not have an active worker placement in this project.")
+            continue
+        home_unit = ctx.active_units[worker.org_unit_id]
+        lc = ctx.lc_by_pair.get((home_unit.org_level_id, worker.cadre_id))
+        if lc is None or not lc.default_roles:
+            if len(ctx.target_user_uuids) == 1:
+                raise OrganizationError(
+                    f"No default roles are configured for {worker.cadre.cadre_code!r} at {home_unit.level.level_name!r}."
+                )
+            continue
+        target_units = (
+            ctx.resolve_user_target_units(uid) if ctx.scope_mode != "project" else [home_unit.org_unit_id]
+        )
+        for r_str in lc.default_roles:
+            r_enum = VaAccessRoles(r_str)
+            for u_id in target_units:
+                ctx.ensure_unit_grant(uid, r_enum, u_id)
+
+
+def _apply_role_grant(ctx: ApplyContext) -> None:
+    """Standard role grant (``_BULK_ROLE_MAP``): grant the roles, revoke the paired ones."""
+    from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
+
+    roles_to_grant, roles_to_revoke = _BULK_ROLE_MAP[ctx.operation]
+    use_project_scope = (ctx.scope_mode == "project") or (ctx.operation == "project_pi")
+
+    if not use_project_scope and ctx.project.project_structure_mode != "organization":
+        raise OrganizationError(
+            "Unit scopes require an organization-mode project; choose 'Project-wide' scope for sites-mode projects."
+        )
+
+    for uid in ctx.target_user_uuids:
+        if use_project_scope:
+            for r in roles_to_grant:
+                ctx.ensure_project_grant(uid, r)
+            for r_rev in roles_to_revoke:
+                g_rev = ctx.proj_grants_map.get((uid, r_rev))
+                if g_rev:
+                    ctx.revoke_grant(g_rev)
+        else:
+            target_units = ctx.resolve_user_target_units(uid)
+            target_set = set(target_units)
+            for r in roles_to_grant:
+                if r not in ROLES_ALLOWING_ORG_UNIT:
+                    raise OrganizationError(f"Role {r.value!r} cannot be granted at unit scope.")
+                for u_id in target_units:
+                    ctx.ensure_unit_grant(uid, r, u_id)
+                # When syncing scope (e.g. switching between Own unit, Cross-tree, All units at level, or Custom drawer),
+                # deactivate active unit grants of the primary role outside target_set.
+                if ctx.sync_scope and r == roles_to_grant[0]:
+                    for u_id in ctx.all_project_unit_ids:
+                        if u_id not in target_set:
+                            ug = ctx.unit_grants_map.get((uid, r, u_id))
+                            if ug and ug.grant_status == VaStatuses.active:
+                                ctx.revoke_grant(ug)
+            for r_rev in roles_to_revoke:
+                for u_id in target_units:
+                    ug_rev = ctx.unit_grants_map.get((uid, r_rev, u_id))
+                    if ug_rev and ug_rev.grant_status == VaStatuses.active:
+                        ctx.revoke_grant(ug_rev)
+
+
+class _Stage(IntEnum):
+    """How far an operation gets through the shared checks before its handler runs.
+
+    Ordered: each stage runs every check of the stages below it. ``ACCOUNT`` runs
+    before any preload; ``UNSCOPED`` after the preload but before the scope inputs
+    are validated; ``REVOKE`` after them; ``GRANT`` also requires active users.
+    """
+
+    ACCOUNT = 0
+    UNSCOPED = 1
+    REVOKE = 2
+    GRANT = 3
+
+
+class _Operation(NamedTuple):
+    handler: Callable[[ApplyContext], None]
+    stage: _Stage
+
+
+OPERATIONS: dict[str, _Operation] = {
+    "activate_users": _Operation(_set_account_status, _Stage.ACCOUNT),
+    "deactivate_users": _Operation(_set_account_status, _Stage.ACCOUNT),
+    "revoke_all": _Operation(_revoke_all, _Stage.UNSCOPED),
+    "revoke_pii": _Operation(_revoke_pii, _Stage.REVOKE),
+    "revoke_coder": _Operation(_revoke_coder, _Stage.REVOKE),
+    "cadre_defaults": _Operation(_apply_cadre_defaults, _Stage.GRANT),
+    **{name: _Operation(_apply_role_grant, _Stage.GRANT) for name in _BULK_ROLE_MAP},
+}
+
+
 def bulk_apply_project_users_grid(
     project_id: str,
     payload: dict,
@@ -872,12 +1479,6 @@ def bulk_apply_project_users_grid(
     A non-admin *actor* is refused, before any write, when a selected user is
     not on the project's roster (``require_on_project_roster``).
     """
-    from app.services.org_grant_service import (
-        CADRE_FLAG_BY_ROLE,
-        ROLES_ALLOWING_ORG_UNIT,
-        validate_org_unit_grant,
-    )
-
     project = _get_project(project_id)
     raw_user_ids = payload.get("user_ids") or []
     if not isinstance(raw_user_ids, list) or not raw_user_ids:
@@ -909,566 +1510,40 @@ def bulk_apply_project_users_grid(
     if not operation:
         raise OrganizationError("Choose a role or action to apply.")
 
-    changed_grants: list[tuple[dict, str]] = []
-    summary = {
-        "operation": operation,
-        "scope_mode": scope_mode,
-        "users_processed": len(target_user_uuids),
-        "grants_created": 0,
-        "grants_reactivated": 0,
-        "grants_revoked": 0,
-        "accounts_updated": 0,
-    }
-
-    # 1. Account activation / deactivation (Admin only)
-    if operation in ("activate_users", "deactivate_users"):
-        if not actor.is_admin():
-            raise OrganizationError("Only a platform Admin can activate or deactivate user accounts.")
-        desired_status = VaStatuses.active if operation == "activate_users" else VaStatuses.deactive
-        for uid in target_user_uuids:
-            if desired_status == VaStatuses.deactive and uid == actor.user_id:
-                raise OrganizationError("You cannot deactivate your own account.")
-            u_obj = users_map[uid]
-            if u_obj.user_status != desired_status:
-                u_obj.user_status = desired_status
-                summary["accounts_updated"] += 1
-        db.session.flush()
-        return summary, changed_grants
-
-    # Preload project units, level_cadres, workers, and existing grants in bulk
-    active_units = {
-        u.org_unit_id: u
-        for u in db.session.scalars(
-            sa.select(MasOrgUnit).where(
-                MasOrgUnit.project_id == project_id,
-                MasOrgUnit.is_active.is_(True),
-            )
-        ).all()
-    }
-    all_project_unit_ids = list(
-        db.session.scalars(
-            sa.select(MasOrgUnit.org_unit_id).where(MasOrgUnit.project_id == project_id)
-        ).all()
+    ctx = ApplyContext(
+        project=project,
+        project_id=project_id,
+        actor=actor,
+        operation=operation,
+        scope_mode=scope_mode,
+        sync_scope=sync_scope,
+        payload=payload,
+        target_user_uuids=target_user_uuids,
+        users_map=users_map,
+        summary={
+            "operation": operation,
+            "scope_mode": scope_mode,
+            "users_processed": len(target_user_uuids),
+            "grants_created": 0,
+            "grants_reactivated": 0,
+            "grants_revoked": 0,
+            "accounts_updated": 0,
+        },
     )
-    units_by_level_id: dict[uuid.UUID, list[MasOrgUnit]] = {}
-    for u in active_units.values():
-        units_by_level_id.setdefault(u.org_level_id, []).append(u)
 
-    project_sites = list(
-        db.session.scalars(
-            sa.select(VaProjectSites).where(VaProjectSites.project_id == project_id)
-        ).all()
-    )
-    ps_ids = [ps.project_site_id for ps in project_sites]
-
-    # Preload active MapOrgLevelCadre for automatic cadre resolution
-    lc_rows = db.session.execute(
-        sa.select(MapOrgLevelCadre, MasCadre)
-        .join(MasCadre, MasCadre.cadre_id == MapOrgLevelCadre.cadre_id)
-        .join(MasOrgLevel, MasOrgLevel.org_level_id == MapOrgLevelCadre.org_level_id)
-        .where(
-            MasOrgLevel.project_id == project_id,
-            MapOrgLevelCadre.is_active.is_(True),
-            MasCadre.is_active.is_(True),
-        )
-        .order_by(MasCadre.cadre_code)
-    ).all()
-    lc_by_pair: dict[tuple[uuid.UUID, uuid.UUID], MapOrgLevelCadre] = {}
-    lc_by_level: dict[uuid.UUID, list[tuple[MapOrgLevelCadre, MasCadre]]] = {}
-    for lc, cadre in lc_rows:
-        lc_by_pair[(lc.org_level_id, lc.cadre_id)] = lc
-        lc_by_level.setdefault(lc.org_level_id, []).append((lc, cadre))
-
-    # Preload workers for target users
-    worker_rows = db.session.scalars(
-        sa.select(MasOrgUnitWorker)
-        .where(
-            MasOrgUnitWorker.project_id == project_id,
-            MasOrgUnitWorker.user_id.in_(target_user_uuids),
-        )
-        .order_by(MasOrgUnitWorker.is_active.desc(), MasOrgUnitWorker.worker_code)
-    ).all()
-    primary_worker_by_user: dict[uuid.UUID, MasOrgUnitWorker] = {}
-    for w in worker_rows:
-        if w.user_id and w.user_id not in primary_worker_by_user:
-            primary_worker_by_user[w.user_id] = w
-
-    # Preload all existing grants in this project for target users
-    grant_conds = [
-        sa.and_(
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
-            VaUserAccessGrants.project_id == project_id,
-        )
-    ]
-    if ps_ids:
-        grant_conds.append(
-            sa.and_(
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
-                VaUserAccessGrants.project_site_id.in_(ps_ids),
-            )
-        )
-    if all_project_unit_ids:
-        grant_conds.append(
-            sa.and_(
-                VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-                VaUserAccessGrants.org_unit_id.in_(all_project_unit_ids),
-            )
-        )
-    existing_grant_rows = db.session.scalars(
-        sa.select(VaUserAccessGrants).where(
-            VaUserAccessGrants.user_id.in_(target_user_uuids),
-            sa.or_(*grant_conds),
-        )
-    ).all()
-
-    proj_grants_map: dict[tuple[uuid.UUID, VaAccessRoles], VaUserAccessGrants] = {}
-    site_grants_map: dict[tuple[uuid.UUID, VaAccessRoles, uuid.UUID], VaUserAccessGrants] = {}
-    unit_grants_map: dict[tuple[uuid.UUID, VaAccessRoles, uuid.UUID], VaUserAccessGrants] = {}
-    all_user_project_grants: dict[uuid.UUID, list[VaUserAccessGrants]] = {}
-
-    for g in existing_grant_rows:
-        all_user_project_grants.setdefault(g.user_id, []).append(g)
-        if g.scope_type == VaAccessScopeTypes.project:
-            proj_grants_map[(g.user_id, g.role)] = g
-        elif g.scope_type == VaAccessScopeTypes.project_site and g.project_site_id:
-            site_grants_map[(g.user_id, g.role, g.project_site_id)] = g
-        elif g.scope_type == VaAccessScopeTypes.org_unit and g.org_unit_id:
-            unit_grants_map[(g.user_id, g.role, g.org_unit_id)] = g
-
-    actor_grants = authz.resolve_grants(actor)
-
-    def _revoke_grant(g: VaUserAccessGrants) -> None:
-        if g.grant_status != VaStatuses.active:
-            return
-        if not authz.can_grant(
-            actor,
-            authz.GrantTarget(
-                role=g.role,
-                scope_type=g.scope_type,
-                project_id=g.project_id,
-                project_site_id=g.project_site_id,
-                org_unit_id=g.org_unit_id,
-            ),
-            _grants=actor_grants,
-        ):
-            raise OrganizationError(f"You are not permitted to revoke {g.role.value!r}.")
-        g.grant_status = VaStatuses.deactive
-        summary["grants_revoked"] += 1
-        changed_grants.append((
-            {
-                "user_id": g.user_id,
-                "grant_id": g.grant_id,
-                "role": g.role.value,
-                "scope_type": g.scope_type.value,
-                "project_id": g.project_id,
-                "project_site_id": g.project_site_id,
-                "org_unit_id": g.org_unit_id,
-                "cadre_id": g.cadre_id,
-            },
-            "grant_revoked",
-        ))
-
-    # 2. Revoke ALL grants in project
-    if operation == "revoke_all":
+    # An unknown operation walks every stage, then is refused where a handler would run.
+    op = OPERATIONS.get(operation)
+    stage = op.stage if op else _Stage.GRANT
+    if stage > _Stage.ACCOUNT:
+        ctx.load()
+    if stage > _Stage.UNSCOPED:
+        ctx.validate_scope()
+    if stage >= _Stage.GRANT:
         for uid in target_user_uuids:
-            for g in all_user_project_grants.get(uid, []):
-                _revoke_grant(g)
-        db.session.flush()
-        return summary, changed_grants
-
-    # Helper to resolve target unit UUIDs for a given user under scope_mode
-    custom_unit_uuids: list[uuid.UUID] = []
-    if scope_mode == "custom":
-        raw_custom = payload.get("custom_unit_ids") or []
-        if not isinstance(raw_custom, list) or not raw_custom:
-            raise OrganizationError("Pick at least one target unit when using custom unit selection.")
-        for raw_cu in raw_custom:
-            cu_uuid = _uuid(raw_cu, what="Unit id")
-            if cu_uuid not in active_units:
-                raise OrganizationError("Selected unit does not belong to this project or is inactive.")
-            if cu_uuid not in custom_unit_uuids:
-                custom_unit_uuids.append(cu_uuid)
-
-    level_scope_uuid: uuid.UUID | None = None
-    if scope_mode.startswith("level:"):
-        level_scope_uuid = _uuid(scope_mode.split(":", 1)[1], what="Level id")
-        if not units_by_level_id.get(level_scope_uuid):
-            raise OrganizationError("There are no active units at the selected hierarchy level.")
-
-    def _resolve_user_target_units(uid: uuid.UUID) -> list[uuid.UUID]:
-        if scope_mode == "custom":
-            return list(custom_unit_uuids)
-        if level_scope_uuid is not None:
-            return [u.org_unit_id for u in units_by_level_id.get(level_scope_uuid, [])]
-        worker = primary_worker_by_user.get(uid)
-        if worker is None or worker.org_unit_id not in active_units:
-            if len(target_user_uuids) == 1:
-                raise OrganizationError(
-                    f"{users_map[uid].name or users_map[uid].email} has no home unit placement in this project yet. "
-                    "Choose 'All units at Level…', 'Pick specific unit(s)…', or 'Project-wide' in Dropdown 2."
-                )
-            return []
-        home_unit = active_units[worker.org_unit_id]
-        if scope_mode == "own":
-            return [home_unit.org_unit_id]
-        lv_units = [u.org_unit_id for u in units_by_level_id.get(home_unit.org_level_id, [])]
-        if scope_mode == "cross_level":
-            other_units = [u_id for u_id in lv_units if u_id != home_unit.org_unit_id]
-            if not other_units and len(target_user_uuids) == 1:
-                raise OrganizationError(
-                    f"There are no other active units at {home_unit.level.level_name!r} besides {home_unit.unit_code!r}."
-                )
-            return other_units
-        if scope_mode == "all_user_level":
-            return lv_units
-        raise OrganizationError(f"Unsupported scope_mode {scope_mode!r}.")
-
-    def _resolve_cadre_for_unit_grant(
-        uid: uuid.UUID,
-        role: VaAccessRoles,
-        unit: MasOrgUnit,
-    ) -> uuid.UUID | None:
-        worker = primary_worker_by_user.get(uid)
-        home_cadre_id = worker.cadre_id if worker else None
-        if role in CADRE_FLAG_BY_ROLE:
-            flag, permits = CADRE_FLAG_BY_ROLE[role]
-            # 1. If the user has a worker home cadre, it must carry the required flag at this unit's level
-            if home_cadre_id is not None:
-                lc = lc_by_pair.get((unit.org_level_id, home_cadre_id))
-                if lc is None:
-                    cadre_code = worker.cadre.cadre_code if worker and worker.cadre else str(home_cadre_id)
-                    raise OrganizationError(
-                        f"Cadre {cadre_code!r} is not defined at level "
-                        f"{unit.level.level_code!r}; add it in the level permissions grid first."
-                    )
-                if not getattr(lc, flag):
-                    cadre_code = worker.cadre.cadre_code if worker and worker.cadre else str(home_cadre_id)
-                    raise OrganizationError(
-                        f"Cadre {cadre_code!r} may not {permits} at level "
-                        f"{unit.level.level_code!r}."
-                    )
-                return home_cadre_id
-            # 2. Otherwise pick the first active cadre at this unit's level that carries the flag
-            for lc, cadre in lc_by_level.get(unit.org_level_id, []):
-                if getattr(lc, flag):
-                    return cadre.cadre_id
-            raise OrganizationError(
-                f"To grant {role.value!r} at {unit.unit_code!r} ({unit.level.level_name}), "
-                f"enable '{permits}' for at least one cadre at that level in the Cadres & Role Matrix first."
-            )
-        # Non-flagged unit role: attach home cadre if valid at this level, else None
-        if home_cadre_id and (unit.org_level_id, home_cadre_id) in lc_by_pair:
-            return home_cadre_id
-        return None
-
-    def _ensure_unit_grant(uid: uuid.UUID, role: VaAccessRoles, unit_id: uuid.UUID) -> None:
-        if users_map[uid].user_status != VaStatuses.active:
-            raise OrganizationError("DigitVA user is inactive.")
-        unit = active_units[unit_id]
-        cadre_id = _resolve_cadre_for_unit_grant(uid, role, unit)
-        validate_org_unit_grant(
-            role=role,
-            org_unit_id=unit_id,
-            cadre_id=cadre_id,
-            user_id=uid,
-        )
-        if not authz.can_grant(
-            actor,
-            authz.GrantTarget(
-                role=role,
-                scope_type=VaAccessScopeTypes.org_unit,
-                project_id=None,
-                org_unit_id=unit_id,
-            ),
-            _grants=actor_grants,
-        ):
-            raise OrganizationError(f"You are not permitted to grant {role.value!r} on {unit.unit_code!r}.")
-
-        g = unit_grants_map.get((uid, role, unit_id))
-        if g is None:
-            g = VaUserAccessGrants(
-                user_id=uid,
-                role=role,
-                scope_type=VaAccessScopeTypes.org_unit,
-                project_id=None,
-                org_unit_id=unit_id,
-                cadre_id=cadre_id,
-                grant_status=VaStatuses.active,
-                created_by_user_id=actor.user_id,
-            )
-            db.session.add(g)
-            db.session.flush()
-            unit_grants_map[(uid, role, unit_id)] = g
-            all_user_project_grants.setdefault(uid, []).append(g)
-            summary["grants_created"] += 1
-            changed_grants.append((
-                {
-                    "user_id": uid,
-                    "grant_id": g.grant_id,
-                    "role": role.value,
-                    "scope_type": VaAccessScopeTypes.org_unit.value,
-                    "org_unit_id": unit_id,
-                    "cadre_id": cadre_id,
-                },
-                "grant_created",
-            ))
-        elif g.grant_status != VaStatuses.active or (cadre_id is not None and g.cadre_id != cadre_id):
-            was_active = g.grant_status == VaStatuses.active
-            g.grant_status = VaStatuses.active
-            if cadre_id is not None:
-                g.cadre_id = cadre_id
-            if not was_active:
-                summary["grants_reactivated"] += 1
-            changed_grants.append((
-                {
-                    "user_id": uid,
-                    "grant_id": g.grant_id,
-                    "role": role.value,
-                    "scope_type": VaAccessScopeTypes.org_unit.value,
-                    "org_unit_id": unit_id,
-                    "cadre_id": g.cadre_id,
-                },
-                "grant_updated" if was_active else "grant_reactivated",
-            ))
-
-    def _ensure_project_grant(uid: uuid.UUID, role: VaAccessRoles) -> None:
-        from app.services.mentor_institute_service import check_mentor_grant
-
-        if users_map[uid].user_status != VaStatuses.active:
-            raise OrganizationError("DigitVA user is inactive.")
-        check_mentor_grant(uid, role, None)
-        if role == VaAccessRoles.project_pi and not actor.is_admin():
-            raise OrganizationError("Only a platform Admin can grant Project PI.")
-        if role == VaAccessRoles.site_pi:
-            # site_pi cannot use 'project' scope; grant across all active project_sites of this project
-            active_project_sites = [
-                ps for ps in project_sites if ps.project_site_status == VaStatuses.active
-            ]
-            if not active_project_sites:
-                raise OrganizationError("This project has no sites configured yet.")
-            for ps in active_project_sites:
-                if not authz.can_grant(
-                    actor,
-                    authz.GrantTarget(
-                        role=role,
-                        scope_type=VaAccessScopeTypes.project_site,
-                        project_site_id=ps.project_site_id,
-                    ),
-                    _grants=actor_grants,
-                ):
-                    raise OrganizationError("You are not permitted to grant Site PI on this site.")
-                g = site_grants_map.get((uid, role, ps.project_site_id))
-                if g is None:
-                    g = VaUserAccessGrants(
-                        user_id=uid,
-                        role=role,
-                        scope_type=VaAccessScopeTypes.project_site,
-                        project_site_id=ps.project_site_id,
-                        grant_status=VaStatuses.active,
-                        created_by_user_id=actor.user_id,
-                    )
-                    db.session.add(g)
-                    db.session.flush()
-                    site_grants_map[(uid, role, ps.project_site_id)] = g
-                    all_user_project_grants.setdefault(uid, []).append(g)
-                    summary["grants_created"] += 1
-                    changed_grants.append((
-                        {
-                            "user_id": uid,
-                            "grant_id": g.grant_id,
-                            "role": role.value,
-                            "scope_type": VaAccessScopeTypes.project_site.value,
-                            "project_site_id": ps.project_site_id,
-                        },
-                        "grant_created",
-                    ))
-                elif g.grant_status != VaStatuses.active:
-                    g.grant_status = VaStatuses.active
-                    summary["grants_reactivated"] += 1
-                    changed_grants.append((
-                        {
-                            "user_id": uid,
-                            "grant_id": g.grant_id,
-                            "role": role.value,
-                            "scope_type": VaAccessScopeTypes.project_site.value,
-                            "project_site_id": ps.project_site_id,
-                        },
-                        "grant_reactivated",
-                    ))
-            return
-
-        if role in (VaAccessRoles.interview_supervisor, VaAccessRoles.death_reporter):
-            raise OrganizationError(f"Role {role.value!r} is unit-scoped and cannot be granted project-wide.")
-
-        if not authz.can_grant(
-            actor,
-            authz.GrantTarget(
-                role=role,
-                scope_type=VaAccessScopeTypes.project,
-                project_id=project_id,
-            ),
-            _grants=actor_grants,
-        ):
-            raise OrganizationError(f"You are not permitted to grant {role.value!r} at project scope.")
-
-        g = proj_grants_map.get((uid, role))
-        if g is None:
-            g = VaUserAccessGrants(
-                user_id=uid,
-                role=role,
-                scope_type=VaAccessScopeTypes.project,
-                project_id=project_id,
-                grant_status=VaStatuses.active,
-                created_by_user_id=actor.user_id,
-            )
-            db.session.add(g)
-            db.session.flush()
-            proj_grants_map[(uid, role)] = g
-            all_user_project_grants.setdefault(uid, []).append(g)
-            summary["grants_created"] += 1
-            changed_grants.append((
-                {
-                    "user_id": uid,
-                    "grant_id": g.grant_id,
-                    "role": role.value,
-                    "scope_type": VaAccessScopeTypes.project.value,
-                    "project_id": project_id,
-                },
-                "grant_created",
-            ))
-        elif g.grant_status != VaStatuses.active:
-            g.grant_status = VaStatuses.active
-            summary["grants_reactivated"] += 1
-            changed_grants.append((
-                {
-                    "user_id": uid,
-                    "grant_id": g.grant_id,
-                    "role": role.value,
-                    "scope_type": VaAccessScopeTypes.project.value,
-                    "project_id": project_id,
-                },
-                "grant_reactivated",
-            ))
-
-    # 3. Revoke PII (Downgrade to Non-PII)
-    if operation == "revoke_pii":
-        for uid in target_user_uuids:
-            if scope_mode == "project":
-                g = proj_grants_map.get((uid, VaAccessRoles.collaborator_pii))
-                if g:
-                    _revoke_grant(g)
-                for u_id in all_project_unit_ids:
-                    ug = unit_grants_map.get((uid, VaAccessRoles.collaborator_pii, u_id))
-                    if ug:
-                        _revoke_grant(ug)
-            else:
-                target_units = _resolve_user_target_units(uid)
-                for u_id in target_units:
-                    ug = unit_grants_map.get((uid, VaAccessRoles.collaborator_pii, u_id))
-                    if ug:
-                        _revoke_grant(ug)
-        db.session.flush()
-        return summary, changed_grants
-
-    # 4. Revoke Coding Roles at target scope
-    if operation == "revoke_coder":
-        coding_roles = (VaAccessRoles.coder, VaAccessRoles.reviewer, VaAccessRoles.coding_tester)
-        for uid in target_user_uuids:
-            if scope_mode == "project":
-                for r in coding_roles:
-                    g = proj_grants_map.get((uid, r))
-                    if g:
-                        _revoke_grant(g)
-                    for u_id in all_project_unit_ids:
-                        ug = unit_grants_map.get((uid, r, u_id))
-                        if ug:
-                            _revoke_grant(ug)
-            else:
-                target_units = _resolve_user_target_units(uid)
-                for u_id in target_units:
-                    for r in coding_roles:
-                        ug = unit_grants_map.get((uid, r, u_id))
-                        if ug:
-                            _revoke_grant(ug)
-        db.session.flush()
-        return summary, changed_grants
-
-    for uid in target_user_uuids:
-        if users_map[uid].user_status != VaStatuses.active:
-            raise OrganizationError("DigitVA user is inactive.")
-
-    # 5. Apply Cadre Default Roles
-    if operation == "cadre_defaults":
-        if project.project_structure_mode != "organization":
-            raise OrganizationError("Cadre default roles apply to organization-mode projects.")
-        # A placement edit names its own worker; the primary one may be
-        # another placement of the same person (replace_placement_grants).
-        override = payload.get("worker_id")
-        for uid in target_user_uuids:
-            worker = primary_worker_by_user.get(uid)
-            if override is not None:
-                worker = next((w for w in worker_rows if w.worker_id == override and w.is_active), None)
-            if worker is None or worker.org_unit_id not in active_units:
-                if len(target_user_uuids) == 1:
-                    raise OrganizationError("Selected user does not have an active worker placement in this project.")
-                continue
-            home_unit = active_units[worker.org_unit_id]
-            lc = lc_by_pair.get((home_unit.org_level_id, worker.cadre_id))
-            if lc is None or not lc.default_roles:
-                if len(target_user_uuids) == 1:
-                    raise OrganizationError(
-                        f"No default roles are configured for {worker.cadre.cadre_code!r} at {home_unit.level.level_name!r}."
-                    )
-                continue
-            target_units = _resolve_user_target_units(uid) if scope_mode != "project" else [home_unit.org_unit_id]
-            for r_str in lc.default_roles:
-                r_enum = VaAccessRoles(r_str)
-                for u_id in target_units:
-                    _ensure_unit_grant(uid, r_enum, u_id)
-        db.session.flush()
-        return summary, changed_grants
-
-    # 6. Standard Role Grant Operations (including Coder/Reviewer Non-PII vs with PII)
-    if operation not in _BULK_ROLE_MAP:
+            if users_map[uid].user_status != VaStatuses.active:
+                raise OrganizationError("DigitVA user is inactive.")
+    if op is None:
         raise OrganizationError(f"Unknown bulk operation {operation!r}.")
-
-    roles_to_grant, roles_to_revoke = _BULK_ROLE_MAP[operation]
-    use_project_scope = (scope_mode == "project") or (operation == "project_pi")
-
-    if not use_project_scope and project.project_structure_mode != "organization":
-        raise OrganizationError(
-            "Unit scopes require an organization-mode project; choose 'Project-wide' scope for sites-mode projects."
-        )
-
-    for uid in target_user_uuids:
-        if use_project_scope:
-            for r in roles_to_grant:
-                _ensure_project_grant(uid, r)
-            for r_rev in roles_to_revoke:
-                g_rev = proj_grants_map.get((uid, r_rev))
-                if g_rev:
-                    _revoke_grant(g_rev)
-        else:
-            target_units = _resolve_user_target_units(uid)
-            target_set = set(target_units)
-            for r in roles_to_grant:
-                if r not in ROLES_ALLOWING_ORG_UNIT:
-                    raise OrganizationError(f"Role {r.value!r} cannot be granted at unit scope.")
-                for u_id in target_units:
-                    _ensure_unit_grant(uid, r, u_id)
-                # When syncing scope (e.g. switching between Own unit, Cross-tree, All units at level, or Custom drawer),
-                # deactivate active unit grants of the primary role outside target_set.
-                if sync_scope and r == roles_to_grant[0]:
-                    for u_id in all_project_unit_ids:
-                        if u_id not in target_set:
-                            ug = unit_grants_map.get((uid, r, u_id))
-                            if ug and ug.grant_status == VaStatuses.active:
-                                _revoke_grant(ug)
-            for r_rev in roles_to_revoke:
-                for u_id in target_units:
-                    ug_rev = unit_grants_map.get((uid, r_rev, u_id))
-                    if ug_rev and ug_rev.grant_status == VaStatuses.active:
-                        _revoke_grant(ug_rev)
-
+    op.handler(ctx)
     db.session.flush()
-    return summary, changed_grants
+    return ctx.summary, ctx.changed_grants

@@ -33,19 +33,18 @@ Read-only. It changes nothing and records nothing.
    `revoked_at` is empty): active devices, devices seen in the last 7 days,
    devices seen in the last 30 days (`auth_devices.last_seen_at` within that
    many days of now), the latest last-seen time, and `behind_latest`.
-2. **People**, one row per person and device: a person currently signed in
-   (a live device session: not revoked, refresh unexpired) on an active
-   device of this project, who is on the project's roster
+2. **People**, one row per person and device: a person with a device
+   session last seen in the last 30 days (live or expired: an old app whose
+   session lapsed is the one to find) on an active device of this project, who is on the project's roster
    (`on_project_roster`: member, active grant in the project, or worker in
    it). Fields: display name, the person's active roles in this project,
    platform, app version, the person's last-seen time on that device (the
    session's), the device's enrolment time, and `behind_latest`. A person
-   taken off the roster is left out even if still signed in on a project
-   device. The list is filtered by version on the server and capped at 500
+   taken off the roster is left out even if seen on a project device. The list is filtered by version on the server and capped at 500
    rows, newest activity first, with the total given.
 
 So the summary counts devices (a shared phone counts once) and the people
-list counts signed-in people; the two need not add up.
+list counts people seen in the last 30 days; the two need not add up.
 
 Never shown: email, phone, device id, device name, device secret, signing
 keys, IP address.

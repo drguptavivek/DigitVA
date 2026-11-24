@@ -12,11 +12,13 @@ import sqlalchemy as sa
 from app import db
 from app.models import VaStatuses, VaUserAccessGrants, VaUsers
 from app.models.auth_devices import AuthDevice, AuthDeviceSession
-from app.services.device_auth_service import live_session_clauses
 from app.services.org_grid import _grant_in_project, on_project_roster
 from app.services.worker_enrolment_service import hosted_android_apk
 
 PEOPLE_LIMIT = 500
+#: People are listed from sessions active this recently, live or expired: an old
+#: APK whose session lapsed is the one the screen most needs to name.
+PEOPLE_WINDOW_DAYS = 30
 _VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)(-plus)?")
 _APK_VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)-arm64-v8a\.apk$")
 
@@ -54,7 +56,7 @@ def _iso(dt):
 
 def project_app_versions(project_id: str, *, app_version=None, filter_version=False) -> dict:
     """Summary per (platform, app_version) of the project's active devices,
-    and the roster people signed in on them (newest activity first, at most
+    and the roster people seen on them in the last ``PEOPLE_WINDOW_DAYS`` (newest activity first, at most
     ``PEOPLE_LIMIT``). With *filter_version*, people are limited to
     *app_version* (None: devices that reported none). Four queries, whatever
     the number of devices."""
@@ -86,7 +88,8 @@ def project_app_versions(project_id: str, *, app_version=None, filter_version=Fa
     pairs = (
         sa.select(S.user_id, D.device_id, D.platform, D.app_version, D.enrolled_at, last_seen)
         .join(D, D.device_id == S.device_id)
-        .where(*active, *live_session_clauses(now), on_project_roster(project_id, S.user_id))
+        .where(*active, S.last_seen_at >= now - timedelta(days=PEOPLE_WINDOW_DAYS),
+               on_project_roster(project_id, S.user_id))
         .group_by(S.user_id, D.device_id)
     )
     if filter_version:

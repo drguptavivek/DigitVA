@@ -25,6 +25,8 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+import sqlalchemy as sa
+
 from app.models.auth_devices import AuthDevice, AuthDeviceSession
 from app.services import app_versions_service as svc
 from tests.base import BaseTestCase
@@ -194,6 +196,23 @@ class AppVersionsScreenTests(BaseTestCase):
         self.assertIn(("android", "0.3.16"), summary)
         self.assertNotIn(("android", "0.3.15"), summary)
         self.assertNotIn("Revoked Phone User", [p["name"] for p in body["people"]])
+
+    def test_people_seen_in_thirty_days_are_listed_even_with_a_lapsed_session(self):
+        lapsed = self._person("Lapsed Old Apk", self.A)
+        stale = self._person("Not Seen Lately", self.A)
+        self._device("0.3.15", seen_days=10, users=[lapsed])
+        self._device("0.3.13", seen_days=40, users=[stale])
+        past = datetime.now(UTC) - timedelta(days=5)
+        db.session.execute(
+            sa.update(AuthDeviceSession)
+            .where(AuthDeviceSession.user_id.in_([lapsed.user_id, stale.user_id]))
+            .values(access_expires_at=past, refresh_expires_at=past)
+        )
+        db.session.commit()
+        self._login(self.base_admin_id)
+        names = [p["name"] for p in self._get().get_json()["people"]]
+        self.assertIn("Lapsed Old Apk", names)
+        self.assertNotIn("Not Seen Lately", names)
 
     def test_seven_and_thirty_day_counts(self):
         for days in (0, 6, 8, 29, 31, None):

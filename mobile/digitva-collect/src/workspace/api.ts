@@ -65,18 +65,21 @@ export interface WorkspaceRequestInit {
 
 export type JsonRequester = (path: string, init?: WorkspaceRequestInit) => Promise<unknown>;
 
-export interface WorkspaceApi {
-  getWorkspace(vaSid: string, mode: WorkspaceMode): Promise<WorkspacePayload>;
-  getCategory(vaSid: string, code: string, mode: WorkspaceMode): Promise<CategoryPayload>;
+/** The coder and reviewer queues: counts, available cases, history, projects. */
+export interface WorkspaceQueueApi {
   getCodingStats(projectId?: string): Promise<CodingStats>;
   getCodingAvailable(options?: { projectId?: string; limit?: number; offset?: number }): Promise<CoderQueue>;
   getCodingHistory(options?: { projectId?: string; limit?: number; offset?: number }): Promise<CoderHistory>;
   getCodingProjects(): Promise<CoderProjects>;
-  getCodingAllocation(): Promise<AllocationSnapshot | null>;
   getReviewerProjects(): Promise<ReviewerProjects>;
   getReviewerStats(projectId?: string): Promise<ReviewerStats>;
   getReviewerAvailable(options?: { projectId?: string; limit?: number; offset?: number }): Promise<ReviewerQueue>;
   getReviewerHistory(options?: { projectId?: string; limit?: number; offset?: number }): Promise<ReviewerHistory>;
+}
+
+/** Taking, reading and giving back a coding or review allocation. */
+export interface WorkspaceAllocationApi {
+  getCodingAllocation(): Promise<AllocationSnapshot | null>;
   getReviewerAllocation(): Promise<{ va_sid: string } | null>;
   allocateCoding(vaSid?: string, projectId?: string): Promise<AllocationReply>;
   codeOwnSubmission(vaSid: string): Promise<AllocationReply>;
@@ -84,6 +87,12 @@ export interface WorkspaceApi {
   releaseCoding(): Promise<CodingSaveReply>;
   allocateReviewer(vaSid: string): Promise<AllocationReply>;
   releaseReviewer(): Promise<CodingSaveReply>;
+}
+
+/** The open case and its COD editors: the workspace, its categories, the ICD and DORIS lookups and the COD saves. */
+export interface WorkspaceCodingApi {
+  getWorkspace(vaSid: string, mode: WorkspaceMode): Promise<WorkspacePayload>;
+  getCategory(vaSid: string, code: string, mode: WorkspaceMode): Promise<CategoryPayload>;
   /**
    * The case's coding search with `explain=1`. `searchId` (a UUID) is forwarded as `search_id` so a save can link
    * the chosen code back to this search; the server mints its own when it is absent or invalid.
@@ -92,24 +101,31 @@ export interface WorkspaceApi {
   saveInitial(vaSid: string, body: JsonObject, mode?: "coding" | "reviewing"): Promise<CodingWriteReply>;
   saveFinal(vaSid: string, body: JsonObject, mode?: "coding" | "reviewing"): Promise<CodingWriteReply>;
   saveNotCodeable(vaSid: string, body: JsonObject): Promise<CodingSaveReply>;
+  searchDorisTerms(vaSid: string, query: string, options?: { limit?: number; subtreeUris?: string[] }): Promise<DorisTermsReply>;
+  getDorisCodeInfo(vaSid: string, code: string): Promise<DorisCodeInfoReply>;
+  /** The VA cause of an ICD code (ICD-11 unless `classification` says otherwise), or null when none maps to it (404). */
+  getVaDefinitionForIcd(code: string, classification?: "icd10" | "icd11"): Promise<VaDefinition | null>;
+  checkDorisSelection(vaSid: string, code: string, uri: string): Promise<DorisCodeInfoReply>;
+  processDoris(vaSid: string, role: "coder" | "reviewer", clientRevision: number, certificate: JsonObject): Promise<DorisProcessReply>;
+}
+
+/** What the case shows beside the COD: SmartVA, quality panels, the private note, the timeline, VA causes, the certificate. */
+export interface WorkspaceExtrasApi {
   runSmartva(vaSid: string, regenerate?: boolean): Promise<SmartvaRunReply>;
   getSmartvaStatus(vaSid: string): Promise<SmartvaStatusReply>;
   saveNarrativeQuality(vaSid: string, body: JsonObject, mode?: "coding" | "reviewing"): Promise<JsonObject>;
   saveSocialAutopsy(vaSid: string, body: JsonObject, mode?: "coding" | "reviewing"): Promise<JsonObject>;
   getNote(vaSid: string, mode: "coding" | "reviewing"): Promise<NotePayload>;
   saveNote(vaSid: string, mode: "coding" | "reviewing", content: string): Promise<NotePayload>;
-  searchDorisTerms(vaSid: string, query: string, options?: { limit?: number; subtreeUris?: string[] }): Promise<DorisTermsReply>;
-  getDorisCodeInfo(vaSid: string, code: string): Promise<DorisCodeInfoReply>;
-  /** The VA cause of an ICD code (ICD-11 unless `classification` says otherwise), or null when none maps to it (404). */
-  getVaDefinitionForIcd(code: string, classification?: "icd10" | "icd11"): Promise<VaDefinition | null>;
   /** Every active VA cause definition, for the coder "VA Definitions" list. Absent where no server is reachable. */
   listVaDefinitions?(): Promise<VaDefinitionListItem[]>;
-  checkDorisSelection(vaSid: string, code: string, uri: string): Promise<DorisCodeInfoReply>;
-  processDoris(vaSid: string, role: "coder" | "reviewer", clientRevision: number, certificate: JsonObject): Promise<DorisProcessReply>;
   getWorkflowEvents(vaSid: string, options?: { limit?: number; cursor?: string }): Promise<WorkflowEvents>;
   /** The WHO-form certificate data of a coded organization case (404 when unavailable). Absent where no server is reachable. */
   getCertificate?(vaSid: string): Promise<CertificateData>;
 }
+
+/** Everything a workspace screen asks: online (createWorkspaceApi), offline on the phone, and the DORIS demo. */
+export interface WorkspaceApi extends WorkspaceQueueApi, WorkspaceAllocationApi, WorkspaceCodingApi, WorkspaceExtrasApi {}
 
 const API = "/api/v1";
 

@@ -131,6 +131,14 @@ class DmKpiCharacterizationTests(BaseTestCase):
         cls._seed("uuid:char-coded", "coder_finalized", "English", None, 6)
         cls._seed("uuid:char-retired", "coder_finalized", "English", "missing_in_odk", 6)
         cls._seed("uuid:char-ready", "ready_for_coding", "Hindi", None, 3)
+        # coders/roster reports active_since = MIN(grant_created_at), which the
+        # base fixtures stamp with the real clock. Before 13:00 UTC the anchor is
+        # yesterday, so pin the base coder's grants to the anchor day.
+        db.session.execute(
+            sa.update(VaUserAccessGrants)
+            .where(VaUserAccessGrants.user_id == cls.base_coder_user.user_id)
+            .values(grant_created_at=cls.anchor - timedelta(hours=1))
+        )
         for mv in (COD_SNAPSHOT_MV_NAME, CORE_MV_NAME):
             db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
         db.session.execute(

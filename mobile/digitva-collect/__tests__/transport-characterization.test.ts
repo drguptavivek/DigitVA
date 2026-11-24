@@ -606,3 +606,29 @@ describe("cookie session (same origin, no server, no token)", () => {
     expect(init(3).headers["X-CSRFToken"]).toBe("fresh3");
   });
 });
+
+describe("sign-in session reply (POST /auth/sessions, as signIn sends it)", () => {
+  beforeEach(() => mockFetch.mockReset());
+
+  it("reads a 201 session body and sends the device credentials as JSON", async () => {
+    const session = {
+      access_token: "a", refresh_token: "r", access_expires_at: "2026-11-24T00:00:00+00:00",
+      user: { user_id: "u" }, projects: [],
+    };
+    mockFetch.mockResolvedValueOnce(jsonRes(201, session));
+    const body = { device_id: "d", device_secret: "s", email: "e", password: "p", app_version: "0.0.0" };
+    await expect(requestJson(SERVER, "/api/v1/auth/sessions", { method: "POST", body }))
+      .resolves.toStrictEqual({ status: 201, body: session });
+    expect(mockFetch.mock.calls[0][0]).toBe(`${SERVER}/api/v1/auth/sessions`);
+    expect(init().method).toBe("POST");
+    expect(init().body).toBe(JSON.stringify(body));
+    expect(init().headers["Content-Type"]).toBe("application/json");
+    expect(init().headers.Authorization).toBeUndefined();
+  });
+
+  it("refuses a non-JSON 201 as ApiError redirected_response (an HTML page, e.g. a captive portal)", async () => {
+    mockFetch.mockResolvedValueOnce(res({ status: 201, headers: { "content-type": "text/html" } }));
+    await expect(requestJson(SERVER, "/api/v1/auth/sessions", { method: "POST", body: {} }))
+      .rejects.toMatchObject({ status: 201, code: "redirected_response" });
+  });
+});

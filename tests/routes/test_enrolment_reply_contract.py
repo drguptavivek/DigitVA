@@ -244,6 +244,14 @@ class EnrolAndPasswordEnrolReplyTests(_WireAsserts, BaseTestCase):
                          .status_code, 401)
 
 
+    def test_wrong_sign_in_code_reply(self):
+        """The 401 that ``/sign-in-code/redeem``'s failure-only limits count."""
+        response = self.client.post(f"{API}/sign-in-code/redeem", json={
+            "identifier": "+919800000001", "code": "AAAA-AAAA", "accept_terms": True})
+        self._assert_error(response, 401, {
+            "error": "That email or mobile number and code do not match.", "code": "invalid_code"})
+
+
 class SignInQrReplyTests(_WireAsserts, AuthzFixtureMixin, BaseTestCase):
     """``POST /auth/sign-in-qr/redeem`` with the QR suite's patches."""
 

@@ -14,11 +14,13 @@ from app.models import (
     MasCodBucketScheme,
     MasCodBucketSchemeAgeBand,
     MasIcd1020192,
+    MasIcd11Mms,
     VaCodBucketSchemeSnapshot,
     # Deprecated as of 2026-04-20: retained here only for legacy fixture coverage.
     VaIcdCodes,
 )
 from app.services import va_cause_definition_service as va_definitions
+from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.cod_bucket_mapping_service import (
     SCHEME_CODE_SRS_INDIA,
     import_srs_india_scheme,
@@ -1225,6 +1227,100 @@ class AdminCodBucketPanelTests(BaseTestCase):
 
         bad = self.client.get(f"{url}?icd_classification=icd9")
         self.assertEqual(bad.status_code, 400)
+
+    def _seed_icd11_category(self, code, chapter_no, selectable):
+        row = MasIcd11Mms(
+            release=DEFAULT_ICD11_RELEASE,
+            linearization_uri=f"lin:test-unmapped-{code}",
+            code=code,
+            title=f"Test {code}",
+            class_kind="category",
+            chapter_no=chapter_no,
+            is_coding_selectable=selectable,
+            source_version="test",
+            is_active=True,
+        )
+        db.session.add(row)
+        db.session.commit()
+        return row
+
+    def test_cod_bucket_unmapped_icd_defaults_to_icd10(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/unmapped-icd"
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["icd_classification"], "icd10")
+        self.assertTrue(any(item["code"] == "Z91" for item in payload["rows"]))
+
+    def test_cod_bucket_unmapped_icd_rejects_unknown_classification(self):
+        self._login(self.base_admin_id)
+        response = self.client.get(
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/unmapped-icd"
+            "?icd_classification=icd9"
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_cod_bucket_unmapped_icd11_lists_unmapped_categories_read_only(self):
+        self._login(self.base_admin_id)
+        url = (
+            f"/admin/api/cod-bucket-schemes/{self.scheme_code}/unmapped-icd"
+            "?icd_classification=icd11"
+        )
+        self._add_icd11_mapping("1D20")
+        added = [
+            self._seed_icd11_category("ZQ11", "01", True),
+            self._seed_icd11_category("XQ11", "X", False),
+        ]
+        try:
+            payload = self.client.get(url).get_json()
+            self.assertEqual(payload["icd_classification"], "icd11")
+            self.assertTrue(payload["has_icd11_mappings"])
+            rows = {item["code"]: item for item in payload["rows"]}
+            self.assertIn("ZQ11", rows)
+            self.assertTrue(rows["ZQ11"]["is_assignable_in_coding"])
+            self.assertIn("XQ11", rows)
+            self.assertFalse(rows["XQ11"]["is_assignable_in_coding"])
+            self.assertEqual(
+                rows["XQ11"]["coding_status_label"], "Currently not assignable in coding"
+            )
+            self.assertNotIn("1D20", rows)
+
+            db.session.add(
+                MapIcdCodBucket(
+                    scheme_id=self.scheme_id,
+                    age_scope="adult_over5y",
+                    icd_classification="icd11",
+                    icd_code="ZQ11",
+                    node_id=self.field_a_id,
+                    is_active=True,
+                )
+            )
+            db.session.commit()
+            rows_after = {
+                item["code"] for item in self.client.get(url).get_json()["rows"]
+            }
+            self.assertNotIn("ZQ11", rows_after)
+            self.assertIn("XQ11", rows_after)
+        finally:
+            for row in added:
+                db.session.delete(row)
+            db.session.commit()
+
+    def test_cod_bucket_unmapped_icd11_scheme_without_icd11_mappings_is_empty(self):
+        self._login(self.base_admin_id)
+        added = self._seed_icd11_category("ZQ12", "01", True)
+        try:
+            payload = self.client.get(
+                f"/admin/api/cod-bucket-schemes/{self.scheme_code}/unmapped-icd"
+                "?icd_classification=icd11"
+            ).get_json()
+            self.assertFalse(payload["has_icd11_mappings"])
+            self.assertEqual(payload["rows"], [])
+        finally:
+            db.session.delete(added)
+            db.session.commit()
 
     def test_cod_bucket_icd11_mappings_are_read_only_in_the_panel(self):
         self._login(self.base_admin_id)

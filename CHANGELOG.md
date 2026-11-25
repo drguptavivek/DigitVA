@@ -5,6 +5,16 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- COD bucket editor lists ICD-11 codes not mapped to the scheme (owner
+  2026-11-25, `digitva-rzmh`). The "Codes Not Mapped To This Scheme" card follows
+  the ICD-10/ICD-11 toggle. The ICD-11 view lists default-release categories
+  with no active ICD-11 mapping, read-only: no bulk map, no Final COD or
+  SmartVA counts (those are ICD-10). Chapter X extension codes are listed as
+  not assignable, so the default "Assignable: Yes" filter hides them; on dev
+  WHO_2022_VA_2026 has no other unmapped ICD-11 code. A scheme without ICD-11
+  mappings says so instead of listing the catalogue. Same route with
+  `?icd_classification=` (default icd10, response unchanged but for the new
+  key); policy rule 20a.
 - Web Home: Project progress reads as a table, and admins get a Data
   management button (owner 2026-11-25, `digitva-pnaz`). Each project's name
   sits on its own line over Deaths reported, Interviews done and Coded in

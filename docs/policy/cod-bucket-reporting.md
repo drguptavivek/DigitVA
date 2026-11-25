@@ -65,6 +65,13 @@ data must be scoped.
 20. The scheme-level unmapped ICD grid must support separate utilization
     filters for finalized COD usage and active SmartVA usage, including codes
     that are not currently assignable during coding.
+20a. When the ICD-11 view is selected, the scheme-level unmapped grid lists
+    ICD-11 category codes of the default release that have no active ICD-11
+    mapping in the scheme. It is read-only (ICD-11 mappings are generated): no
+    bulk allocation, no utilization counts or filters. Chapter X extension
+    codes are listed as not assignable in coding. A scheme with no ICD-11
+    mappings lists nothing and says so, since every ICD-11 death falls in
+    Unmapped in the COD bucket report.
 21. The mapped ICD list for a selected disease-level leaf must support filtering
     manual overrides separately from source-derived mappings.
 22. COD bucket aggregation may apply a reporting-only legacy ICD normalization

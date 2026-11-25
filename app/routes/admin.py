@@ -5660,9 +5660,14 @@ def admin_cod_bucket_scheme_unmapped_icd(scheme_code):
         return _json_error("Admin access required.", 403)
 
     try:
-        payload = list_cod_bucket_unmapped_icd_rows(scheme_code=scheme_code)
+        payload = list_cod_bucket_unmapped_icd_rows(
+            scheme_code=scheme_code,
+            icd_classification=(request.args.get("icd_classification") or "icd10").strip().lower(),
+        )
     except LookupError:
         return _json_error("COD bucket scheme not found.", 404)
+    except ValueError as exc:
+        return _json_error(str(exc), 400)
     return jsonify(payload)
 
 

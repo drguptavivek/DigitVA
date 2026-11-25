@@ -119,8 +119,8 @@
     <div class="card mt-3">
       <div class="card-header d-flex justify-content-between align-items-center">
         <div>
-          <div class="fw-semibold">ICD Codes Not Mapped To This Scheme</div>
-          <div class="small text-muted">Across all age groups for the selected CoD scheme, including codes that are currently not assignable in coding.</div>
+          <div class="fw-semibold" id="cb-unmapped-title">ICD-10 Codes Not Mapped To This Scheme</div>
+          <div class="small text-muted" id="cb-unmapped-subtitle">Across all age groups for the selected CoD scheme, including codes that are currently not assignable in coding.</div>
         </div>
         <span class="badge text-bg-secondary" id="cb-unmapped-icd-count">0</span>
       </div>
@@ -140,7 +140,7 @@
               <option value="no">No</option>
             </select>
           </div>
-          <div class="col-lg-2">
+          <div class="col-lg-2" id="cb-unmapped-utilized-col">
             <label for="cb-unmapped-utilized-filter" class="form-label small text-muted text-uppercase">Utilized In Final COD</label>
             <select id="cb-unmapped-utilized-filter" class="form-select form-select-sm">
               <option value="">All</option>
@@ -148,7 +148,7 @@
               <option value="no">No</option>
             </select>
           </div>
-          <div class="col-lg-2">
+          <div class="col-lg-2" id="cb-unmapped-smartva-col">
             <label for="cb-unmapped-smartva-filter" class="form-label small text-muted text-uppercase">Utilized In SmartVA</label>
             <select id="cb-unmapped-smartva-filter" class="form-select form-select-sm">
               <option value="">All</option>
@@ -595,6 +595,7 @@
     icdSearchRequestToken: 0,
     unmappedIcdRows: [],
     unmappedIcdLoading: false,
+    unmappedHasIcd11Mappings: true,
     unmappedAssignableFilter: 'yes',
     unmappedUtilizedFilter: '',
     unmappedSmartvaFilter: '',
@@ -643,6 +644,10 @@
     openIcdModalBtn: document.getElementById('cb-open-icd-modal-btn'),
     unmappedIcdCount: document.getElementById('cb-unmapped-icd-count'),
     unmappedIcdBody: document.getElementById('cb-unmapped-icd-body'),
+    unmappedTitle: document.getElementById('cb-unmapped-title'),
+    unmappedSubtitle: document.getElementById('cb-unmapped-subtitle'),
+    unmappedUtilizedCol: document.getElementById('cb-unmapped-utilized-col'),
+    unmappedSmartvaCol: document.getElementById('cb-unmapped-smartva-col'),
     unmappedAssignableFilter: document.getElementById('cb-unmapped-assignable-filter'),
     unmappedUtilizedFilter: document.getElementById('cb-unmapped-utilized-filter'),
     unmappedSmartvaFilter: document.getElementById('cb-unmapped-smartva-filter'),
@@ -1111,9 +1116,16 @@
     `;
   }
 
+  // The ICD-11 view is read-only and carries no usage counts, so the
+  // utilization filters do not apply to it.
+  function unmappedIsIcd11() {
+    return state.mappingClassification === 'icd11';
+  }
+
   function unmappedRowMatchesFilters(row) {
     if (state.unmappedAssignableFilter === 'yes' && !row.is_assignable_in_coding) return false;
     if (state.unmappedAssignableFilter === 'no' && row.is_assignable_in_coding) return false;
+    if (unmappedIsIcd11()) return true;
     if (state.unmappedUtilizedFilter === 'yes' && !row.is_utilized_in_final_cod) return false;
     if (state.unmappedUtilizedFilter === 'no' && row.is_utilized_in_final_cod) return false;
     if (state.unmappedSmartvaFilter === 'yes' && !row.is_utilized_in_smartva) return false;
@@ -1130,8 +1142,18 @@
     }
     const pageStart = (state.unmappedPage - 1) * state.unmappedPageSize;
     const pageRows = filteredRows.slice(pageStart, pageStart + state.unmappedPageSize);
+    const icd11 = unmappedIsIcd11();
+    const label = icd11 ? 'ICD-11' : 'ICD-10';
+    els.unmappedTitle.textContent = `${label} Codes Not Mapped To This Scheme`;
+    els.unmappedSubtitle.textContent = icd11
+      ? 'Read-only (generated mappings). ICD-11 categories of the current release not mapped to the selected scheme; chapter X extension codes are listed as not assignable.'
+      : 'Across all age groups for the selected CoD scheme, including codes that are currently not assignable in coding.';
+    els.unmappedUtilizedCol.hidden = icd11;
+    els.unmappedSmartvaCol.hidden = icd11;
+    els.bulkAgeScope.disabled = icd11;
     const hasActiveUnmappedFilters = Boolean(
-      state.unmappedAssignableFilter || state.unmappedUtilizedFilter || state.unmappedSmartvaFilter
+      state.unmappedAssignableFilter
+      || (!icd11 && (state.unmappedUtilizedFilter || state.unmappedSmartvaFilter))
     );
     els.unmappedIcdCount.textContent = hasActiveUnmappedFilters
       ? `${filteredRows.length} / ${rows.length}`
@@ -1149,8 +1171,12 @@
       els.unmappedIcdBody.innerHTML = '<div class="p-3 text-muted small">Loading active unmapped ICD codes...</div>';
       return;
     }
+    if (icd11 && !state.unmappedHasIcd11Mappings) {
+      els.unmappedIcdBody.innerHTML = '<div class="p-3 text-muted small">This scheme has no ICD-11 mappings; every ICD-11 death falls in Unmapped in the COD bucket report.</div>';
+      return;
+    }
     if (!rows.length) {
-      els.unmappedIcdBody.innerHTML = '<div class="p-3 text-muted small">All ICD codes in the master catalog are already mapped for this scheme.</div>';
+      els.unmappedIcdBody.innerHTML = `<div class="p-3 text-muted small">All ${esc(label)} codes in the master catalog are already mapped for this scheme.</div>`;
       return;
     }
     if (!filteredRows.length) {
@@ -1161,33 +1187,32 @@
       <table class="table table-sm table-striped mb-0 align-middle">
         <thead class="table-light" style="position: sticky; top: 0; z-index: 1;">
           <tr>
-            <th style="width: 44px;">
+            ${icd11 ? '' : `<th style="width: 44px;">
               <input type="checkbox" class="form-check-input" id="cb-unmapped-select-all">
-            </th>
+            </th>`}
             <th>Chapter</th>
             <th>ICD Code</th>
-            <th>Final COD Uses</th>
-            <th>SmartVA Uses</th>
+            ${icd11 ? '' : '<th>Final COD Uses</th><th>SmartVA Uses</th>'}
             <th>Status</th>
           </tr>
         </thead>
         <tbody>
           ${pageRows.map(row => `
             <tr>
-              <td class="small">
+              ${icd11 ? '' : `<td class="small">
                 <input
                   type="checkbox"
                   class="form-check-input cb-unmapped-row-check"
                   data-icd-code="${esc(row.code || '')}"
                   ${state.selectedUnmappedCodes.includes(row.code) ? 'checked' : ''}
                 >
-              </td>
+              </td>`}
               <td class="small">${esc(row.chapter || '')}</td>
               <td class="small">
                 <span class="fw-semibold">${esc(row.code || '')}</span>
                 <span class="text-muted ms-1">${esc(row.title || '')}</span>
               </td>
-              <td class="small">
+              ${icd11 ? '' : `<td class="small">
                 ${row.is_utilized_in_final_cod
                   ? `<span class="badge text-bg-primary">${esc(String(row.final_cod_count || 0))}</span>`
                   : '<span class="text-muted">0</span>'}
@@ -1196,7 +1221,7 @@
                 ${row.is_utilized_in_smartva
                   ? `<span class="badge text-bg-info">${esc(String(row.smartva_count || 0))}</span>`
                   : '<span class="text-muted">0</span>'}
-              </td>
+              </td>`}
               <td class="small">
                 ${row.coding_status_label
                   ? `<span class="text-warning"><i class="fa-solid fa-triangle-exclamation me-1"></i>${esc(row.coding_status_label)}</span>`
@@ -1225,9 +1250,12 @@
         `<option value="${esc(ageBand.value || '')}" ${currentAgeValue === (ageBand.value || '') ? 'selected' : ''}>${esc(ageBand.label || 'All Ages')}</option>`
       )),
     ].join('');
-    const ready = !!state.selectedUnmappedCodes.length;
+    const ready = !!state.selectedUnmappedCodes.length && !unmappedIsIcd11();
     els.bulkMapBtn.disabled = !ready;
-    const selectedLabel = state.selectedUnmappedCodes.length
+    els.bulkAgeScope.disabled = unmappedIsIcd11();
+    const selectedLabel = unmappedIsIcd11()
+      ? 'ICD-11 mappings are read-only.'
+      : state.selectedUnmappedCodes.length
       ? `${state.selectedUnmappedCodes.length} ICD code(s) selected`
       : 'Select ICD codes below to open the bulk mapping modal.';
     els.bulkMapStatus.textContent = selectedLabel;
@@ -1972,12 +2000,17 @@
       renderUnmappedIcdSection();
       return;
     }
+    const requestScheme = state.schemeCode;
+    const requestClassification = state.mappingClassification;
     state.unmappedIcdLoading = true;
     renderUnmappedIcdSection();
     try {
       const payload = await apiJson(
-        `/admin/api/cod-bucket-schemes/${encodeURIComponent(state.schemeCode)}/unmapped-icd`
+        `/admin/api/cod-bucket-schemes/${encodeURIComponent(requestScheme)}/unmapped-icd?icd_classification=${encodeURIComponent(requestClassification)}`
       );
+      // Drop a slow response (ICD-10 is slow) the user has already moved past.
+      if (requestScheme !== state.schemeCode || requestClassification !== state.mappingClassification) return;
+      state.unmappedHasIcd11Mappings = payload.has_icd11_mappings !== false;
       state.unmappedIcdRows = payload.rows || [];
       state.unmappedPage = 1;
       state.selectedUnmappedCodes = state.selectedUnmappedCodes.filter(code => (
@@ -1987,6 +2020,7 @@
       renderUnmappedIcdSection();
       renderBulkMappingControls();
     } catch (error) {
+      if (requestScheme !== state.schemeCode || requestClassification !== state.mappingClassification) return;
       state.unmappedIcdRows = [];
       state.unmappedIcdLoading = false;
       els.unmappedIcdBody.innerHTML = `<div class="p-3 text-danger small">${esc(error.message || 'Failed to load active unmapped ICD codes.')}</div>`;
@@ -2414,6 +2448,8 @@
       state.mappingClassification = classification;
       state.mappingFilterQuery = '';
       state.mappingManualFilter = '';
+      state.selectedUnmappedCodes = [];
+      state.unmappedPage = 1;
       els.mappingTitle.textContent = classification === 'icd11' ? 'ICD-11' : 'ICD-10';
       els.classificationBtns.forEach(other => {
         const isActive = other === btn;
@@ -2421,6 +2457,8 @@
         other.setAttribute('aria-pressed', isActive ? 'true' : 'false');
       });
       loadCurrentLeafMappings();
+      loadUnmappedIcdRows();
+      renderBulkMappingControls();
     });
   });
 
@@ -2533,7 +2571,7 @@
   });
 
   els.bulkMapBtn.addEventListener('click', function () {
-    if (!state.selectedUnmappedCodes.length) return;
+    if (!state.selectedUnmappedCodes.length || unmappedIsIcd11()) return;
     state.bulkMapModalStep = 'form';
     loadBulkTargetNodes()
       .then(() => {

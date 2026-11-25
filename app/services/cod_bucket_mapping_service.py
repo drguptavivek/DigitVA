@@ -3416,13 +3416,115 @@ def search_cod_bucket_icd_candidates(
     ]
 
 
+def _list_cod_bucket_unmapped_icd11_rows(scheme) -> dict:
+    """ICD-11 categories of the default release not mapped to `scheme`.
+
+    Read-only view: no usage counts. A scheme with no ICD-11 mappings returns
+    no rows (the whole catalogue is not "unmapped" for a scheme that does not
+    use ICD-11 at all); `has_icd11_mappings` tells the UI which empty state.
+    """
+    active_icd11 = sa.and_(
+        MapIcdCodBucket.scheme_id == scheme.scheme_id,
+        MapIcdCodBucket.icd_classification == ICD_CLASSIFICATION_ICD11,
+        MapIcdCodBucket.is_active.is_(True),
+    )
+    has_mappings = bool(
+        db.session.scalar(sa.select(sa.exists().where(active_icd11)))
+    )
+    rows = []
+    if has_mappings:
+        chapter = sa.orm.aliased(MasIcd11Mms)
+        chapter_titles = (
+            sa.select(
+                chapter.chapter_no.label("chapter_no"),
+                sa.func.min(chapter.title).label("title"),
+            )
+            .where(
+                chapter.release == DEFAULT_ICD11_RELEASE,
+                chapter.class_kind == "chapter",
+                chapter.is_active.is_(True),
+            )
+            .group_by(chapter.chapter_no)
+            .subquery()
+        )
+        rows = db.session.execute(
+            sa.select(
+                MasIcd11Mms.code,
+                sa.func.min(MasIcd11Mms.title).label("title"),
+                sa.func.min(MasIcd11Mms.chapter_no).label("chapter_no"),
+                sa.func.min(chapter_titles.c.title).label("chapter_title"),
+                sa.func.bool_or(
+                    sa.func.coalesce(MasIcd11Mms.is_coding_selectable, False)
+                ).label("is_coding_selectable"),
+            )
+            .select_from(MasIcd11Mms)
+            .outerjoin(
+                chapter_titles, chapter_titles.c.chapter_no == MasIcd11Mms.chapter_no
+            )
+            .where(
+                MasIcd11Mms.release == DEFAULT_ICD11_RELEASE,
+                MasIcd11Mms.class_kind == "category",
+                MasIcd11Mms.code.is_not(None),
+                MasIcd11Mms.is_active.is_(True),
+                ~sa.exists().where(
+                    active_icd11, MapIcdCodBucket.icd_code == MasIcd11Mms.code
+                ),
+            )
+            .group_by(MasIcd11Mms.code)
+            .order_by(sa.func.min(MasIcd11Mms.chapter_no), MasIcd11Mms.code)
+        ).mappings().all()
+
+    payload_rows = [
+        {
+            "chapter": (
+                f'{row["chapter_no"]} {row["chapter_title"]}'
+                if row["chapter_no"] and row["chapter_title"]
+                else (row["chapter_no"] or "")
+            ),
+            "three_character_code": "",
+            "three_character_title": "",
+            "detailed_code": "",
+            "detailed_title": "",
+            "semantic_level": "category",
+            "code": row["code"],
+            "title": row["title"],
+            "final_cod_count": 0,
+            "is_utilized_in_final_cod": False,
+            "smartva_count": 0,
+            "is_utilized_in_smartva": False,
+            "is_assignable_in_coding": bool(row["is_coding_selectable"]),
+            "coding_status_label": (
+                None
+                if row["is_coding_selectable"]
+                else "Currently not assignable in coding"
+            ),
+        }
+        for row in rows
+    ]
+    return {
+        "scheme": {
+            "scheme_code": scheme.scheme_code,
+            "scheme_name": scheme.scheme_name,
+        },
+        "icd_classification": ICD_CLASSIFICATION_ICD11,
+        "has_icd11_mappings": has_mappings,
+        "rows": payload_rows,
+        "total_rows": len(payload_rows),
+    }
+
+
 def list_cod_bucket_unmapped_icd_rows(
     *,
     scheme_code: str,
+    icd_classification: str = ICD_CLASSIFICATION_ICD10,
 ) -> dict:
+    if icd_classification not in ICD_CLASSIFICATIONS:
+        raise ValueError("icd_classification must be icd10 or icd11.")
     scheme = get_cod_bucket_scheme(scheme_code)
     if scheme is None:
         raise LookupError(f"Unknown COD bucket scheme: {scheme_code}")
+    if icd_classification == ICD_CLASSIFICATION_ICD11:
+        return _list_cod_bucket_unmapped_icd11_rows(scheme)
 
     mapped_codes_sq = (
         sa.select(MapIcdCodBucket.icd_code.label("icd_code"))
@@ -3651,6 +3753,7 @@ def list_cod_bucket_unmapped_icd_rows(
             "scheme_code": scheme.scheme_code,
             "scheme_name": scheme.scheme_name,
         },
+        "icd_classification": ICD_CLASSIFICATION_ICD10,
         "rows": payload_rows,
         "total_rows": len(payload_rows),
     }

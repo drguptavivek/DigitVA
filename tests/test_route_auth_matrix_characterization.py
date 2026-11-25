@@ -83,8 +83,14 @@ from app.services import device_auth_service as devices
 from app.services import organization_service as org
 from app.services.authz.grants import invalidate
 from app.services.submission_analytics_mv import (
+    COD_MV_NAME,
+    COD_SNAPSHOT_MV_NAME,
     CORE_MV_NAME,
+    DEMOGRAPHICS_MV_NAME,
     build_submission_analytics_core_mv_sql,
+    build_submission_analytics_demographics_mv_sql,
+    build_submission_cod_detail_mv_sql,
+    build_submission_cod_snapshot_mv_sql,
 )
 from app.services.submission_payload_version_service import clear_payload_pii_request_cache
 from tests.base import BaseTestCase
@@ -235,6 +241,24 @@ def _network_guard(attempts):
     ]
 
 
+class _EmptyRedis:
+    """Answers the performance report like a Redis with no cells.
+
+    Not a real cache: a real Redis needs a socket, which the network guard
+    refuses. Only the read calls ``app_telemetry_service.report`` makes exist;
+    ``eval`` (ingest) is absent, so an ingest row still fails as before (503).
+    """
+
+    def smembers(self, _key):
+        return set()
+
+    def pipeline(self, transaction=False):
+        return self
+
+    def execute(self):
+        return []
+
+
 # ── Shared fixtures ─────────────────────────────────────────────────────────
 
 class _FreshClient(device_tests._FreshGClient):
@@ -294,11 +318,16 @@ class RouteAuthMatrixTests(_MatrixBase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # GET /api/v1/me/kpis reads the core analytics MV, which create_all
-        # does not build; built in the class transaction and rolled back with
-        # it (docs/policy/test-harness.md), else that row would pin a 500.
-        db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {CORE_MV_NAME} CASCADE"))
+        # The reporting routes read the analytics MVs, which create_all does
+        # not build; built with the app's own SQL in the class transaction and
+        # rolled back with it (docs/policy/test-harness.md), else those rows
+        # would pin a 500.
+        for mv in (COD_MV_NAME, COD_SNAPSHOT_MV_NAME, DEMOGRAPHICS_MV_NAME, CORE_MV_NAME):
+            db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {mv} CASCADE"))
         db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True, project_clock=True)))
+        db.session.execute(sa.text(build_submission_analytics_demographics_mv_sql()))
+        db.session.execute(sa.text(build_submission_cod_detail_mv_sql(include_icd11=True)))
+        db.session.execute(sa.text(build_submission_cod_snapshot_mv_sql(icd11_buckets=True)))
         cls.admin = cls._make_mixed_admin()
         cls._make_role_users()
         db.session.commit()
@@ -447,6 +476,7 @@ class RouteAuthMatrixTests(_MatrixBase):
             mock.patch.dict(self.app.config, {"EXPO_CLIENT_DIST": self._expo_dist(),
                                               "DIGITVA_ANDROID_APK_DIR": "",
                                               **PINNED_CONFIG}),
+            mock.patch("app.services.app_telemetry_service._redis", return_value=_EmptyRedis()),
             mock.patch("app.routes.expo_client.export_ready", return_value=True),
             mock.patch("app.routes.training_demo.export_ready", return_value=True),
         ]

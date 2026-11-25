@@ -20,4 +20,9 @@
       </button>
     </div>
   </div>
+  {# Shown when the refresh answered 200 but its materialized-view refresh
+     failed (mv_refreshed false; owner 2026-11-25, digitva-r8nh.39). #}
+  <div class="alert alert-warning small mt-3 mb-0 d-none" id="dm-kpi-refresh-stale" role="alert">
+    <i class="fa-solid fa-triangle-exclamation me-1"></i>Refresh failed: the numbers may be stale.
+  </div>
 </div>

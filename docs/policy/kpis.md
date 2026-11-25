@@ -3,7 +3,7 @@ title: Data Manager KPI Framework
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-25
 ---
 
 # Data Manager KPI Framework
@@ -258,6 +258,14 @@ each was decided from its own definition:
 - **Soft gates** (`not_codeable_by_data_manager`, `not_codeable_by_coder`): reversible. ODK data updates or admin override can return these forms to the pipeline. These should be tracked and surfaced to the DM as "actionable" rather than "lost."
 
 ---
+
+### Refresh that could not rebuild the views (owner decision 2026-11-25, `digitva-r8nh.39`)
+
+The dashboard's Refresh button calls `POST /api/v1/analytics/dm-kpi/refresh`.
+When its materialized-view refresh fails, the reply stays 200 with the same
+shape and `mv_refreshed: false` (caches are still cleared). The dashboard then
+shows a visible warning, "Refresh failed: the numbers may be stale.", which a
+later successful refresh hides.
 
 ## Time Frames
 

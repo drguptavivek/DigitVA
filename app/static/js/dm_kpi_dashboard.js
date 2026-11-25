@@ -1069,7 +1069,10 @@
         if (!response.ok) throw new Error('Refresh failed: HTTP ' + response.status);
         return response.json();
       })
-      .then(function () {
+      .then(function (result) {
+        // The server answers 200 even when its view refresh failed.
+        var stale = document.getElementById('dm-kpi-refresh-stale');
+        if (stale) stale.classList.toggle('d-none', !(result && result.mv_refreshed === false));
         // Reload the entire dashboard with fresh data
         return loadOverviewCards()
           .then(function () {

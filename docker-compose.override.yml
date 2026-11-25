@@ -43,6 +43,21 @@ services:
   minerva_db_service:
     # Dev only: parallel test suites and several sessions share this Postgres;
     # the 756m production limit OOM-killed backends during -n 4 runs.
+    # max_locks_per_transaction: each xdist worker's create_all/drop_all over the
+    # full schema exhausted the default 64 ("out of shared memory", digitva-kdf8).
+    # The rest repeats docker-compose.yml's command, which `command` replaces whole.
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c effective_cache_size=512MB
+      -c max_connections=40
+      -c work_mem=4MB
+      -c maintenance_work_mem=64MB
+      -c wal_buffers=8MB
+      -c checkpoint_completion_target=0.9
+      -c idle_in_transaction_session_timeout=30000
+      -c log_min_duration_statement=1000
+      -c max_locks_per_transaction=256
     deploy:
       resources:
         limits:

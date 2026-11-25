@@ -13,8 +13,13 @@ one ordinary user gets with three credentials:
 
 Rules under ``/api/v1/`` also record the same credentials for an account
 holding a global admin grant and a collection grant (``admin_bearer``,
-``admin_cookie``, ``admin_cookie_csrf``). Each bearer is minted for its row
-inside the row's savepoint, so the 15-minute access TTL cannot expire mid-sweep.
+``admin_cookie``, ``admin_cookie_csrf``). Every rule also records the same
+credentials (no ``none``) for three accounts that each hold one role:
+``coder_*`` and ``data_manager_*`` (project grants on RAM01; no
+``data_manager_bearer``, the device service refuses a data manager a session) and
+``interview_supervisor_*`` (a unit grant in a small organization project,
+RAS01, built inside each such row's savepoint). Each bearer is minted for its row inside the row's
+savepoint, so the 15-minute access TTL cannot expire mid-sweep.
 
 Each outcome is ``<status> <mimetype>`` plus the JSON ``code`` (or a short
 ``error``), the redirect target's path and query keys, or an HTML page's
@@ -66,9 +71,17 @@ from flask import g
 from flask_caching.backends import NullCache
 
 from app import cache, db, limiter
-from app.models import VaAccessRoles, VaAccessScopeTypes, VaStatuses, VaUserAccessGrants
+from app.models import (
+    VaAccessRoles,
+    VaAccessScopeTypes,
+    VaProjectMaster,
+    VaStatuses,
+    VaUserAccessGrants,
+)
 from app.services import bundle_ingest_service
 from app.services import device_auth_service as devices
+from app.services import organization_service as org
+from app.services.authz.grants import invalidate
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
     build_submission_analytics_core_mv_sql,
@@ -122,6 +135,10 @@ DUMMY_STRING = "zzdummy"
 PASSWORD = device_tests.PASSWORD
 PROJECT_ID = "RAM01"
 SITE_ID = "RM01"
+#: A small organization project, only for the interview_supervisor's unit grant.
+SUP_PROJECT_ID = "RAS01"
+SUP_SITE_ID = "RS01"
+ROLE_USERS = ("coder", "data_manager", "interview_supervisor")
 
 
 # ── Building requests ───────────────────────────────────────────────────────
@@ -283,7 +300,52 @@ class RouteAuthMatrixTests(_MatrixBase):
         db.session.execute(sa.text(f"DROP MATERIALIZED VIEW IF EXISTS {CORE_MV_NAME} CASCADE"))
         db.session.execute(sa.text(build_submission_analytics_core_mv_sql(include_org_unit=True, project_clock=True)))
         cls.admin = cls._make_mixed_admin()
+        cls._make_role_users()
         db.session.commit()
+
+    @classmethod
+    def _make_role_users(cls):
+        """One account per role in ROLE_USERS, each holding that role only."""
+        def grant(user, role, **scope):
+            db.session.add(VaUserAccessGrants(
+                user_id=user.user_id, role=role, notes="matrix role user",
+                grant_status=VaStatuses.active, **scope))
+
+        for role in ("coder", "data_manager"):
+            user = cls._get_or_make_user(f"matrix.{role}@test.local", PASSWORD)
+            grant(user, VaAccessRoles[role], scope_type=VaAccessScopeTypes.project, project_id=PROJECT_ID)
+            setattr(cls, role, user)
+        cls.interview_supervisor = cls._get_or_make_user("matrix.interview_supervisor@test.local", PASSWORD)
+
+    def _grant_supervision(self):
+        """The supervisor's unit grant, in a small organization project built
+        inside the current request's savepoint: once any organization project
+        exists, the mentor routes answer a global admin differently, so it
+        must not be visible to the other rows."""
+        now = datetime.now(UTC)
+        device_tests.DeviceApiTests._make_project(SUP_PROJECT_ID, SUP_SITE_ID, now)
+        db.session.get(VaProjectMaster, SUP_PROJECT_ID).project_structure_mode = "organization"
+        db.session.flush()
+        org.seed_default_organization(SUP_PROJECT_ID)
+        levels = {lv.level_code: lv for lv in org.list_levels(SUP_PROJECT_ID)}
+        cadres = {c.cadre_code: c for c in org.list_cadres(SUP_PROJECT_ID)}
+        parent = None
+        for level, code in (("district", "RSD1"), ("chc", "RSC1"), ("phc", "RSP1")):
+            parent = phc = org.create_unit(
+                SUP_PROJECT_ID, org_level_id=levels[level].org_level_id, unit_code=code,
+                unit_name=f"Unit {code}",
+                parent_org_unit_id=parent.org_unit_id if parent else None)
+        # The template leaves interview_supervisor off at a PHC; MO may hold it there.
+        org.upsert_level_cadre(
+            SUP_PROJECT_ID, org_level_id=levels["phc"].org_level_id, cadre_id=cadres["MO"].cadre_id,
+            allowed_roles=["interview_supervisor"])
+        db.session.add(VaUserAccessGrants(
+            user_id=self.interview_supervisor.user_id, role=VaAccessRoles.interview_supervisor,
+            notes="matrix role user", grant_status=VaStatuses.active,
+            scope_type=VaAccessScopeTypes.org_unit, org_unit_id=phc.org_unit_id,
+            cadre_id=cadres["MO"].cadre_id))
+        db.session.flush()
+        invalidate(self.interview_supervisor.user_id)
 
     def _expo_dist(self):
         """A stand-in Expo web export: just an ``index.html``."""
@@ -294,16 +356,25 @@ class RouteAuthMatrixTests(_MatrixBase):
 
     def _isolated_request(self, credential, method, path):
         """One request in its own savepoint, on a fresh client. An
-        ``admin_`` credential is the mixed admin's; a bearer is minted here,
+        ``admin_`` or ``<role>_`` credential is that account's; a bearer is minted here,
         inside the savepoint, so no access token outlives its TTL."""
         self.tearDown()
         self.setUp()
         client = self.client = self._client()
-        user = self.admin if credential.startswith("admin_") else self.user
-        kind = credential.removeprefix("admin_")
+        users = {"admin": self.admin, **{role: getattr(self, role) for role in ROLE_USERS}}
+        for name in users:
+            if credential.startswith(f"{name}_"):
+                prefix, kind = name, credential.removeprefix(f"{name}_")
+                break
+        else:
+            prefix, kind = "", credential
+        user = users.get(prefix, self.user)
+        if prefix == "interview_supervisor":
+            self._grant_supervision()
+        project_id = SUP_PROJECT_ID if prefix == "interview_supervisor" else PROJECT_ID
         headers = {}
         if kind == "bearer":
-            headers.update(self._bearer(_device_tokens(user, PROJECT_ID).access_token))
+            headers.update(self._bearer(_device_tokens(user, project_id).access_token))
         elif kind in ("cookie", "cookie_csrf"):
             self._login(str(user.user_id))
             if kind == "cookie_csrf":
@@ -316,19 +387,26 @@ class RouteAuthMatrixTests(_MatrixBase):
         credentials = ["bearer", "cookie", "none"]
         if method in STATE_CHANGING:
             credentials.insert(2, "cookie_csrf")
+        owners = list(ROLE_USERS)
         if rule.rule.startswith(ADMIN_PREFIX):
-            credentials += [f"admin_{credential}" for credential in credentials if credential != "none"]
+            owners.insert(0, "admin")
+        base = [credential for credential in credentials if credential != "none"]
+        # A data_manager is no device role: the service refuses to open a device
+        # session for one (no_interviewer_grant), so it has no bearer column.
+        credentials += [f"{owner}_{credential}" for owner in owners for credential in base
+                        if (owner, credential) != ("data_manager", "bearer")]
         row = {"endpoint": rule.endpoint}
         for credential in credentials:
             row[credential] = self._isolated_request(credential, method, path)
         return row
 
     def _anchor(self):
-        """``/api/v1/me/access`` answers each credential: proof both users
-        are live and not stopped by a gate before or after the sweep."""
+        """``/api/v1/me/access`` answers each credential: proof every user
+        is live and not stopped by a gate before or after the sweep."""
         return {
             credential: self._isolated_request(credential, "GET", "/api/v1/me/access")
-            for credential in ("bearer", "cookie", "none", "admin_bearer", "admin_cookie")
+            for credential in ("bearer", "cookie", "none", "admin_bearer", "admin_cookie",
+                               *(f"{role}_cookie" for role in ROLE_USERS))
         }
 
     def _sweep(self, keys):
@@ -354,6 +432,9 @@ class RouteAuthMatrixTests(_MatrixBase):
             "none": "401 application/json code=unauthorized",
             "admin_bearer": access,
             "admin_cookie": f"{access} xcsrf",
+            "coder_cookie": f"{access} xcsrf",
+            "data_manager_cookie": f"{access} xcsrf",
+            "interview_supervisor_cookie": f"{access} xcsrf",
         }
         attempts, celery_sends = [], []
         patches = _network_guard(attempts) + [
@@ -390,6 +471,9 @@ class RouteAuthMatrixTests(_MatrixBase):
         # gate somewhere, else a sign-in gate could make them a silent copy.
         self.assertTrue(any(row["admin_cookie"] != row["cookie"]
                             for row in matrix.values() if "admin_cookie" in row))
+        for role in ROLE_USERS:
+            self.assertTrue(any(row[f"{role}_cookie"] != row["cookie"] for row in matrix.values()),
+                            f"{role}_cookie is a silent copy of cookie")
 
         if os.environ.get(REGEN):
             # Re-blessing must be a deliberate local act: never in CI or an xdist worker,

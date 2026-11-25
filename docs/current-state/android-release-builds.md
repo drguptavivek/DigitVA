@@ -28,8 +28,27 @@ certificate `6d94718a…6d361767`, versionCode 3302 (arm64), checked with
 `scripts/verify-android-release.sh`; checksums verified after download
 against each release's `.sha256`. The Play bundle is a run artifact of
 `android-play-bundle.yml` (run 45673955783, from `577739af6`); the Play
-upload is the owner's. Not yet copied into staging's `private/android-hosted`:
-`/api/v1/app/android/latest` still offers 0.3.29 until the owner's go.
+upload is the owner's (the artifact expires about 2026-12-09). Not yet copied
+into staging's `private/android-hosted`: `/api/v1/app/android/latest` still
+offers 0.3.29 until the owner's go. The running image holds both APKs in
+`/opt/digitva/android` with the hashes below (checked 2026-11-26). To offer
+them to phones, on the staging host (SSM session):
+
+```bash
+cd /data/DigitVA/private/android-hosted
+for f in digitva-collect-0.3.30-arm64-v8a.apk digitva-collect-plus-0.3.30-arm64-v8a.apk; do
+  sudo -Hu ubuntu docker cp "minerva_app:/opt/digitva/android/$f" ".$f.tmp"
+done
+printf '%s  %s\n' \
+  03e8280f388bfc8e238d7551b835ef8b29c305be6fc732f6d75cf18286d807e8 .digitva-collect-0.3.30-arm64-v8a.apk.tmp \
+  868732c398f7ea446d83b37f52c6805672758486087df5a55936bce38336c982 .digitva-collect-plus-0.3.30-arm64-v8a.apk.tmp \
+  | sha256sum -c
+sudo -Hu ubuntu mv .digitva-collect-0.3.30-arm64-v8a.apk.tmp digitva-collect-0.3.30-arm64-v8a.apk
+sudo -Hu ubuntu mv .digitva-collect-plus-0.3.30-arm64-v8a.apk.tmp digitva-collect-plus-0.3.30-arm64-v8a.apk
+curl -s https://digitvav3.causeofdeathindia.com/api/v1/app/android/latest   # expect 0.3.30
+```
+
+Run the two `mv` lines only after `sha256sum -c` prints OK for both.
 
 | Variant | Public release | Bytes | SHA-256 |
 | --- | --- | ---: | --- |

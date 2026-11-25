@@ -11,19 +11,27 @@ EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-26). Published and pinned
 staging's `private/android-hosted`: phones are still offered 0.3.29. Play AAB
 0.3.30 (run 45673955783) awaits the owner's upload. No device check of 0.3.30.
 
-Owner actions left from the 0.3.30 deploy, each needs the owner's go:
-- Copy the 0.3.30 APKs into the hosted override
-  (`docs/current-state/android-release-builds.md`, "temporary names and
-  atomic renames") so phones are offered the update.
-- `flask org cadreless-grants --apply` on staging: the dry run lists 153
-  interviewer unit grants without a cadre (`digitva-hofh`). They still work;
-  the new rule refuses to re-activate them once revoked.
-- Rerun training setup on staging (`digitva-veq5`).
+Owner decisions left from the 0.3.30 deploy:
+- Offer 0.3.30 to phones: copy the APKs into the hosted override with the
+  commands in `docs/current-state/android-release-builds.md` (0.3.30
+  section). 0.3.30 has had no device check yet.
+- Revoke or keep 153 interviewer unit grants without a cadre
+  (`digitva-hofh`): `flask org cadreless-grants --apply --actor <admin email>`
+  REVOKES them (assign cadres first to keep them). They still work today; the
+  new rule refuses to re-activate one once revoked. See the list with
+  `docker exec minerva_app flask org cadreless-grants` on the host (dry run;
+  prints emails).
+- Rerun training setup on staging (`digitva-veq5`); until then a reviewer
+  trainee at a sub-centre may get `grant_not_allowed`.
+- Not verified after the deploy: the signed-in pages (coding, training
+  interview, ICD search, System health), which need the owner's sign-in.
 - `/data-management/api/project-sites` returns 500 on staging for data
-  managers since `87fff09cd` (not this release); fix in progress after the
-  deploy (`digitva-b94q`).
+  managers since `87fff09cd` (not this release; `digitva-b94q`, in progress).
 - Never re-run the ICD-10 CSV or policy import on staging: it re-enables the
-  withdrawn R00-R94 codes (`1f037b4717e4`).
+  withdrawn R00-R94 codes (`1f037b4717e4`; R50 and R54 stay selectable by
+  design).
+- The four pre-deploy EBS snapshots (tag `release=0.3.30`) never expire;
+  delete them when no longer needed.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect

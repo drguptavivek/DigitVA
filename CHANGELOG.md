@@ -5,6 +5,18 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Browser interview autosave (owner 2026-11-25, `digitva-jrm5`, with
+  `digitva-96wi` and `digitva-t382`): saves on section navigation, every
+  20 s and when the page hides, each only when the answers changed; never
+  per answer and never blocking navigation; latest wins (one save in
+  flight, one waiting); a network failure retries after 2 to 60 s and on
+  `online`; a refusal settles every waiting save. The language switch no
+  longer waits two 600 ms debounces. Rule in `docs/policy/web-intake.md`
+  ("Browser autosave"), behaviour in `docs/current-state/expo-client.md`.
+  The phone still saves on every change to its local store. Checked on dev
+  in the browser; jest 358 suites, vitest 1030, `make check-web`. Staging
+  findings filed P1: `digitva-qq5l` (no compression), `digitva-3ko3` (save
+  burst, re-check after deploy), `digitva-y96b`, `digitva-k34z`.
 - Data-manager COD snapshot export drops the payload `unique_id` column
   (behaviour change, owner 2026-11-25, `r8nh.38`): it now follows the
   submissions export rule, written down in `docs/policy/data-manager-workflow.md`

@@ -105,12 +105,19 @@ export class ServerDraftStore implements WhoVaDraftStore {
   private baselineWorkflowTimeline: WorkflowTimelineEvent[] = [];
   private serverUpdatedAt: string | undefined;
   private draftId: string | undefined;
-  private lastSection: string | undefined;
   private pending: WhoVaDraft | undefined;
   private latestDraft: WhoVaDraft | undefined;
   private waiters: Array<{ resolve: () => void; reject: (error: unknown) => void }> = [];
   private timer: ReturnType<typeof setTimeout> | undefined;
   private writing: Promise<void> = Promise.resolve();
+  // One write at a time: while it is out, newer answers wait in `pending` (latest wins) and go when it ends.
+  private sending = false;
+  // After a network failure: the scheduled resend of the latest answers, the failure, and how many in a row.
+  private retryTimer: ReturnType<typeof setTimeout> | undefined;
+  private retryError: unknown = undefined;
+  private failures = 0;
+  private listeningOnline = false;
+  private disposed = false;
   private loaded = false;
   private refusalMode = false;
 
@@ -246,7 +253,6 @@ export class ServerDraftStore implements WhoVaDraftStore {
         serialise(value)
       ])
     );
-    this.lastSection = serverCurrentSection;
     this.draftId = id;
     this.serverUpdatedAt = response.draft.updated_at;
     this.loaded = true;
@@ -274,6 +280,10 @@ export class ServerDraftStore implements WhoVaDraftStore {
       this.noHeld = false;
     }
     if (this.refusalMode) draft = { ...draft, data: refusalAnswers(draft.data) as SubmissionData };
+    // Backing off after a network failure: a save with the same answers (the 20 s interval, a section move) leaves
+    // the scheduled retry to send them instead of cutting the wait short; new answers send at once.
+    const awaitingRetry = this.retryTimer !== undefined && this.pending !== undefined &&
+      serialise(this.pending.data) === serialise(draft.data);
     this.latestDraft = draft;
     this.noteWorkflowMilestones(draft);
     this.pending = draft;
@@ -285,13 +295,15 @@ export class ServerDraftStore implements WhoVaDraftStore {
       keepDraft(draft, this.serverUpdatedAt);
       return Promise.reject(this.held);
     }
+    if (awaitingRetry) return Promise.reject(this.retryError);
     const settled = new Promise<void>((resolve, reject) => this.waiters.push({ resolve, reject }));
+    // No debounce (the browser form saves on navigation, not on every change, digitva-jrm5): saves made in the same
+    // tick still share one write, and one made while a write is out waits for it.
     if (this.timer) clearTimeout(this.timer);
-    const immediate = draft.currentSection !== this.lastSection;
     this.timer = setTimeout(() => {
       this.timer = undefined;
       void this.flush().catch(() => undefined);
-    }, immediate ? 0 : 600);
+    }, 0);
     return settled;
   }
 
@@ -311,6 +323,10 @@ export class ServerDraftStore implements WhoVaDraftStore {
     if (!this.pending || this.abandoned) return this.writing;
     if (this.signedOut) throw new ClientApiError(401, "unauthorized");
     if (this.held !== undefined) throw this.held;
+    // Sent now: a flush (submit, language switch, leave, sign-out, a retry) replaces any scheduled retry.
+    this.cancelRetry();
+    // A write is out: this waits for the next one, which sends the latest answers once it ends.
+    if (this.sending) return new Promise<void>((resolve, reject) => this.waiters.push({ resolve, reject }));
     const draft = this.pending;
     this.pending = undefined;
     const waiters = this.waiters;
@@ -323,19 +339,32 @@ export class ServerDraftStore implements WhoVaDraftStore {
     waiters: Array<{ resolve: () => void; reject: (error: unknown) => void }>,
     options?: { overwrite?: string },
   ): Promise<void> {
+    this.sending = true;
     const write = this.writing.catch(() => undefined).then(() => this.writeDraft(draft, options));
     this.writing = write;
     write.then(
-      () => waiters.forEach(({ resolve }) => resolve()),
+      () => {
+        if (this.writing === write) this.sending = false;
+        this.failures = 0;
+        this.retryError = undefined;
+        waiters.forEach(({ resolve }) => resolve());
+        // Answers that changed while this write was out go next, in one write.
+        if (this.pending && !this.sending) void this.flush().catch(() => undefined);
+      },
       (error) => {
+        if (this.writing === write) this.sending = false;
         if (!this.pending) this.pending = draft;
+        // Saves that joined while this write was out are settled too: none waits on a write that is not coming
+        // (digitva-96wi). The latest answers stay in `pending`.
+        const joined = this.waiters;
+        this.waiters = [];
         if (isSignedOutError(error)) {
           // A dead session cannot be revived by retrying: stop, keep the answers, ask for sign-in.
           this.signedOut = true;
           keepDraft(this.pending, this.serverUpdatedAt);
           this.onSignedOut?.();
         } else if (isRefusedSave(error)) {
-          // The form saves on every change and every 20 s: without this hold one refused save
+          // The form saves on every section move and every 20 s: without this hold one refused save
           // became a request every 20 s for as long as the tab stayed open.
           this.held = error;
           keepDraft(this.pending, this.serverUpdatedAt);
@@ -343,11 +372,55 @@ export class ServerDraftStore implements WhoVaDraftStore {
           this.onSaveHeld?.(error);
         } else {
           this.onError?.(error);
+          this.scheduleRetry(error);
         }
-        waiters.forEach(({ reject }) => reject(error));
+        [...waiters, ...joined].forEach(({ reject }) => reject(error));
       }
     );
     return write;
+  }
+
+  /**
+   * A network failure (not a refusal): resend the latest answers after 2, 4, 8 ... s (at most 60 s), or at once
+   * when the browser is back online. A flush or a save with new answers replaces the wait; a success resets it.
+   */
+  private scheduleRetry(error: unknown): void {
+    this.retryError = error;
+    if (this.timer) {
+      // A save made while the failed write was out waits for the retry too.
+      clearTimeout(this.timer);
+      this.timer = undefined;
+    }
+    this.cancelRetry();
+    if (this.disposed) return;
+    const delay = Math.min(2_000 * 2 ** this.failures, 60_000);
+    this.failures += 1;
+    this.retryTimer = setTimeout(this.retryNow, delay);
+    if (typeof globalThis.addEventListener === "function") {
+      globalThis.addEventListener("online", this.retryNow);
+      this.listeningOnline = true;
+    }
+  }
+
+  private readonly retryNow = (): void => {
+    void this.flush().catch(() => undefined);
+  };
+
+  private cancelRetry(): void {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = undefined;
+    }
+    if (this.listeningOnline) {
+      globalThis.removeEventListener("online", this.retryNow);
+      this.listeningOnline = false;
+    }
+  }
+
+  /** The page let go of this store: no retry is scheduled from here on. A flush already asked for still runs. */
+  dispose(): void {
+    this.disposed = true;
+    this.cancelRetry();
   }
 
   isSignedOut(): boolean {
@@ -383,7 +456,9 @@ export class ServerDraftStore implements WhoVaDraftStore {
     if (!stale || stale.change.refusal || !draft) throw new Error("No stale save to replace the draft with.");
     this.held = undefined;
     this.pending = undefined;
-    await this.send(draft, [], { overwrite: stale.updatedAt });
+    const waiters = this.waiters;
+    this.waiters = [];
+    await this.send(draft, waiters, { overwrite: stale.updatedAt });
   }
 
   /** "Keep the newer version": give up this page's unsaved answers; the caller reloads the draft. */
@@ -391,6 +466,8 @@ export class ServerDraftStore implements WhoVaDraftStore {
     this.abandoned = true;
     this.held = undefined;
     this.pending = undefined;
+    this.cancelRetry();
+    this.sending = false;
     this.writing = Promise.resolve();
     this.waiters.forEach(({ resolve }) => resolve());
     this.waiters = [];
@@ -436,6 +513,11 @@ export class ServerDraftStore implements WhoVaDraftStore {
 
   /** *overwrite*: the server `updated_at` a "Use my answers" replaces; every section is sent and the rest emptied. */
   private async writeDraft(draft: WhoVaDraft, options?: { isPinOnly?: boolean; overwrite?: string }): Promise<void> {
+    // The metadata this write sends: a language switch while it is out must not be marked saved by its reply.
+    const locale = this.locale;
+    const translationVersion = this.translationVersion;
+    const definitionPin = this.definitionPin;
+    const timeline = this.workflowTimeline;
     const sections = splitBySection({ ...this.retained, ...(draft.data as Record<string, unknown>) }, this.sectionOf);
     const overwrite = options?.overwrite;
     if (overwrite) {
@@ -460,11 +542,12 @@ export class ServerDraftStore implements WhoVaDraftStore {
       }
       wire[name] = { ...answers, ...nulls };
     }
-    const metadataChanged = this.locale !== this.baselineLocale ||
-      this.translationVersion !== this.baselineTranslationVersion ||
-      !sameOptionalDefinitionPin(this.definitionPin, this.baselineDefinitionPin) ||
-      serialise(this.workflowTimeline) !== serialise(this.baselineWorkflowTimeline);
-    if (!overwrite && Object.keys(changed).length === 0 && draft.currentSection === this.lastSection && !metadataChanged) return;
+    const metadataChanged = locale !== this.baselineLocale ||
+      translationVersion !== this.baselineTranslationVersion ||
+      !sameOptionalDefinitionPin(definitionPin, this.baselineDefinitionPin) ||
+      serialise(timeline) !== serialise(this.baselineWorkflowTimeline);
+    // A section move alone sends nothing: current_section goes with the next write that carries answers or metadata.
+    if (!overwrite && Object.keys(changed).length === 0 && !metadataChanged) return;
     const acknowledgement = await requestClientJson<{
       saved_sections: number;
       draft: { draft_id: string; updated_at: string; sections_saved?: number };
@@ -480,16 +563,16 @@ export class ServerDraftStore implements WhoVaDraftStore {
           schemaVersion: draft.schemaVersion,
           formVersion: draft.formVersion,
           instrumentId: draft.instrumentId,
-          instrumentVersion: this.definitionPin?.instrumentVersion ?? draft.instrumentVersion,
+          instrumentVersion: definitionPin?.instrumentVersion ?? draft.instrumentVersion,
           createdAt: draft.createdAt,
           updatedAt: draft.updatedAt,
-          ...(this.definitionPin ? {
-            definitionSha256: this.definitionPin.definitionSha256,
-            definitionExtensions: [...this.definitionPin.definitionExtensions],
+          ...(definitionPin ? {
+            definitionSha256: definitionPin.definitionSha256,
+            definitionExtensions: [...definitionPin.definitionExtensions],
           } : {}),
-          ...(this.locale ? { locale: this.locale } : {}),
-          ...(this.translationVersion !== undefined ? { translation_version: this.translationVersion } : {}),
-          workflowTimelineV1: this.workflowTimeline,
+          ...(locale ? { locale } : {}),
+          ...(translationVersion !== undefined ? { translation_version: translationVersion } : {}),
+          workflowTimelineV1: timeline,
         }
       }
     });
@@ -510,11 +593,10 @@ export class ServerDraftStore implements WhoVaDraftStore {
       for (const [key, value] of Object.entries(answers)) if (value === null) this.loadedAnswerKeys.delete(key);
     }
     if (Object.hasOwn(changed, RETAINED_SECTION)) this.retainedUnwritten = false;
-    this.lastSection = draft.currentSection;
-    this.baselineLocale = this.locale;
-    this.baselineTranslationVersion = this.translationVersion;
-    this.baselineDefinitionPin = this.definitionPin;
-    this.baselineWorkflowTimeline = this.workflowTimeline;
+    this.baselineLocale = locale;
+    this.baselineTranslationVersion = translationVersion;
+    this.baselineDefinitionPin = definitionPin;
+    this.baselineWorkflowTimeline = timeline;
     if (!options?.isPinOnly) {
       // `saved_sections` counts only what this request wrote; the draft's own `sections_saved` is the total the
       // case header shows (it read 8 -> 2 when a save touched two sections).

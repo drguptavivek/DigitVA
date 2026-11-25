@@ -143,6 +143,8 @@ Complete with errors opens one problems list naming every question that needs fi
 
 Web and native forms are in-memory by default. Hosts must inject a `WhoVaDraftStore` to enable durable saves and platform services to enable binary capture. Web exports `createInsecureWhoVaBrowserDefaults()` only for demos and low-risk prototypes that deliberately accept plaintext `localStorage` and unencrypted IndexedDB.
 
+Draft saves go to the store one at a time, latest wins: while a `save` is in flight, further saves (Next, Back, a Sections jump, the interval, `autoSaveDraftOnChange`, `saveDraft()`) share one waiting save that reads the answers when it starts, so a burst of changes costs at most two store writes. Each `saveDraft()` promise settles once the store has accepted (or refused) a save that includes the answers at the time of the call; it never rejects (`onDraftError` reports a failure). Navigation never waits for a save.
+
 Form ownership is explicit. A managed form may receive `initialData`; a caller-owned `session` must also receive its matching `instrument` and cannot receive `initialData`. `setInstrument()` accepts presentation-only translations for the same instrument identity/version but rejects changes to questions, choices, rules, or hierarchy.
 
 Native hosts should also inject `platform.pickDate` when they want full-date fields to open a calendar. On Android, the Expo demo uses `@react-native-community/datetimepicker` and `DateTimePickerAndroid.open()` for date questions including `Id10021`, `Id10023_a`, and `Id10023_b`. Without `pickDate`, native full-date fields fall back to validated text entry.

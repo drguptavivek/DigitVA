@@ -450,6 +450,7 @@ describe("server draft store", () => {
     await expect(pending).rejects.toMatchObject({ status: 200, code: "malformed_response" });
     expect(store.getServerUpdatedAt()).toBe("revision-0");
     expect(patches[0].if_updated_at).toBe("revision-0");
+    store.dispose(); // no retry after the test
   });
 
   it("writes a locale change even when no answer section changed", async () => {
@@ -1037,6 +1038,36 @@ describe("server draft store on a dead session (digitva-fvbc)", () => {
       } })]);
       await expect(store.useMyAnswers()).rejects.toThrow("No stale save");
     });
+
+    it("settles a save queued while the refused one was in flight once Use my answers sends it", async () => {
+      let refuse!: () => void;
+      const patches: Array<Record<string, unknown>> = [];
+      jest.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        if (String(input).endsWith("/d1") && (init?.method ?? "GET") === "GET") return loaded();
+        patches.push(JSON.parse(String(init?.body)));
+        if (patches.length === 1) {
+          await new Promise<void>((resolve) => { refuse = resolve; });
+          return stale("2026-10-03T00:05:00Z");
+        }
+        return response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: "2026-10-03T00:06:00Z" } } });
+      });
+      const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf: new Map([["Id10007", "s1"]]), onSaveHeld: jest.fn(), onError: jest.fn() });
+      await store.load("d1");
+      const first = store.save(draft);
+      const firstWrite = store.flush();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const queued = store.save({ ...draft, data: { ...draft.data, Id10007: "typed again" } as typeof draft.data });
+      refuse();
+      await expect(firstWrite).rejects.toMatchObject({ code: "draft_stale" });
+      await expect(first).rejects.toBeInstanceOf(ClientApiError);
+      await expect(store.flush()).rejects.toMatchObject({ code: "draft_stale" });
+      await store.useMyAnswers();
+      const outcome = await Promise.race([
+        queued.then(() => "resolved", () => "rejected"),
+        new Promise((resolve) => setTimeout(() => resolve("never settled"), 50)),
+      ]);
+      expect(outcome).not.toBe("never settled");
+    });
   });
 
   it("does not restore an old prefill if the server changed before the form loaded", async () => {
@@ -1196,5 +1227,202 @@ describe("server draft store on a dead session (digitva-fvbc)", () => {
     await store.flush();
     expect(patches).toEqual([503, 429, 200]);
     expect(onSaveHeld).not.toHaveBeenCalled();
+  });
+});
+
+describe("browser autosave: one write at a time, latest wins (digitva-jrm5)", () => {
+  const draft: WhoVaDraft = {
+    schemaVersion: 1, formVersion: "f1", id: "d1", instrumentId: "who-2022-va", instrumentVersion: "1",
+    currentSection: "s1", createdAt: "2026-10-03T00:00:00Z", updatedAt: "2026-10-03T00:01:00Z",
+    data: { Id10007: "saved" },
+  };
+  // Three sections, so s2 is not past the midpoint (whose timeline event would send by itself).
+  const sectionOf = new Map([["Id10007", "s1"], ["Id10008", "s2"], ["Id10009", "s3"]]);
+  const acknowledged = (n: number) => response({ status: 200, body: { saved_sections: 1, draft: { draft_id: "d1", updated_at: `2026-10-03T00:0${n}:00Z` } } });
+  const unavailable = () => response({ status: 503, body: { code: "unavailable" } });
+  const answered = (value: string, section = "s1") => ({ ...draft, currentSection: section, data: { ...draft.data, Id10007: value } }) as WhoVaDraft;
+
+  function mockServer(reply: (patch: Record<string, unknown>, index: number) => Response | Promise<Response>) {
+    const patches: Array<Record<string, unknown>> = [];
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/d1") && (init?.method ?? "GET") === "GET") {
+        return response({ status: 200, body: { draft: { draft_id: "d1", project_id: "p1", site_id: "s1", updated_at: "2026-10-03T00:01:00Z" }, envelope: draft, prefill: {} } });
+      }
+      const body = JSON.parse(String(init?.body));
+      patches.push(body);
+      return reply(body, patches.length - 1);
+    });
+    return patches;
+  }
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("sends many saves made while one write is out as at most two PATCHes, the second with the latest answers", async () => {
+    let release!: () => void;
+    const patches = mockServer(async (_patch, index) => {
+      if (index === 0) await new Promise<void>((resolve) => { release = resolve; });
+      return acknowledged(index + 2);
+    });
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf, onError: jest.fn() });
+    await store.load("d1");
+    const first = store.save(answered("v0"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(patches).toHaveLength(1);
+    // Saves and explicit flushes interleaved while the write is out all wait for one next write.
+    const later: Promise<void>[] = [];
+    for (let index = 1; index <= 10; index += 1) {
+      later.push(store.save(answered(`v${index}`)));
+      later.push(store.flush());
+    }
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    release();
+    await first;
+    await Promise.all(later);
+    expect(patches).toHaveLength(2);
+    expect(patches[1].sections).toEqual({ s1: { Id10007: "v10" } });
+    store.dispose();
+  });
+
+  it("sends no PATCH for an unchanged draft or a section move alone; current_section goes with the next answer", async () => {
+    const patches = mockServer((_patch, index) => acknowledged(index + 2));
+    const onSaveAcknowledged = jest.fn();
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf, onSaveAcknowledged });
+    await store.load("d1");
+    await store.save(draft);
+    await store.save({ ...draft, currentSection: "s2" });
+    await store.save({ ...draft, currentSection: "s1" });
+    await store.flush();
+    expect(patches).toHaveLength(0);
+    expect(onSaveAcknowledged).not.toHaveBeenCalled();
+    await store.save(answered("changed", "s2"));
+    expect(patches).toHaveLength(1);
+    expect(patches[0]).toMatchObject({ current_section: "s2", sections: { s1: { Id10007: "changed" } } });
+    expect(onSaveAcknowledged).toHaveBeenCalledTimes(1);
+  });
+
+  it("still sends a language switch's locale with no answer changed", async () => {
+    const patches = mockServer((_patch, index) => acknowledged(index + 2));
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf, locale: "en", translationVersion: 1 });
+    await store.load("d1");
+    store.setLocaleMetadata("hi", 9);
+    await store.save(draft);
+    expect(patches).toHaveLength(1);
+    expect(patches[0]).toMatchObject({ sections: {}, meta: { locale: "hi", translation_version: 9 } });
+  });
+
+  it("sends a save at once, without waiting out a debounce (digitva-t382)", async () => {
+    jest.useFakeTimers();
+    const patches = mockServer((_patch, index) => acknowledged(index + 2));
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf });
+    await store.load("d1");
+    let settled = false;
+    void store.save(answered("now")).then(() => { settled = true; });
+    await jest.advanceTimersByTimeAsync(0);
+    expect(patches).toHaveLength(1);
+    expect(settled).toBe(true);
+  });
+
+  it("retries a failed save after 2, 4, 8 s (at most 60 s), keeping only the latest answers, and resets after a success", async () => {
+    jest.useFakeTimers();
+    let failing = true;
+    const patches = mockServer((_patch, index) => (failing ? unavailable() : acknowledged(index + 2)));
+    const onError = jest.fn();
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf, onError });
+    await store.load("d1");
+    const first = store.save(answered("a"));
+    const settled = first.catch((error: unknown) => error);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(await settled).toBeInstanceOf(ClientApiError);
+    expect(patches).toHaveLength(1);
+    // The interval's save of the same answers waits for the retry instead of sending.
+    await expect(store.save(answered("a"))).rejects.toBeInstanceOf(ClientApiError);
+    await jest.advanceTimersByTimeAsync(1_999);
+    expect(patches).toHaveLength(1);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(patches).toHaveLength(2);
+    await jest.advanceTimersByTimeAsync(3_999);
+    expect(patches).toHaveLength(2);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(patches).toHaveLength(3);
+    await jest.advanceTimersByTimeAsync(8_000);
+    expect(patches).toHaveLength(4);
+    for (const wait of [16_000, 32_000, 60_000, 60_000]) await jest.advanceTimersByTimeAsync(wait);
+    expect(patches).toHaveLength(8);
+    failing = false;
+    await jest.advanceTimersByTimeAsync(60_000);
+    expect(patches).toHaveLength(9);
+    expect(patches[8].sections).toEqual({ s1: { Id10007: "a" } });
+    await jest.advanceTimersByTimeAsync(120_000);
+    expect(patches).toHaveLength(9);
+    // A success reset the wait: the next failure retries after 2 s again.
+    failing = true;
+    void store.save(answered("b")).catch(() => undefined);
+    await jest.advanceTimersByTimeAsync(0);
+    expect(patches).toHaveLength(10);
+    await jest.advanceTimersByTimeAsync(2_000);
+    expect(patches).toHaveLength(11);
+    store.dispose();
+    await jest.advanceTimersByTimeAsync(120_000);
+    expect(patches).toHaveLength(11);
+  });
+
+  it("a newer save replaces the scheduled retry; the browser coming online retries at once", async () => {
+    jest.useFakeTimers();
+    const listeners = new Map<string, () => void>();
+    const target = globalThis as unknown as { addEventListener?: unknown; removeEventListener?: unknown };
+    const original = { add: target.addEventListener, remove: target.removeEventListener };
+    target.addEventListener = jest.fn((type: string, listener: () => void) => { listeners.set(type, listener); });
+    target.removeEventListener = jest.fn((type: string) => { listeners.delete(type); });
+    try {
+      let failing = true;
+      const patches = mockServer((_patch, index) => (failing ? unavailable() : acknowledged(index + 2)));
+      const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf, onError: jest.fn() });
+      await store.load("d1");
+      void store.save(answered("a")).catch(() => undefined);
+      await jest.advanceTimersByTimeAsync(0);
+      expect(patches).toHaveLength(1);
+      expect(listeners.has("online")).toBe(true);
+
+      // New answers go now, not after the 2 s wait; the wait they replace sends nothing more.
+      const newer = store.save(answered("b"));
+      const newerSettled = newer.catch((error: unknown) => error);
+      await jest.advanceTimersByTimeAsync(0);
+      expect(patches).toHaveLength(2);
+      expect(patches[1].sections).toEqual({ s1: { Id10007: "b" } });
+      expect(await newerSettled).toBeInstanceOf(ClientApiError);
+
+      failing = false;
+      listeners.get("online")?.();
+      await jest.advanceTimersByTimeAsync(0);
+      expect(patches).toHaveLength(3);
+      expect(patches[2].sections).toEqual({ s1: { Id10007: "b" } });
+      expect(listeners.has("online")).toBe(false);
+      await jest.advanceTimersByTimeAsync(120_000);
+      expect(patches).toHaveLength(3);
+    } finally {
+      target.addEventListener = original.add;
+      target.removeEventListener = original.remove;
+    }
+  });
+
+  it("settles every waiting save when the write in flight is refused", async () => {
+    let refuse!: () => void;
+    const patches = mockServer(async () => {
+      await new Promise<void>((resolve) => { refuse = resolve; });
+      return response({ status: 409, body: { code: "draft_stale" } });
+    });
+    const store = new ServerDraftStore({ endpoint: "/api/v1/intake/drafts", csrf, sectionOf, onSaveHeld: jest.fn(), onError: jest.fn() });
+    await store.load("d1");
+    const first = store.save(answered("a"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const joined = [store.save(answered("b")), store.save(answered("c")), store.flush()];
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    refuse();
+    const outcomes = await Promise.all([first, ...joined].map((promise) => promise.then(() => "resolved", () => "rejected")));
+    expect(outcomes).toEqual(["rejected", "rejected", "rejected", "rejected"]);
+    expect(patches).toHaveLength(1);
+    expect(store.isSaveHeld()).toBe(true);
   });
 });

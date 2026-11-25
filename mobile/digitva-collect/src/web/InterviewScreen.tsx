@@ -517,6 +517,11 @@ export default function InterviewScreen() {
           onSaveAcknowledged: (info) => {
             if (!isCurrent()) return;
             setSaveInfo(info);
+            // A background retry that got through: the failure it followed is over.
+            if (saveFailedRef.current) {
+              saveFailedRef.current = false;
+              setMessage("");
+            }
           },
           onError: (error) => {
             if (!isCurrent()) return;
@@ -651,18 +656,35 @@ export default function InterviewScreen() {
     }
   }
 
-  // A best-effort save as the page unloads; the navigation guard owns the browser's leave prompt.
-  // Not on visibilitychange/pagehide: iOS Safari freezes a request started as the screen locks, and the
-  // frozen write blocks the save queue ("Saving…", the leave prompt) until its 30 s timeout (digitva-te2a).
-  // Autosave already writes 600 ms after each change.
+  // Answers save on section moves and every 20 s, not on each change (digitva-jrm5), so the page also saves as it
+  // unloads, is hidden or is closed; the store sends nothing when the answers have not changed. The navigation guard
+  // owns the browser's leave prompt. digitva-te2a: iOS Safari can freeze a request started as the screen locks; the
+  // store's single writer then waits for that write's timeout, but navigation never does.
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
-    const handleBeforeUnload = () => {
-      void controller?.saveDraft().then(() => store instanceof ServerDraftStore ? store.flush() : undefined).catch(() => undefined);
+    const saveNow = () => {
+      void controller?.saveDraft().catch(() => undefined);
+      // The form hands the store its answers synchronously; flushing now starts the request in this event, before
+      // the page can unload, instead of on the store's next timer tick.
+      if (store instanceof ServerDraftStore) void store.flush().catch(() => undefined);
     };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    const handleVisibility = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") saveNow();
+    };
+    window.addEventListener("beforeunload", saveNow);
+    window.addEventListener("pagehide", saveNow);
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("beforeunload", saveNow);
+      window.removeEventListener("pagehide", saveNow);
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [controller, store]);
+
+  // A store the page lets go of schedules no more retries (a save already asked for still runs).
+  useEffect(() => () => {
+    if (store instanceof ServerDraftStore) store.dispose();
+  }, [store]);
 
   // Sign-out (manual or idle) waits for the pending autosave instead of aborting it.
   useEffect(() => onBeforeLock(async () => {
@@ -918,8 +940,8 @@ export default function InterviewScreen() {
     }
   }, [bootstrap, controller, store]);
 
-  // Answers autosave about 600 ms after the last change, so the leave dialog only opens while that save is pending
-  // or after it failed. The form hands onChange a new data object after a save even when nothing changed (a
+  // Answers save on section moves and every 20 s (digitva-jrm5), so the leave dialog opens while answers changed
+  // since the last save, or after it failed. The form hands onChange a new data object after a save even when nothing changed (a
   // calculation, the consent agree, a section move), which kept dirtyRef set with nothing left to send and asked on
   // every leave (digitva-y4ly): the server draft is dirty only while its answers differ from the last saved or
   // loaded ones.
@@ -1390,7 +1412,6 @@ export default function InterviewScreen() {
               uiTranslations={uiTranslations}
               draftId={draftId}
               draftStore={store}
-              autoSaveDraftOnChange
               autoSaveDraftIntervalMs={signedOut || saveHeld ? false : undefined}
               onDraftController={setController}
               onReady={handleFormReady}

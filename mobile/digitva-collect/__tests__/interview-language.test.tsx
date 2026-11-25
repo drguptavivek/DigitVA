@@ -96,6 +96,7 @@ jest.mock("../src/client/serverDraftStore", () => ({
       discardOvertakenAnswers: mockDiscardOvertaken,
       restoreLocaleMetadata: jest.fn(),
       setLocaleMetadata: jest.fn(),
+      dispose: jest.fn(),
     });
   }),
 }));
@@ -789,6 +790,51 @@ it("does not create a draft when a served definition resolves after unmount", as
 
   expect(startDraft).not.toHaveBeenCalled();
   expect(mockMarkServed).not.toHaveBeenCalled();
+});
+
+it("sends a language switch's saves at once through the store's flush, waiting on no timer (digitva-t382)", async () => {
+  (getDraft as jest.Mock).mockResolvedValue({draft: {project_id: "P", updated_at: "revision-1"}, envelope: {id: "draft-1", schemaVersion: 1, formVersion: "2022", instrumentId: "WHO_2022_VA", instrumentVersion: "server-v1", definitionSha256: mockDefinitionSha256, definitionExtensions: [], currentSection: "s1", createdAt: "2026-10-04T10:00:00+05:30", updatedAt: "2026-10-04T11:00:00+05:30", locale: "en", data: {}}, prefill: {}});
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {tree = create(<InterviewScreen />);});
+  const form = tree.root.findByType(WhoVaForm);
+  const order: string[] = [];
+  await act(async () => { form.props.onDraftController({draftId: "draft-1", saveDraft: jest.fn(async () => { order.push("save"); })}); });
+  mockServerFlush.mockImplementation(async () => { order.push("flush"); });
+  const store = (ServerDraftStore as unknown as jest.Mock).mock.instances[0] as {setLocaleMetadata: jest.Mock};
+  store.setLocaleMetadata.mockImplementation(() => { order.push("locale"); });
+  jest.useFakeTimers();
+  try {
+    const shell = tree.root.findByType(jest.requireMock("../src/web/common").WebShell);
+    let switched: boolean | undefined;
+    await act(async () => { switched = await shell.props.headerAction.props.onSelect("hi"); });
+    expect(switched).toBe(true);
+    // Settled with fake timers never advanced: nothing on the switch path waits on a timer.
+    expect(order).toEqual(["save", "flush", "locale", "save", "flush"]);
+  } finally {
+    jest.useRealTimers();
+  }
+  await act(async () => tree.unmount());
+});
+
+it("saves on navigation, the interval and when the page hides, not on every answer (digitva-jrm5)", async () => {
+  let tree!: ReturnType<typeof create>;
+  await act(async () => {tree = create(<InterviewScreen />);});
+  const form = tree.root.findByType(WhoVaForm);
+  expect(form.props.autoSaveDraftOnChange).toBeUndefined();
+  expect(form.props.autoSaveDraftIntervalMs).toBeUndefined();
+  const saveDraft = jest.fn(async () => undefined);
+  await act(async () => { form.props.onDraftController({draftId: "draft-1", saveDraft}); });
+  const listenerFor = (type: string) => (window.addEventListener as jest.Mock).mock.calls.filter(([name]) => name === type).at(-1)?.[1] as (() => void) | undefined;
+  expect(listenerFor("pagehide")).toBeDefined();
+  // The flush starts inside the event itself, before the page can unload: not after the form's save settles.
+  saveDraft.mockImplementationOnce(() => new Promise<undefined>(() => undefined));
+  listenerFor("pagehide")?.();
+  expect(saveDraft).toHaveBeenCalledTimes(1);
+  expect(mockServerFlush).toHaveBeenCalledTimes(1);
+  const store = (ServerDraftStore as unknown as jest.Mock).mock.instances[0] as {dispose: jest.Mock};
+  await act(async () => tree.unmount());
+  expect(store.dispose).toHaveBeenCalled();
+  expect((window.removeEventListener as jest.Mock).mock.calls.some(([name]) => name === "pagehide")).toBe(true);
 });
 
 describe("leave guard of an open interview", () => {

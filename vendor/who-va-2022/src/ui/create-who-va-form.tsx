@@ -871,7 +871,11 @@ export function createWhoVaForm(
     const [draftRestoreOutcome, setDraftRestoreOutcome] = useState<"restored" | "empty" | "error">();
     const autoSaveDraftIntervalMs = props.autoSaveDraftIntervalMs ?? 20_000;
     const draftCreatedAt = useRef(new Date().toISOString());
-    const draftSaveQueue = useRef<Promise<void>>(Promise.resolve());
+    // Latest wins: at most one save in flight and one waiting (see saveDraft).
+    const draftSaves = useRef<{ inFlight: Promise<void> | undefined; waiting: Promise<void> | undefined }>({
+      inFlight: undefined,
+      waiting: undefined
+    });
     const latestDraftSaveRequest = useRef(0);
     const onDraftErrorRef = useRef(onDraftError);
     const onDraftSavedRef = useRef(onDraftSaved);
@@ -1124,22 +1128,23 @@ export function createWhoVaForm(
       // mount-time restore is still pending, and nothing ever writes again
       // this mount if that restore failed (digitva-ybz).
       if (draftRestoreState !== "ready") return;
-      const requestId = ++latestDraftSaveRequest.current;
-      const now = new Date().toISOString();
-      const current = session.getSnapshot();
-      const draft: WhoVaDraft = {
-        schemaVersion: WHO_VA_DRAFT_SCHEMA_VERSION,
-        formVersion: WHO_VA_FORM_VERSION,
-        id: draftId,
-        instrumentId: instrument.id,
-        instrumentVersion: instrument.version,
-        currentSection: current.currentSection.name,
-        createdAt: draftCreatedAt.current,
-        updatedAt: now,
-        data: current.data
-      };
-      setDraftStatus("saving");
-      const save = draftSaveQueue.current.then(async () => {
+      // Reads the answers when it starts, not when it was asked for, so a
+      // save that waited carries every change made before it ran.
+      const write = async () => {
+        const requestId = ++latestDraftSaveRequest.current;
+        const current = session.getSnapshot();
+        const draft: WhoVaDraft = {
+          schemaVersion: WHO_VA_DRAFT_SCHEMA_VERSION,
+          formVersion: WHO_VA_FORM_VERSION,
+          id: draftId,
+          instrumentId: instrument.id,
+          instrumentVersion: instrument.version,
+          currentSection: current.currentSection.name,
+          createdAt: draftCreatedAt.current,
+          updatedAt: new Date().toISOString(),
+          data: current.data
+        };
+        setDraftStatus("saving");
         try {
           await store.save(draft);
           if (requestId === latestDraftSaveRequest.current) setDraftStatus("saved");
@@ -1149,9 +1154,31 @@ export function createWhoVaForm(
           if (requestId === latestDraftSaveRequest.current) setDraftStatus("error");
           onDraftErrorRef.current?.(resolved);
         }
-      });
-      draftSaveQueue.current = save;
-      await save;
+      };
+      const saves = draftSaves.current;
+      const start = (): Promise<void> => {
+        const run = write().finally(() => {
+          if (saves.inFlight === run) saves.inFlight = undefined;
+        });
+        saves.inFlight = run;
+        return run;
+      };
+      // Latest wins: one save in flight, one waiting. Every caller after the
+      // one in flight shares the waiting save, which reads the answers when it
+      // starts and so includes theirs; changes never queue one save each. It
+      // settles when the store has the answers or failed to take them.
+      // Waiting first: between the end of one save and the start of the
+      // waiting one, inFlight is already clear.
+      if (saves.waiting) return saves.waiting;
+      if (!saves.inFlight) return start();
+      const waiting = saves.inFlight
+        .catch(() => undefined)
+        .then(() => {
+          saves.waiting = undefined;
+          return start();
+        });
+      saves.waiting = waiting;
+      return waiting;
     }, [draftId, draftRestoreState, instrument.id, instrument.version, draftStore, session]);
 
     // Latest versions of the callbacks the controller hands out, so the
@@ -1734,9 +1761,9 @@ export function createWhoVaForm(
         narrow={compact}
         onBack={() => {
           flushPendingAnswers();
-          void saveDraft().then(() => {
-            session.previous();
-          });
+          // Like Next: move at once, the save follows (it never holds navigation).
+          session.previous();
+          void saveDraft();
         }}
         onNext={advance}
         onPreview={openPreview}

@@ -108,6 +108,7 @@ jest.mock("../src/client/serverDraftStore", () => ({
       discardOvertakenAnswers: mockDiscardOvertaken,
       restoreLocaleMetadata: mockRestoreLocaleMetadata,
       setLocaleMetadata: mockSetLocaleMetadata,
+      dispose: jest.fn(),
     });
   }),
 }));

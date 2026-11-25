@@ -405,3 +405,21 @@ class ProjectUsersGridCharacterizationTests(BaseTestCase):
         self.assertEqual(grid["counts"]["unlinked_workers"], 0)
         other = next(u for u in grid["users"] if u["email"].endswith("u2@test.local"))
         self.assertEqual(sorted(row), sorted(other))
+
+    def test_grid_read_is_single_pass_query_count(self):
+        """The read issues a fixed number of statements, none per user (no N+1)."""
+        self._apply([self.u1], "coder", "own")
+        self._apply([self.u1, self.u2], "collaborator", "project")
+        statements = []
+
+        def count(conn, cursor, statement, *_):
+            statements.append(statement)
+
+        engine = db.session.get_bind()
+        sa.event.listen(engine, "before_cursor_execute", count)
+        try:
+            grid = org.get_project_users_grid(self.PROJECT, viewer=self.admin)
+        finally:
+            sa.event.remove(engine, "before_cursor_execute", count)
+        self.assertEqual(len(grid["users"]), 2)
+        self.assertEqual(len(statements), 17)

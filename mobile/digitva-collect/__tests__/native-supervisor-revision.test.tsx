@@ -165,6 +165,20 @@ beforeEach(() => {
   mockResolve.mockImplementation(async () => ({ instrument, provenance: "bundled-original", pin: null }));
 });
 
+// Phones have no crypto.subtle, so src/client/revisions.ts hashes the answers with
+// expo-crypto (mocked above). Hide Node's subtle here so the test takes that path: Node's
+// digest resolves on its threadpool, after act() returns, and a slow CI runner then saw a
+// test's POST land in the next test.
+const ownSubtle = Object.getOwnPropertyDescriptor(globalThis.crypto ?? {}, "subtle");
+beforeAll(() => {
+  if (globalThis.crypto) Object.defineProperty(globalThis.crypto, "subtle", { value: undefined, configurable: true });
+});
+afterAll(() => {
+  if (!globalThis.crypto) return;
+  delete (globalThis.crypto as { subtle?: unknown }).subtle;
+  if (ownSubtle) Object.defineProperty(globalThis.crypto, "subtle", ownSubtle);
+});
+
 const settle = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
 async function mount() {
   let tree!: ReturnType<typeof create>;

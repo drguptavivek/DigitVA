@@ -40,7 +40,20 @@ from app.services.user_account_service import canonical_mobile
 
 bp = Blueprint("auth_api", __name__)
 log = logging.getLogger(__name__)
-csrf.exempt(bp)
+
+#: The state-changing views that skip CSRF, named one by one so a new route in
+#: this blueprint is CSRF-checked unless it is added here on purpose (policy:
+#: api-v1.md rule 5). Each takes its credential from the body or a bearer, never
+#: the cookie session, and none signs the browser in; the three bearer-only ones
+#: refuse a cookie before reading the body.
+CSRF_EXEMPT_VIEWS = (
+    "enroll", "open_session", "password_enroll", "redeem_sign_in_code",
+    "forgot_password", "redeem_sign_in_qr", "demo_enroll", "demo_signup",
+    "record_profile_deletion", "refresh_session",
+    "set_device_signing_key", "set_device_project", "end_session",
+)
+for _view in CSRF_EXEMPT_VIEWS:
+    csrf.exempt(f"{__name__}.{_view}")
 
 #: Request body caps: the refresh call (it may carry the outstanding-work
 #: report: up to OUTSTANDING_MAX_IDS case ids, draft UUIDs and registration

@@ -64,8 +64,16 @@ class HookRegistrationTests(BaseTestCase):
         )
 
     def test_csrf_exemptions(self):
-        self.assertEqual(set(csrf._exempt_views), {"app.routes.api.icd11.who_icd_api_proxy"})
-        self.assertEqual({b.name for b in csrf._exempt_blueprints}, {"auth_api"})
+        # auth_api is exempt view by view since 2026-11-25 (api-v1.md rule 5).
+        self.assertEqual(set(csrf._exempt_views), {"app.routes.api.icd11.who_icd_api_proxy"} | {
+            f"app.routes.api.auth.{name}" for name in (
+                "enroll", "open_session", "password_enroll", "redeem_sign_in_code",
+                "forgot_password", "redeem_sign_in_qr", "demo_enroll", "demo_signup",
+                "record_profile_deletion", "refresh_session",
+                "set_device_signing_key", "set_device_project", "end_session",
+            )
+        })
+        self.assertEqual({b.name for b in csrf._exempt_blueprints}, set())
         self.assertIs(self.app.config["WTF_CSRF_CHECK_DEFAULT"], False)
         self.assertEqual(self.app.config["WTF_CSRF_HEADERS"], ["X-CSRFToken", "X-CSRF-Token"])
 

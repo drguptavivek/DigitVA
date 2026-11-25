@@ -112,6 +112,8 @@ class _HideRateLimitKey(logging.Filter):
 
 
 logging.getLogger("flask-limiter").addFilter(_HideRateLimitKey())
+# Bound now: importing the app.logging package later rebinds the name ``logging`` here.
+_startup_log = logging.getLogger(__name__)
 talisman = Talisman()
 cache = Cache()
 
@@ -193,12 +195,30 @@ def _namespace_public_demo(app: Flask) -> None:
     app.config["CELERY"] = celery_conf
 
 
+def _require_same_site_cookies(config):
+    """Keep the sign-in cookies same-site whatever the environment says.
+
+    The CSRF-exempt views (the ICD-11 proxy among them) rely on the browser
+    withholding the session from another site's POST, which only ``Lax`` and
+    ``Strict`` do. Both settings read an environment variable; any other value
+    is logged as an error and replaced with ``Lax`` rather than refusing to
+    start, so a stray env value never stops a deploy (owner 2026-11-25;
+    policy: api-v1.md rule 5)."""
+    for key in ("SESSION_COOKIE_SAMESITE", "REMEMBER_COOKIE_SAMESITE"):
+        value = config.get(key)
+        if str(value).strip().lower() not in ("lax", "strict"):
+            _startup_log.error(
+                "%s=%r is not same-site; using Lax instead (api-v1.md rule 5).", key, value)
+            config[key] = "Lax"
+
+
 def create_app(config_class=None, register_routes=True):
     """Celery beat passes register_routes=False: it only sends tasks by name."""
     if config_class is None:
         config_class = _default_config_class()
     app = Flask(__name__)
     app.config.from_object(config_class)
+    _require_same_site_cookies(app.config)
     if app.config.get("PUBLIC_DEMO_ENABLED"):
         _namespace_public_demo(app)
     if not (app.debug or app.testing):

@@ -3,7 +3,7 @@ title: One Client API (/api/v1)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-09
+last_updated: 2026-11-25
 ---
 
 # One Client API (`/api/v1`)
@@ -35,6 +35,24 @@ on Android and iOS. Built; "State" below records what shipped.
    carries the access summary; `GET /api/v1/me/access` returns the identical
    body whenever the client wants it again (after a 403, a grant change, an
    app resume). One builder, built from `resolve_grants`.
+5. **Cross-site requests cannot act as the user** (owner 2026-11-25,
+   `digitva-r8nh.39`).
+   - **CSRF exemptions are named one view at a time**, never a whole
+     blueprint, so a new route is CSRF-checked unless someone adds it on
+     purpose. Exempt today: the sign-in views in `CSRF_EXEMPT_VIEWS`
+     (`app/routes/api/auth.py`), which take their credential from the body or a
+     bearer and never sign the browser in; and the WHO ICD-11 proxy, which the
+     coding tool calls without a token and which only reads from the
+     configured ICD service.
+   - **Sign-in cookies are same-site.** The session and remember cookies are
+     `SameSite=Lax` (or `Strict`): the exemptions above rely on the browser
+     withholding the cookie from another site's POST. Any other value from the
+     environment is logged as an error and replaced with `Lax` at startup; it
+     never stops the app from starting.
+   - **No CORS.** No route sends `Access-Control-Allow-*` headers, so another
+     site's page cannot send a JSON request with the user's cookie or read a
+     reply. The phone app and the Expo web build are same-origin or use a
+     bearer and need none.
 
 ## Access summary
 

@@ -3,7 +3,7 @@ title: Split Production TLS
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-14
+last_updated: 2026-11-25
 ---
 
 # Split Production TLS
@@ -266,6 +266,12 @@ are reachable only through presigned links, never publicly; probes under
 admins while any of that holds. Thresholds, who is notified, the IAM actions the
 probe needs and what is never shown are in
 `docs/policy/tls-certificate-monitoring.md`.
+
+Below the certificates, the panel lists the cookie and CSRF settings this
+server runs with (`SESSION_COOKIE_SAMESITE`, `REMEMBER_COOKIE_SAMESITE`, the
+two `*_COOKIE_SECURE` flags, `SESSION_COOKIE_HTTPONLY`, `WTF_CSRF_ENABLED`),
+each ok or warning against `docs/policy/api-v1.md` rule 5. It is read-only and
+is neither cached nor emailed. Secure off is ok only on a debug or test app.
 
 ## Renewal
 

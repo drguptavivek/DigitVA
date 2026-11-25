@@ -12,7 +12,8 @@
   "expired": "bg-danger",
   "error": "bg-danger",
   "unreachable": "bg-secondary",
-  "not_configured": "bg-light text-dark border"
+  "not_configured": "bg-light text-dark border",
+  "warning": "bg-warning text-dark"
 } %}
 <div id="panel-system-health">
 
@@ -57,6 +58,37 @@
         </tr>
         {% else %}
         <tr><td colspan="6" class="text-muted">Nothing is checked on this deployment.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h6 class="mt-4 mb-2">Cookie and CSRF settings</h6>
+  <p class="small text-muted mb-2">
+    Read from this server's configuration on each visit; nothing here can be changed from the panel.
+    Policy: docs/policy/api-v1.md rule 5.
+  </p>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle" id="security-settings-table">
+      <thead>
+        <tr>
+          <th scope="col">Setting</th>
+          <th scope="col">Value</th>
+          <th scope="col">Expected</th>
+          <th scope="col">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in security_rows %}
+        <tr data-setting-key="{{ row.key }}">
+          <td><code class="small">{{ row.key }}</code></td>
+          <td><code class="small">{{ row.value }}</code></td>
+          <td class="small">{{ row.expected }}</td>
+          <td>
+            <span class="badge {{ badges.get(row.status, 'bg-secondary') }}">{{ row.status }}</span>
+            {% if row.detail %}<div class="small text-muted">{{ row.detail }}</div>{% endif %}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>

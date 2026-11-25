@@ -6091,9 +6091,14 @@ def admin_panel_sync():
 def admin_panel_system_health():
     from app.services import tls_health_service
 
+    from app.services.security_settings_report import security_settings_report
+
     rows = tls_health_service.certificate_report()
     tls_health_service.store_report(rows)
-    return render_template("admin/panels/system_health.html", rows=rows)
+    security_rows = security_settings_report(
+        current_app.config, dev=bool(current_app.debug or current_app.testing))
+    return render_template(
+        "admin/panels/system_health.html", rows=rows, security_rows=security_rows)
 
 
 @admin.get("/api/site-maintenance")

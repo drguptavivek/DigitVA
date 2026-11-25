@@ -82,6 +82,38 @@ class AdminSystemHealthPanelTests(BaseTestCase):
         self.assertIn("credentials rejected", body)
         self.assertIn("s3://example-bucket/staging/", body)
 
+    def test_panel_shows_cookie_and_csrf_settings_as_ok_with_the_defaults(self):
+        self._login(str(self.base_admin_id))
+
+        body = self.client.get(self.PANEL_URL).get_data(as_text=True)
+
+        self.assertIn('id="security-settings-table"', body)
+        for key in ("SESSION_COOKIE_SAMESITE", "REMEMBER_COOKIE_SAMESITE",
+                    "SESSION_COOKIE_SECURE", "WTF_CSRF_ENABLED"):
+            self.assertIn(f'data-setting-key="{key}"', body)
+        self.assertNotIn('>warning<', body)
+
+    def test_panel_warns_when_a_cookie_is_not_same_site(self):
+        self._login(str(self.base_admin_id))
+
+        with mock.patch.dict(self.app.config, {"REMEMBER_COOKIE_SAMESITE": "None"}):
+            body = self.client.get(self.PANEL_URL).get_data(as_text=True)
+
+        row = body.split('data-setting-key="REMEMBER_COOKIE_SAMESITE"', 1)[1].split("</tr>", 1)[0]
+        self.assertIn("None", row)
+        self.assertIn(">warning<", row)
+
+    def test_secure_off_warns_only_outside_dev(self):
+        from app.services.security_settings_report import security_settings_report
+
+        config = {"SESSION_COOKIE_SECURE": False}
+        dev_row = next(r for r in security_settings_report(config, dev=True)
+                       if r["key"] == "SESSION_COOKIE_SECURE")
+        prod_row = next(r for r in security_settings_report(config, dev=False)
+                        if r["key"] == "SESSION_COOKIE_SECURE")
+        self.assertEqual(dev_row["status"], "ok")
+        self.assertEqual(prod_row["status"], "warning")
+
     def test_panel_refreshes_the_cached_report(self):
         self._login(str(self.base_admin_id))
 

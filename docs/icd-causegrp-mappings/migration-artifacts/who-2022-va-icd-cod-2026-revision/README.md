@@ -3,7 +3,7 @@ title: WHO 2022 VA ICD And COD 2026 Revision Migration Artifacts
 doc_type: migration-artifact
 status: active
 owner: engineering
-last_updated: 2026-11-11
+last_updated: 2026-11-25
 ---
 
 # WHO 2022 VA ICD And COD 2026 Revision Migration Artifacts
@@ -32,6 +32,10 @@ Files:
   - this is a global, table-wide replacement import: there is no per-scheme
     partition for `mas_icd10_2019_2`, so importing this file changes ICD-10
     coding-selectability for every project
+  - `R00`-`R94` except `R50` and `R54` were withdrawn from coding on
+    2026-11-25 (owner decision, `digitva-82l9`) by migration `1f037b4717e4`;
+    this file still marks them selectable, so re-importing it re-enables them
+    and undoes that decision (bucket rows are unaffected either way)
 - `WHO_2022_VA_Bucket_Mapping_document_derived_2026_revision.xlsx`
   - source workbook for the new `WHO_2022_VA_2026` COD bucket scheme
   - built from `who-2022-va-icd-cod-2026-04-27/WHO_2022_VA_Bucket_Mapping_document_derived.xlsx`

@@ -3,7 +3,7 @@ title: WHO 2022 ICD-10 Coding Allowability Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-27
+last_updated: 2026-11-25
 ---
 
 # WHO 2022 ICD-10 Coding Allowability Policy
@@ -120,6 +120,26 @@ Transport codes are selectable only at the level where WHO decides the bucket
   Re-importing the released 2026 ICD-10 policy JSON would undo it, as with
   the `Q00`-`Q99` decision.
 
+Symptom and sign codes are withdrawn from coding (owner decision,
+2026-11-25, `digitva-82l9`). This reverses the `VAs-99` widening and the
+`R10` grant of 2026-09-19 (see "2026 Annex Adjustments"):
+
+- Every `R00`-`R94` code is **not selectable**, at three characters and
+  below, `R10` included. Coding search does not offer them and a save
+  refuses them.
+- `R50` (Fever of other and unknown origin) and `R54` (Senility) stay
+  selectable, both sexes, all ages. `R50` buckets to `VAs-01.99`
+  Unspecified infectious disease; `R54` to `VAs-99` Cause of death unknown.
+- `R95` (infant-only) and `R96`-`R99` are unchanged and stay selectable, so
+  a coder can still record an unknown or ill-defined cause.
+- COD bucket rows for the withdrawn codes stay in every scheme, `R10` to
+  `VAs-06.01` included, so deaths already coded with them keep their bucket.
+  Final assessments already saved with them keep the code; a re-save of one
+  must pick another code. Re-coding them is a separate decision.
+- Applied by data migration (prior values captured, downgrade restores them).
+  Re-importing the released 2026 ICD-10 policy JSON would undo it, as with
+  the transport and `Q00`-`Q99` decisions.
+
 Neonate-only, both sexes:
 
 - `P05`, `P07`
@@ -191,6 +211,8 @@ expands from `R95-R99` to `R00-R09; R11-R94; R96-R99`.
 - `R11`-`R94` become selectable (three-character granularity). `R10` is not
   part of this grant; it has its own rule under `VAs-06.01` below.
 - `R96`-`R99` were already selectable and are unchanged.
+- Withdrawn 2026-11-25 except `R50` and `R54`: see "Allowability Rules"
+  (`digitva-82l9`).
 
 **`VAs-06.01` (Acute abdomen):** `R10` becomes selectable (three-character
 granularity), both sexes, all ages, bucketed to `VAs-06.01` in the
@@ -198,6 +220,8 @@ granularity), both sexes, all ages, bucketed to `VAs-06.01` in the
 not selectable and the live `WHO_2022_VA` scheme mapped it by manual override to
 the non-WHO bucket "Other Gastrointestinal Diseases"; that override is
 deliberately not carried into `WHO_2022_VA_2026`. `WHO_2022_VA` is unchanged.
+`R10` stopped being selectable on 2026-11-25 (`digitva-82l9`); its
+`VAs-06.01` bucket row stays for deaths already coded with it.
 
 **`VAs-10.99` (Other and unspecified perinatal cause of death):** `R95` moves
 into this bucket's range from the earlier `VAs-99`/"Cause of death unknown"
@@ -266,8 +290,10 @@ re-evaluates each of them one at a time; none is dropped silently, and none is
 reproduced verbatim from the derived workbook, including the `G46` title's
 trailing `I60-I67` fragment, so the row stays traceable to its source.
 
-None of the 16 codes is ICD-10 coding-selectable today; these are bucket
-mappings for reporting and legacy-data coverage. Adding one to the selectable
+None of the 16 codes is ICD-10 coding-selectable today except `R50`
+(selectable since the 2026-09-19 `VAs-99` widening, kept on
+2026-11-25); the rest are bucket mappings for reporting and legacy-data
+coverage. Adding one to the selectable
 set is a separate decision under "Allowability Rules".
 
 **`R10` — confirmed 2026-09-19 by the clinical lead.** In `WHO_2022_VA_2026`,
@@ -276,4 +302,5 @@ abdomen, as the WHO 2026 annex lists it (see "2026 Annex Adjustments" above).
 The 34th manual override in the live `WHO_2022_VA` scheme, which mapped `R10`
 to "Other Gastrointestinal Diseases", is deliberately not carried forward and
 so does not appear in the table. The old `WHO_2022_VA` scheme keeps its own
-mapping unchanged.
+mapping unchanged. Superseded for selectability on 2026-11-25
+(`digitva-82l9`): `R10` is no longer selectable; the bucket row stays.

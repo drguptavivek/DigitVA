@@ -5,6 +5,19 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- ICD-10 symptom codes withdrawn from coding (owner 2026-11-25,
+  `digitva-82l9`): every `R00`-`R94` family, `R10` included, is no longer
+  coding-selectable. Coding search hides them on every surface. The masked
+  Step 1 save refuses them with 400 `invalid_cod`, and the coder and
+  reviewer finals with 422 `final_blocked`, a code APK 0.3.29 already
+  shows. `R50`, `R54` and `R95`-`R99` stay selectable. Bucket rows and
+  saved assessments are untouched, so already-coded deaths still report.
+  Data migration `1f037b4717e4` records the rows it changed, and downgrade
+  restores exactly those. Rule in
+  `docs/policy/who-2022-icd10-coding-allowability.md`. Re-importing the
+  released 2026 policy JSON undoes it until the overrides layer
+  (`digitva-ghqe`) lands. Targeted tests 103 passed; no full suite yet.
+
 - Browser interview autosave (owner 2026-11-25, `digitva-jrm5`, with
   `digitva-96wi` and `digitva-t382`): saves on section navigation, every
   20 s and when the page hides, each only when the answers changed; never

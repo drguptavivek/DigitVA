@@ -26,7 +26,8 @@ Owner decisions left from the 0.3.30 deploy:
 - Not verified after the deploy: the signed-in pages (coding, training
   interview, ICD search, System health), which need the owner's sign-in.
 - `/data-management/api/project-sites` returns 500 on staging for data
-  managers since `87fff09cd` (not this release; `digitva-b94q`, in progress).
+  managers since `87fff09cd` (not this release); fixed on main in
+  `35b0c026c` (`digitva-b94q`), reaches staging with the next deploy.
 - Never re-run the ICD-10 CSV or policy import on staging: it re-enables the
   withdrawn R00-R94 codes (`1f037b4717e4`; R50 and R54 stay selectable by
   design).

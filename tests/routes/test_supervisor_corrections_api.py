@@ -23,7 +23,9 @@ from flask.testing import FlaskClient
 
 from app import db, limiter
 from app.models import (
+    MapDeathIdentifier,
     MapMentorInstituteUser,
+    MasDeathIdentifierType,
     MasMentorInstitute,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -57,6 +59,43 @@ from tests.base import BaseTestCase
 API = "/api/v1/intake"
 PROJECT, SITE = "SUP01", "SU01"
 R = VaAccessRoles
+# The trimmed supervisor row a supervisor-only caller gets back from PATCH /deaths (no informant, phones, address).
+SUPERVISOR_ROW_KEYS = [
+    "age_years",
+    "can_edit_death",
+    "can_edit_identifiers",
+    "can_record_consent_withdrawal",
+    "consent_withdrawn",
+    "created_at",
+    "date_of_death",
+    "death_id",
+    "deceased_name",
+    "deceased_sex",
+    "details_pending",
+    "duplicate_of_death_id",
+    "identifiers",
+    "last_contact_at",
+    "last_edited_at",
+    "last_edited_by_name",
+    "next_visit_at",
+    "org_unit_id",
+    "other_complete_interview",
+    "pending_flag",
+    "project_id",
+    "registered_by_me",
+    "registered_by_name",
+    "site_id",
+    "source",
+    "started",
+    "started_by_me",
+    "started_by_name",
+    "state",
+    "unique_id",
+    "unit_name",
+    "updated_at",
+    "va_sid",
+    "village_ward",
+]
 
 
 def _answers(**over):
@@ -555,6 +594,53 @@ class SupervisorCorrectionTests(BaseTestCase):
         reopened = self.client.post(f"{API}/supervision/cases/{death_id}/reopen", headers=headers,
                                     json={"reason": "Phone test"})
         self.assertEqual(reopened.status_code, 200, reopened.get_json())
+
+    def test_a_supervisor_phone_death_edit_keeps_absent_keys_and_replies_with_the_trimmed_row(self):
+        # Old APKs send this PATCH and parse the reply; it is a characterization of what they get today.
+        db.session.add(MasDeathIdentifierType(
+            project_id=PROJECT, code="crs", label="CRS number", sort_order=1, min_length=6, max_length=12,
+            char_type="digits"))
+        db.session.commit()
+        fix = {"latitude": 28.613939, "longitude": 77.209021, "accuracy_m": 12.4}
+        kept = {"informant_name": "Ravi", "informant_phone": "9876543210", "abha_number": "12345678901234",
+                "abha_address": "bina@abdm", "address_village_ward": "Rampur", **fix}
+        death_id = self._case(**kept, identifiers={"crs": "40404040"})
+        row = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        self.assertEqual([getattr(row, k) for k in kept], list(kept.values()))  # subject present
+        self.assertIsNotNone(row.captured_at)
+        captured_at = row.captured_at
+        identifiers = lambda: db.session.scalars(sa.select(MapDeathIdentifier).where(  # noqa: E731
+            MapDeathIdentifier.death_id == row.death_id)).all()
+        self.assertEqual(len(identifiers()), 1)
+        _body, headers = self._phone(self.hv)
+        # A supervisor reaches the case by supervision only.
+        self.assertEqual(self.client.get(f"{API}/supervision/cases/{death_id}", headers=headers).status_code, 200)
+
+        one = self.client.patch(f"{API}/deaths/{death_id}", headers=headers, json={"deceased_name": "Bina Devi"})
+        self.assertEqual(one.status_code, 200, one.get_json())
+        reply = one.get_json()
+        self.assertEqual(sorted(reply), ["case"])
+        self.assertEqual(reply["case"]["deceased_name"], "Bina Devi")
+        self.assertEqual(sorted(reply["case"]), SUPERVISOR_ROW_KEYS)
+        db.session.expire_all()
+        row = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        self.assertEqual(row.deceased_name, "Bina Devi")
+        self.assertEqual([getattr(row, k) for k in kept], list(kept.values()))
+        self.assertEqual(row.captured_at, captured_at)
+        self.assertEqual(len(identifiers()), 1)
+
+        # The supervisor phone may also change informant, GPS and identifier keys.
+        more = {"informant_name": "Mohan", "informant_phone": "9123456780", "latitude": 19.076,
+                "longitude": 72.8777, "accuracy_m": 5}
+        edited = self.client.patch(f"{API}/deaths/{death_id}", headers=headers,
+                                   json={**more, "identifiers": {"crs": "50505050"}})
+        self.assertEqual(edited.status_code, 200, edited.get_json())
+        db.session.expire_all()
+        row = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        self.assertEqual([getattr(row, k) for k in more], list(more.values()))
+        self.assertEqual(len(identifiers()), 1)
+        self.assertEqual(
+            [i["value"] for i in edited.get_json()["case"]["identifiers"] if i["code"] == "crs"], ["50505050"])
 
     def test_a_ticked_supervisor_phone_corrects_the_interview(self):
         _death_id, va_sid, draft = self._submitted()

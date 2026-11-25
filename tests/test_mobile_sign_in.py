@@ -576,7 +576,8 @@ class MobileCreatePathTests(AuthzFixtureMixin, MobileSignInTestBase):
         return {
             "name": "Field Worker", "languages": ["english"], "initial_project_id": TA,
             "initial_role": "reviewer", "initial_scope_type": "org_unit",
-            "initial_org_unit_id": str(self.units["P1"].org_unit_id), **extra,
+            "initial_org_unit_id": str(self.units["P1"].org_unit_id),
+            "initial_cadre_id": self.any_cadre[TA], **extra,
         }
 
     def _post(self, url, body):
@@ -776,7 +777,7 @@ class MobileCreatePathTests(AuthzFixtureMixin, MobileSignInTestBase):
 
         def row(n, email, phone):
             return {"_line_number": n, "email": email, "name": "Imported", "role": "reviewer",
-                    "org_unit_code": "P1", "cadre_code": "", "language_codes": "english",
+                    "org_unit_code": "P1", "cadre_code": "ANY", "language_codes": "english",
                     "phone": phone}
 
         tag = uuid.uuid4().hex[:8]

@@ -312,7 +312,7 @@ class CellTests(PeopleRolesBase):
         # A reporter does not interview: the Interview cell is never green.
         self.assertNotEqual(self._state(row, "interview"), "granted")
         self.assertEqual(self._state(self._row(result, cho), "report_deaths"), "granted")
-        # Red by can_report_deaths: an ANM may report at a sub-centre, a CHO may not.
+        # Red by allowed_roles: an ANM may report at a sub-centre, a CHO may not.
         self.assertEqual(self._state(self._row(result, anm_viewer), "report_deaths"), "hollow")
         self.assertEqual(self._state(self._row(result, cho_viewer), "report_deaths"), "blank")
 
@@ -406,7 +406,7 @@ class AuditTests(PeopleRolesBase):
         self.assertNotIn("exceeds_grid", self._flags(self.coder1))
         # A cadre removed from the grid after the grant.
         db.session.execute(sa.text(
-            "UPDATE map_org_level_cadre SET can_code_va_form = false "
+            "UPDATE map_org_level_cadre SET allowed_roles = array_remove(allowed_roles, 'coder') "
             "WHERE cadre_id = :c"), {"c": self.cadre["MO"].cadre_id})
         db.session.commit()
         self.assertIn("exceeds_grid", self._flags(self.coder2))

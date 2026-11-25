@@ -3,9 +3,11 @@
 A grant with ``scope_type = 'org_unit'`` points at one node of a project's
 organization tree (``mas_org_unit``) and covers that node's own subtree. The
 cadre on the grant is descriptive, but it is validated when the grant is
-created: the cadre must be defined at the unit's level, a ``coder`` grant
-requires a cadre that may code at that level, and an ``interview_supervisor``
-grant (unit scope only) a cadre that may supervise interviews there.
+written (digitva-4650): a health-system grantee's grant names a cadre placed
+at the unit's level whose ``allowed_roles`` include the grant's role. A
+mentoring-institute member's grant carries no cadre (a mentor grant, guarded
+by ``mentor_institute_service.check_mentor_grant``) unless their own worker
+record at the unit backs it.
 
 Authorization decisions are ``app.services.authz``'s; this module keeps the
 write-time validation and the unit-set resolvers web intake and the unit
@@ -30,6 +32,7 @@ from app.models import (
     MasCadre,
     MasOrgLevel,
     MasOrgUnit,
+    MasOrgUnitWorker,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaStatuses,
@@ -59,20 +62,6 @@ ROLES_ALLOWING_ORG_UNIT = frozenset(
     }
 )
 
-# Roles whose cadre must be permitted to code at the unit's level. The cadre is
-# mandatory for these roles for that reason.
-ROLES_REQUIRING_CODING_CADRE = frozenset({VaAccessRoles.coder})
-
-# Role -> (level x cadre flag its cadre must carry, what the flag permits).
-# A grant of one of these roles on a unit requires a cadre with that flag at the
-# unit's level (decision 12 of .tasks/2026-09-28-interviewer-worklist.md for
-# interview_supervisor). Checked when the grant is written, never at runtime.
-CADRE_FLAG_BY_ROLE = {
-    VaAccessRoles.coder: ("can_code_va_form", "code VA forms"),
-    VaAccessRoles.interview_supervisor: ("can_supervise_interviews", "supervise interviews"),
-    VaAccessRoles.death_reporter: ("can_report_deaths", "report deaths"),
-}
-
 
 def _as_uuid(raw: object, *, what: str) -> uuid.UUID:
     if isinstance(raw, uuid.UUID):
@@ -93,6 +82,21 @@ def get_active_unit(org_unit_id: object) -> MasOrgUnit:
     return unit
 
 
+def worker_backed_condition(user_id_expr, org_unit_id_expr, cadre_id_expr):
+    """SQL EXISTS: an active worker record places the user at the unit with
+    the cadre. What marks a mentoring-institute member's cadre-bearing unit
+    grant as health-system (Tier 3) rather than a borrowed cadre (digitva-4650):
+    the PII rule (``authz.grants``, ``viewer_pii_service``), the grant guard,
+    the mentor lapse and ``flask org cadreless-grants`` all use this one
+    predicate. Indexed on ``mas_org_unit_worker.user_id``."""
+    return sa.exists().where(
+        MasOrgUnitWorker.user_id == user_id_expr,
+        MasOrgUnitWorker.org_unit_id == org_unit_id_expr,
+        MasOrgUnitWorker.cadre_id == cadre_id_expr,
+        MasOrgUnitWorker.is_active.is_(True),
+    )
+
+
 def validate_org_unit_grant(
     *,
     role: VaAccessRoles,
@@ -103,8 +107,12 @@ def validate_org_unit_grant(
     """Check a unit-scoped grant before it is written.
 
     Returns the resolved (unit, cadre). Raises OrganizationError with a message
-    meant for the operator when the combination is not allowed. Pass *user_id*
-    (the grantee) to apply the mentoring-institute guard.
+    meant for the operator when the combination is not allowed. A named cadre
+    must be placed (active grid row) at the unit's level with the role in its
+    ``allowed_roles``. *user_id* (the grantee) adds the checks that depend on
+    who they are (``check_grantee``); a caller that resolves a scope before its
+    own permission check passes None and must call again with the grantee
+    before writing, so a refusal never discloses institute membership.
     """
     if role not in ROLES_ALLOWING_ORG_UNIT:
         raise OrganizationError(f"Role {role.value!r} cannot use org_unit scope.")
@@ -116,10 +124,6 @@ def validate_org_unit_grant(
         # The In-charge belongs to a tree (organization) project; a site
         # project keeps site_pi on its (project, site) pairs.
         raise OrganizationError("An In-charge (site_pi at a unit) needs an organization project.")
-    if user_id is not None:
-        from app.services.mentor_institute_service import check_mentor_grant
-
-        check_mentor_grant(user_id, role, unit)
 
     cadre = None
     if cadre_id is not None and str(cadre_id).strip():
@@ -128,34 +132,42 @@ def validate_org_unit_grant(
             raise OrganizationError("Cadre not found in this unit's project.")
         if not cadre.is_active:
             raise OrganizationError(f"Cadre {cadre.cadre_code!r} is inactive.")
-
-    if role in CADRE_FLAG_BY_ROLE:
-        flag, permits = CADRE_FLAG_BY_ROLE[role]
-        if cadre is None:
-            raise OrganizationError(
-                f"A {role.value} grant on a unit requires a cadre that may {permits} "
-                "at that unit's level."
-            )
         permission = get_level_cadre_permission(unit.org_level_id, cadre.cadre_id)
         if permission is None:
             raise OrganizationError(
                 f"Cadre {cadre.cadre_code!r} is not defined at level "
                 f"{unit.level.level_code!r}; add it in the level permissions grid first."
             )
-        if not getattr(permission, flag):
+        if role.value not in (permission.allowed_roles or ()):
             raise OrganizationError(
-                f"Cadre {cadre.cadre_code!r} may not {permits} at level "
-                f"{unit.level.level_code!r}."
-            )
-    elif cadre is not None:
-        # Descriptive cadre on a non-coding role: it must still exist at the level.
-        if get_level_cadre_permission(unit.org_level_id, cadre.cadre_id) is None:
-            raise OrganizationError(
-                f"Cadre {cadre.cadre_code!r} is not defined at level "
-                f"{unit.level.level_code!r}; add it in the level permissions grid first."
+                f"Cadre {cadre.cadre_code!r} may not hold {role.value} at level "
+                f"{unit.level.level_code!r}; allow it in the level permissions grid first."
             )
 
+    if user_id is not None:
+        check_grantee(user_id, role, unit, cadre)
     return unit, cadre
+
+
+def check_grantee(user_id, role: VaAccessRoles, unit: MasOrgUnit, cadre: MasCadre | None) -> None:
+    """The part of the unit-grant rule that depends on the grantee.
+
+    A mentoring-institute member passes the institute guard
+    (``check_mentor_grant``: no cadre for a mentor grant, or a cadre backed by
+    their own worker record). Anyone else must name a cadre: every
+    health-system (Tier 3) unit grant does (organization-model.md, "Allowed
+    and default roles per level x cadre").
+    """
+    from app.services.mentor_institute_service import check_mentor_grant
+
+    is_member = check_mentor_grant(
+        user_id, role, unit, cadre_id=cadre.cadre_id if cadre is not None else None
+    )
+    if not is_member and cadre is None:
+        raise OrganizationError(
+            f"A {role.value} grant on a unit needs the person's cadre: choose a cadre "
+            f"allowed to hold {role.value} at level {unit.level.level_code!r}."
+        )
 
 
 def active_project_condition(project_id_expr):

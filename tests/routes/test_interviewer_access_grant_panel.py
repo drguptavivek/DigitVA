@@ -88,14 +88,15 @@ class InterviewerUnitGrantApiTests(BaseTestCase):
         chc, cadres = self._chc_and_cadres()
         self._login(str(self.base_admin_id))
 
-        response = self._post_grant(unit=chc, cadre=cadres["SMO"])
+        # SN may interview at a CHC; SMO may not (digitva-4650 allowed roles).
+        response = self._post_grant(unit=chc, cadre=cadres["SN"])
 
         self.assertEqual(response.status_code, 201, response.get_json())
         grant = response.get_json()["grant"]
         self.assertEqual(grant["role"], "interviewer")
         self.assertEqual(grant["scope_type"], "org_unit")
         self.assertEqual(grant["unit_code"], "C01")
-        self.assertEqual(grant["cadre_code"], "SMO")
+        self.assertEqual(grant["cadre_code"], "SN")
 
     def test_admin_cannot_create_unit_interviewer_grant_with_ineligible_cadre(self):
         chc, cadres = self._chc_and_cadres()

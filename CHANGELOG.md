@@ -5,6 +5,22 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Allowed and default roles per level × cadre (owner 2026-11-25,
+  `digitva-4650`, `docs/policy/organization-model.md`): each cadre at a level
+  now has an allowed-roles list, with default roles a subset pre-ticked at
+  enrolment. They replace the five capability ticks, which are no longer read
+  or written; migration `c3a7e1f9d4b2` adds the list and backfills it from
+  the ticks, defaults and existing grants. Every health-system unit grant
+  names a cadre allowed its role. Mentoring-institute grants carry no cadre
+  and are Non-PII, data manager included; a mentor sees PII only when
+  enrolled as a worker with a cadre. Every interview supervisor reaching a
+  case may correct its interview; In-charge and data manager may not. The
+  grid shows allowed roles and defaults with a sticky header, and the "Who
+  can do what?" cards name their role. `flask org cadreless-grants` lists
+  (and, owner-gated, revokes or clears) grants that no longer fit
+  (`digitva-hofh`). Route auth matrix unchanged. Follow-ups: drop the old
+  columns (`digitva-8qh6`), rerun training setup (`digitva-veq5`),
+  web-intake.md wording (`digitva-wytz`).
 - DigitVA overrides help page (owner 2026-11-25, `digitva-j5n2`): public,
   read-only `/help/digitva-overrides`, listed under Coding Workflow and
   linked as "View overrides" next to "Apply DigitVA overrides" in the admin

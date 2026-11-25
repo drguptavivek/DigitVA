@@ -267,26 +267,10 @@ __all__ = [
 ]
 
 
-def normalize_default_roles(
-    roles: Iterable[str] | None,
-    row: MapOrgLevelCadre,
-    *,
-    level: MasOrgLevel,
-    cadre: MasCadre,
-    drop_disallowed: bool = False,
-) -> list[str]:
-    """Validate a row's default roles against its flags; return them canonical.
-
-    Each role must be a unit-scope role (``ROLES_ALLOWING_ORG_UNIT``) and, when
-    ``CADRE_FLAG_BY_ROLE`` names a flag for it, the row must carry that flag:
-    the one rule a unit grant is written by (``validate_org_unit_grant``).
-    Duplicates collapse; the order is the role enum's, so a round trip through
-    an export is stable. Raises OrganizationError for the operator, or with
-    *drop_disallowed* leaves out a role whose flag the row lacks (the stored
-    defaults after a flag was cleared).
-    """
+def _unit_roles(roles: Iterable[str] | None, *, what: str) -> set[VaAccessRoles]:
+    """Parse role names that must each be a unit-scope role; blanks skipped."""
     # org_grant_service imports this module, so the rule is read at call time.
-    from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
+    from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
 
     wanted = set()
     for raw in roles or ():
@@ -296,20 +280,47 @@ def normalize_default_roles(
         try:
             role = VaAccessRoles(name)
         except ValueError as exc:
-            raise OrganizationError(f"Unknown default role {name!r}.") from exc
+            raise OrganizationError(f"Unknown {what} role {name!r}.") from exc
         if role not in ROLES_ALLOWING_ORG_UNIT:
-            raise OrganizationError(f"Default role {name!r} cannot be held at a unit.")
-        if role in CADRE_FLAG_BY_ROLE:
-            flag, permits = CADRE_FLAG_BY_ROLE[role]
-            if not getattr(row, flag):
-                if drop_disallowed:
-                    continue
-                raise OrganizationError(
-                    f"Default role {name!r} needs a cadre that may {permits}: cadre "
-                    f"{cadre.cadre_code!r} may not at level {level.level_code!r}."
-                )
+            raise OrganizationError(f"{what.capitalize()} role {name!r} cannot be held at a unit.")
         wanted.add(role)
-    return [role.value for role in VaAccessRoles if role in wanted]
+    return wanted
+
+
+def _canonical(roles: set[VaAccessRoles]) -> list[str]:
+    """Role names in the role enum's order, so an export round trip is stable."""
+    return [role.value for role in VaAccessRoles if role in roles]
+
+
+def normalize_default_roles(
+    roles: Iterable[str] | None,
+    row: MapOrgLevelCadre,
+    *,
+    level: MasOrgLevel,
+    cadre: MasCadre,
+    drop_disallowed: bool = False,
+) -> list[str]:
+    """Validate a row's default roles against its allowed roles; return them canonical.
+
+    Each role must be a unit-scope role (``ROLES_ALLOWING_ORG_UNIT``) and one
+    of the row's ``allowed_roles``: defaults are always a subset of what the
+    cadre may hold (digitva-4650). Duplicates collapse. Raises
+    OrganizationError for the operator, or with *drop_disallowed* leaves out
+    a role the row no longer allows (the stored defaults after a role was
+    disallowed).
+    """
+    allowed = set(row.allowed_roles or ())
+    wanted = set()
+    for role in _unit_roles(roles, what="default"):
+        if role.value not in allowed:
+            if drop_disallowed:
+                continue
+            raise OrganizationError(
+                f"Default role {role.value!r} is not allowed for cadre "
+                f"{cadre.cadre_code!r} at level {level.level_code!r}; allow it first."
+            )
+        wanted.add(role)
+    return _canonical(wanted)
 
 
 def upsert_level_cadre(
@@ -317,26 +328,17 @@ def upsert_level_cadre(
     *,
     org_level_id: object,
     cadre_id: object,
-    can_fill_va_form: bool,
-    can_code_va_form: bool,
-    can_supervise_interviews: bool | None = None,
-    can_report_deaths: bool | None = None,
-    can_edit_interviews: bool | None = None,
+    allowed_roles: Iterable[str] | None = None,
     default_roles: Iterable[str] | None = None,
     is_active: bool = True,
 ) -> MapOrgLevelCadre:
     """Create or update one level x cadre row.
 
-    ``can_supervise_interviews``, ``can_report_deaths``,
-    ``can_edit_interviews`` and ``default_roles`` of ``None`` keep the row's
-    current value (false or empty on a new row), so callers and workbooks that
-    predate a column cannot clear it. ``can_edit_interviews`` lives only under
-    ``can_supervise_interviews``: true while supervise ends up false is
-    refused, and a kept true is cleared with supervise. Default roles
-    that are supplied are checked against the row's resulting flags
-    (``normalize_default_roles``) and refused if the flags do not allow one;
-    kept ones that a cleared flag no longer allows are dropped, so a caller
-    that never mentions defaults can still clear the flag.
+    ``allowed_roles`` and ``default_roles`` of ``None`` keep the row's current
+    value (empty on a new row). Supplied default roles must be allowed
+    (``normalize_default_roles``); kept ones a narrowed allowed list no longer
+    permits are dropped, so disallowing a role also removes it from the
+    defaults. Existing grants are never touched.
     """
     level = _get_level(project_id, org_level_id)
     cadre = _get_cadre(project_id, cadre_id)
@@ -349,21 +351,12 @@ def upsert_level_cadre(
     if row is None:
         row = MapOrgLevelCadre(org_level_id=level.org_level_id, cadre_id=cadre.cadre_id)
         db.session.add(row)
-    row.can_fill_va_form = bool(can_fill_va_form)
-    row.can_code_va_form = bool(can_code_va_form)
-    if can_supervise_interviews is not None:
-        row.can_supervise_interviews = bool(can_supervise_interviews)
-    if can_report_deaths is not None:
-        row.can_report_deaths = bool(can_report_deaths)
-    if can_edit_interviews is not None:
-        if can_edit_interviews and not row.can_supervise_interviews:
-            raise OrganizationError("can_edit_interviews needs can_supervise_interviews.")
-        row.can_edit_interviews = bool(can_edit_interviews)
-    elif not row.can_supervise_interviews:
-        row.can_edit_interviews = False
+    if allowed_roles is not None:
+        row.allowed_roles = _canonical(_unit_roles(allowed_roles, what="allowed"))
     row.default_roles = normalize_default_roles(
         row.default_roles if default_roles is None else default_roles,
-        row, level=level, cadre=cadre, drop_disallowed=default_roles is None,
+        row, level=level, cadre=cadre,
+        drop_disallowed=default_roles is None,
     )
     if not is_active:
         active_workers = db.session.scalar(

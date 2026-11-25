@@ -142,20 +142,22 @@ class CanGrantTests(AuthzFixtureMixin, BaseTestCase):
         # still refuses it without a cadre that may code there, and passes
         # with one (so the refusal is the cadre rule's, not something else).
         self.assertTrue(can_grant(self.users["dm_c1"], self._target(R.coder, U, "P1")))
-        with self.assertRaisesRegex(OrganizationError, "requires a cadre"):
-            validate_org_unit_grant(role=R.coder, org_unit_id=p1)
-        validate_org_unit_grant(role=R.coder, org_unit_id=p1, cadre_id=cadres["MO"].cadre_id)
+        nobody = self.users["nobody"].user_id
+        with self.assertRaisesRegex(OrganizationError, "needs the person's cadre"):
+            validate_org_unit_grant(role=R.coder, org_unit_id=p1, user_id=nobody)
+        validate_org_unit_grant(role=R.coder, org_unit_id=p1, cadre_id=cadres["MO"].cadre_id,
+                                user_id=nobody)
         # Mentor guard: can_grant allows a DM grant at P1 for an institute
         # member; the guard still refuses it, and the same grant passes for a
         # grantee outside the institute.
         mentor = self.users["mentor"]
         self.assertTrue(can_grant(
-            self.users["dm_ta"], self._target(R.data_manager, U, "P1"), grantee_id=mentor.user_id
+            self.users["dm_ta"], self._target(R.interviewer, U, "P1"), grantee_id=mentor.user_id
         ))
         with self.assertRaisesRegex(OrganizationError, "mentoring institute"):
-            validate_org_unit_grant(role=R.data_manager, org_unit_id=p1, user_id=mentor.user_id)
+            validate_org_unit_grant(role=R.interviewer, org_unit_id=p1, user_id=mentor.user_id)
         validate_org_unit_grant(
-            role=R.data_manager, org_unit_id=p1, user_id=self.users["nobody"].user_id
+            role=R.interviewer, org_unit_id=p1, cadre_id=self.any_cadre[TA], user_id=nobody
         )
 
     def test_grant_list_filter_lists_exactly_what_can_grant_allows(self):
@@ -230,7 +232,7 @@ class GrantCreateOrderTests(AuthzFixtureMixin, BaseTestCase):
         # The subject: inside the DM's own subtree the cadre rule answers.
         own = self._post("dm_c1", self.DM_GRANTS, self._coder_at(self.units["P1"].org_unit_id))
         self.assertEqual(own.status_code, 400)
-        self.assertIn("requires a cadre", own.get_json()["error"])
+        self.assertIn("needs the person's cadre", own.get_json()["error"])
         foreign = self._post("dm_c1", self.DM_GRANTS, self._coder_at(self.units["F1"].org_unit_id))
         self.assertEqual(foreign.status_code, 403)
         self.assertNotIn("cadre", foreign.get_json()["error"])
@@ -261,16 +263,16 @@ class GrantCreateOrderTests(AuthzFixtureMixin, BaseTestCase):
             "/data-management/api/users", json=payload, headers=self._csrf_headers()
         )
         self.assertEqual(response.status_code, 400)
-        self.assertIn("requires a cadre", response.get_json()["error"])
+        self.assertIn("needs the person's cadre", response.get_json()["error"])
 
     def test_admin_panel_project_pi_is_refused_first_and_admin_keeps_the_message(self):
         own = self._post("pi_ta", self.ADMIN_GRANTS, self._coder_at(self.units["P1"].org_unit_id))
         self.assertEqual(own.status_code, 400)
-        self.assertIn("requires a cadre", own.get_json()["error"])
+        self.assertIn("needs the person's cadre", own.get_json()["error"])
         foreign = self._post("pi_ta", self.ADMIN_GRANTS, self._coder_at(self.units["F1"].org_unit_id))
         self.assertEqual(foreign.status_code, 403)
         unknown = self._post("pi_ta", self.ADMIN_GRANTS, self._coder_at(uuid.uuid4()))
         self.assertEqual(unknown.status_code, 403)
         admin = self._post("admin", self.ADMIN_GRANTS, self._coder_at(self.units["F1"].org_unit_id))
         self.assertEqual(admin.status_code, 400)
-        self.assertIn("requires a cadre", admin.get_json()["error"])
+        self.assertIn("needs the person's cadre", admin.get_json()["error"])

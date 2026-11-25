@@ -45,7 +45,7 @@ from app.services.access_summary_service import _codes, _roles
 from app.services.authz import reachable_unit_ids, resolve_grants
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
 from app.services.authz.grants import Grant, ResolvedGrants, _load_projects
-from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
+from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
 from app.services.viewer_pii_service import (
     _PII_GRANTING_ROLES,
     pii_visible_user_ids,
@@ -105,12 +105,13 @@ CAPABILITY_LABELS = {
 # Capabilities a grant gives only at project_site scope. A site_pi at a unit is
 # the In-charge, whose duties are Supervise, Manage data and Manage grants.
 SITE_SCOPE_ONLY = frozenset({"site_lead"})
-# Hollow (red) cells: the level x cadre grid flag that says "may be given".
-HOLLOW_FLAGS = {
-    "report_deaths": "can_report_deaths",
-    "interview": "can_fill_va_form",
-    "code": "can_code_va_form",
-    "supervise": "can_supervise_interviews",
+# Hollow (red) cells: the role whose presence in the level x cadre grid's
+# allowed_roles says "may be given" (digitva-4650).
+HOLLOW_ROLES = {
+    "report_deaths": R.death_reporter.value,
+    "interview": R.interviewer.value,
+    "code": R.coder.value,
+    "supervise": R.interview_supervisor.value,
 }
 # Roles that see emails, deactivated rows and global admins.
 IDENTITY_ROLES = frozenset({
@@ -393,10 +394,10 @@ def _cells(entries, *, live: bool, sees_pii: bool, scope, loc: dict, cadre_id, g
             cells[key] = {"state": "inactive", "roles": _role_names(giving)}
         else:
             cells[key] = {"state": "blank", "roles": []}
-            flag = HOLLOW_FLAGS.get(key)
-            if flag and live and cadre_id and loc["kind"] == "unit" and any(e["active"] for e in entries):
+            role = HOLLOW_ROLES.get(key)
+            if role and live and cadre_id and loc["kind"] == "unit" and any(e["active"] for e in entries):
                 cell = grid.get((loc["level_code"], str(cadre_id)))
-                if cell and cell["is_active"] and cell[flag]:
+                if cell and cell["is_active"] and role in cell["allowed_roles"]:
                     cells[key]["state"] = "hollow"
     return cells
 
@@ -410,13 +411,11 @@ def _flags(entries, *, user_active: bool, loc: dict, cadre_id, grid, has_active_
     if active and loc["kind"] == "unit":
         if cadre_id is None:
             flags.append("no_cadre")
-        for e in active:
-            spec = CADRE_FLAG_BY_ROLE.get(e["role"])
-            if spec and cadre_id is not None:
-                cell = grid.get((loc["level_code"], str(cadre_id)))
-                if not (cell and cell["is_active"] and cell[spec[0]]):
-                    flags.append("exceeds_grid")
-                    break
+        if cadre_id is not None:
+            cell = grid.get((loc["level_code"], str(cadre_id)))
+            allowed = cell["allowed_roles"] if cell and cell["is_active"] else ()
+            if any(e["role"].value not in allowed for e in active):
+                flags.append("exceeds_grid")
     if active and not user_active:
         flags.append("inactive_user")
     if active and not loc["active"]:

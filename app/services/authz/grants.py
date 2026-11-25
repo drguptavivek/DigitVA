@@ -24,8 +24,6 @@ from flask import g, has_request_context, request
 
 from app import db
 from app.models import (
-    MapMentorInstituteUser,
-    MasMentorInstitute,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -42,6 +40,7 @@ from app.services.org_grant_service import (
     ABOVE_SCOPE_CODE_ANY,
     ABOVE_SCOPE_VIEW_ONLY,
     active_project_condition,
+    worker_backed_condition,
 )
 
 _ENVIRON_KEY = "digitva.authz"
@@ -118,6 +117,10 @@ class Grant:
     # Where the grant comes from: "assigned" (a grant row) or "self_coding" (the
     # interviewer grant implied by a coder grant on a self-coding project).
     source: str = "assigned"
+    # A unit grant whose cadre the holder's own active worker record at that
+    # unit holds (org_grant_service.worker_backed_condition): what makes a
+    # mentoring-institute member's grant health-system, i.e. PII (digitva-4650).
+    worker_backed: bool = False
 
     @property
     def is_wide(self) -> bool:
@@ -269,8 +272,10 @@ class ResolvedGrants:
 
         - Tier 1 (Project scope on an organization-tree project): Non-PII.
         - Tier 2 (Mentoring Institute member, or project_site scope on an
-          organization-tree project): Non-PII (except an explicit data_manager
-          unit override).
+          organization-tree project): Non-PII. A member's unit grant is PII
+          only when their own worker record backs it (``Grant.worker_backed``:
+          enrolled into the health system with that cadre at that unit); a
+          mentor grant, data_manager included, never is (digitva-4650).
         - Tier 3 (Health-system unit grant on an organization-tree project for a
           non-mentor-institute user): All PII for In-charge (site_pi), Unit Data
           Manager (data_manager), Interview Supervisor, Interviewer, and In-System
@@ -278,16 +283,14 @@ class ResolvedGrants:
         - Sites-only (legacy) projects (no organization tree): the roles in
           SITES_MODE_PII_ROLES keep PII, project_pi included (owner 2026-11-05,
           digitva-ssg7.8); plain collaborator stays Non-PII. A mentoring-institute
-          member gets PII there only from data_manager, as on a tree project.
+          member gets PII there only from data_manager.
         """
         if grant.virtual:
             return False
         if self.has_tree(grant.project_id):
             if grant.scope_type != _U or grant.role not in TIER3_UNIT_PII_ROLES:
                 return False
-            if grant.role != VaAccessRoles.data_manager and self._mentor_member():
-                return False
-            return True
+            return grant.worker_backed or not self._mentor_member()
         if grant.role not in SITES_MODE_PII_ROLES:
             return False
         return grant.role == VaAccessRoles.data_manager or not self._mentor_member()
@@ -296,7 +299,7 @@ class ResolvedGrants:
         """Short stable hash of the grants, for cache keys."""
         raw = "|".join(sorted(
             f"{g.role.value}:{g.scope_type.value}:{g.project_id}:{g.site_id}:{g.org_unit_id}"
-            f":{int(g.virtual)}"
+            f":{int(g.virtual)}:{int(g.worker_backed)}"
             for g in self.grants
         ))
         mentor_tag = "" if self.is_mentor_member is None else str(int(self.is_mentor_member))
@@ -343,6 +346,11 @@ def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant], bool]:
             any_form.label("any_form"),
             form_on_active_pair.label("form_on_active_pair"),
             VaUsers.is_public_demo.label("public_demo"),
+            sa.and_(
+                grant.scope_type == VaAccessScopeTypes.org_unit,
+                grant.cadre_id.is_not(None),
+                worker_backed_condition(grant.user_id, grant.org_unit_id, grant.cadre_id),
+            ).label("worker_backed"),
         )
         .select_from(grant)
         .join(VaUsers, VaUsers.user_id == grant.user_id)
@@ -382,6 +390,7 @@ def _load_grants(user_id: uuid.UUID) -> tuple[bool, list[Grant], bool]:
             unit_depth=row.depth,
             unit_path=row.unit_path,
             opens_gate=_opens_gate(row),
+            worker_backed=bool(row.worker_backed),
         ))
     return is_admin, grants, public_demo
 

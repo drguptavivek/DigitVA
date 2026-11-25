@@ -350,7 +350,8 @@ class ShouldRedactPiiTests(BaseTestCase):
             tier3_users.append(u.user_id)
         self.assertEqual(pii_visible_user_ids(tier3_users), set(tier3_users))
 
-        # Exceptional PII: Mentoring Institute member granted data_manager at the attached District unit.
+        # A Mentoring Institute member's own data_manager grant (no cadre) is
+        # Non-PII (digitva-4650).
         exc_user = self._get_or_make_user("vpr.exc.dm@test.local", "VprTier123")
         mentors.add_member("VPRMC", exc_user.email)
         db.session.add(VaUserAccessGrants(
@@ -360,7 +361,20 @@ class ShouldRedactPiiTests(BaseTestCase):
         ))
         db.session.commit()
         invalidate_all()
-        self.assertFalse(should_redact_pii(exc_user, project_id=tree_project), "Exceptional District data_manager grant unlocks PII")
+        self.assertTrue(should_redact_pii(exc_user, project_id=tree_project), "A mentor's cadre-less data_manager is Non-PII")
+        self.assertEqual(pii_visible_user_ids([exc_user.user_id]), set())
+        # Exceptional PII: enrolled as a worker with a cadre at the District
+        # unit, a grant carrying that cadre is a health-system grant.
+        dpm = next(c for c in org.list_cadres(tree_project) if c.cadre_code == "DPM")
+        org.create_worker(tree_project, org_unit_id=dst.org_unit_id, cadre_id=dpm.cadre_id,
+                          worker_name="Exceptional DM", user=exc_user.email)
+        db.session.scalar(sa.select(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id == exc_user.user_id,
+            VaUserAccessGrants.role == VaAccessRoles.data_manager,
+        )).cadre_id = dpm.cadre_id
+        db.session.commit()
+        invalidate_all()
+        self.assertFalse(should_redact_pii(exc_user, project_id=tree_project), "Worker-backed District data_manager grant unlocks PII")
         self.assertEqual(pii_visible_user_ids([exc_user.user_id]), {exc_user.user_id})
 
 

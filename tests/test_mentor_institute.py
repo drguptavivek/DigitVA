@@ -124,11 +124,11 @@ class MentorInstituteTests(MentorBase):
         with self.assertRaises(REFUSED):
             self._validate(user, VaAccessRoles.collaborator, other_d1)
 
-    def test_member_refused_interviewer_data_manager_and_site_pi(self):
+    def test_member_refused_interviewer_supervisor_and_site_pi(self):
+        # digitva-4650: data_manager is a mentor role (no cadre, Non-PII).
         d1, _, chc, user = self._setup_one()
         for role in (
             VaAccessRoles.interviewer,
-            VaAccessRoles.data_manager,
             VaAccessRoles.interview_supervisor,
             VaAccessRoles.collaborator_pii,
         ):
@@ -151,9 +151,10 @@ class MentorInstituteTests(MentorBase):
 
     def test_member_accepted_for_mentor_roles_in_attached_subtree(self):
         d1, _, chc, user = self._setup_one()
-        for unit, cadre in ((d1, "MO"), (chc, "SMO")):
-            unit_row, _ = self._validate(user, VaAccessRoles.coder, unit, cadre)
-            self.assertEqual(unit_row.org_unit_id, unit.org_unit_id)
+        # digitva-4650: a mentor grant carries no cadre.
+        for unit in (d1, chc):
+            unit_row, cadre = self._validate(user, VaAccessRoles.coder, unit)
+            self.assertEqual((unit_row.org_unit_id, cadre), (unit.org_unit_id, None))
         for role in (
             VaAccessRoles.reviewer,
             VaAccessRoles.coding_tester,
@@ -184,8 +185,8 @@ class MentorInstituteTests(MentorBase):
     def test_non_member_is_unaffected(self):
         d1, d2, chc, _ = self._setup_one()
         other = self._get_or_make_user("not.a.mentor@test.local", "x")
-        self._validate(other, VaAccessRoles.data_manager, d2)
-        self._validate(other, VaAccessRoles.interviewer, chc)
+        self._validate(other, VaAccessRoles.data_manager, d2, "DPM")
+        self._validate(other, VaAccessRoles.interviewer, chc, "SN")
         mentors.check_mentor_grant(other.user_id, VaAccessRoles.data_manager, None)
 
     def test_one_institute_on_districts_in_two_projects(self):
@@ -227,11 +228,11 @@ class MentorInstituteTests(MentorBase):
         mentors.attach_district("MC1", self.P1, "D01")
         mentors.set_institute_active("MC1", False)
         db.session.commit()
-        self._validate(user, VaAccessRoles.data_manager, d2)  # no longer a member
+        self._validate(user, VaAccessRoles.data_manager, d2, "DPM")  # no longer a member
         mentors.set_institute_active("MC1", True)
         mentors.remove_member("MC1", "mentor.one@test.local")
         db.session.commit()
-        self._validate(user, VaAccessRoles.data_manager, d2)
+        self._validate(user, VaAccessRoles.data_manager, d2, "DPM")
 
     def test_attach_refuses_non_district_units_and_unknown_codes(self):
         self._setup_one()
@@ -262,14 +263,13 @@ class MentorInstituteTests(MentorBase):
         mentors.attach_district("MC1", self.P1, "D03")
         db.session.commit()
         self._validate(user, VaAccessRoles.reviewer, d3)
-        # Exceptional PII: data_manager is accepted at the attached District unit (d1 or d3),
-        # but refused at an unattached District (d2) or non-District child unit (chc).
+        # A mentor data manager (no cadre, Non-PII; digitva-4650) is accepted
+        # anywhere inside an attached district (d1, d3, chc), refused outside (d2).
         self._validate(user, VaAccessRoles.data_manager, d1)
         self._validate(user, VaAccessRoles.data_manager, d3)
+        self._validate(user, VaAccessRoles.data_manager, chc)
         with self.assertRaises(REFUSED):
             self._validate(user, VaAccessRoles.data_manager, d2)
-        with self.assertRaises(REFUSED):
-            self._validate(user, VaAccessRoles.data_manager, chc)
 
     def test_add_member_reports_existing_grants_the_guard_would_refuse(self):
         self._setup_one()
@@ -294,7 +294,7 @@ class MentorInstituteTests(MentorBase):
         # (tests/test_incharge_stage5.py).
         d1, _, _ = self._tree(self.P1)
         non_member = self._get_or_make_user("sitepi@test.local", "x")
-        self._validate(non_member, VaAccessRoles.site_pi, d1)
+        self._validate(non_member, VaAccessRoles.site_pi, d1, "CS")
 
         now = datetime.now(UTC)
         if db.session.get(VaSiteMaster, "MN01") is None:

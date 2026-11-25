@@ -100,28 +100,27 @@ DEFAULT_CADRE_TEMPLATE: tuple[tuple[str, str], ...] = (
 )
 
 
-# (level_code, cadre_code) -> (can_fill_va_form, can_code_va_form,
-# can_supervise_interviews, can_report_deaths): what a cadre MAY be given at
-# that level.
-DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[bool, bool, bool, bool]] = {
-    ("district", "CS"): (False, False, True, False),
-    ("district", "DPM"): (False, False, False, False),
-    ("district", "DEPI"): (False, False, False, False),
-    ("district", "MO"): (False, True, False, False),
-    ("district", "SN"): (True, False, False, False),
-    ("chc", "SMO"): (False, True, True, False),
-    ("chc", "MO"): (False, True, False, False),
-    ("chc", "BPM"): (False, False, False, False),
-    ("chc", "SN"): (True, False, False, False),
-    ("phc", "MO"): (False, True, True, False),
-    ("phc", "CHO"): (True, False, False, False),
-    ("subcentre", "CHO"): (True, False, False, False),
-    # Owner 2026-10-12: ANM and MPW report deaths and may fill VAs; ASHA
-    # reports deaths only. New projects only; an existing grid row is never
-    # rewritten.
-    ("subcentre", "MPW"): (True, False, False, True),
-    ("subcentre", "ANM"): (True, False, False, True),
-    ("village", "ASHA"): (False, False, False, True),
+# (level_code, cadre_code) -> the unit-scope roles a cadre MAY hold at that
+# level (allowed_roles, digitva-4650). Each list holds the row's default roles
+# below. Owner 2026-10-12: ANM and MPW report deaths and may fill VAs; ASHA
+# reports deaths only. New projects only; an existing grid row is never
+# rewritten.
+DEFAULT_LEVEL_CADRE_TEMPLATE: dict[tuple[str, str], tuple[str, ...]] = {
+    ("district", "CS"): ("site_pi", "interview_supervisor"),
+    ("district", "DPM"): ("data_manager",),
+    ("district", "DEPI"): ("data_manager",),
+    ("district", "MO"): ("coder", "reviewer"),
+    ("district", "SN"): ("interviewer",),
+    ("chc", "SMO"): ("site_pi", "coder", "reviewer", "interview_supervisor"),
+    ("chc", "MO"): ("coder",),
+    ("chc", "BPM"): ("data_manager",),
+    ("chc", "SN"): ("interviewer",),
+    ("phc", "MO"): ("site_pi", "coder", "interview_supervisor"),
+    ("phc", "CHO"): ("interviewer",),
+    ("subcentre", "CHO"): ("interviewer",),
+    ("subcentre", "MPW"): ("interviewer", "death_reporter"),
+    ("subcentre", "ANM"): ("interviewer", "death_reporter"),
+    ("village", "ASHA"): ("death_reporter",),
 }
 
 
@@ -186,7 +185,7 @@ def seed_default_organization(project_id: str, *, include_cadres: bool = True) -
             .where(MasOrgLevel.project_id == project_id)
         ).all()
     )
-    for (level_code, cadre_code), (can_fill, can_code, can_supervise, can_report) in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
+    for (level_code, cadre_code), allowed in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
         level = existing_levels.get(level_code)
         cadre = existing_cadres.get(cadre_code)
         if level is None or cadre is None or (level.org_level_id, cadre.cadre_id) in existing_pairs:
@@ -195,10 +194,7 @@ def seed_default_organization(project_id: str, *, include_cadres: bool = True) -
             project_id,
             org_level_id=level.org_level_id,
             cadre_id=cadre.cadre_id,
-            can_fill_va_form=can_fill,
-            can_code_va_form=can_code,
-            can_supervise_interviews=can_supervise,
-            can_report_deaths=can_report,
+            allowed_roles=allowed,
             default_roles=DEFAULT_TYPICAL_ROLES.get((level_code, cadre_code), ()),
         )
         counts["level_cadres"] += 1
@@ -210,13 +206,13 @@ def district_reference_model() -> dict:
     """The seed template as display data for the Organization page.
 
     Pure (no database): levels, cadres and one row per grid entry with its
-    flags and the default roles a new project's grid is seeded with. Default
-    roles are pre-ticked in grant forms and never used to decide access.
+    allowed roles and the default roles a new project's grid is seeded with.
+    Default roles are pre-ticked in grant forms and never used to decide access.
     """
     level_names = {code: name for code, name, _depth, _optional in DEFAULT_LEVEL_TEMPLATE}
     cadre_names = dict(DEFAULT_CADRE_TEMPLATE)
     grid = []
-    for (level_code, cadre_code), (can_fill, can_code, can_supervise, can_report) in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
+    for (level_code, cadre_code), allowed in DEFAULT_LEVEL_CADRE_TEMPLATE.items():
         roles = DEFAULT_TYPICAL_ROLES.get((level_code, cadre_code), ())
         grid.append(
             {
@@ -224,12 +220,7 @@ def district_reference_model() -> dict:
                 "level_name": level_names[level_code],
                 "cadre_code": cadre_code,
                 "cadre_name": cadre_names[cadre_code],
-                "can_fill_va_form": can_fill,
-                "can_code_va_form": can_code,
-                "can_supervise_interviews": can_supervise,
-                "can_report_deaths": can_report,
-                # Never seeded: an admin or project PI ticks it per project.
-                "can_edit_interviews": False,
+                "allowed_roles": list(allowed),
                 "typical_roles": list(roles),
             }
         )
@@ -256,13 +247,14 @@ _CADRE_HEADERS = ("cadre_code", "cadre_name", "is_active")
 
 
 _LEVEL_CADRE_HEADERS = (
-    "level_code", "cadre_code", "can_fill_va_form", "can_code_va_form", "can_supervise_interviews",
-    "can_report_deaths", "default_roles", "is_active", "can_edit_interviews",
+    "level_code", "cadre_code", "allowed_roles", "default_roles", "is_active",
 )
 
 
-# Separates the role names in the default_roles cell of the level_cadres sheet.
+# Separates the role names in the allowed_roles and default_roles cells of the
+# level_cadres sheet.
 _DEFAULT_ROLES_SEPARATOR = "|"
+_ROLE_LIST_HEADERS = ("allowed_roles", "default_roles")
 
 
 _WORKER_HEADERS = (
@@ -283,7 +275,8 @@ def export_organization_rows(project_id: str) -> dict[str, list[dict]]:
         "units": [{k: u[k] for k in _UNIT_HEADERS} for u in units],
         "cadres": [{k: c[k] for k in _CADRE_HEADERS} for c in cadres],
         "level_cadres": [
-            {k: _DEFAULT_ROLES_SEPARATOR.join(lc[k]) if k == "default_roles" else lc[k] for k in _LEVEL_CADRE_HEADERS}
+            {k: _DEFAULT_ROLES_SEPARATOR.join(lc[k]) if k in _ROLE_LIST_HEADERS else lc[k]
+             for k in _LEVEL_CADRE_HEADERS}
             for lc in level_cadres
         ],
         "workers": [{k: w[k] for k in _WORKER_HEADERS} for w in workers],
@@ -631,26 +624,10 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
             kwargs = dict(
                 org_level_id=level.org_level_id,
                 cadre_id=cadre.cadre_id,
-                can_fill_va_form=_to_bool(row.get("can_fill_va_form"), what="can_fill_va_form"),
-                can_code_va_form=_to_bool(row.get("can_code_va_form"), what="can_code_va_form"),
-                # Blank or absent (an older workbook) keeps the current value.
-                can_supervise_interviews=(
-                    None if row.get("can_supervise_interviews") in (None, "")
-                    else _to_bool(row["can_supervise_interviews"], what="can_supervise_interviews")
-                ),
-                can_report_deaths=(
-                    None if row.get("can_report_deaths") in (None, "")
-                    else _to_bool(row["can_report_deaths"], what="can_report_deaths")
-                ),
-                can_edit_interviews=(
-                    None if row.get("can_edit_interviews") in (None, "")
-                    else _to_bool(row["can_edit_interviews"], what="can_edit_interviews")
-                ),
-                # Blank or absent keeps the current defaults; the grid editor clears them.
-                default_roles=(
-                    None if str(row.get("default_roles") or "").strip() == ""
-                    else str(row["default_roles"]).split(_DEFAULT_ROLES_SEPARATOR)
-                ),
+                # Blank or absent keeps the current list; the grid editor clears it.
+                # The five flag columns of older workbooks are no longer read.
+                allowed_roles=_role_list(row.get("allowed_roles")),
+                default_roles=_role_list(row.get("default_roles")),
                 is_active=_to_bool(row["is_active"], what="is_active") if row.get("is_active") not in (None, "") else True,
             )
             if kwargs["is_active"]:
@@ -668,17 +645,19 @@ def _import_level_cadres(project_id, rows, plan, deactivate_missing):
                     dict(
                         org_level_id=lc["org_level_id"],
                         cadre_id=lc["cadre_id"],
-                        can_fill_va_form=lc["can_fill_va_form"],
-                        can_code_va_form=lc["can_code_va_form"],
-                        can_supervise_interviews=lc["can_supervise_interviews"],
-                        can_report_deaths=lc["can_report_deaths"],
-                        can_edit_interviews=lc["can_edit_interviews"],
+                        allowed_roles=lc["allowed_roles"],
                         default_roles=lc["default_roles"],
                         is_active=False,
                     ),
                 ))
                 plan.deactivates["level_cadres"].append(f"{key[0]}/{key[1]}")
     return deferred
+
+
+def _role_list(cell) -> list[str] | None:
+    """A ``|``-separated role cell as a list; None for a blank cell (keep)."""
+    text = str(cell or "").strip()
+    return None if text == "" else text.split(_DEFAULT_ROLES_SEPARATOR)
 
 
 def _without_blank(fields: dict, optional: tuple) -> dict:

@@ -122,7 +122,7 @@ class IdentifierFixture(BaseTestCase):
         cls.scc = unit("SCC", "subcentre", ph2)
         org.upsert_level_cadre(
             PROJECT, org_level_id=levels["phc"].org_level_id, cadre_id=cls.cadres["MO"].cadre_id,
-            can_fill_va_form=False, can_code_va_form=True, can_supervise_interviews=True,
+            allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coder", "coding_tester", "reviewer", "data_manager", "interviewer", "interview_supervisor"],
         )
 
         def type_row(project_id, code, label, sort, **kw):

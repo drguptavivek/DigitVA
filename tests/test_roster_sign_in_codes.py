@@ -408,7 +408,8 @@ class RosterSignInCodeTests(BaseTestCase):
         cadre = next(c for c in org.list_cadres(project_id) if c.cadre_code == "MO")
         org.upsert_level_cadre(
             project_id, org_level_id=level.org_level_id, cadre_id=cadre.cadre_id,
-            can_fill_va_form=can_fill, can_code_va_form=True, default_roles=list(default_roles),
+            allowed_roles=sorted({"coder", *default_roles, *(("interviewer",) if can_fill else ())}),
+            default_roles=list(default_roles),
         )
         units = [org.create_unit(project_id, org_level_id=level.org_level_id,
                                  unit_code=f"{project_id}D{n}", unit_name=f"District {n}") for n in (1, 2)]

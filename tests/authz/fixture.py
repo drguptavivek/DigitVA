@@ -206,6 +206,20 @@ class AuthzFixtureMixin:
                 parent_org_unit_id=cls.units[parent].org_unit_id if parent else None,
                 unit_code=code, unit_name=code,
             )
+        # A test cadre allowed every unit role at every level, for grant writes
+        # that are not about the cadre rule (digitva-4650: every non-mentor
+        # unit grant names a cadre allowing its role).
+        from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
+
+        cls.any_cadre = {}
+        for project_id in (TA, TB):
+            cadre = org.create_cadre(project_id, cadre_code="ANY", cadre_name="Any unit role")
+            for level in levels[project_id].values():
+                org.upsert_level_cadre(
+                    project_id, org_level_id=level.org_level_id, cadre_id=cadre.cadre_id,
+                    allowed_roles=[r.value for r in ROLES_ALLOWING_ORG_UNIT],
+                )
+            cls.any_cadre[project_id] = str(cadre.cadre_id)
         for project_id, mode in ((TA, "view_only"), (TB, "code_any")):
             project = db.session.get(VaProjectMaster, project_id)
             project.coding_scope_level_id = levels[project_id]["phc"].org_level_id

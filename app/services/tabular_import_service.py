@@ -68,7 +68,9 @@ def parse_rows(raw_rows, expected_headers, *, max_rows, require_all=False):
     if (not names or len(names) != len(set(names)) or
             any(name not in allowed for name in names) or
             (require_all and set(names) != allowed)):
-        raise TabularImportError("Headers must be: " + ",".join(expected_headers))
+        unknown = [name[:64] for name in names if name and name not in allowed]
+        prefix = f"Unknown header(s): {', '.join(unknown)}. " if unknown else ""
+        raise TabularImportError(prefix + "Headers must be: " + ",".join(expected_headers))
     rows = []
     for row_number, cells in enumerate(raw_rows, start=2):
         if row_number > max_rows * 2 + 1:

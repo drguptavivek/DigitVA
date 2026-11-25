@@ -184,11 +184,6 @@ class CollaboratorPiiRoleTests(BaseTestCase):
         self.assertIn(VaAccessRoles.collaborator, og.ROLES_ALLOWING_ORG_UNIT)
         self.assertIn(VaAccessRoles.collaborator_pii, og.ROLES_ALLOWING_ORG_UNIT)
 
-        # And it must not have picked up coding ability by accident.
-        self.assertNotIn(VaAccessRoles.collaborator, og.ROLES_REQUIRING_CODING_CADRE)
-        self.assertNotIn(
-            VaAccessRoles.collaborator_pii, og.ROLES_REQUIRING_CODING_CADRE
-        )
 
     def test_collaborator_pii_reaches_the_same_units_as_collaborator(self):
         org.seed_default_organization(self.PROJECT)

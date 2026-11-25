@@ -152,6 +152,9 @@ class ApplyContext:
             elif g.scope_type == VaAccessScopeTypes.org_unit and g.org_unit_id:
                 self.unit_grants_map[(g.user_id, g.role, g.org_unit_id)] = g
 
+        from app.services.mentor_institute_service import member_user_ids
+
+        self.mentor_user_ids = member_user_ids(self.target_user_uuids)
         self.actor_grants = authz.resolve_grants(self.actor)
 
     def validate_scope(self) -> None:
@@ -237,40 +240,42 @@ class ApplyContext:
         role: VaAccessRoles,
         unit: MasOrgUnit,
     ) -> uuid.UUID | None:
-        from app.services.org_grant_service import CADRE_FLAG_BY_ROLE
+        """The cadre a unit grant of *role* at *unit* carries (digitva-4650).
 
+        A mentoring-institute member's grant carries their worker cadre only
+        at the unit their worker record places them (a health-system grant);
+        anywhere else none (a mentor grant). Anyone else's names their home
+        worker cadre, which must allow *role* at the unit's level; with no
+        worker, the first active cadre at the level that allows it.
+        ``validate_org_unit_grant`` still checks the result.
+        """
         worker = self.primary_worker_by_user.get(uid)
+        if uid in self.mentor_user_ids:
+            if worker and worker.is_active and worker.org_unit_id == unit.org_unit_id:
+                return worker.cadre_id
+            return None
         home_cadre_id = worker.cadre_id if worker else None
-        if role in CADRE_FLAG_BY_ROLE:
-            flag, permits = CADRE_FLAG_BY_ROLE[role]
-            # 1. If the user has a worker home cadre, it must carry the required flag at this unit's level
-            if home_cadre_id is not None:
-                lc = self.lc_by_pair.get((unit.org_level_id, home_cadre_id))
-                if lc is None:
-                    cadre_code = worker.cadre.cadre_code if worker and worker.cadre else str(home_cadre_id)
-                    raise OrganizationError(
-                        f"Cadre {cadre_code!r} is not defined at level "
-                        f"{unit.level.level_code!r}; add it in the level permissions grid first."
-                    )
-                if not getattr(lc, flag):
-                    cadre_code = worker.cadre.cadre_code if worker and worker.cadre else str(home_cadre_id)
-                    raise OrganizationError(
-                        f"Cadre {cadre_code!r} may not {permits} at level "
-                        f"{unit.level.level_code!r}."
-                    )
-                return home_cadre_id
-            # 2. Otherwise pick the first active cadre at this unit's level that carries the flag
-            for lc, cadre in self.lc_by_level.get(unit.org_level_id, []):
-                if getattr(lc, flag):
-                    return cadre.cadre_id
-            raise OrganizationError(
-                f"To grant {role.value!r} at {unit.unit_code!r} ({unit.level.level_name}), "
-                f"enable '{permits}' for at least one cadre at that level in the Cadres & Role Matrix first."
-            )
-        # Non-flagged unit role: attach home cadre if valid at this level, else None
-        if home_cadre_id and (unit.org_level_id, home_cadre_id) in self.lc_by_pair:
+        if home_cadre_id is not None:
+            cadre_code = worker.cadre.cadre_code if worker.cadre else str(home_cadre_id)
+            lc = self.lc_by_pair.get((unit.org_level_id, home_cadre_id))
+            if lc is None:
+                raise OrganizationError(
+                    f"Cadre {cadre_code!r} is not defined at level "
+                    f"{unit.level.level_code!r}; add it in the level permissions grid first."
+                )
+            if role.value not in (lc.allowed_roles or ()):
+                raise OrganizationError(
+                    f"Cadre {cadre_code!r} may not hold {role.value} at level "
+                    f"{unit.level.level_code!r}."
+                )
             return home_cadre_id
-        return None
+        for lc, cadre in self.lc_by_level.get(unit.org_level_id, []):
+            if role.value in (lc.allowed_roles or ()):
+                return cadre.cadre_id
+        raise OrganizationError(
+            f"To grant {role.value!r} at {unit.unit_code!r} ({unit.level.level_name}), "
+            "allow it for at least one cadre at that level in the Cadres & Role Matrix first."
+        )
 
     def ensure_unit_grant(self, uid: uuid.UUID, role: VaAccessRoles, unit_id: uuid.UUID) -> None:
         from app.services.org_grant_service import validate_org_unit_grant
@@ -325,11 +330,12 @@ class ApplyContext:
                 },
                 "grant_created",
             ))
-        elif g.grant_status != VaStatuses.active or (cadre_id is not None and g.cadre_id != cadre_id):
+        elif g.grant_status != VaStatuses.active or g.cadre_id != cadre_id:
+            # The grant carries what was validated: a mentor grant drops a
+            # borrowed cadre (digitva-4650).
             was_active = g.grant_status == VaStatuses.active
             g.grant_status = VaStatuses.active
-            if cadre_id is not None:
-                g.cadre_id = cadre_id
+            g.cadre_id = cadre_id
             if not was_active:
                 self.summary["grants_reactivated"] += 1
             self.changed_grants.append((

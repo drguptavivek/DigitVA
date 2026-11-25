@@ -126,7 +126,7 @@ class RosterUserPanelTests(BaseTestCase):
         level = next(lv for lv in org.list_levels(project_id) if lv.level_code == "district")
         cadre = next(c for c in org.list_cadres(project_id) if c.cadre_code == "MO")
         org.upsert_level_cadre(project_id, org_level_id=level.org_level_id, cadre_id=cadre.cadre_id,
-                               can_fill_va_form=False, can_code_va_form=True, default_roles=["coder"])
+                               allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coder", "coding_tester", "reviewer", "data_manager", "interviewer"], default_roles=["coder"])
         unit = org.create_unit(project_id, org_level_id=level.org_level_id,
                                unit_code=f"{project_id}W{uuid.uuid4().hex[:3].upper()}", unit_name="District")
         worker = org.create_worker(project_id, org_unit_id=unit.org_unit_id, cadre_id=cadre.cadre_id,

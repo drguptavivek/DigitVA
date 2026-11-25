@@ -131,6 +131,15 @@ and maps stay in the browser).
 
 ## Caveats
 
+- Before the next staging deploy (`digitva-4650`): snapshot access with
+  `scripts/me_access_snapshot.py` on staging before and after the deploy and
+  diff it (real mentor accounts may gain `pii_visible`); run `flask org
+  cadreless-grants` (dry run) and give the owner its lists, plus
+  supervisors gaining interview correction, mentor data managers losing PII
+  and mentors enrolled as workers gaining PII; `--apply` only on the owner's
+  go (`digitva-hofh`). After deploy rerun training setup (`digitva-veq5`).
+  Old cadre columns stay until `digitva-8qh6`.
+
 - Before the next staging deploy (`digitva-r8nh.39`): grep the staging `.env`
   for `*_COOKIE_SAMESITE`. Anything but Lax/Strict is now logged as an error
   and replaced with Lax at startup; System health shows the live values.
@@ -145,7 +154,7 @@ and maps stay in the browser).
 - Untracked on purpose: the orientation deck files under `docs/manuscript/`,
   `.claude/launch.json`, the Play screenshots.
 - Dev DB: DEMO01 has narration languages enabled (english, hindi).
-- Test databases still present: `minerva_test_codeapp`, `_consent`, `_pii`,
+- Test databases still present: `minerva_test_codeapp`, `_consent`, `_pii`, `_cadre`,
   `_tst002` (and their `_gw*`).
 - `npm run vendor:build` reinstalls the vendor package: stop Metro first
   and restart it with `--clear`.

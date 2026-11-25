@@ -28,7 +28,7 @@ from app.models.mas_languages import MasLanguages
 from app.models.va_selectives import ROLE_LABELS
 from app.services import authz
 from app.services.mentor_institute_service import check_mentor_grant, member_user_ids
-from app.services.org_grant_service import CADRE_FLAG_BY_ROLE, ROLES_ALLOWING_ORG_UNIT
+from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
 from app.services.organization_service import _spreadsheet_safe
 from app.services.security_event_service import record_security_event
 from app.services.tabular_import_service import TabularImportError, parse_table
@@ -456,18 +456,32 @@ def prepare(project_id, rows, *, actor, collect_errors=False):
                 permission = permissions.get((unit.org_level_id, cadre.cadre_id)) if cadre else None
                 if cadre and (permission is None or not permission.is_active):
                     raise ProjectUserImportError("cadre is not active at this unit's level")
-                if role in CADRE_FLAG_BY_ROLE:
-                    flag, permits = CADRE_FLAG_BY_ROLE[role]
-                    if permission is None or not getattr(permission, flag):
-                        raise ProjectUserImportError(
-                            f"{role.value} needs a cadre permitted to {permits} at this unit's level"
-                        )
+                if cadre and role.value not in (permission.allowed_roles or ()):
+                    raise ProjectUserImportError(
+                        f"cadre {cadre.cadre_code} may not hold {role.value} at this unit's level"
+                    )
             key = (identity, role, unit_code)
             if key in seen:
                 raise ProjectUserImportError("duplicate person, role and scope")
             seen.add(key)
             user = users.get(email) if email else users_by_mobile.get(mobile)
-            if user and user.user_id in mentor_members:
+            if unit:
+                # digitva-4650: a blank cadre keeps an existing active grant's
+                # cadre; a member's grant follows the institute guard, anyone
+                # else's needs a cadre.
+                held = existing_grants.get(
+                    (user.user_id, role, VaAccessScopeTypes.org_unit, unit.org_unit_id)
+                ) if user else None
+                cadre_id = cadre.cadre_id if cadre else (
+                    held.cadre_id if held and held.grant_status == VaStatuses.active else None
+                )
+                if user and user.user_id in mentor_members:
+                    check_mentor_grant(user.user_id, role, unit, cadre_id=cadre_id)
+                elif cadre_id is None:
+                    raise ProjectUserImportError(
+                        f"{role.value} on a unit needs a cadre allowed to hold it at that level"
+                    )
+            elif user and user.user_id in mentor_members:
                 check_mentor_grant(user.user_id, role, unit)
             if not is_admin and (not user or user.user_status != VaStatuses.active):
                 raise ProjectUserImportError("account is unavailable for this project import")

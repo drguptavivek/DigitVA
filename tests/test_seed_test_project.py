@@ -8,7 +8,13 @@ from unittest import mock
 import sqlalchemy as sa
 
 from app import db
-from app.commands.seed import _TST_USERS, TEST_PROJECT_2_ID, TEST_PROJECT_ID, TEST_PROJECT_PASSWORD
+from app.commands.seed import (
+    _TST_UNITS,
+    _TST_USERS,
+    TEST_PROJECT_2_ID,
+    TEST_PROJECT_ID,
+    TEST_PROJECT_PASSWORD,
+)
 from app.models import (
     MasCadre,
     MasOrgUnit,
@@ -93,16 +99,18 @@ class SeedTestProjectTests(BaseTestCase):
         self.assertEqual(sorted(after_second), sorted(expected))
 
         grid = {
-            (row["level_code"], row["cadre_code"]): (
-                row["can_fill_va_form"],
-                row["can_code_va_form"],
-                row["can_supervise_interviews"],
-                row["can_report_deaths"],
-            )
+            (row["level_code"], row["cadre_code"]): set(row["allowed_roles"])
             for row in org.list_level_cadres(TEST_PROJECT_ID)
         }
-        # The template grid, village row included (its level is only deactivated).
-        self.assertEqual(grid, org.DEFAULT_LEVEL_CADRE_TEMPLATE)
+        # The template grid, village row included (its level is only deactivated),
+        # plus every role the roster grants a cadre at a level (digitva-4650).
+        unit_levels = {code: level_code for code, _name, level_code, _parent in _TST_UNITS}
+        expected_grid = {key: set(roles) for key, roles in org.DEFAULT_LEVEL_CADRE_TEMPLATE.items()}
+        for _local, _landing, unit, cadre, roles in _TST_USERS:
+            if unit and cadre:
+                expected_grid.setdefault((unit_levels[unit], cadre), set()).update(roles)
+        self.assertEqual(grid, expected_grid)
+        self.assertIn("collaborator_pii", grid[("district", "DEPI")])
         levels = {
             lv.level_code: lv.is_active
             for lv in org.list_levels(TEST_PROJECT_ID, include_inactive=True)
@@ -291,15 +299,12 @@ class SeedTestProjectTests(BaseTestCase):
             {(unit, cadre) for unit, cadre, _r in mine if unit},
             {("SC01", "ANM"), ("PHC01", "MO")},
         )
-        # Every unit-scope entry is a (level, cadre) the template grid allows
-        # for that role's flag.
-        flag = {"death_reporter": 3, "interview_supervisor": 2, "interviewer": 0}
+        # Every unit-scope entry is a role the template grid allows for that
+        # (level, cadre) (allowed_roles, digitva-4650).
         level = {"SC01": "subcentre", "PHC01": "phc"}
         for unit, cadre, role in mine:
             if unit:
-                self.assertTrue(
-                    org.DEFAULT_LEVEL_CADRE_TEMPLATE[(level[unit], cadre)][flag[role]]
-                )
+                self.assertIn(role, org.DEFAULT_LEVEL_CADRE_TEMPLATE[(level[unit], cadre)])
 
     def test_refuses_a_non_debug_app_without_the_staging_opt_in(self):
         runner = self.app.test_cli_runner()

@@ -46,6 +46,7 @@ from app.models import (
     MasMentorInstitute,
     MasOrgLevel,
     MasOrgUnit,
+    MasOrgUnitWorker,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaForms,
@@ -59,7 +60,7 @@ from app.services.authz.grants import Grant, ProjectSettings, ResolvedGrants
 
 log = logging.getLogger(__name__)
 
-_FORMAT = 3
+_FORMAT = 4
 _PENDING_KEY = "digitva.authz.pending_bumps"
 
 # Columns whose change can alter what a user's grants resolve to.
@@ -111,7 +112,7 @@ def encode(resolved: ResolvedGrants) -> str:
             [g.role.value, g.scope_type.value, g.project_id, g.site_id,
              str(g.project_site_id) if g.project_site_id else None,
              str(g.org_unit_id) if g.org_unit_id else None,
-             g.unit_depth, g.unit_path, g.virtual, g.opens_gate, g.source]
+             g.unit_depth, g.unit_path, g.virtual, g.opens_gate, g.source, g.worker_backed]
             for g in resolved.grants
         ],
         "projects": [
@@ -162,9 +163,10 @@ def decode(raw, user_id: uuid.UUID) -> ResolvedGrants:
             project_site_id=_uuid(pair_id), org_unit_id=_uuid(unit_id),
             unit_depth=_int(depth), unit_path=_text(path), virtual=_bool(virtual),
             opens_gate=_bool(opens_gate), source=_text(source, optional=False),
+            worker_backed=_bool(worker_backed),
         )
         for (role, scope, project_id, site_id, pair_id, unit_id, depth, path, virtual,
-             opens_gate, source) in data["grants"]
+             opens_gate, source, worker_backed) in data["grants"]
     )
     projects = {}
     for (project_id, has_tree, scope_depth, above_mode, demo, self_coding,
@@ -275,6 +277,16 @@ def defer_user_bump(session, user_id) -> None:
     _pending(session)["users"].add(user_id)
 
 
+def _bump_worker_users(session, worker) -> None:
+    """A worker record decides whether a mentoring-institute member's cadre
+    grant is health-system (``Grant.worker_backed``), so a change to one bumps
+    its user, and the previous user when the link moved."""
+    history = inspect(worker).attrs.user_id.history
+    for user_id in {worker.user_id, *history.deleted}:
+        if user_id is not None:
+            defer_user_bump(session, user_id)
+
+
 def defer_global_bump(session) -> None:
     _pending(session)["global"] = True
 
@@ -347,11 +359,15 @@ def _collect(session, _flush_context):
     for obj in session.new | session.deleted:
         if isinstance(obj, (VaUserAccessGrants, MapMentorInstituteUser)):
             defer_user_bump(session, obj.user_id)
+        elif isinstance(obj, MasOrgUnitWorker):
+            _bump_worker_users(session, obj)
         elif isinstance(obj, tuple(_GLOBAL_COLUMNS)):
             defer_global_bump(session)
     for obj in session.dirty:
         if isinstance(obj, (VaUserAccessGrants, MapMentorInstituteUser)):
             defer_user_bump(session, obj.user_id)
+        elif isinstance(obj, MasOrgUnitWorker):
+            _bump_worker_users(session, obj)
         elif isinstance(obj, VaUsers):
             if _changed(obj, _USER_COLUMNS):
                 defer_user_bump(session, obj.user_id)

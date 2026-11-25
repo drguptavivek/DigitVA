@@ -1037,17 +1037,25 @@ def _get_active_project_site(project_id: str, site_id: str):
 
 
 def _apply_mentor_guard(user_id, scope):
-    """Mentoring-institute guard for an already-resolved scope.
+    """The grantee checks for an already-resolved scope: the mentoring-institute
+    guard, and for a unit grant the cadre rule (``validate_org_unit_grant``
+    with the grantee, digitva-4650).
 
     For callers that must check their own permission first (it would otherwise
     disclose membership in the refusal). Raises ValueError with the message.
     """
     from app.services.mentor_institute_service import check_mentor_grant
+    from app.services.org_grant_service import validate_org_unit_grant
     from app.services.organization_service import OrganizationError
 
-    unit = db.session.get(MasOrgUnit, scope.org_unit_id) if scope.org_unit_id else None
     try:
-        check_mentor_grant(user_id, scope.role, unit)
+        if scope.org_unit_id:
+            validate_org_unit_grant(
+                role=scope.role, org_unit_id=scope.org_unit_id,
+                cadre_id=scope.cadre_id, user_id=user_id,
+            )
+        else:
+            check_mentor_grant(user_id, scope.role, None)
     except OrganizationError as exc:
         raise ValueError(str(exc)) from exc
 

@@ -3,7 +3,7 @@ title: Organization Model Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-25
 ---
 
 # Organization Model Policy
@@ -102,14 +102,14 @@ and keep working exactly as they did.
   URL, remarks, active flag. Address, phone, coordinates, map URL and remarks
   are optional.
 - **Cadres** (`mas_cadre`) are defined per project. The level × cadre grid
-  (`map_org_level_cadre`) records which cadres exist at a level and whether
-  that cadre `can_fill_va_form`, `can_code_va_form`,
-  `can_supervise_interviews`, `can_edit_interviews` and `can_report_deaths`.
-  `can_edit_interviews` ("Can edit interviews", owner 2026-11-23,
-  `digitva-6dh9`, built) can only be set where `can_supervise_interviews`
-  is set. It is the one flag read at runtime against a grant's cadre: a
-  supervisor of a ticked cadre may correct interviews
-  ([Interview Revisions](interview-revisions.md), "Supervisor correction").
+  (`map_org_level_cadre`) records which cadres exist at a level, the
+  unit-scope roles each may hold there (`allowed_roles`) and the roles
+  pre-ticked at enrolment (`default_roles`); see "Allowed and default roles
+  per level × cadre" below. The five permission flags (`can_fill_va_form`,
+  `can_code_va_form`, `can_supervise_interviews`, `can_edit_interviews`,
+  `can_report_deaths`) and `CADRE_FLAG_BY_ROLE` were retired by
+  `digitva-4650`: their columns stay in the database, unread, until a later
+  migration drops them.
 - **Workers** (`mas_org_unit_worker`) are people attached to a unit with a
   cadre; they may or may not have a DigitVA login. A worker's cadre must be
   defined at the unit's level.
@@ -117,8 +117,8 @@ and keep working exactly as they did.
   level × cadre's configured default roles at that worker's unit. When defaults
   exist, an email or valid sign-in mobile number is required. The worker,
   linked account and authorized grants are saved together; no separate grant
-  creation is needed. Empty defaults keep a roster-only worker. Permission
-  flags alone do not invent roles.
+  creation is needed. Empty defaults keep a roster-only worker. Allowed
+  roles alone do not invent grants.
 - Existing accounts keep their profile and password. Administrators may create
   a new account through this flow; project PIs may link existing active
   accounts only, as in the project-users import. New email accounts receive
@@ -133,6 +133,110 @@ and keep working exactly as they did.
   file may do both. A deactivated cadre takes no new worker and no worker
   moved onto it; workers already holding it keep it and stay editable
   (`digitva-zu3`, 2026-09-27).
+
+### Allowed and default roles per level × cadre (owner 2026-11-25, `digitva-4650`, built)
+
+Cadres are the project's own; the code does not decide which roles need
+permission. For each cadre placed at a level the project sets two lists:
+
+- **Allowed roles**: the unit-scope roles (`ROLES_ALLOWING_ORG_UNIT`) a person
+  of this cadre may hold at a unit of this level. Every role is gated this
+  way, not only coder, interview supervisor and death reporter.
+- **Default roles**: a subset of the allowed roles, pre-ticked when a worker
+  of this cadre is enrolled at this level. Allowing a role adds it to the
+  defaults; the operator may then untick it. Disallowing a role removes it
+  from the defaults. Defaults apply to enrolments from then on; existing
+  workers' grants are not touched.
+
+Rules:
+
+1. **Every health-system (Tier 3) unit grant names a cadre**, and that
+   cadre's allowed roles at the unit's level include the grant's role.
+   Checked when a grant is created, changed or reactivated
+   (`validate_org_unit_grant`), as today.
+   **Mentoring-institute members (Tier 2) hold mentor grants, which carry
+   no cadre and are always Non-PII** (owner 2026-11-25). Their active
+   institute membership plays the part a cadre plays for health-system staff:
+   they may hold coder, reviewer, coding tester, Viewer (Non-PII) and data
+   manager, at any unit inside a district their institute is attached to
+   (`check_mentor_grant`). A mentor data manager is Non-PII, like every other
+   mentor grant; mentor grants lapse with the membership, data manager
+   included. Their coder grants no longer borrow the first coding cadre at
+   the level (the mentoring presets write them without a cadre).
+   **The only way to give a mentor PII** is to make them part of the health
+   system as well: enrol them as a worker with a cadre at a unit of the
+   attached district. Grants carrying that cadre are health-system (Tier 3)
+   grants under the cadre's allowed roles, and see PII by the Tier 3 rule,
+   alongside their unchanged mentor grants. What marks a member's grant as
+   health-system is an active worker record for them at that unit with the
+   grant's cadre; a cadre without one is refused. No other exception grants a
+   member PII.
+   Tier 1 users (project PI, project-level data manager and viewers) hold
+   project-scope grants, which never carry a cadre. Sites-only projects (no
+   tree, no cadres) keep their present rule.
+2. **Interview supervisors always may correct submitted interviews** in
+   their reach. The "Can edit interviews" tick goes. In-charge and data
+   manager keep their present powers, which do not include interview
+   correction ([Interview Revisions](interview-revisions.md), "Supervisor
+   correction").
+3. **No new roles.** A cadre (MO, CS, SMO) is not a role; which roles it may
+   hold is the allowed list.
+4. The level × cadre grid shows one row per cadre at a level with its allowed
+   roles and its default roles. The "Who can do what?" cards edit the same
+   allowed roles, one role across all cadres, and name the role each card
+   sets. The grid's header stays visible while the grid scrolls.
+
+Data change (two migrations, each additive or reversible; the second runs
+only after staging has run the first; access-changing data steps run apart):
+
+- `map_org_level_cadre.allowed_roles` (unit-scope role array) is filled from
+  what is true today, so nobody loses a role they hold: the ticked flags
+  (`can_code_va_form` → coder, `can_supervise_interviews` →
+  interview_supervisor, `can_report_deaths` → death_reporter,
+  `can_fill_va_form` → interviewer), the row's `default_roles`, and every
+  role held by an active unit grant of that cadre at a unit of that level.
+- The code switches to `allowed_roles` with the first migration
+  (`c3a7e1f9d4b2`, built); the five flag columns are no longer read or
+  written. The second migration drops them; its
+  downgrade rebuilds them from `allowed_roles`, with `can_edit_interviews`
+  set wherever interview_supervisor is allowed, matching rule 2.
+- Supervisors whose cadre was not ticked "Can edit interviews" gain
+  correction. Before deploying, the owner gets that list for the
+  environment (12 in dev on 2026-11-25).
+- Mentor members' unit grants that carry a borrowed cadre with no worker
+  record behind it stay Non-PII. Clearing that cadre is a separate,
+  per-environment step the owner approves, like the revoke below: listed
+  first, with the old cadre id kept in a dated note on the grant and a
+  `grants.log` line. The
+  migration itself is additive only. Mentor members who are also enrolled as
+  workers (8 grants in dev on 2026-11-25, seeded MO mentors) gain PII on
+  those grants; the owner gets that list per environment before deploying.
+  Grants held by mentor members feed the `allowed_roles` backfill only when
+  backed by a worker record, so a health-system cadre is not widened by
+  mentor grants.
+- Mentor members' data manager unit grants lose PII (none in dev on
+  2026-11-25). Before deploying, the owner gets that list for the
+  environment; anyone who still needs PII is enrolled as a worker with a
+  cadre first.
+- Active health-system unit grants with no cadre are revoked, with a revoke reason in the
+  grant record and `grants.log`, in a separate step after a verified backup.
+  The owner approves the list per environment first (12 in dev on
+  2026-11-25, all test accounts); the account is then re-enrolled through
+  Workers with a cadre. Seed and demo commands enrol with a cadre.
+- Mentor members' unit grants whose role is outside the mentor roles
+  (coder, reviewer, coding tester, Viewer, data manager) and that no worker
+  record of theirs backs are revoked the same way: left active, a legacy
+  interview supervisor grant would let a mentor correct interviews (rule 2).
+- All three steps are `flask org cadreless-grants`: without flags it lists
+  the cadre-less health-system unit grants, the mentor grants outside the
+  mentor roles and the borrowed mentor cadres, and changes nothing;
+  `--apply --actor <admin email>` revokes the first two sets and clears the
+  third (a dated note on each grant and a `grants.log` line).
+- The organization workbook stays. Its `level_cadres` sheet replaces the
+  five flag columns with `allowed_roles` (role names separated by `|`, like
+  `default_roles`). A workbook that still carries the old flag columns is
+  refused with the unknown headers named; export a fresh one.
+- The mobile app is unaffected: it reads the user's grants, never the grid.
 
 ## Project structure mode
 
@@ -615,7 +719,7 @@ The rule and the shared predicate that implements it live in
 - **Three-tier PII boundary (owner decision 2026-10-26, `digitva-ewa5`):**
   - **Tier 3 — Inside the health system (`org_unit` staff not in a mentoring institute):** every person placed inside the health-system tree (**In-charge**, unit **Data Manager**, **Interview Supervisor**, **Interviewer**, **Death Reporter**, and in-system doctors holding **Coder** or **Reviewer**) sees **PII** across all units their grants reach, whether **within-tree** (their home unit subtree) or **cross-tree** (other health-system units assigned for coding or supervision). In-system unit leaders are always called **In-charge** (never `Site PI`).
   - **Tier 1 (Project level) & Tier 2 (Mentoring institutes) — Outside the health system:** `project_pi`, project-level `data_manager`, project-level scientists/viewers, and Mentoring Institution members (`site_pi` as Mentoring Institution PI, plus `coder`, `reviewer`, `coding_tester`, `collaborator`) sit outside the health system and **do not see PII (Non-PII / Blinded)**.
-  - **Exceptional PII access:** when someone from outside the system exceptionally needs PII access, they are made part of the health system (Tier 3) and granted `data_manager` at the District (`org_unit`) level.
+  - **Exceptional PII access:** when someone from outside the system exceptionally needs PII access, they are made part of the health system (Tier 3) and granted `data_manager` at the District (`org_unit`) level. *From `digitva-4650` (owner 2026-11-25):* for a mentoring-institute member this is the only route to PII, and it means enrolling them as a worker with a cadre; a mentor's own data manager grant, with no cadre, is Non-PII. See "Allowed and default roles per level × cadre".
 - Roles accepted at unit scope: `collaborator`, `coder`, `coding_tester`,
   `reviewer`, `data_manager`, `interviewer`, `interview_supervisor`,
   **In-charge** (`in_charge` for health-system unit leaders; *transition note:
@@ -632,15 +736,17 @@ The rule and the shared predicate that implements it live in
   `cadre_id`, and there is one grant per user × role × unit.
 - The `cadre_id` on a grant is **descriptive**: it records which cadre the
   person holds at that unit, and nothing at runtime consults it. It is
-  validated when the grant is written:
+  validated when the grant is written (`validate_org_unit_grant`, every
+  write path, `digitva-4650`):
+  - every unit grant of someone outside a mentoring institute **must** name a
+    cadre;
   - the cadre must belong to the unit's project and be active;
-  - the cadre must be defined at the unit's level in the level × cadre grid;
-  - a `coder` grant **must** name a cadre, and that cadre must have
-    `can_code_va_form` at that level;
-  - an `interview_supervisor` grant (unit scope only) likewise **must** name a
-    cadre with `can_supervise_interviews` at that level;
-  - a `death_reporter` grant (unit scope only) likewise **must** name a cadre
-    with `can_report_deaths` ("Report deaths") at that level.
+  - the cadre must be placed at the unit's level in the level × cadre grid,
+    and the grant's role must be in that row's allowed roles;
+  - a mentoring-institute member's grant carries no cadre, unless the member
+    has an active worker record at that unit with that cadre; it then follows
+    the same allowed roles (see "Allowed and default roles per level ×
+    cadre").
 - A cadre may only be set on a unit-scoped grant (database constraint).
 - **Default roles per level x cadre** (owner decision 2026-10-06,
   `digitva-vjt`). A grid row stores `default_roles`, unit-scope roles only.
@@ -652,8 +758,9 @@ The rule and the shared predicate that implements it live in
   changes access merely because a default is configured. Interactive worker
   creation explicitly writes all configured defaults in the same transaction
   as the worker and account, as described in Baseline. Editing a default later
-  leaves existing grants unchanged. A default may only name a role the row allows, by the
-  rule above (`CADRE_FLAG_BY_ROLE`, applied when the grid row is saved); see
+  leaves existing grants unchanged. A default may only name a role in the row's allowed roles
+  (checked when the grid row is saved; disallowing a role drops it from the
+  defaults); see
   [District Reference Model](district-reference-model.md), "Default roles by
   cadre". The `level_cadres` sheet carries them as `default_roles`, role
   names separated by `|`; blank keeps the row's current defaults.
@@ -724,11 +831,12 @@ personal data (PII).
   deactivates (never deletes) the person's (for deactivation: every active
   member's) active `org_unit` grants inside that institute's district
   subtrees for `coder`, `reviewer`, `coding_tester`, `collaborator`,
-  `site_pi`, `interviewer` and `interview_supervisor`: once the membership
-  lapses those would become Tier 3 PII (or a full In-charge). A unit still
-  covered by another active institute the person remains active staff of
-  keeps its grant (they stay Tier 2 there). A `data_manager` grant (the
-  exceptional PII path) is never touched. The count is returned and audited
+  `data_manager`, `site_pi`, `interviewer` and `interview_supervisor`: once
+  the membership lapses those would become Tier 3 PII (or a full In-charge).
+  A unit still covered by another active institute the person remains active
+  staff of keeps its grant (they stay Tier 2 there). A grant backed by the
+  person's active worker record at that unit with the grant's cadre (their
+  health-system enrolment, `digitva-4650`) is never touched. The count is returned and audited
   in `grants.log` (`grants_deactivated=`). Reactivating an institute or
   re-adding a member restores no grant (digitva-ssg7.1).
 
@@ -740,13 +848,16 @@ be all of:
 1. at `org_unit` scope (never `project`, `project_site` or `global`);
 2. on a unit inside the subtree (the district itself included) of a district
    unit attached to one of that person's institutes, in the same project;
-3. one of `coder`, `reviewer`, `coding_tester`, `collaborator`
-   (`MENTOR_ROLES`; owner decision 2026-10-26, `digitva-ewa5`). All
-   mentoring-institute roles are **Non-PII (blinded)**. Never `site_pi`
-   (`in_charge`), `interviewer`, `death_reporter`, `interview_supervisor`,
-   `data_manager` (see below), `project_pi` or `admin`. In the exceptional
-   case that an external person requires PII access, they are made part of
-   the health system (Tier 3) and granted `data_manager` at the District level.
+3. with no cadre, one of `coder`, `reviewer`, `coding_tester`,
+   `collaborator` (`MENTOR_ROLES`; owner decision 2026-10-26,
+   `digitva-ewa5`) or `data_manager` (`MENTOR_UNIT_ROLES`, owner 2026-11-25,
+   `digitva-4650`). All mentor grants are **Non-PII (blinded)**, the data
+   manager included. Never `site_pi` (`in_charge`), `interviewer`,
+   `death_reporter`, `interview_supervisor`, `project_pi` or `admin`
+   without a cadre. A grant **with** a cadre is allowed only when the
+   member's active worker record at that unit has that cadre; it is then a
+   health-system (Tier 3, PII) grant under the cadre's allowed roles. That
+   enrolment is the only route to PII for a member.
 
 A `site_pi` unit grant the person already held when they became a member stays
 on the row but confers **no In-charge power** while the membership is active
@@ -768,7 +879,8 @@ above. Any data manager of the project qualifies, at any level of the tree (a
 CHC or PHC data manager included; owner decision 2026-10-03, security review
 10 #11), on a unit their own grant covers. For an institute member, the guard narrows what
 a data manager may otherwise grant at unit scope (see "Unit-scoped grants"):
-only a mentor role, on a unit their grant covers inside an attached district. The data-manager
+only a mentor role or data manager without a cadre (or a worker-backed
+cadre's allowed role), on a unit their grant covers inside an attached district. The data-manager
 grant list shows those mentor grants. A
 data manager who holds only unit-scope grants finds people through the
 user search, which returns only active staff of active institutes attached to
@@ -1069,15 +1181,15 @@ account. An empty default-role mapping still creates only a roster worker.
   one.
 - **Per-worker multi-unit coding & supervision grants (`coding_unit_ids`, `supervision_unit_ids`):**
   when creating or updating a worker linked to a `VaUsers` account whose
-  `level × cadre` allows coding (`can_code_va_form`) or interview supervision
-  (`can_supervise_interviews` / `site_pi`), the payload may optionally pass
+  `level × cadre` allowed roles include coding (`coder`) or interview
+  supervision (`interview_supervisor` / `site_pi`), the payload may optionally pass
   `coding_unit_ids` (units at the worker's level where the worker's coding
   roles apply — own unit for within-tree, sibling units for cross-tree, or a
   custom subset) and `supervision_unit_ids` (units at the worker's level where
   the worker's supervision roles apply). Each selected unit must belong to the
   same project and active level as the worker's home unit, and grants are
-  validated through `access_grant_service` and the `level × cadre` capability
-  checks. Omitting `coding_unit_ids` or `supervision_unit_ids` preserves existing
+  validated through `access_grant_service` and the `level × cadre` allowed
+  roles (`validate_org_unit_grant`). Omitting `coding_unit_ids` or `supervision_unit_ids` preserves existing
   grants on edit and defaults to the worker's home unit on create.
 
 ## Project-scoped mentoring institutes and bulk VA mortality presets

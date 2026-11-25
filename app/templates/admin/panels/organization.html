@@ -66,17 +66,13 @@
     <div class="mb-2"><a href="{{ roles_help_url }}">What each role can do</a></div>
     <div class="table-responsive">
       <table class="table table-sm table-bordered mb-0">
-        <thead><tr><th>Level</th><th>Cadre</th><th>Fill VA</th><th>Code VA</th><th>Supervise</th><th>Edit interviews</th><th>Report deaths</th><th>Default roles</th></tr></thead>
+        <thead><tr><th>Level</th><th>Cadre</th><th>Allowed roles</th><th>Default roles</th></tr></thead>
         <tbody>
           {%- for row in ref_model.grid %}
           <tr>
             <td>{{ row.level_name }}</td>
             <td>{{ row.cadre_code }} {{ row.cadre_name }}</td>
-            <td>{{ '✓' if row.can_fill_va_form else '–' }}</td>
-            <td>{{ '✓' if row.can_code_va_form else '–' }}</td>
-            <td>{{ '✓' if row.can_supervise_interviews else '–' }}</td>
-            <td>{{ '✓' if row.can_edit_interviews else '–' }}</td>
-            <td>{{ '✓' if row.can_report_deaths else '–' }}</td>
+            <td>{{ row.allowed_roles | map('replace', 'site_pi', 'In-charge') | join(', ') or '–' }}</td>
             <td>
               {%- if row.typical_roles -%}
                 {%- for role in row.typical_roles -%}
@@ -404,9 +400,11 @@
     <div class="tab-content">
       <div class="tab-pane fade show active" id="org-sub-perms" role="tabpanel">
         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-          <div class="text-muted small">Full-width <strong>Level &times; Cadre</strong> matrix: add the cadres that exist at each hierarchy level, tick their 4 capability flags, and click inline role pills (marked <span class="badge text-bg-danger-subtle border border-danger-subtle text-danger-emphasis">PII</span> vs. <span class="badge text-bg-success-subtle border border-success-subtle text-success-emphasis">Non-PII</span>) to set default unit roles.</div>
+          <div class="text-muted small">Full-width <strong>Level &times; Cadre</strong> matrix: add the cadres that exist at each hierarchy level, tick the unit roles each may hold there (allowed roles; a health-system unit grant must name a cadre allowed its role), and click the role pills (marked <span class="badge text-bg-danger-subtle border border-danger-subtle text-danger-emphasis">PII</span> vs. <span class="badge text-bg-success-subtle border border-success-subtle text-success-emphasis">Non-PII</span>) to choose which allowed roles are pre-ticked when a worker is enrolled (default roles).</div>
         </div>
-        <div id="org-perm-grid" class="table-responsive mb-3"></div>
+        {# Its own scroll box: #admin-main-column's overflow-x makes it a scroll
+           container with no height, so a sticky header needs a nearer scroller. #}
+        <div id="org-perm-grid" class="table-responsive mb-3" style="max-height:75vh;"></div>
         <div id="org-who-can-do-what" class="mb-2"></div>
       </div>
       <div class="tab-pane fade" id="org-sub-cadres" role="tabpanel">
@@ -678,7 +676,7 @@
             <label class="form-label small mb-1" for="org-import-sheet">This CSV holds</label>
             <select id="org-import-sheet" class="form-select form-select-sm">
               <option value="cadres">cadres: cadre_code, cadre_name</option>
-              <option value="level_cadres">level_cadres: level_code, cadre_code, can_fill_va_form, can_code_va_form, can_supervise_interviews, can_report_deaths, can_edit_interviews (needs can_supervise_interviews), default_roles (role names separated by |; blank keeps the current ones)</option>
+              <option value="level_cadres">level_cadres: level_code, cadre_code, allowed_roles, default_roles (role names separated by |; defaults must be allowed; blank keeps the current ones)</option>
               <option value="units">units</option>
               <option value="workers">workers: worker_name, unit_code, cadre_code, phone, user_email, remarks (worker_code optional)</option>
               <option value="levels">levels</option>
@@ -1633,10 +1631,10 @@
     api(base() + '/cadres' + (id ? '/' + id : ''), id ? 'PATCH' : 'POST', { cadre_code: val('oc-code'), cadre_name: val('oc-name') }).then(function (res) { if (!res.ok) { fail(res); return; } show('org-cadre-form', false); loadAll(); });
   });
   // One row per level listing only the cadres that exist there (an active
-  // map_org_level_cadre row), each with its Fill / Code / Supervise permissions. Adding a
-  // cadre creates the row; removing it deactivates the row, never deletes.
-  // Default roles (digitva-vjt): unit-scope roles pre-ticked in the grant forms
-  // for a person of this cadre at this level.
+  // map_org_level_cadre row). Each row carries the roles the cadre may hold at
+  // that level (allowed_roles) and, among them, the roles pre-ticked when a
+  // worker of the cadre is enrolled there (default_roles; digitva-4650).
+  // Adding a cadre creates the row; removing it deactivates the row, never deletes.
   var UNIT_ROLE_LABELS = [
     ['site_pi', 'In-charge', 'PII', 'danger'],
     ['data_manager', 'Data manager', 'PII', 'danger'],
@@ -1648,32 +1646,51 @@
     ['death_reporter', 'Death reporter', 'Own Reg', 'warning'],
     ['collaborator', 'Viewer (Non-PII)', 'Non-PII', 'success']
   ];
-  var ROLE_FLAG = { coder: 'can_code_va_form', interview_supervisor: 'can_supervise_interviews', death_reporter: 'can_report_deaths' };
+  // Not offered for new rows; shown only where already allowed, so it can be removed.
+  var LEGACY_ROLE_LABEL = ['collaborator_pii', 'Viewer (PII, legacy)', 'PII', 'danger'];
+  function rowRoleLabels(lc) {
+    return (lc.allowed_roles || []).indexOf('collaborator_pii') >= 0
+      ? UNIT_ROLE_LABELS.concat([LEGACY_ROLE_LABEL]) : UNIT_ROLE_LABELS;
+  }
+  function roleLabel(roleKey) {
+    var hit = UNIT_ROLE_LABELS.concat([LEGACY_ROLE_LABEL]).filter(function (r) { return r[0] === roleKey; })[0];
+    return hit ? hit[1] : roleKey;
+  }
+  function piiBadge(r) {
+    return '<span class="badge text-bg-' + r[3] + '-subtle border border-' + r[3] + '-subtle text-' + r[3] + '-emphasis px-1 py-0" style="font-size:.62rem;">' + esc(r[2]) + '</span>';
+  }
   var CAPABILITY_QUESTIONS = [
-    { key: 'death_reporter', flag: 'can_report_deaths', icon: 'fa-file-circle-plus', badge: 'secondary', piiLabel: 'Own Reg PII', piiClass: 'warning', title: 'Who can report deaths?', desc: 'Registers community or facility deaths into the Death Register.' },
-    { key: 'interviewer', flag: 'can_fill_va_form', icon: 'fa-clipboard-list', badge: 'success', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who can conduct VA interviews?', desc: 'Fills VA questionnaires in the browser or DigitVA mobile app.' },
-    { key: 'interview_supervisor', flag: 'can_supervise_interviews', icon: 'fa-user-shield', badge: 'info', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who can supervise interviews?', desc: 'Monitors field interviews, assigns deaths, and returns incomplete forms.' },
-    { key: 'coder', flag: 'can_code_va_form', icon: 'fa-stethoscope', badge: 'primary', piiLabel: 'Tier 3 PII (In-System)', piiClass: 'danger', title: 'Who can code VA forms (Cause of Death)?', desc: 'In-system doctors assign ICD-10/ICD-11 cause of death with PII across granted units (Mentoring Institute scientists remain Non-PII).' },
-    { key: 'reviewer', flag: null, icon: 'fa-clipboard-check', badge: 'warning', piiLabel: 'Tier 3 PII (In-System)', piiClass: 'danger', title: 'Who can review coded VAs (QA)?', desc: 'In-system doctors perform QA review and adjudicate discordant VAs with PII (Mentoring Institute scientists remain Non-PII).' },
-    { key: 'site_pi', flag: null, icon: 'fa-building-user', badge: 'dark', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who is Unit / Facility In-charge?', desc: 'Sees VA Dashboard, Area, and People oversight for their unit subtree.' },
-    { key: 'coding_tester', flag: null, icon: 'fa-flask', badge: 'secondary', piiLabel: 'Non-PII Sandbox', piiClass: 'success', title: 'Who is a Coding Tester (practice sandbox)?', desc: 'Practices coding in an isolated sandbox; never affects real VA records.' },
-    { key: 'data_manager', flag: null, icon: 'fa-database', badge: 'primary', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who manages data & KPIs?', desc: 'Accesses Data Manager, KPI Dashboard, and COD reports (also used at District/State level for exceptional PII access).' },
-    { key: 'collaborator', flag: null, icon: 'fa-eye-slash', badge: 'secondary', piiLabel: 'Non-PII Redacted', piiClass: 'success', title: 'Who can view cases WITHOUT PII (de-identified)?', desc: 'Read-only access to aggregate dashboards and de-identified VA records.' }
+    { key: 'death_reporter', icon: 'fa-file-circle-plus', badge: 'secondary', piiLabel: 'Own Reg PII', piiClass: 'warning', title: 'Who can report deaths?', desc: 'Registers community or facility deaths into the Death Register.' },
+    { key: 'interviewer', icon: 'fa-clipboard-list', badge: 'success', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who can conduct VA interviews?', desc: 'Fills VA questionnaires in the browser or DigitVA mobile app.' },
+    { key: 'interview_supervisor', icon: 'fa-user-shield', badge: 'info', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who can supervise interviews?', desc: 'Monitors field interviews, assigns deaths, returns incomplete forms and corrects submitted interviews.' },
+    { key: 'coder', icon: 'fa-stethoscope', badge: 'primary', piiLabel: 'Tier 3 PII (In-System)', piiClass: 'danger', title: 'Who can code VA forms (Cause of Death)?', desc: 'In-system doctors assign ICD-10/ICD-11 cause of death with PII across granted units (Mentoring Institute scientists remain Non-PII).' },
+    { key: 'reviewer', icon: 'fa-clipboard-check', badge: 'warning', piiLabel: 'Tier 3 PII (In-System)', piiClass: 'danger', title: 'Who can review coded VAs (QA)?', desc: 'In-system doctors perform QA review and adjudicate discordant VAs with PII (Mentoring Institute scientists remain Non-PII).' },
+    { key: 'site_pi', icon: 'fa-building-user', badge: 'dark', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who is Unit / Facility In-charge?', desc: 'Sees VA Dashboard, Area, and People oversight for their unit subtree.' },
+    { key: 'coding_tester', icon: 'fa-flask', badge: 'secondary', piiLabel: 'Non-PII Sandbox', piiClass: 'success', title: 'Who is a Coding Tester (practice sandbox)?', desc: 'Practices coding in an isolated sandbox; never affects real VA records.' },
+    { key: 'data_manager', icon: 'fa-database', badge: 'primary', piiLabel: 'Tier 3 PII', piiClass: 'danger', title: 'Who manages data & KPIs?', desc: 'Accesses Data Manager, KPI Dashboard, and COD reports (also used at District/State level for exceptional PII access).' },
+    { key: 'collaborator', icon: 'fa-eye-slash', badge: 'secondary', piiLabel: 'Non-PII Redacted', piiClass: 'success', title: 'Who can view cases WITHOUT PII (de-identified)?', desc: 'Read-only access to aggregate dashboards and de-identified VA records.' }
   ];
+  function allowedRolesHtml(lc, attrs) {
+    var allowed = lc.allowed_roles || [];
+    return '<div class="d-flex flex-wrap gap-1 align-items-center">' + rowRoleLabels(lc).map(function (r) {
+      var on = allowed.indexOf(r[0]) >= 0;
+      return '<label class="d-inline-flex align-items-center gap-1 small text-nowrap me-1" style="cursor:pointer; font-size:.76rem;" title="A person of this cadre may hold this role at this level">'
+        + '<input type="checkbox" class="form-check-input m-0 perm-allow"' + attrs + ' value="' + r[0] + '" ' + (on ? 'checked' : '') + '>'
+        + '<span>' + esc(r[1]) + '</span>' + piiBadge(r) + '</label>';
+    }).join('') + '</div>';
+  }
   function defaultRolesHtml(lc, attrs) {
-    var chosen = lc.default_roles || [];
-    return '<div class="d-flex flex-wrap gap-1 align-items-center">' + UNIT_ROLE_LABELS.map(function (r) {
-      var roleKey = r[0], roleName = r[1], piiTag = r[2], piiColor = r[3];
-      var isChecked = chosen.indexOf(roleKey) >= 0;
-      var off = ROLE_FLAG[roleKey] && !lc[ROLE_FLAG[roleKey]];
+    var allowed = lc.allowed_roles || [], chosen = lc.default_roles || [];
+    var chips = rowRoleLabels(lc).filter(function (r) { return allowed.indexOf(r[0]) >= 0; });
+    if (!chips.length) return '<span class="text-muted small">Allow a role first.</span>';
+    return '<div class="d-flex flex-wrap gap-1 align-items-center">' + chips.map(function (r) {
+      var isChecked = chosen.indexOf(r[0]) >= 0;
       var pillCls = isChecked
         ? 'bg-primary-subtle border-primary text-primary-emphasis fw-semibold'
         : 'bg-light border-secondary-subtle text-body-secondary';
-      return '<label class="d-inline-flex align-items-center gap-1 border rounded-pill px-2 py-0 small text-nowrap ' + pillCls + '" style="cursor:pointer; font-size:.76rem;" title="' + (off ? 'Ticking this role automatically enables its capability flag' : 'Pre-ticked when a worker of this cadre is added at this level') + '">'
-        + '<input type="checkbox" class="form-check-input m-0 perm-role"' + attrs + ' value="' + roleKey + '" ' + (isChecked ? 'checked' : '') + '>'
-        + '<span>' + esc(roleName) + '</span>'
-        + '<span class="badge text-bg-' + piiColor + '-subtle border border-' + piiColor + '-subtle text-' + piiColor + '-emphasis px-1 py-0" style="font-size:.62rem;">' + esc(piiTag) + '</span>'
-        + '</label>';
+      return '<label class="d-inline-flex align-items-center gap-1 border rounded-pill px-2 py-0 small text-nowrap ' + pillCls + '" style="cursor:pointer; font-size:.76rem;" title="Pre-ticked when a worker of this cadre is added at this level">'
+        + '<input type="checkbox" class="form-check-input m-0 perm-role"' + attrs + ' value="' + r[0] + '" ' + (isChecked ? 'checked' : '') + '>'
+        + '<span>' + esc(r[1]) + '</span>' + piiBadge(r) + '</label>';
     }).join('') + '</div>';
   }
   function renderPermGrid() {
@@ -1701,19 +1718,12 @@
       } else {
         var qCards = CAPABILITY_QUESTIONS.map(function (q) {
           var pills = placements.map(function (p) {
-            var roles = p.lc.default_roles || [];
-            var hasRole = roles.indexOf(q.key) >= 0;
-            var hasFlag = q.flag ? !!p.lc[q.flag] : false;
-            var active = hasRole || (q.key === 'interviewer' && hasFlag && roles.indexOf('interviewer') >= 0);
-            if (q.flag && !hasRole && hasFlag) {
-              active = true;
-            }
+            var active = (p.lc.allowed_roles || []).indexOf(q.key) >= 0;
             var btnClass = active ? ('btn-' + q.badge) : 'btn-outline-secondary';
             return '<button type="button" class="btn btn-xs py-0 px-2 small org-q-pill ' + btnClass + '"'
               + ' data-l="' + esc(p.level.org_level_id) + '"'
               + ' data-c="' + esc(p.cadre.cadre_id) + '"'
               + ' data-role="' + esc(q.key) + '"'
-              + ' data-flag="' + esc(q.flag || '') + '"'
               + ' data-active="' + (active ? '1' : '0') + '"'
               + ' title="' + esc(p.level.level_name + ' · ' + p.cadre.cadre_name) + '">'
               + '<i class="fa-solid ' + (active ? 'fa-check me-1' : 'fa-plus me-1 opacity-50') + '"></i>'
@@ -1724,7 +1734,7 @@
             + '<div class="card h-100 shadow-sm border-0 bg-body-tertiary">'
             + '<div class="card-body p-2 small">'
             + '<div class="d-flex justify-content-between align-items-start gap-1 mb-1">'
-            + '<div class="fw-semibold"><i class="fa-solid ' + q.icon + ' me-1 text-' + q.badge + '"></i>' + esc(q.title) + '</div>'
+            + '<div class="fw-semibold"><i class="fa-solid ' + q.icon + ' me-1 text-' + q.badge + '"></i>' + esc(q.title) + ' <span class="text-muted fw-normal">· ' + esc(roleLabel(q.key)) + '</span></div>'
             + '<span class="badge text-bg-' + q.piiClass + '-subtle border border-' + q.piiClass + '-subtle text-' + q.piiClass + '-emphasis text-nowrap">' + esc(q.piiLabel) + '</span>'
             + '</div>'
             + '<div class="text-muted mb-2" style="font-size:0.78rem;">' + esc(q.desc) + '</div>'
@@ -1733,8 +1743,8 @@
         }).join('');
         qWrap.innerHTML = '<div class="card border-primary-subtle mb-3"><div class="card-body p-3">'
           + '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">'
-          + '<div><h6 class="mb-0"><i class="fa-solid fa-wand-magic-sparkles me-1 text-primary"></i>Quick Question-Driven Setup: Who can do what? (All 10 Unit-Scoped Roles)</h6>'
-          + '<div class="text-muted small">Click any <code>Level · Cadre</code> pill below to toggle that capability and its default role in one click.</div></div>'
+          + '<div><h6 class="mb-0"><i class="fa-solid fa-wand-magic-sparkles me-1 text-primary"></i>Quick Question-Driven Setup: Who can do what? (' + CAPABILITY_QUESTIONS.length + ' unit-scoped roles)</h6>'
+          + '<div class="text-muted small">Click any <code>Level · Cadre</code> pill to allow or disallow that role for the cadre at that level. Allowing also makes it a default for new workers; disallowing removes it from both.</div></div>'
           + '</div>'
           + '<div class="row g-2">' + qCards + '</div>'
           + '</div></div>';
@@ -1758,7 +1768,7 @@
       if (!here.length) {
         tableRows.push(
           '<tr>' + levelCellHtml
-          + '<td colspan="8" class="text-muted small py-2">No cadres placed at this level yet. Choose <em>+ Add cadre…</em> on the left or click <strong>Populate district defaults</strong>.</td></tr>'
+          + '<td colspan="4" class="text-muted small py-2">No cadres placed at this level yet. Choose <em>+ Add cadre…</em> on the left or click <strong>Populate district defaults</strong>.</td></tr>'
         );
       } else {
         here.forEach(function (c, idx) {
@@ -1768,11 +1778,7 @@
             '<tr>'
             + (idx === 0 ? levelCellHtml : '')
             + '<td class="text-nowrap fw-semibold" style="width:180px;"><code>' + esc(c.cadre_code) + '</code> <span class="text-muted fw-normal small">' + esc(c.cadre_name) + '</span></td>'
-            + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May hold a death_reporter grant at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="report" ' + (lc.can_report_deaths ? 'checked' : '') + '></label></td>'
-            + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May fill VA forms at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="fill" ' + (lc.can_fill_va_form ? 'checked' : '') + '></label></td>'
-            + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May hold an interview_supervisor grant at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="supervise" ' + (lc.can_supervise_interviews ? 'checked' : '') + '></label></td>'
-            + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="Its interview supervisors may correct submitted interviews (needs Supervise)"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="edit" ' + (lc.can_edit_interviews ? 'checked' : '') + (lc.can_supervise_interviews ? '' : ' disabled') + '></label></td>'
-            + '<td class="text-center" style="width:92px;"><label class="d-block mb-0" style="cursor:pointer;" title="May hold a coder grant at this level"><input type="checkbox" class="form-check-input perm-box"' + attrs + ' data-k="code" ' + (lc.can_code_va_form ? 'checked' : '') + '></label></td>'
+            + '<td>' + allowedRolesHtml(lc, attrs) + '</td>'
             + '<td>' + defaultRolesHtml(lc, attrs) + '</td>'
             + '<td class="text-center" style="width:52px;"><button type="button" class="btn btn-sm btn-link text-danger p-0 perm-remove"' + attrs + ' title="Remove ' + esc(c.cadre_code) + ' from ' + esc(l.level_name) + '"><i class="fa-solid fa-xmark"></i></button></td>'
             + '</tr>'
@@ -1782,77 +1788,52 @@
     });
 
     $('org-perm-grid').innerHTML = '<table class="table table-sm table-bordered small align-middle mb-0 w-100">'
-      + '<thead class="table-light">'
+      + '<thead class="table-light" style="position:sticky;top:0;z-index:3;">'
       + '<tr>'
       + '<th style="width:170px;">Hierarchy Level</th>'
       + '<th style="width:180px;">Cadre at Level</th>'
-      + '<th class="text-center" style="width:92px;" title="Required for death_reporter grant">Report Deaths<div class="fw-normal text-muted" style="font-size:.68rem;">Own Reg PII</div></th>'
-      + '<th class="text-center" style="width:92px;" title="Allows filling VA form">Fill VA<div class="fw-normal text-muted" style="font-size:.68rem;">Full PII</div></th>'
-      + '<th class="text-center" style="width:92px;" title="Required for interview_supervisor grant">Supervise<div class="fw-normal text-muted" style="font-size:.68rem;">Intake PII</div></th>'
-      + '<th class="text-center" style="width:92px;" title="Its interview supervisors may correct submitted interviews; needs Supervise">Edit Interviews<div class="fw-normal text-muted" style="font-size:.68rem;">Intake PII</div></th>'
-      + '<th class="text-center" style="width:92px;" title="Required for coder grant">Code VA<div class="fw-normal text-muted" style="font-size:.68rem;">Non-PII</div></th>'
-      + '<th>Default Unit Roles (Click to Toggle — Pre-ticked When Enrolling Workers)</th>'
+      + '<th title="The unit roles a person of this cadre may hold at this level; every unit grant is checked against this list">Allowed roles</th>'
+      + '<th title="Pre-ticked when a worker of this cadre is enrolled at this level; always among the allowed roles">Default for new workers</th>'
       + '<th class="text-center" style="width:52px;"></th>'
       + '</tr>'
       + '</thead>'
       + '<tbody>' + tableRows.join('') + '</tbody></table>';
-    // defaults omitted (undefined) keeps the row's current default roles.
-    // Edit interviews lives under Supervise: unticking Supervise unticks it in the same PUT.
-    function save(l, c, fill, code, supervise, report, edit, active, defaults) {
-      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, can_fill_va_form: fill, can_code_va_form: code, can_supervise_interviews: supervise, can_report_deaths: report, can_edit_interviews: !!(edit && supervise), default_roles: defaults, is_active: active })
+    // allowed or defaults omitted (undefined) keep the row's current list.
+    function save(l, c, allowed, defaults, active) {
+      api(base() + '/level-cadres', 'PUT', { org_level_id: l, cadre_id: c, allowed_roles: allowed, default_roles: defaults, is_active: active })
         .then(function (res) { if (!res.ok) fail(res); else alertBox(); loadAll(); });
+    }
+    // Allowing a role also makes it a default; disallowing removes it from both.
+    function setAllowed(l, c, role, on) {
+      var lc = lookup[l + '|' + c];
+      if (!lc) return;
+      var allowed = (lc.allowed_roles || []).filter(function (r) { return r !== role; });
+      var defaults = (lc.default_roles || []).filter(function (r) { return r !== role; });
+      if (on) { allowed.push(role); defaults.push(role); }
+      save(l, c, allowed, defaults, true);
     }
     if (qWrap) {
       qWrap.querySelectorAll('.org-q-pill').forEach(function (pill) {
         pill.addEventListener('click', function () {
-          var l = pill.dataset.l, c = pill.dataset.c, role = pill.dataset.role, flag = pill.dataset.flag;
-          var lc = lookup[l + '|' + c];
-          if (!lc) return;
-          var turningOn = pill.dataset.active !== '1';
-          var roles = (lc.default_roles || []).slice();
-          if (turningOn) {
-            if (roles.indexOf(role) < 0) roles.push(role);
-          } else {
-            roles = roles.filter(function (r) { return r !== role; });
-          }
-          var fill = lc.can_fill_va_form;
-          var code = lc.can_code_va_form;
-          var supervise = lc.can_supervise_interviews;
-          var report = lc.can_report_deaths;
-          if (flag === 'can_fill_va_form') fill = turningOn;
-          if (flag === 'can_code_va_form') code = turningOn;
-          if (flag === 'can_supervise_interviews') supervise = turningOn;
-          if (flag === 'can_report_deaths') report = turningOn;
-          save(l, c, fill, code, supervise, report, lc.can_edit_interviews, true, roles);
+          setAllowed(pill.dataset.l, pill.dataset.c, pill.dataset.role, pill.dataset.active !== '1');
         });
       });
     }
-    document.querySelectorAll('.perm-box').forEach(function (box) { box.addEventListener('change', function () {
-      var l = box.dataset.l, c = box.dataset.c;
-      var fill = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="fill"]').checked;
-      var code = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="code"]').checked;
-      var supervise = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="supervise"]').checked;
-      var report = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="report"]').checked;
-      var edit = document.querySelector('.perm-box[data-l="' + l + '"][data-c="' + c + '"][data-k="edit"]').checked;
-      save(l, c, fill, code, supervise, report, edit, true);
+    document.querySelectorAll('.perm-allow').forEach(function (box) { box.addEventListener('change', function () {
+      setAllowed(box.dataset.l, box.dataset.c, box.value, box.checked);
     }); });
     document.querySelectorAll('.perm-role').forEach(function (box) { box.addEventListener('change', function () {
-      var l = box.dataset.l, c = box.dataset.c, lc = lookup[l + '|' + c];
+      var l = box.dataset.l, c = box.dataset.c;
       var roles = Array.prototype.map.call(document.querySelectorAll('.perm-role[data-l="' + l + '"][data-c="' + c + '"]:checked'), function (b) { return b.value; });
-      var fill = lc.can_fill_va_form || roles.indexOf('interviewer') >= 0;
-      var code = lc.can_code_va_form || roles.indexOf('coder') >= 0;
-      var supervise = lc.can_supervise_interviews || roles.indexOf('interview_supervisor') >= 0;
-      var report = lc.can_report_deaths || roles.indexOf('death_reporter') >= 0;
-      save(l, c, fill, code, supervise, report, lc.can_edit_interviews, true, roles);
+      save(l, c, undefined, roles, true);
     }); });
     document.querySelectorAll('.perm-add').forEach(function (sel) { sel.addEventListener('change', function () {
-      if (sel.value) save(sel.dataset.l, sel.value, false, false, false, false, false, true);
+      if (sel.value) save(sel.dataset.l, sel.value, undefined, undefined, true);
     }); });
     document.querySelectorAll('.perm-remove').forEach(function (btn) { btn.addEventListener('click', function () {
-      var lc = lookup[btn.dataset.l + '|' + btn.dataset.c];
       var cadre = findBy(cadres, 'cadre_id', btn.dataset.c), level = findBy(levels, 'org_level_id', btn.dataset.l);
       askConfirm('Remove ' + cadre.cadre_code + ' from ' + level.level_name + '? No new ' + cadre.cadre_code + ' workers can then be added at this level; removal only succeeds once no active ' + cadre.cadre_code + ' worker remains at this level.', function () {
-        save(btn.dataset.l, btn.dataset.c, lc.can_fill_va_form, lc.can_code_va_form, lc.can_supervise_interviews, lc.can_report_deaths, lc.can_edit_interviews, false);
+        save(btn.dataset.l, btn.dataset.c, undefined, undefined, false);
       });
     }); });
   }
@@ -2098,9 +2079,10 @@
     var u = unitById(val('ow-unit')), cid = $('ow-cadre').value, w = _editingWorker;
     var lc = u && STATE.level_cadres.filter(function (x) { return x.is_active && x.org_level_id === u.org_level_id && x.cadre_id === cid; })[0];
     var defaultRoles = (lc && lc.default_roles) || [];
-    var canCode = !!(lc && (lc.can_code_va_form || defaultRoles.indexOf('coder') >= 0))
+    var allowedRoles = (lc && lc.allowed_roles) || [];
+    var canCode = !!(lc && (allowedRoles.indexOf('coder') >= 0 || defaultRoles.indexOf('coder') >= 0))
       || !!(w && (w.coding_unit_ids || []).length);
-    var canSupervise = !!(lc && (lc.can_supervise_interviews || defaultRoles.indexOf('interview_supervisor') >= 0))
+    var canSupervise = !!(lc && (allowedRoles.indexOf('interview_supervisor') >= 0 || defaultRoles.indexOf('interview_supervisor') >= 0))
       || !!(w && (w.supervision_unit_ids || []).length);
 
     show('ow-coding-scope-wrap', canCode && !!u);
@@ -2152,7 +2134,8 @@
       return;
     }
     var roles = (lc.default_roles || []).map(function (role) { return WORKER_ROLE_LABELS[role] || role; });
-    hint.textContent = 'At ' + u.level_name + ': ' + (lc.can_fill_va_form ? 'can fill VA' : 'cannot fill VA') + ' · ' + (lc.can_code_va_form ? 'can code VA' : 'cannot code VA') + (lc.can_supervise_interviews ? ' · can supervise interviews' : '') + (lc.can_edit_interviews ? ' · can edit interviews' : '') + (lc.can_report_deaths ? ' · can report deaths' : '') + '.';
+    var allowed = (lc.allowed_roles || []).map(function (role) { return WORKER_ROLE_LABELS[role] || role; });
+    hint.textContent = 'At ' + u.level_name + ': may hold ' + (allowed.length ? allowed.join(', ') : 'no role yet') + '.';
     if (roles.length) hint.textContent += ' Default access: ' + roles.join(', ') + '.';
     else hint.textContent += ' No default roles: this will remain a roster-only worker unless an existing account is linked.';
     updateWorkerOnboardingNote();

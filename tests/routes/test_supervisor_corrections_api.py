@@ -170,12 +170,12 @@ class SupervisorCorrectionTests(BaseTestCase):
         for cadre in ("MO", "CHO"):
             org.upsert_level_cadre(
                 PROJECT, org_level_id=cls.phc_level_id, cadre_id=cls.cadres[cadre].cadre_id,
-                can_fill_va_form=cadre == "CHO", can_code_va_form=cadre == "MO", can_supervise_interviews=True,
+                allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coding_tester", "reviewer", "data_manager", "interviewer", "interview_supervisor", *(["coder"] if cadre == "MO" else [])],
             )
         # A CHC's SMO edits; a CHC's MO does not even supervise there.
         org.upsert_level_cadre(
             PROJECT, org_level_id=levels["chc"].org_level_id, cadre_id=cls.cadres["SMO"].cadre_id,
-            can_fill_va_form=False, can_code_va_form=True, can_supervise_interviews=True, can_edit_interviews=True,
+            allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coding_tester", "reviewer", "data_manager", "interviewer", "coder", "interview_supervisor"],
         )
 
         def user(key, *grants):
@@ -227,7 +227,7 @@ class SupervisorCorrectionTests(BaseTestCase):
     def _tick(self, on):
         org.upsert_level_cadre(
             PROJECT, org_level_id=self.phc_level_id, cadre_id=self.cadres["MO"].cadre_id,
-            can_fill_va_form=False, can_code_va_form=True, can_supervise_interviews=True, can_edit_interviews=on,
+            allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coding_tester", "reviewer", "data_manager", "interviewer", "coder", "interview_supervisor"],
         )
         db.session.commit()
 
@@ -357,22 +357,28 @@ class SupervisorCorrectionTests(BaseTestCase):
         self.assertIn("supervisor_revision", reasons)
         self.assertNotIn("interviewer_revision", reasons)
 
-    def test_without_the_tick_the_draft_and_the_revision_are_not_found(self):
+    def test_an_in_charge_and_a_data_manager_reaching_the_case_are_refused(self):
+        # digitva-4650: every interview supervisor corrects; In-charge and data
+        # manager powers never include it. icx and dmx interview elsewhere, so
+        # they pass the routes' role gate and reach PH1 through site_pi / data_manager.
         _death_id, va_sid, draft = self._submitted()
         self.assertEqual(self._get_draft(self.hv, draft.draft_id).status_code, 200)  # present first
-        self._tick(False)
-        self.assertEqual(self._get_draft(self.hv, draft.draft_id).status_code, 404)
-        self.assertEqual(self._revise(self.hv, va_sid, _answers(Id10017="Binita")).status_code, 404)
+        for user in (self.icx, self.dmx):
+            self.assertEqual(self._get_draft(user, draft.draft_id).status_code, 404, user.email)
+            self.assertEqual(self._revise(user, va_sid, _answers(Id10017="Binita")).status_code, 404, user.email)
+        self.assertEqual(self._active(va_sid).revision_reason_code, None)
 
     def test_out_of_reach_and_other_supervising_roles_are_not_found(self):
         _death_id, va_sid, draft = self._submitted()
         self.assertEqual(self._get_draft(self.hv, draft.draft_id).status_code, 200)  # present first
-        # A ticked supervisor of another PHC; a data manager, In-charge and project PI over
-        # the case whose own supervisor grant's cadre is not ticked.
+        # A supervisor of another PHC is out of reach.
         admin = db.session.get(type(self.hv), uuid.UUID(str(self.base_admin_id)))
-        for user in (self.far, self.boss, self.mo_chc):
-            self.assertEqual(self._get_draft(user, draft.draft_id).status_code, 404, user.email)
-            self.assertEqual(self._revise(user, va_sid, _answers(Id10017="Binita")).status_code, 404, user.email)
+        self.assertEqual(self._get_draft(self.far, draft.draft_id).status_code, 404)
+        self.assertEqual(self._revise(self.far, va_sid, _answers(Id10017="Binita")).status_code, 404)
+        # digitva-4650 (owner 2026-11-25): every interview supervisor reaching the case
+        # corrects, whatever their cadre; boss (CHO at PH1) and mo_chc (MO at CH1) now open it.
+        for user in (self.boss, self.mo_chc):
+            self.assertEqual(self._get_draft(user, draft.draft_id).status_code, 200, user.email)
         # A data manager alone, or an admin, does not pass the routes' role gate.
         for user in (self.dana, admin):
             self.assertEqual(self._get_draft(user, draft.draft_id).status_code, 403, user.email)
@@ -456,7 +462,8 @@ class SupervisorCorrectionTests(BaseTestCase):
         detail = self._supervised(self.hv, death_id)
         self.assertEqual(detail["edit_interview"], {
             "draft_id": str(draft.draft_id), "va_sid": va_sid, "project_id": PROJECT, "site_id": SITE})
-        self.assertIsNone(self._supervised(self.boss, death_id)["edit_interview"])
+        # digitva-4650: boss supervises PH1 (CHO), so the opening is offered to boss too.
+        self.assertEqual(self._supervised(self.boss, death_id)["edit_interview"], detail["edit_interview"])
 
         self.assertEqual(self._revise(self.hv, va_sid, _answers(Id10017="Binita")).status_code, 200)
         row = self._row(self.hv, death_id)
@@ -654,8 +661,6 @@ class SupervisorCorrectionTests(BaseTestCase):
         self.assertEqual(revised.status_code, 200, revised.get_json())
         self.assertEqual((self._active(va_sid).revision_reason_code, self._active(va_sid).created_by),
                          ("supervisor_correction", self.hv.user_id))
-        self._tick(False)
-        self.assertEqual(self.client.get(f"{API}/drafts/{draft.draft_id}", headers=headers).status_code, 404)
 
     def test_a_supervisor_phone_reads_the_form_it_needs_to_edit_an_interview(self):
         # The phone has no cached reference data for a supervised project: it fetches these live.

@@ -64,9 +64,7 @@ class WorkerActiveLinkTests(BaseTestCase):
             self.PROJECT,
             org_level_id=levels["district"].org_level_id,
             cadre_id=cadre.cadre_id,
-            can_fill_va_form=False,
-            can_code_va_form=False,
-            can_supervise_interviews=True,
+            allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coding_tester", "reviewer", "data_manager", "interviewer", "interview_supervisor"],
             default_roles=[],
         )
         return unit, cadre

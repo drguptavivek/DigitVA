@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-25
 ---
 
 # Access Control Model
@@ -73,7 +73,7 @@ Role allocation and personal-data (PII) visibility follow one fundamental bounda
      - All Tier 2 roles are **Non-PII (blinded)**: they see age, sex, dates, symptoms, narrative, and aggregate counts, but never deceased names, family names, addresses, GPS coordinates, or registration numbers.
 
 3. **Exceptional PII Access for an External Person:**
-   - In the exceptional case where someone from outside the health system (for example, a Mentoring Institution coordinator) genuinely requires PII access, they are **made part of the health system (Tier 3)** and granted a **`data_manager`** role at the **District (`org_unit`)** level.
+   - In the exceptional case where someone from outside the health system (for example, a Mentoring Institution coordinator) genuinely requires PII access, they are **made part of the health system (Tier 3)** and granted a **`data_manager`** role at the **District (`org_unit`)** level. For a mentoring-institute member (owner 2026-11-25, `digitva-4650`, built) that means enrolling them as a worker with a cadre at the unit: only a grant backed by that worker record, carrying its cadre, is PII. A mentor's own cadre-less `data_manager` grant is Non-PII.
    - Separate workaround roles such as `"Coder with PII"` or `collaborator_pii` ("Viewer with PII") are not needed in the role allocation workflow.
 
 4. **PII visibility is decided per project (owner decision 2026-11-05, `digitva-ssg7.3`):**
@@ -533,8 +533,8 @@ May not:
 - start or resume an interview, log contact attempts or visits, or use any
   worklist action; see another user's cases; code or review
 
-A `death_reporter` grant needs a cadre with the `can_report_deaths` flag at
-the unit's level. See [Web Intake Policy](web-intake.md), "Death reporters".
+A `death_reporter` grant needs a cadre whose allowed roles at the unit's
+level include `death_reporter`. See [Web Intake Policy](web-intake.md), "Death reporters".
 
 ### `interview_supervisor`
 
@@ -547,10 +547,10 @@ May:
   assigns
 - correct the death report of a case in its subtree until an interview of
   it is completed
-- where its cadre has "Can edit interviews" ticked on the level x cadre grid,
-  correct a submitted interview in its subtree until the coder finalises
-  (owner 2026-11-23, `digitva-6dh9`, built; see [Interview
-  Revisions](interview-revisions.md), "Supervisor correction")
+- correct a submitted interview in its subtree until the coder finalises
+  (owner 2026-11-23, `digitva-6dh9`; every interview supervisor since
+  2026-11-25, `digitva-4650`, built; the grid is not consulted; see
+  [Interview Revisions](interview-revisions.md), "Supervisor correction")
 
 May not:
 
@@ -693,21 +693,24 @@ scope"; decision 2026-10-02, `digitva-7xq`).
 **Mentoring institute members.** A person who belongs to a mentoring institute
 (see [Organization Model Policy](organization-model.md), "Mentoring
 institutes") sits **outside the health system (Tier 2 — Non-PII)** and may hold
-`org_unit` grants of `site_pi` (Mentoring Institution PI), `coder`, `reviewer`,
-`coding_tester`, or `collaborator`, inside the subtree of a district their
-institute is attached to (owner decision 2026-10-26, `digitva-ewa5`). None of
-these mentoring-institute roles expose PII. They may not be given project- or
-global-scope grants, nor `in_charge`, `interviewer`, `death_reporter` or
-`interview_supervisor`. In the exceptional case that someone from outside the
-health system requires PII access, they are made part of the health system
-(Tier 3) and granted `data_manager` at the District (`org_unit`) level.
+`org_unit` grants of `coder`, `reviewer`, `coding_tester`, `collaborator`
+or `data_manager`, with no cadre, inside the subtree of a district their
+institute is attached to (owner decisions 2026-10-26, `digitva-ewa5`, and
+2026-11-25, `digitva-4650`). None of these mentor grants expose PII, the data
+manager included. They may not be given project- or global-scope grants, nor
+cadre-less `in_charge`, `interviewer`, `death_reporter` or
+`interview_supervisor`. The only route to PII is health-system enrolment: an
+active worker record with a cadre at the unit, after which a grant carrying
+that cadre follows the cadre's allowed roles and is PII (Tier 3).
 
-A unit-scoped grant may also carry a `cadre_id`. It is descriptive, and
-nothing at runtime consults it, but it is validated on write: the cadre must
-be defined at the unit's level, a `coder` grant requires a cadre that may
-code at that level, an `interview_supervisor` grant a cadre that may
-supervise interviews there, and a `death_reporter` grant a cadre that may
-report deaths there (`can_report_deaths`). Cadre rules live in
+A unit-scoped grant carries a `cadre_id`. It is descriptive, and nothing at
+runtime consults it, but it is validated on every write
+(`validate_org_unit_grant`, `digitva-4650`): every unit grant of someone
+outside a mentoring institute must name a cadre that is placed at the unit's
+level and whose allowed roles there include the grant's role. A
+mentoring-institute member's grant carries no cadre (mentor roles and data
+manager, Non-PII) unless their active worker record at that unit has that
+cadre, which makes it a health-system grant under the same rule. Cadre rules live in
 [Organization Model Policy](organization-model.md).
 
 ## Who creates which grants

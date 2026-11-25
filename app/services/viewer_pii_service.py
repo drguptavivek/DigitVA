@@ -146,7 +146,7 @@ def pii_visible_user_ids(
         TIER3_UNIT_PII_ROLES,
         has_tree_condition,
     )
-    from app.services.org_grant_service import active_project_condition
+    from app.services.org_grant_service import active_project_condition, worker_backed_condition
 
     ids = sorted(set(user_ids))
     if not ids:
@@ -185,7 +185,11 @@ def pii_visible_user_ids(
         sa.and_(
             has_tree_cond,
             grant.scope_type == VaAccessScopeTypes.org_unit,
-            non_mentor_or_dm,
+            # A member's unit grant counts only when their worker record backs it.
+            sa.or_(
+                ~is_mentor_cond,
+                worker_backed_condition(grant.user_id, grant.org_unit_id, grant.cadre_id),
+            ),
             grant.role.in_(TIER3_UNIT_PII_ROLES),
         ),
     )

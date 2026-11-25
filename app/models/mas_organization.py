@@ -316,19 +316,39 @@ class MasCadre(db.Model):
         return f"<MasCadre {self.project_id}/{self.cadre_code}>"
 
 
+# map_org_level_cadre flag columns replaced by allowed_roles (digitva-4650).
+RETIRED_LEVEL_CADRE_FLAGS = (
+    "can_fill_va_form", "can_code_va_form", "can_supervise_interviews",
+    "can_report_deaths", "can_edit_interviews",
+)
+
+
 class MapOrgLevelCadre(db.Model):
-    """Which cadres exist at a level and whether they may fill or code VA forms."""
+    """Which cadres exist at a level and which unit roles they may hold there."""
 
     __tablename__ = "map_org_level_cadre"
     __table_args__ = (
         sa.UniqueConstraint("org_level_id", "cadre_id", name="uq_map_org_level_cadre"),
-        # The unit-scope roles (org_grant_service.ROLES_ALLOWING_ORG_UNIT); the
-        # flag rule is the application's, applied on save.
+        # Retired flags (digitva-4650): still columns until the follow-up
+        # migration drops them, never read or written (excluded from the
+        # mapper below); their server defaults fill new rows.
+        *(
+            sa.Column(name, sa.Boolean, nullable=False, server_default=sa.false())
+            for name in RETIRED_LEVEL_CADRE_FLAGS
+        ),
+        # The unit-scope roles (org_grant_service.ROLES_ALLOWING_ORG_UNIT);
+        # defaults within allowed is the application's rule, applied on save.
         sa.CheckConstraint(
             "default_roles <@ ARRAY['site_pi', 'collaborator', 'collaborator_pii', 'coder', "
             "'coding_tester', 'reviewer', 'data_manager', 'interviewer', "
             "'interview_supervisor', 'death_reporter']::varchar[]",
             name="default_roles_unit_roles",
+        ),
+        sa.CheckConstraint(
+            "allowed_roles <@ ARRAY['site_pi', 'collaborator', 'collaborator_pii', 'coder', "
+            "'coding_tester', 'reviewer', 'data_manager', 'interviewer', "
+            "'interview_supervisor', 'death_reporter']::varchar[]",
+            name="allowed_roles_unit_roles",
         ),
     )
 
@@ -347,33 +367,16 @@ class MapOrgLevelCadre(db.Model):
         nullable=False,
         index=True,
     )
-    can_fill_va_form: so.Mapped[bool] = so.mapped_column(
-        sa.Boolean, nullable=False, default=False, server_default=sa.false()
-    )
-    can_code_va_form: so.Mapped[bool] = so.mapped_column(
-        sa.Boolean, nullable=False, default=False, server_default=sa.false()
-    )
-    # Decision 12: a cadre at this level may hold an interview_supervisor grant.
-    can_supervise_interviews: so.Mapped[bool] = so.mapped_column(
-        sa.Boolean, nullable=False, default=False, server_default=sa.false()
-    )
-    # Owner 2026-11-23 (digitva-6dh9): an interview_supervisor of this cadre
-    # at this level may correct submitted interviews. Read at runtime, not a
-    # grant flag; only true while can_supervise_interviews is
-    # (organization_service.upsert_level_cadre).
-    can_edit_interviews: so.Mapped[bool] = so.mapped_column(
-        sa.Boolean, nullable=False, default=False, server_default=sa.false()
-    )
-    # Owner 2026-10-06 (digitva-t6q): a cadre at this level may hold a
-    # death_reporter grant.
-    can_report_deaths: so.Mapped[bool] = so.mapped_column(
-        sa.Boolean, nullable=False, default=False, server_default=sa.false()
+    # Owner 2026-11-25 (digitva-4650): the unit-scope roles a person of this
+    # cadre may hold at a unit of this level. Checked when a unit grant is
+    # written (org_grant_service.validate_org_unit_grant), never at runtime.
+    # Assign a new list, never mutate in place: ARRAY is not change-tracked.
+    allowed_roles: so.Mapped[list[str]] = so.mapped_column(
+        ARRAY(sa.String), nullable=False, default=list, server_default=sa.text("'{}'")
     )
     # Owner 2026-10-06 (digitva-vjt): unit-scope roles pre-ticked when a person
-    # of this cadre is granted at this level. Never a grant itself; a role that
-    # needs a flag above is only accepted while the flag is set
-    # (organization_service.upsert_level_cadre). Assign a new list, never
-    # mutate in place: ARRAY is not change-tracked.
+    # of this cadre is enrolled at this level. Never a grant itself; always a
+    # subset of allowed_roles (organization_service.upsert_level_cadre).
     default_roles: so.Mapped[list[str]] = so.mapped_column(
         ARRAY(sa.String), nullable=False, default=list, server_default=sa.text("'{}'")
     )
@@ -386,6 +389,8 @@ class MapOrgLevelCadre(db.Model):
     updated_at: so.Mapped[datetime] = so.mapped_column(
         sa.DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow
     )
+
+    __mapper_args__ = {"exclude_properties": list(RETIRED_LEVEL_CADRE_FLAGS)}
 
     level: so.Mapped["MasOrgLevel"] = so.relationship("MasOrgLevel", back_populates="level_cadres")
     cadre: so.Mapped["MasCadre"] = so.relationship("MasCadre", back_populates="level_cadres")
@@ -434,6 +439,9 @@ class MasOrgUnitWorker(db.Model):
         sa.ForeignKey("va_users.user_id"),
         nullable=True,
         index=True,
+        # Load the old value on change, even when expired: the grant cache
+        # bumps the previous user too (grant_cache._bump_worker_users).
+        active_history=True,
     )
     remarks: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     is_active: so.Mapped[bool] = so.mapped_column(

@@ -15,7 +15,7 @@ subtree and a ``project_pi`` on a tree project through the whole project
 
 Under a device credential only the roles in ``NATIVE_DEVICE_ROLES`` count
 (``_covering_grants``, the one place): an explicit ``interview_supervisor``
-grant supervises and, with its cadre ticked, edits interviews; the In-charge,
+grant supervises and edits interviews; the In-charge,
 project PI and data manager powers stay browser-only
 (docs/policy/mobile-sign-in.md, "Interview supervisors on the phone").
 """
@@ -30,7 +30,6 @@ from sqlalchemy.orm import aliased
 
 from app import db
 from app.models import (
-    MapOrgLevelCadre,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -223,24 +222,13 @@ def dm_shaped_grant(user_id: uuid.UUID, case):
 def edits_interviews(user_id: uuid.UUID, case) -> bool:
     """Whether *user_id* may correct the interviews of *case* as a supervisor
     (docs/policy/interview-revisions.md "Supervisor correction"): some live
-    ``interview_supervisor`` unit grant of theirs reaches *case* and its
-    cadre is ticked ``can_edit_interviews`` on an active grid row at the
-    grant unit's level. Every reaching grant counts, not only the narrowest;
-    the grid is read now, so unticking withdraws the power at once. Data
-    manager, In-charge, project PI and admin confer nothing here. One EXISTS
-    query."""
+    ``interview_supervisor`` unit grant of theirs reaches *case*. Every
+    interview supervisor may (owner 2026-11-25, digitva-4650); the grid is not
+    consulted. Data manager, In-charge, project PI and admin confer nothing
+    here. One EXISTS query."""
     selects = _covering_grants(
         user_id, (VaAccessRoles.interview_supervisor,), case.project_id, case.site_id, case.org_unit_id,
     )
     if not selects:
         return False
-    covering = sa.union_all(*selects).subquery()
-    granted = aliased(MasOrgUnit, name="edit_granted_unit")
-    return bool(db.session.scalar(sa.select(sa.exists().where(
-        VaUserAccessGrants.grant_id == covering.c.grant_id,
-        granted.org_unit_id == VaUserAccessGrants.org_unit_id,
-        MapOrgLevelCadre.org_level_id == granted.org_level_id,
-        MapOrgLevelCadre.cadre_id == covering.c.cadre_id,
-        MapOrgLevelCadre.is_active.is_(True),
-        MapOrgLevelCadre.can_edit_interviews.is_(True),
-    ))))
+    return bool(db.session.scalar(sa.select(sa.union_all(*selects).exists())))

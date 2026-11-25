@@ -3,7 +3,7 @@ title: Mentor View Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-20
+last_updated: 2026-11-25
 ---
 
 # Mentor View Policy
@@ -333,12 +333,15 @@ API contract: `docs/current-state/api-v1.md`, "Mentor view".
    either. The training project never appears.
 2. **Names follow `should_redact_pii` and nothing else.** Under the current
    three-tier rule (`ResolvedGrants.is_pii_grant`) a mentoring-institute member
-   sees PII on a tree project only through a `data_manager` grant, so a mentor
+   sees PII on a tree project only through a grant backed by an active worker
+   record at that unit with the grant's cadre (owner 2026-11-25,
+   `digitva-4650`; before, through any `data_manager` grant), so a mentor
    with `coder`, `reviewer` or `collaborator_pii` is redacted too, not only
    plain `collaborator` (owner decision 1 assumed otherwise). Redacted viewers
    get "Coder N" rows and no last-active date; they can drill down and write
-   notes. Owner 2026-11-20: keep this stricter name gate (names need a district
-   data_manager grant), but notes do not need names.
+   notes. Owner 2026-11-20: keep this stricter name gate, but notes do not
+   need names. From 2026-11-25 a mentor's own `data_manager` grant is Non-PII
+   too; names need health-system enrolment as a worker with a cadre.
 3. **Coders listed**: active users with an active `coder` grant at a unit in
    or above the district, mentoring-institute members excepted, at most 500.
 4. **Counts** are ANDed with `scope_filter(viewer, VIEW)`, the district

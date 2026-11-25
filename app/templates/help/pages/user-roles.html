@@ -285,16 +285,11 @@
 
 <h2>Question-Driven Cadre Setup ("Who can do what?")</h2>
 
-<p>In <em>Organization &rarr; 3. Cadres &amp; permissions &rarr; b. Who can do what?</em>, you can configure cadre capabilities either via the full-width Level &times; Cadre matrix or by clicking <code>Level &middot; Cadre</code> pills under each plain-language question:</p>
+<p>In <em>Organization &rarr; 3. Cadres &amp; permissions &rarr; b. Who can do what?</em>, each cadre placed at a level has two lists: the <strong>allowed roles</strong> a person of that cadre may hold at a unit of that level, and the <strong>default roles</strong> pre-ticked when a worker of that cadre is enrolled there (always among the allowed roles). Every unit grant names the person's cadre, and its role must be allowed; mentoring-institute staff hold Non-PII mentor grants with no cadre.</p>
 <ul>
-  <li><strong>Who can report deaths?</strong> Enables <code>can_report_deaths</code> and pre-selects the <code>death_reporter</code> role.</li>
-  <li><strong>Who can conduct VA interviews?</strong> Enables <code>can_fill_va_form</code> and pre-selects the <code>interviewer</code> role.</li>
-  <li><strong>Who can supervise interviews?</strong> Enables <code>can_supervise_interviews</code> and pre-selects the <code>interview_supervisor</code> role.</li>
-  <li><strong>Edit interviews</strong> (grid column, needs Supervise): <code>can_edit_interviews</code> lets that cadre's interview supervisors correct a submitted interview in their reach until the coder finalises; unticking it withdraws the power at once.</li>
-  <li><strong>Who can code VA forms?</strong> Enables <code>can_code_va_form</code> and pre-selects the <code>coder</code> role.</li>
-  <li><strong>Who can review coded VAs (QA)?</strong> Pre-selects the <code>reviewer</code> role.</li>
-  <li><strong>Who is Unit / Facility In-charge?</strong> Pre-selects the <code>site_pi</code> (In-charge) role.</li>
-  <li><strong>Who is a Coding Tester?</strong> Pre-selects the <code>coding_tester</code> role.</li>
+  <li><strong>The grid:</strong> one row per cadre at a level. Ticking a role under <em>Allowed roles</em> also makes it a default; unticking removes it from both. A chip under <em>Default for new workers</em> toggles only the default. Existing grants are never changed.</li>
+  <li><strong>The question cards</strong> (<em>Who can report deaths? &middot; Death reporter</em>, <em>Who can conduct VA interviews? &middot; Interviewer</em>, and so on, one per role): each <code>Level &middot; Cadre</code> pill is lit when that cadre may hold the role there; clicking it allows or disallows the role, as the grid does.</li>
+  <li><strong>Interview supervisors</strong> may always correct a submitted interview in their reach until the coder finalises; In-charges and data managers may not.</li>
 </ul>
 
 <h2>Examples</h2>

@@ -62,23 +62,23 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertEqual([lv.depth for lv in org.list_levels(self.PROJECT)], [1, 2, 3, 4, 5, 6, 7])
         self.assertEqual(self._levels()["phc"].odk_field_name, "org_phc_code")
         grid = {
-            (row["level_code"], row["cadre_code"]): (
-                row["can_fill_va_form"], row["can_code_va_form"], row["can_supervise_interviews"],
-                row["can_report_deaths"],
-            )
+            (row["level_code"], row["cadre_code"]): set(row["allowed_roles"])
             for row in org.list_level_cadres(self.PROJECT)
         }
-        self.assertEqual(grid, org.DEFAULT_LEVEL_CADRE_TEMPLATE)
-        self.assertEqual(grid[("district", "CS")], (False, False, True, False))
-        self.assertEqual(grid[("chc", "SMO")], (False, True, True, False))
-        self.assertEqual(grid[("phc", "MO")], (False, True, True, False))
-        self.assertEqual(grid[("chc", "MO")], (False, True, False, False))
+        self.assertEqual(grid, {key: set(roles) for key, roles in org.DEFAULT_LEVEL_CADRE_TEMPLATE.items()})
+        self.assertEqual(grid[("district", "CS")], {"site_pi", "interview_supervisor"})
+        self.assertEqual(grid[("chc", "SMO")], {"site_pi", "coder", "reviewer", "interview_supervisor"})
+        self.assertEqual(grid[("phc", "MO")], {"site_pi", "coder", "interview_supervisor"})
+        self.assertEqual(grid[("chc", "MO")], {"coder"})
         # Owner 2026-10-12: ANM and MPW may fill VAs; ASHA only reports deaths.
         for key in (("subcentre", "ANM"), ("subcentre", "MPW")):
-            self.assertEqual(grid[key], (True, False, False, True))
-        self.assertEqual(grid[("village", "ASHA")], (False, False, False, True))
+            self.assertEqual(grid[key], {"interviewer", "death_reporter"})
+        self.assertEqual(grid[("village", "ASHA")], {"death_reporter"})
+        # Every default role is allowed (digitva-4650).
+        for key, roles in org.DEFAULT_TYPICAL_ROLES.items():
+            self.assertLessEqual(set(roles), grid[key], key)
         # Owner 2026-10-06: ANM and MPW at the sub-centre and ASHA at the village report deaths.
-        reporters = {key for key, flags in grid.items() if flags[3]}
+        reporters = {key for key, roles in grid.items() if "death_reporter" in roles}
         self.assertEqual(
             reporters, {("subcentre", "ANM"), ("subcentre", "MPW"), ("village", "ASHA")}
         )
@@ -90,16 +90,14 @@ class OrganizationServiceTests(BaseTestCase):
         org.update_level(self.PROJECT, lv["district"].org_level_id, level_name="Zila")
         org.upsert_level_cadre(
             self.PROJECT, org_level_id=lv["district"].org_level_id, cadre_id=cadres["CS"].cadre_id,
-            can_fill_va_form=True, can_code_va_form=True, can_supervise_interviews=False,
+            allowed_roles=["interviewer", "coder"],
         )
         self.assertEqual(
             org.seed_default_organization(self.PROJECT), {"levels": 0, "cadres": 0, "level_cadres": 0}
         )
         row = org.get_level_cadre_permission(lv["district"].org_level_id, cadres["CS"].cadre_id)
         self.assertIsNotNone(row)
-        self.assertEqual(
-            (row.can_fill_va_form, row.can_code_va_form, row.can_supervise_interviews), (True, True, False)
-        )
+        self.assertEqual(row.allowed_roles, ["coder", "interviewer"])
         self.assertEqual(self._levels()["district"].level_name, "Zila")
 
     def test_seed_template_without_cadres_adds_levels_only(self):
@@ -128,11 +126,11 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertEqual(rows[("district", "DEPI")]["typical_roles"], ["data_manager"])
         self.assertEqual(rows[("chc", "SMO")]["typical_roles"], ["site_pi", "reviewer"])
         self.assertEqual(rows[("phc", "MO")]["typical_roles"], ["site_pi", "coder"])
-        self.assertTrue(rows[("district", "CS")]["can_supervise_interviews"])
+        self.assertIn("interview_supervisor", rows[("district", "CS")]["allowed_roles"])
         for key in (("subcentre", "ANM"), ("subcentre", "MPW"), ("village", "ASHA")):
             self.assertEqual(rows[key]["typical_roles"], ["death_reporter"])
-            self.assertTrue(rows[key]["can_report_deaths"])
-        self.assertFalse(rows[("subcentre", "CHO")]["can_report_deaths"])
+            self.assertIn("death_reporter", rows[key]["allowed_roles"])
+        self.assertNotIn("death_reporter", rows[("subcentre", "CHO")]["allowed_roles"])
 
     # -- tree rules ----------------------------------------------------------
 
@@ -248,8 +246,8 @@ class OrganizationServiceTests(BaseTestCase):
         listed = org.list_workers(self.PROJECT)
         self.assertEqual(listed[0]["user_email"], self.base_coder_user.email)
         perm = org.get_level_cadre_permission(s.org_level_id, cadres["CHO"].cadre_id)
-        self.assertTrue(perm.can_fill_va_form)
-        self.assertFalse(perm.can_code_va_form)
+        self.assertIn("interviewer", perm.allowed_roles)
+        self.assertNotIn("coder", perm.allowed_roles)
 
     def test_level_cadre_cannot_be_removed_while_active_workers_hold_it(self):
         d, c, p, s = self._seed_tree()
@@ -260,13 +258,13 @@ class OrganizationServiceTests(BaseTestCase):
         with self.assertRaises(org.OrganizationError) as ctx:
             org.upsert_level_cadre(
                 self.PROJECT, org_level_id=s.org_level_id, cadre_id=cadres["CHO"].cadre_id,
-                can_fill_va_form=perm.can_fill_va_form, can_code_va_form=perm.can_code_va_form, is_active=False,
+                is_active=False,
             )
         self.assertIn("first", str(ctx.exception))
         org.update_worker(self.PROJECT, worker.worker_id, is_active=False)
         org.upsert_level_cadre(
             self.PROJECT, org_level_id=s.org_level_id, cadre_id=cadres["CHO"].cadre_id,
-            can_fill_va_form=perm.can_fill_va_form, can_code_va_form=perm.can_code_va_form, is_active=False,
+            is_active=False,
         )
         self.assertIsNone(org.get_level_cadre_permission(s.org_level_id, cadres["CHO"].cadre_id))
 
@@ -313,116 +311,91 @@ class OrganizationServiceTests(BaseTestCase):
         self.assertIsNone(org.get_level_cadre_permission(s.org_level_id, cadres["CHO"].cadre_id))
         self.assertFalse(db.session.get(type(worker), worker.worker_id).is_active)
 
-    # -- the Report deaths flag (digitva-t6q) ---------------------------------
+    # -- allowed roles (digitva-4650) -------------------------------------------
 
-    def _report_flags(self):
+    def _allowed(self):
         return {
-            (r["level_code"], r["cadre_code"]): r["can_report_deaths"]
+            (r["level_code"], r["cadre_code"]): r["allowed_roles"]
             for r in org.list_level_cadres(self.PROJECT)
         }
 
-    def test_upsert_with_no_report_deaths_value_keeps_the_stored_one(self):
+    def test_upsert_with_no_allowed_roles_keeps_the_stored_list(self):
         org.seed_default_organization(self.PROJECT)
         lv = self._levels()
         cadres = {c.cadre_code: c for c in org.list_cadres(self.PROJECT)}
-        args = dict(org_level_id=lv["subcentre"].org_level_id, cadre_id=cadres["ANM"].cadre_id,
-                    can_fill_va_form=False, can_code_va_form=False)
-        self.assertTrue(self._report_flags()[("subcentre", "ANM")])  # present first
-        self.assertTrue(org.upsert_level_cadre(self.PROJECT, **args, can_report_deaths=None).can_report_deaths)
-        self.assertFalse(org.upsert_level_cadre(self.PROJECT, **args, can_report_deaths=False).can_report_deaths)
-        self.assertFalse(org.upsert_level_cadre(self.PROJECT, **args).can_report_deaths)
+        args = dict(org_level_id=lv["subcentre"].org_level_id, cadre_id=cadres["ANM"].cadre_id)
+        self.assertEqual(self._allowed()[("subcentre", "ANM")], ["interviewer", "death_reporter"])
+        self.assertEqual(org.upsert_level_cadre(self.PROJECT, **args).allowed_roles,
+                         ["interviewer", "death_reporter"])
+        row = org.upsert_level_cadre(self.PROJECT, **args, allowed_roles=["death_reporter", "interviewer", " "])
+        self.assertEqual(row.allowed_roles, ["interviewer", "death_reporter"])  # canonical, blanks skipped
+        self.assertEqual(org.upsert_level_cadre(self.PROJECT, **args, allowed_roles=[]).allowed_roles, [])
+        self.assertEqual(org.upsert_level_cadre(self.PROJECT, **args).default_roles, [])  # dropped with it
+        for bad in (["admin"], ["project_pi"], ["nope"]):
+            with self.assertRaises(org.OrganizationError):
+                org.upsert_level_cadre(self.PROJECT, **args, allowed_roles=bad)
 
-    def test_the_report_deaths_flag_goes_through_csv_and_xlsx_export_and_import(self):
+    def test_allowed_roles_go_through_csv_and_xlsx_export_and_import(self):
         import csv
 
         org.seed_default_organization(self.PROJECT)
-        # Export: the header and the row (CSV), the sheet (XLSX).
         text = org.export_organization_csv(self.PROJECT, "level_cadres")
         reader = csv.DictReader(io.StringIO(text))
-        self.assertIn("can_report_deaths", reader.fieldnames)
+        self.assertEqual(reader.fieldnames,
+                         ["level_code", "cadre_code", "allowed_roles", "default_roles", "is_active"])
         rows = {(r["level_code"], r["cadre_code"]): r for r in reader}
-        self.assertEqual(rows[("subcentre", "ANM")]["can_report_deaths"], "True")
-        self.assertEqual(rows[("subcentre", "CHO")]["can_report_deaths"], "False")
+        self.assertEqual(rows[("subcentre", "ANM")]["allowed_roles"], "interviewer|death_reporter")
+        self.assertEqual(rows[("subcentre", "CHO")]["allowed_roles"], "interviewer")
         workbook = org.parse_organization_workbook(io.BytesIO(org.export_organization_xlsx(self.PROJECT)))
         sheet = {(r["level_code"], r["cadre_code"]): r for r in workbook["level_cadres"]}
-        self.assertTrue(sheet[("subcentre", "ANM")]["can_report_deaths"])
-        self.assertFalse(sheet[("subcentre", "CHO")]["can_report_deaths"])
+        self.assertEqual(sheet[("subcentre", "ANM")]["allowed_roles"], "interviewer|death_reporter")
 
-        # Import (CSV): the CHO gains the flag, the ANM loses it.
-        edited = text.replace("subcentre,CHO,True,False,False,False", "subcentre,CHO,True,False,False,True")
-        # The ANM's blank default_roles keeps the stored one, which the cleared flag then drops.
-        edited = edited.replace("subcentre,ANM,True,False,False,True,death_reporter", "subcentre,ANM,True,False,False,False,")
+        # Import (CSV): the CHO may report deaths, the ANM no longer; the ANM's
+        # blank default_roles keeps the stored one, which disallowing then drops.
+        edited = text.replace("subcentre,CHO,interviewer,interviewer", "subcentre,CHO,interviewer|death_reporter,interviewer")
+        edited = edited.replace("subcentre,ANM,interviewer|death_reporter,death_reporter", "subcentre,ANM,interviewer,")
         self.assertNotEqual(edited, text)
         plan = org.import_organization(
             self.PROJECT, org.parse_organization_csv(io.BytesIO(edited.encode()), "level_cadres"), dry_run=False)
         self.assertEqual(plan.errors, [])
-        flags = self._report_flags()
-        self.assertEqual((flags[("subcentre", "CHO")], flags[("subcentre", "ANM")]), (True, False))
+        allowed = self._allowed()
+        self.assertEqual(allowed[("subcentre", "CHO")], ["interviewer", "death_reporter"])
+        self.assertEqual(allowed[("subcentre", "ANM")], ["interviewer"])
+        anm = {(r["level_code"], r["cadre_code"]): r for r in org.list_level_cadres(self.PROJECT)}[("subcentre", "ANM")]
+        self.assertEqual(anm["default_roles"], [])
         # Import (XLSX rows): an empty cell keeps the stored value.
-        sheet[("subcentre", "ANM")]["can_report_deaths"] = None
+        sheet[("subcentre", "ANM")]["allowed_roles"] = None
         sheet[("subcentre", "ANM")]["default_roles"] = None
         plan = org.import_organization(self.PROJECT, {"level_cadres": list(sheet.values())}, dry_run=False)
         self.assertEqual(plan.errors, [])
-        self.assertFalse(self._report_flags()[("subcentre", "ANM")])
-        self.assertTrue(self._report_flags()[("village", "ASHA")])
+        self.assertEqual(self._allowed()[("subcentre", "ANM")], ["interviewer"])
+        self.assertEqual(self._allowed()[("village", "ASHA")], ["death_reporter"])
 
-    # -- the Edit interviews flag (digitva-6dh9) -------------------------------
-
-    def test_edit_interviews_lives_only_under_supervise(self):
+    def test_a_level_cadres_csv_with_the_old_flag_columns_is_refused(self):
         org.seed_default_organization(self.PROJECT)
-        lv = self._levels()
-        cadres = {c.cadre_code: c for c in org.list_cadres(self.PROJECT)}
-        args = dict(org_level_id=lv["phc"].org_level_id, cadre_id=cadres["MO"].cadre_id,
-                    can_fill_va_form=False, can_code_va_form=True)
-        # Seeded supervising but never editing.
-        self.assertTrue(org.upsert_level_cadre(self.PROJECT, **args).can_supervise_interviews)
-        self.assertFalse(org.upsert_level_cadre(self.PROJECT, **args).can_edit_interviews)
-        self.assertTrue(org.upsert_level_cadre(self.PROJECT, **args, can_edit_interviews=True).can_edit_interviews)
-        self.assertTrue(org.upsert_level_cadre(self.PROJECT, **args).can_edit_interviews)  # absent keeps it
-        # Clearing supervise clears it; setting it without supervise is refused.
-        row = org.upsert_level_cadre(self.PROJECT, **args, can_supervise_interviews=False)
-        self.assertEqual((row.can_supervise_interviews, row.can_edit_interviews), (False, False))
-        with self.assertRaises(org.OrganizationError):
-            org.upsert_level_cadre(self.PROJECT, **args, can_edit_interviews=True)
+        old = "level_code,cadre_code,can_fill_va_form,can_code_va_form\nphc,MO,false,true\n"
+        with self.assertRaises(org.OrganizationError) as ctx:
+            org.parse_organization_csv(io.BytesIO(old.encode()), "level_cadres")
+        self.assertIn("Unknown header(s): can_fill_va_form, can_code_va_form.", str(ctx.exception))
+        self.assertIn("allowed_roles", str(ctx.exception))
 
-    def test_the_edit_interviews_flag_goes_through_csv_export_and_import(self):
-        import csv
+    def test_a_workbook_level_cadres_sheet_with_the_old_flag_columns_is_refused(self):
+        from openpyxl import Workbook
 
-        org.seed_default_organization(self.PROJECT)
-        text = org.export_organization_csv(self.PROJECT, "level_cadres")
-        reader = csv.DictReader(io.StringIO(text))
-        self.assertIn("can_edit_interviews", reader.fieldnames)
-        self.assertEqual(
-            {(r["level_code"], r["cadre_code"]): r for r in reader}[("phc", "MO")]["can_edit_interviews"], "False")
-        sheet = org.parse_organization_workbook(io.BytesIO(org.export_organization_xlsx(self.PROJECT)))["level_cadres"]
-        self.assertIn("can_edit_interviews", sheet[0])
-        # Through the CSV parser: the MO at a PHC gains it.
-        edited = io.StringIO()
-        writer = csv.DictWriter(edited, fieldnames=reader.fieldnames)
-        writer.writeheader()
-        for row in csv.DictReader(io.StringIO(text)):
-            if (row["level_code"], row["cadre_code"]) == ("phc", "MO"):
-                row["can_edit_interviews"] = "True"
-            writer.writerow(row)
-        plan = org.import_organization(
-            self.PROJECT, org.parse_organization_csv(io.BytesIO(edited.getvalue().encode()), "level_cadres"),
-            dry_run=False)
-        self.assertEqual(plan.errors, [])
-        rows = {(r["level_code"], r["cadre_code"]): r for r in csv.DictReader(io.StringIO(text))}
-        flags = {(r["level_code"], r["cadre_code"]): r["can_edit_interviews"] for r in org.list_level_cadres(self.PROJECT)}
-        self.assertEqual((flags[("phc", "MO")], flags[("phc", "CHO")]), (True, False))
-        # A blank cell keeps the stored value; true without supervise is a row error.
-        rows[("phc", "MO")]["can_edit_interviews"] = ""
-        rows[("phc", "CHO")]["can_edit_interviews"] = "True"
-        plan = org.import_organization(self.PROJECT, {"level_cadres": list(rows.values())}, dry_run=False)
-        self.assertTrue(any("can_edit_interviews" in e for e in plan.errors), plan.errors)
-        rows[("phc", "CHO")]["can_edit_interviews"] = ""
-        plan = org.import_organization(self.PROJECT, {"level_cadres": list(rows.values())}, dry_run=False)
-        self.assertEqual(plan.errors, [])
-        flags = {(r["level_code"], r["cadre_code"]): r["can_edit_interviews"] for r in org.list_level_cadres(self.PROJECT)}
-        self.assertTrue(flags[("phc", "MO")])
+        book = Workbook()
+        sheet = book.active
+        sheet.title = "level_cadres"
+        sheet.append(["level_code", "cadre_code", "allowed_roles", "default_roles", "is_active",
+                      "can_edit_interviews", "can_report_deaths"])
+        sheet.append(["phc", "MO", "coder", None, True, True, False])
+        out = io.BytesIO()
+        book.save(out)
+        out.seek(0)
+        with self.assertRaises(org.OrganizationError) as ctx:
+            org.parse_organization_workbook(out)
+        self.assertIn("Unknown header(s): can_edit_interviews, can_report_deaths.", str(ctx.exception))
 
-    def test_deactivating_a_level_cadre_by_import_keeps_its_report_deaths_flag(self):
+    def test_deactivating_a_level_cadre_by_import_keeps_its_allowed_roles(self):
         from app.models import MapOrgLevelCadre
 
         org.seed_default_organization(self.PROJECT)
@@ -435,7 +408,7 @@ class OrganizationServiceTests(BaseTestCase):
         asha = {c.cadre_code: c for c in org.list_cadres(self.PROJECT)}["ASHA"]
         row = db.session.scalar(sa.select(MapOrgLevelCadre).where(
             MapOrgLevelCadre.org_level_id == village.org_level_id, MapOrgLevelCadre.cadre_id == asha.cadre_id))
-        self.assertEqual((row.is_active, row.can_report_deaths), (False, True))
+        self.assertEqual((row.is_active, row.allowed_roles), (False, ["death_reporter"]))
 
     def test_level_cannot_deactivate_while_units_exist(self):
         self._seed_tree()

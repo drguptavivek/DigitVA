@@ -235,7 +235,7 @@ class ProjectMembersUploadTests(BaseTestCase):
         cadres = {c.cadre_code: c for c in org.list_cadres(self.PROJECT)}
         org.upsert_level_cadre(
             self.PROJECT, org_level_id=levels["phc"].org_level_id, cadre_id=cadres["MO"].cadre_id,
-            can_fill_va_form=False, can_code_va_form=True, default_roles=["coder"],
+            allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coder", "coding_tester", "reviewer", "data_manager", "interviewer"], default_roles=["coder"],
         )
         dist = org.create_unit(self.PROJECT, org_level_id=levels["district"].org_level_id,
                                unit_code="MBD1", unit_name="Member District")

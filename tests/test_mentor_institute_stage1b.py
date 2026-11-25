@@ -49,13 +49,14 @@ class Stage1bBase(MentorBase):
             )
         db.session.commit()
 
-    def _grant(self, user, role, scope, *, unit=None, project=None):
+    def _grant(self, user, role, scope, *, unit=None, project=None, cadre=None):
         grant = VaUserAccessGrants(
             user_id=user.user_id,
             role=role,
             scope_type=scope,
             org_unit_id=unit.org_unit_id if unit else None,
             project_id=project,
+            cadre_id=cadre.cadre_id if cadre else None,
             grant_status=VaStatuses.active,
         )
         db.session.add(grant)
@@ -101,13 +102,16 @@ class DataManagerMentorGrantTests(Stage1bBase):
 
         at_district = self._dm_post(self._unit_body(member, "reviewer", d1))
         self.assertEqual(at_district.status_code, 201, at_district.get_json())
+        # digitva-4650: a mentor grant carries no cadre; a borrowed one (no
+        # worker record of theirs) is refused.
         cadre = self._cadre(self.P1, "SMO")
-        at_chc = self._dm_post(
-            self._unit_body(member, "coder", chc, cadre_id=str(cadre.cadre_id))
-        )
+        borrowed = self._dm_post(self._unit_body(member, "coder", chc, cadre_id=str(cadre.cadre_id)))
+        self.assertEqual(borrowed.status_code, 400, borrowed.get_json())
+        self.assertIn("worker record", borrowed.get_json()["error"])
+        at_chc = self._dm_post(self._unit_body(member, "coder", chc))
         self.assertEqual(at_chc.status_code, 201, at_chc.get_json())
         self.assertEqual(at_chc.get_json()["grant"]["unit_code"], "C01")
-        self.assertEqual(at_chc.get_json()["grant"]["cadre_code"], "SMO")
+        self.assertIsNone(at_chc.get_json()["grant"]["cadre_code"])
         # Posting the same grant again reactivates it (200), as the admin route does.
         self.assertEqual(
             self._dm_post(self._unit_body(member, "reviewer", d1)).status_code, 200
@@ -124,12 +128,13 @@ class DataManagerMentorGrantTests(Stage1bBase):
         outsider = self._get_or_make_user("outsider@test.local", "x")
         self._login(str(dm.user_id))
 
-        non_member = self._dm_post(self._unit_body(outsider, "reviewer", chc))
+        smo = self._cadre(self.P1, "SMO")
+        non_member = self._dm_post(self._unit_body(outsider, "reviewer", chc, cadre_id=str(smo.cadre_id)))
         self.assertEqual(non_member.status_code, 201, non_member.get_json())
         # Allowed by the rule, refused by the guard (400, after authorization).
         for label, body in {
-            "dm role": self._unit_body(one, "data_manager", chc),
             "interviewer": self._unit_body(one, "interviewer", chc),
+            "non-member without a cadre": self._unit_body(outsider, "coder", chc),
         }.items():
             with self.subTest(label):
                 response = self._dm_post(body)
@@ -161,6 +166,10 @@ class DataManagerMentorGrantTests(Stage1bBase):
             ),
             0,
         )
+        # digitva-4650: a mentor data manager grant (no cadre) is allowed at
+        # any unit inside an attached district, not only the district itself.
+        mentor_dm = self._dm_post(self._unit_body(one, "data_manager", chc))
+        self.assertEqual(mentor_dm.status_code, 201, mentor_dm.get_json())
 
     def test_dm_of_another_district_is_refused(self):
         d1, d2, chc, member = self._setup_one()
@@ -447,17 +456,22 @@ class ImportAndWarningTests(Stage1bBase):
         def set_defaults(roles):
             org.upsert_level_cadre(
                 self.P1, org_level_id=chc_level.org_level_id, cadre_id=mo.cadre_id,
-                can_fill_va_form=False, can_code_va_form=True, default_roles=roles)
+                allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coder", "coding_tester", "reviewer", "data_manager", "interviewer"], default_roles=roles)
             db.session.commit()
 
-        set_defaults(["reviewer"])  # a mentor role: each expanded row passes the guard
-        plan = user_import.prepare(self.P1, [row], actor=self.base_admin_user)
-        self.assertEqual([item["role"].value for item in plan], ["reviewer"])
-        set_defaults(["reviewer", "interviewer", "data_manager"])  # two that are not: one error
+        # digitva-4650: a row naming a cadre is a health-system grant; for a
+        # member it needs their worker record with that cadre at the unit.
+        set_defaults(["reviewer", "interviewer", "data_manager"])
         with self.assertRaises(user_import.ProjectUserImportError) as raised:
             user_import.prepare(self.P1, [row], actor=self.base_admin_user)
         self.assertIn("mentoring institute", str(raised.exception))
-        self.assertEqual(str(raised.exception).count("Row 2"), 1)
+        self.assertEqual(str(raised.exception).count("Row 2"), 1)  # one error per row
+        org.create_worker(self.P1, org_unit_id=chc.org_unit_id, cadre_id=mo.cadre_id,
+                          worker_name="Enrolled Mentor", user=member.email)
+        db.session.commit()
+        plan = user_import.prepare(self.P1, [row], actor=self.base_admin_user)
+        self.assertEqual(sorted(item["role"].value for item in plan),
+                         ["data_manager", "interviewer", "reviewer"])
 
     def test_add_member_warning_counts_grants_outside_the_attached_subtrees(self):
         d1, d2, chc, _ = self._setup_one()
@@ -616,7 +630,7 @@ class InstituteAdminTests(Stage1bBase):
         A, D = VaAccessRoles, VaAccessScopeTypes.org_unit
         self._grant(one, A.reviewer, D, unit=chc)
         self._grant(one, A.coder, D, unit=d1)
-        self._grant(one, A.data_manager, D, unit=d1)  # not a mentor role
+        self._grant(one, A.data_manager, D, unit=d1)  # a mentor data manager lapses too (digitva-4650)
         self._grant(one, A.reviewer, D, unit=d2)  # outside MC1's districts
         self._grant(two, A.reviewer, D, unit=chc)  # still covered by MC2
         self._grant(two, A.coder, D, unit=d2)
@@ -625,12 +639,12 @@ class InstituteAdminTests(Stage1bBase):
         with self.assertLogs("GRANT_AUDIT", level="INFO") as logs:
             removed = self._remove("MC1", one)
         self.assertEqual(removed.status_code, 200, removed.get_json())
-        self.assertEqual(removed.get_json()["grants_deactivated"], 2)
+        self.assertEqual(removed.get_json()["grants_deactivated"], 3)
         active, off = VaStatuses.active, VaStatuses.deactive
         self.assertEqual(
             self._grants_of(one),
             {("reviewer", "C01"): off, ("coder", "D01"): off,
-             ("data_manager", "D01"): active, ("reviewer", "D02"): active},
+             ("data_manager", "D01"): off, ("reviewer", "D02"): active},
         )
         self.assertNotIn(one.email, "\n".join(logs.output))
 
@@ -893,7 +907,12 @@ class LapsedMembershipTests(Stage1bBase):
             "coder": self._grant(one, A.coder, U, unit=chc),
             "site_pi": self._grant(one, A.site_pi, U, unit=chc),
             "data_manager": self._grant(one, A.data_manager, U, unit=d1),
+            # Health-system enrolment: a worker record backs this grant's cadre.
+            "enrolled": self._grant(one, A.reviewer, U, unit=chc, cadre=self._cadre(self.P1, "MO")),
         }
+        org.create_worker(self.P1, org_unit_id=chc.org_unit_id, cadre_id=self._cadre(self.P1, "MO").cadre_id,
+                          worker_name="Enrolled Mentor", user=one.email)
+        db.session.commit()
         # Control: the same unit coder grant on a non-member is Tier 3 PII.
         outsider = self._get_or_make_user("outsider.coder@test.local", "x")
         self._grant(outsider, A.coder, U, unit=chc)
@@ -903,9 +922,12 @@ class LapsedMembershipTests(Stage1bBase):
     def _assert_lapsed(self, one, grants):
         self.assertEqual(self._status(grants["coder"]), VaStatuses.deactive)
         self.assertEqual(self._status(grants["site_pi"]), VaStatuses.deactive)
-        self.assertEqual(self._status(grants["data_manager"]), VaStatuses.active)
-        # Only the exceptional data_manager PII path remains.
-        db.session.delete(grants["data_manager"])
+        # digitva-4650: the cadre-less data manager grant lapses too; only the
+        # worker-backed (health-system) grant stays, and it is the PII path.
+        self.assertEqual(self._status(grants["data_manager"]), VaStatuses.deactive)
+        self.assertEqual(self._status(grants["enrolled"]), VaStatuses.active)
+        self.assertTrue(self._sees_pii(one))
+        db.session.delete(grants["enrolled"])
         db.session.commit()
         self.assertFalse(self._sees_pii(one))
 
@@ -915,7 +937,7 @@ class LapsedMembershipTests(Stage1bBase):
         with self.assertLogs("GRANT_AUDIT", level="INFO") as logs:
             mentors.set_institute_active("MC1", False)
         db.session.commit()
-        self.assertIn("grants_deactivated=2", "\n".join(logs.output))
+        self.assertIn("grants_deactivated=3", "\n".join(logs.output))
         mentors.set_institute_active("MC1", True)  # reactivation restores nothing
         db.session.commit()
         self.assertEqual(self._status(grants["coder"]), VaStatuses.deactive)
@@ -926,7 +948,7 @@ class LapsedMembershipTests(Stage1bBase):
     def test_remove_member_deactivates_lapsing_grants(self):
         one, grants = self._member_with_grants()
         self.assertEqual(self._status(grants["site_pi"]), VaStatuses.active)
-        self.assertEqual(mentors.remove_member("MC1", one.email), 2)
+        self.assertEqual(mentors.remove_member("MC1", one.email), 3)
         db.session.commit()
         self._assert_lapsed(one, grants)
 

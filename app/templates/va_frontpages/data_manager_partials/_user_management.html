@@ -428,28 +428,28 @@
       }).join('');
   }
 
-  // Cadres defined at the unit's level; for a coder only those allowed to code
-  // there, for a death reporter only those allowed to report deaths (the rule
-  // org_grant_service.validate_org_unit_grant enforces).
+  // Cadres at the unit's level whose allowed roles include the role (the rule
+  // org_grant_service.validate_org_unit_grant enforces, digitva-4650). Every
+  // unit grant names one; "none" is only for mentoring-institute staff, whose
+  // mentor grant carries no cadre.
   function fillCadreSelect(sel, org, unitId, role) {
     var unit = org.units.filter(function (u) { return u.org_unit_id === unitId; })[0];
     if (!unit) { sel.innerHTML = '<option value="">-- select unit first --</option>'; return; }
-    var flag = { coder: 'can_code_va_form', death_reporter: 'can_report_deaths' }[role];
-    var coding = !!flag;
     var names = {};
     org.cadres.forEach(function (c) { names[c.cadre_id] = c.cadre_name; });
     var allowed = org.level_cadres.filter(function (lc) {
-      return lc.org_level_id === unit.org_level_id && lc.is_active && (!coding || lc[flag]);
+      return lc.org_level_id === unit.org_level_id && lc.is_active
+        && (!role || (lc.allowed_roles || []).indexOf(role) >= 0);
     });
+    var noneOption = '<option value="">-- none (mentoring-institute staff only) --</option>';
     if (!allowed.length) {
-      sel.innerHTML = '<option value="">-- none defined at ' + esc(unit.level_code) + ' --</option>';
+      sel.innerHTML = noneOption;
       return;
     }
-    sel.innerHTML = (coding ? '' : '<option value="">-- none --</option>')
-      + allowed.map(function (lc) {
+    sel.innerHTML = allowed.map(function (lc) {
         return '<option value="' + esc(lc.cadre_id) + '">' + esc(lc.cadre_code)
           + (names[lc.cadre_id] ? ' - ' + esc(names[lc.cadre_id]) : '') + '</option>';
-      }).join('');
+      }).join('') + noneOption;
   }
 
   function scopeLabelOf(g) {

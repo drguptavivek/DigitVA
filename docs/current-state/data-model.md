@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-20
+last_updated: 2026-11-25
 ---
 
 # Current Data Model
@@ -288,17 +288,23 @@ rows here keep the Project > Site > Form model.
 
 ### `map_org_level_cadre`
 
-- which cadres exist at a level: `org_level_id`, `cadre_id`,
+- which cadres exist at a level and which unit roles they may hold there:
+  `org_level_id`, `cadre_id`, `allowed_roles` (migration `c3a7e1f9d4b2`,
+  digitva-4650; `varchar[]` not null, default empty, CHECK limits it to the
+  unit-scope roles; every non-mentor unit grant must name a cadre placed at
+  the unit's level whose `allowed_roles` holds the grant's role, checked by
+  `org_grant_service.validate_org_unit_grant` on every write path; backfilled
+  from the retired flags, `default_roles` and the roles of the active unit
+  grants of that cadre at that level), `default_roles` (migration
+  `g3k7o1s5w9a2`, digitva-vjt; same type and CHECK; the roles pre-ticked when
+  a person of that cadre is granted at that level, always a subset of
+  `allowed_roles`, so removing an allowed role drops it from the defaults;
+  never a grant itself; a new grid takes `DEFAULT_TYPICAL_ROLES`, an existing
+  row starts empty), `is_active`; unique on (level, cadre)
+- retired columns, kept in the database but no longer mapped or read:
   `can_fill_va_form`, `can_code_va_form`, `can_supervise_interviews`
-  (migration `d7f3b1a9c5e2`), `can_report_deaths` (migration
-  `f2j6n9r4u1x7`; default false, set for ANM and MPW at `subcentre` and ASHA
-  at `village` where those rows exist), `default_roles` (migration
-  `g3k7o1s5w9a2`, digitva-vjt; `varchar[]` not null, default empty, CHECK
-  limits it to the unit-scope roles; the roles pre-ticked when a person of
-  that cadre is granted at that level, validated on save against the row's
-  flags with `CADRE_FLAG_BY_ROLE`; never a grant itself; a new grid takes
-  `DEFAULT_TYPICAL_ROLES`, an existing row starts empty), `is_active`; unique
-  on (level, cadre)
+  (migration `d7f3b1a9c5e2`), `can_edit_interviews`, `can_report_deaths`
+  (migration `f2j6n9r4u1x7`); a later migration drops them
 
 ### `mas_org_unit_worker`
 
@@ -366,8 +372,11 @@ rows here keep the Project > Site > Form model.
 ### Unit-scoped access grants
 
 - `va_user_access_grants` accepts `scope_type = 'org_unit'` with
-  `org_unit_id` (FK `mas_org_unit`) and an optional descriptive `cadre_id`
-  (FK `mas_cadre`)
+  `org_unit_id` (FK `mas_org_unit`) and a `cadre_id` (FK `mas_cadre`): the
+  column stays nullable, but the write validator requires it on every
+  non-mentor unit grant (digitva-4650); a mentoring-institute member's grant
+  carries no cadre unless their active `mas_org_unit_worker` record at that
+  unit has that cadre (the worker-backed marker that makes it PII)
 - a unit grant leaves `project_id` and `project_site_id` empty; the grant's
   project is the unit's project, resolved in queries through the unit
 - the grant covers the unit's whole subtree (`path <@ grant unit path`)

@@ -659,7 +659,7 @@ class ImportAndMentorTests(AuthzFixtureMixin, OnboardingTestBase):
 
     def _row(self, n, email, phone, role="reviewer"):
         return {"_line_number": n, "email": email, "name": "Imported", "role": role,
-                "org_unit_code": "P1", "cadre_code": "", "language_codes": "english",
+                "org_unit_code": "P1", "cadre_code": "ANY", "language_codes": "english",
                 "phone": phone}
 
     def _organization(self):
@@ -709,8 +709,8 @@ class ImportAndMentorTests(AuthzFixtureMixin, OnboardingTestBase):
         tag = uuid.uuid4().hex[:8]
         fresh = _number()
         body = ("email,name,role,org_unit_code,cadre_code,language_codes,phone\n"
-                f"imp.{tag}@example.com,Email Import,reviewer,P1,,english,\n"
-                f",Mobile Import,reviewer,P1,,english,{fresh}\n")
+                f"imp.{tag}@example.com,Email Import,reviewer,P1,ANY,english,\n"
+                f",Mobile Import,reviewer,P1,ANY,english,{fresh}\n")
         self._login(str(self.users["admin"].user_id))
         with _captured_logs() as logs, _mailbox() as send:
             response = self.client.post(

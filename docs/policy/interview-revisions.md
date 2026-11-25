@@ -3,7 +3,7 @@ title: Interview Revisions Policy (editing submitted interviews)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-24
+last_updated: 2026-11-25
 ---
 
 # Interview Revisions Policy
@@ -151,8 +151,8 @@ Decisions made while building part A:
 1. **Before upload.** The interviewer edits freely, including after marking
    the interview complete.
 2. **After upload, until the coder finalises.** Only the interviewer who did
-   the interview may revise it, or a supervisor whose cadre may edit
-   interviews (see "Supervisor correction"). A reason is required. There is no approval
+   the interview may revise it, or an interview supervisor whose reach
+   covers the case (see "Supervisor correction"). A reason is required. There is no approval
    step, no supervisor gate and no time window (owner: friction free). A
    revision during active coding drops the coder's unfinished work and sends
    the case back to `smartva_pending`, as an ODK edit does (owner,
@@ -201,19 +201,18 @@ Built 2026-11-23 on the server, in the browser and in the Collect app (`digitva-
 Where interviewers (ANMs, for example) need their supervisors'
 help to correct mistakes, a supervisor may edit the interview themselves.
 
-- **Who.** A person holding an `interview_supervisor` grant whose cadre has
-  **"Can edit interviews"** (`can_edit_interviews`) ticked on the level x
-  cadre grid at the grant unit's level, and whose supervision reach covers
-  the case. The tick sits next to "can supervise interviews" and can only be
-  set where that one is set. An admin or project PI ticks it, for example
-  for health visitors and health supervisors. Data managers, In-charges,
-  project PIs and admins do not get this power through their own roles.
-  Cadres without the tick work as before: only the interviewer revises.
-- **This consults the cadre at runtime.** Elsewhere the cadre on a grant is
-  descriptive and checked only when the grant is written
-  ([Organization Model](organization-model.md)). Here the supervisor grant's
-  cadre is read against the grid when the edit is made, so unticking the
-  cadre withdraws the power at once.
+- **Who.** A person holding a live `interview_supervisor` grant whose
+  supervision reach covers the case (owner 2026-11-25, `digitva-4650`,
+  built). The level x cadre grid is not consulted: the "Can edit interviews"
+  tick of 2026-11-23 is retired, and every interview supervisor may correct.
+  Data managers, In-charges, project PIs and admins do not get this power
+  through their own roles; they need an `interview_supervisor` grant reaching
+  the case. See [Organization Model](organization-model.md), "Allowed and
+  default roles per level × cadre".
+- **The cadre is not read at runtime.** As everywhere else, the cadre on the
+  supervisor grant is descriptive and checked only when the grant is written
+  (its role must be allowed for that cadre at that level). Revoking the
+  `interview_supervisor` grant withdraws the power at once.
 - **When.** The window of rule 2: whatever the interviewer could revise at
   that moment ("Where the lock starts"). After the coder finalises, rules 3
   and 4 are unchanged; a case sent back or reopened under them is revisable

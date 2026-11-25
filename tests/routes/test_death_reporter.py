@@ -145,21 +145,24 @@ class DeathReporterTests(BaseTestCase):
 
     # -- the grant-time cadre gate ------------------------------------------------
 
-    def test_a_death_reporter_grant_needs_a_cadre_with_the_report_deaths_flag(self):
+    def test_a_death_reporter_grant_needs_a_cadre_allowed_to_report_deaths(self):
         validate = org_grant_service.validate_org_unit_grant
         # Allowed: the ANM has the flag at a sub-centre.
         unit, cadre = validate(role=R.death_reporter, org_unit_id=self.sca.org_unit_id,
                                cadre_id=self.cadres["ANM"].cadre_id)
         self.assertEqual((unit.unit_code, cadre.cadre_code), ("SCA", "ANM"))
-        # Refused: no cadre, and a cadre without the flag (the CHO interviews).
-        for cadre_id, message in ((None, "requires a cadre"), (self.cadres["CHO"].cadre_id, "may not report deaths")):
+        # Refused: no cadre for a health-system grantee, and a cadre that may
+        # not hold death_reporter (the CHO interviews; digitva-4650).
+        for cadre_id, message in ((None, "needs the person's cadre"),
+                                  (self.cadres["CHO"].cadre_id, "may not hold death_reporter")):
             with self.assertRaises(org.OrganizationError) as ctx:
-                validate(role=R.death_reporter, org_unit_id=self.sca.org_unit_id, cadre_id=cadre_id)
+                validate(role=R.death_reporter, org_unit_id=self.sca.org_unit_id, cadre_id=cadre_id,
+                         user_id=self.interviewer.user_id)
             self.assertIn(message, str(ctx.exception))
-        # The flag is the whole gate: turning it on admits the CHO.
+        # The allowed list is the whole gate: allowing it admits the CHO.
         org.upsert_level_cadre(
             PROJECT, org_level_id=self.levels["subcentre"].org_level_id, cadre_id=self.cadres["CHO"].cadre_id,
-            can_fill_va_form=True, can_code_va_form=False, can_report_deaths=True)
+            allowed_roles=["interviewer", "death_reporter"])
         validate(role=R.death_reporter, org_unit_id=self.sca.org_unit_id, cadre_id=self.cadres["CHO"].cadre_id)
 
     def test_the_role_is_unit_scope_only(self):

@@ -3,7 +3,7 @@ title: People and Roles Page (Roles Matrix and Access Audit)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-11
+last_updated: 2026-11-25
 ---
 
 # People and Roles Page
@@ -100,15 +100,14 @@ naming the role and the grant.
 | Red ○ | The person's cadre **may** be given it at this level (level x cadre grid) but the person does not have it. |
 | Grey ◐ | View only: a coder grant above the coding scope level (decision 5 below). |
 | Grey ⊘ | Inactive: the grant, the user or the unit is deactivated (decision 4 below). |
-| Blank | Not allowed for this cadre at this level, or the column has no grid flag and no grant gives it. |
+| Blank | Not allowed for this cadre at this level, or the column's role is not in any allowed list and no grant gives it. |
 
-The red marker uses the grid flags only: *Fill VA* for Interview, *Code VA*
-for Code, *Supervise interviews* for Supervise, *Report deaths*
-(`can_report_deaths`) for Report deaths. *Code VA*, *Supervise interviews*
-and *Report deaths* are enforced when a grant is written (`CADRE_FLAG_BY_ROLE`,
-`app/services/org_grant_service.py`); *Fill VA* is informational and an
-interviewer grant may carry no cadre. Columns with no grid flag show only
-green or blank.
+The red marker reads the row's allowed roles (`digitva-4650`): `interviewer`
+for Interview, `coder` for Code, `interview_supervisor` for Supervise,
+`death_reporter` for Report deaths. Every unit grant's role is enforced
+against the same allowed roles when the grant is written
+(`validate_org_unit_grant`, `app/services/org_grant_service.py`). Columns
+whose role no allowed list names show only green or blank.
 
 ## Filters
 

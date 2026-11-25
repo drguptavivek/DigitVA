@@ -174,8 +174,17 @@ class TrainingDemoTestBase(BaseTestCase):
         """The data_manager grant on a session root that reviewer_data_manager
         participations got before digitva-svx6 (staging S001 still has them)."""
         from app.models import MasOrgUnit, VaAccessRoles
+        from app.services import organization_service as org
 
         unit = db.session.get(MasOrgUnit, svc._find_session(code).org_unit_id)
+        # Where those grants exist, the allowed_roles backfill (digitva-4650)
+        # allowed data_manager for the trainee cadre at that level.
+        row = org.get_level_cadre_permission(unit.org_level_id, svc._trainee_cadre().cadre_id)
+        if "data_manager" not in row.allowed_roles:
+            org.upsert_level_cadre(
+                svc.TRAINING_PROJECT_ID, org_level_id=unit.org_level_id, cadre_id=row.cadre_id,
+                allowed_roles=[*row.allowed_roles, "data_manager"],
+            )
         grant = svc._activate_grant(user, VaAccessRoles.data_manager, unit, self.admin)
         db.session.flush()
         return grant

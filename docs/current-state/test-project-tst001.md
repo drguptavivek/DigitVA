@@ -3,7 +3,7 @@ title: Test Project TST001 (Intake Test)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-17
+last_updated: 2026-11-25
 ---
 
 # Test Project TST001 (Intake Test)
@@ -75,7 +75,9 @@ refused. The rest (tree, grid, every other roster grant) is the same as dev.
 Levels, cadres and the grid are the default template
 (`seed_default_organization`, the
 [district reference model](../policy/district-reference-model.md)), added
-additively, so a grid flag changed by hand is kept on rerun. TST001 has no
+additively, so a grid row's allowed roles changed by hand are kept on rerun
+(the seed only adds the roles its roster grants, e.g. `collaborator_pii` for
+DEPI at the district). TST001 has no
 villages, so its `village` level is deactivated; `taluka` (SDH) is optional
 and empty. Every other level is mandatory.
 
@@ -129,14 +131,13 @@ On staging), email verified, onboarded, Asia/Kolkata, English. Unit-scoped grant
 | test.all | project (TST001), SC01 ANM, PHC01 MO; plus SADEMO project scope | coder + reviewer + data_manager (project), death_reporter + interviewer (SC01 ANM), interview_supervisor (PHC01 MO), coder + reviewer in SADEMO | coder |
 
 ANM and MPW hold only a `death_reporter` grant at their sub-centre: they register
-deaths in the app and do not interview (`digitva-t6q`). Their grid row permits
-Fill VA since 2026-10-12; only `test.all` also holds `interviewer` there.
+deaths in the app and do not interview (`digitva-t6q`). Their grid row allows
+`interviewer` since 2026-10-12; only `test.all` also holds `interviewer` there.
 
-`test.all` is the one login for every surface. The unit-scope roles need a cadre
-the grid permits: `death_reporter` needs `can_report_deaths` and `interviewer`
-needs `can_fill_va_form` (both SC01 ANM),
-`interview_supervisor` needs `can_supervise_interviews` (PHC01 MO); coder,
-reviewer and data_manager are project-scope grants (no cadre). No single (unit, cadre) permits
+`test.all` is the one login for every surface. Every unit-scope grant needs a
+cadre whose grid row allows its role (digitva-4650): `death_reporter` and
+`interviewer` at SC01 as ANM, `interview_supervisor` at PHC01 as MO; coder,
+reviewer and data_manager are project-scope grants (no cadre). No single (unit, cadre) allows
 all the roles, hence three roster rows for the same person; the first row sets
 the landing page and the unit-placed worker is SC01 ANM. It also holds
 project-scope `coder` and `reviewer` grants in SADEMO (classical, sites, random allocation; dev only),
@@ -163,7 +164,7 @@ staging opt-in):
   creates eleven accounts `e2e.<run>.<key>@digitva.test`. Single-role keys:
   `interviewer` and `interviewer2` (SC01 CHO), `coder` and `coder2` (project),
   `reporter` (death_reporter, SC01 ANM), `supervisor` (interview_supervisor,
-  PHC01 MO), `reviewer` (project), `datamgr` (data_manager, project), `interviewer_t2` (interviewer, SC01 CHO, TST002 only), `mentor` (staff of the test mentoring institute TSTMI01, `coder` and `reviewer` unit grants at DH01 on both projects; the mentor guard allows only those non-PII unit-scope roles inside an attached district, and it is added to the institute before its grants are written). `all` holds coder, reviewer and data_manager at project
+  PHC01 MO), `reviewer` (project), `datamgr` (data_manager, project), `interviewer_t2` (interviewer, SC01 CHO, TST002 only), `mentor` (staff of the test mentoring institute TSTMI01, `coder` and `reviewer` unit grants at DH01 on both projects, with no cadre and no worker record; the mentor guard allows the mentor roles plus `data_manager`, Non-PII, inside an attached district, and it is added to the institute before its grants are written). `all` holds coder, reviewer and data_manager at project
   scope, death_reporter and interviewer at SC01 (ANM) and interview_supervisor
   at PHC01 (MO). `all`, `coder` and `coder2` also hold a coder grant on TST002. Grants go
   through the project user import and `grants.log`, actor testadmin. One random

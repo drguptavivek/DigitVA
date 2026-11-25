@@ -368,16 +368,18 @@ def _ensure_trainee_cadre(levels: dict) -> bool:
     made = cadre is None
     if made:
         cadre = org.create_cadre(TRAINING_PROJECT_ID, cadre_code=TRAINEE_CADRE_CODE, cadre_name="Trainee")
+    # Every role a training grant carries (_GRANT_ROLES). Only adds: an
+    # existing row (backfilled by digitva-4650) keeps what it already allows.
+    needed = {r.value for roles in _GRANT_ROLES.values() for r in roles}
     for level_code in ("phc", "subcentre"):
-        if org.get_level_cadre_permission(levels[level_code].org_level_id, cadre.cadre_id) is None:
+        row = org.get_level_cadre_permission(levels[level_code].org_level_id, cadre.cadre_id)
+        allowed = set(row.allowed_roles) if row is not None else set()
+        if row is None or not needed <= allowed:
             org.upsert_level_cadre(
                 TRAINING_PROJECT_ID,
                 org_level_id=levels[level_code].org_level_id,
                 cadre_id=cadre.cadre_id,
-                can_fill_va_form=True,
-                can_code_va_form=True,
-                can_supervise_interviews=True,
-                can_report_deaths=True,
+                allowed_roles=sorted(allowed | needed),
             )
     return made
 

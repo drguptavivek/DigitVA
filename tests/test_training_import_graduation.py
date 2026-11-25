@@ -179,7 +179,8 @@ class GraduationTestBase(SessionTypeTestBase):
             cadre = org.create_cadre(GRAD_PROJECT, cadre_code=code, cadre_name=f"Cadre {code}")
             db.session.flush()
             org.upsert_level_cadre(GRAD_PROJECT, org_level_id=top.org_level_id, cadre_id=cadre.cadre_id,
-                                   can_fill_va_form=True, can_code_va_form=True)
+                                   allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coder", "coding_tester", "reviewer", "data_manager", "interviewer"],
+                               )
             cls.cadres.append(code)
         db.session.commit()
 

@@ -211,7 +211,27 @@ class UsersAdminToolsTests(AuthzFixtureMixin, BaseTestCase):
     # -- grid save ---------------------------------------------------------
 
     def _save(self, user, **body):
+        # digitva-4650: a unit grant names the person's cadre. Unless the test
+        # passes one (or None), use a cadre at the unit's level allowed to hold
+        # the roles.
+        unit = body.get("unit", "")
+        if unit.startswith("unit:") and "cadre_id" not in body and body.get("roles"):
+            body["cadre_id"] = self._cadre_allowing(uuid.UUID(unit[5:]), body["roles"])
         return self._post(f"/{user.user_id}/grants", {"project_id": TA, **body})
+
+    def _cadre_allowing(self, org_unit_id, roles):
+        from app.models import MasOrgUnit
+        from app.services import organization_service as org
+
+        unit = db.session.get(MasOrgUnit, org_unit_id)
+        row = db.session.scalars(sa.select(MapOrgLevelCadre).where(
+            MapOrgLevelCadre.org_level_id == unit.org_level_id, MapOrgLevelCadre.is_active.is_(True),
+        ).order_by(MapOrgLevelCadre.cadre_id)).first()
+        if not set(roles) <= set(row.allowed_roles):
+            org.upsert_level_cadre(TA, org_level_id=row.org_level_id, cadre_id=row.cadre_id,
+                                   allowed_roles=sorted(set(row.allowed_roles) | set(roles)))
+            db.session.commit()
+        return str(row.cadre_id)
 
     def _active(self, user, project_unit=None):
         rows = db.session.scalars(sa.select(VaUserAccessGrants).where(
@@ -287,9 +307,9 @@ class UsersAdminToolsTests(AuthzFixtureMixin, BaseTestCase):
         res = self._save(user, unit="project", roles=["death_reporter", "reviewer"])
         self.assertEqual(res.status_code, 400)
         self.assertIn("death_reporter: This role cannot use project scope.", res.get_json()["error"])
-        res = self._save(user, unit=f"unit:{p1}", roles=["coder"])
+        res = self._save(user, unit=f"unit:{p1}", roles=["coder"], cadre_id=None)
         self.assertEqual(res.status_code, 400)
-        self.assertIn("requires a cadre", res.get_json()["error"])
+        self.assertIn("needs the person's cadre", res.get_json()["error"])
         self.assertEqual(self._active(user), set())
         nolang = self._new_user("nolang@example.org", languages=[])
         res = self._save(nolang, unit="project", roles=["coder", "reviewer", "interviewer"])
@@ -308,7 +328,7 @@ class UsersAdminToolsTests(AuthzFixtureMixin, BaseTestCase):
         user = self._new_user("cadre@example.org")
         p1 = self.units["P1"]
         cadre_id = db.session.scalar(sa.select(MapOrgLevelCadre.cadre_id).where(
-            MapOrgLevelCadre.org_level_id == p1.org_level_id, MapOrgLevelCadre.can_code_va_form.is_(True),
+            MapOrgLevelCadre.org_level_id == p1.org_level_id, MapOrgLevelCadre.allowed_roles.any("coder"),
             MapOrgLevelCadre.is_active.is_(True)))
         self.assertIsNotNone(cadre_id)
         res = self._save(user, unit=f"unit:{p1.org_unit_id}", roles=["coder"], cadre_id=str(cadre_id))

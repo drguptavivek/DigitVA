@@ -146,16 +146,22 @@ the form shows a one-time sign-in code to hand over, and the holder obtains
 their password by redeeming it. Responses containing onboarding results use
 `Cache-Control: no-store`; no password is shown to the creator.
 
-A grant may carry a `cadre_id`. It is **descriptive** — nothing at runtime
-reads it — but it is validated on write against the level × cadre grid: the
-cadre must exist at that unit's level, a `coder` grant requires a cadre
-with `can_code_va_form` there, an `interview_supervisor` grant (unit scope
-only) one with `can_supervise_interviews`, and a `death_reporter` grant (unit
-scope only) one with `can_report_deaths`
-(`org_grant_service.CADRE_FLAG_BY_ROLE`, also used by the project user import). The keycard analogy in the policy doc: the role
-is the kind of card, the scope is the doors it opens, the cadre is the job
-title printed on the front, checked when the card is issued and never re-read
-by the door.
+A unit grant names a `cadre_id`. It is **descriptive** (nothing at runtime
+reads it to open a door) but it is validated on every write
+(`org_grant_service.validate_org_unit_grant`, shared by the admin grant API,
+the data-manager user tools, the organization grid, the project user import
+and the mentoring presets): the cadre must be active and placed at the unit's
+level, and the grant's role must be in that row's `allowed_roles`
+(digitva-4650). A unit grant without a cadre is refused, except for staff of
+a mentoring institute: their grants carry no cadre and may hold the mentor
+roles plus `data_manager` anywhere inside an attached district. A member's
+grant may carry a cadre only when their active worker record at that unit has
+that cadre; it then follows `allowed_roles` like anyone else's and counts as
+PII. `flask org cadreless-grants` lists (and with `--apply --actor`, revokes
+or clears) the grants written before this rule. The keycard analogy in the
+policy doc: the role is the kind of card, the scope is the doors it opens,
+the cadre is the job title printed on the front, checked when the card is
+issued and never re-read by the door.
 
 ### Enforcement
 
@@ -541,7 +547,7 @@ The query count is constant per project, whatever the number of units.
 | Tree, cadres, workers, export/import, unit label lookup for submission exports | `app/services/organization_service.py` (facade; code in `app/services/org_*.py`, the users grid in `org_grid_read.py`) |
 | Organization tree and web form options JSON API | `app/routes/api/organization.py` |
 | Unit-scoped grants, coding scope rule, coding gate and VA preset resolution | `app/services/org_grant_service.py` |
-| Mentoring institutes: management, grant guard, institute-admin staff management (create capped at 20 per institute per day, remove, CLI remove-user and institute deactivation deactivate the lapsing in-institute unit grants, never data_manager), district data-manager reach, `mentors_for_unit` | `app/services/mentor_institute_service.py`, `app/services/user_account_service.py` (shared invited-user creation), `app/routes/admin_mentor_institute.py` (`/admin/api/mentor-institutes`), `app/routes/data_management.py` (data-manager grant routes), `flask mentor-institute` |
+| Mentoring institutes: management, grant guard, institute-admin staff management (create capped at 20 per institute per day, remove, CLI remove-user and institute deactivation deactivate the lapsing in-institute unit grants, data_manager included since digitva-4650; never a worker-backed grant), district data-manager reach, `mentors_for_unit` | `app/services/mentor_institute_service.py`, `app/services/user_account_service.py` (shared invited-user creation), `app/routes/admin_mentor_institute.py` (`/admin/api/mentor-institutes`), `app/routes/data_management.py` (data-manager grant routes), `flask mentor-institute` |
 | Submission routing, ODK field preflight | `app/services/org_unit_routing_service.py` |
 | Runtime form materialization per mapping | `app/services/runtime_form_sync_service.py` |
 | List filtering and the allocation gate | `app/services/coder_workflow_service.py` |

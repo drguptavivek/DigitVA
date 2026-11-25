@@ -52,6 +52,15 @@ class BulkApplyOperationsCharacterizationTests(BaseTestCase):
         self.u2 = self._make_user("grid.op.u2@test.local", "GridOp123")
         self.u3 = self._make_user("grid.op.u3@test.local", "GridOp123")  # no placement
         self.mo = cadres["MO"]
+        # The grid rows these characterizations were written against: MO at a
+        # CHC held every unit role but interview_supervisor and death_reporter
+        # (the old flags; digitva-4650 makes it the allowed roles).
+        from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT
+        org.upsert_level_cadre(
+            self.PROJECT, org_level_id=self.chc_level_id, cadre_id=self.mo.cadre_id,
+            allowed_roles=[r.value for r in ROLES_ALLOWING_ORG_UNIT
+                           if r.value not in ("interview_supervisor", "death_reporter")],
+        )
         for code, user, unit in (("OW1", self.u1, self.c1), ("OW2", self.u2, self.c2)):
             db.session.add(MasOrgUnitWorker(
                 project_id=self.PROJECT, org_unit_id=unit.org_unit_id, cadre_id=self.mo.cadre_id,
@@ -110,10 +119,10 @@ class BulkApplyOperationsCharacterizationTests(BaseTestCase):
             self.assertIn("unit-scoped", str(ctx.exception))
 
     def test_every_role_operation_at_own_unit_scope(self):
-        # MO at a CHC may code; the other cadre flags are checked per role.
+        # MO at a CHC may hold the roles setUp allows; the others are refused.
         # project_pi ignores scope_mode and is granted project-wide.
-        refused = {"interview_supervisor": "may not supervise interviews",
-                   "death_reporter": "may not report deaths"}
+        refused = {"interview_supervisor": "may not hold interview_supervisor",
+                   "death_reporter": "may not hold death_reporter"}
         for operation, (roles, _revoke) in org._BULK_ROLE_MAP.items():
             with self.subTest(operation=operation):
                 self._clear_grants(self.u1)

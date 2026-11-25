@@ -12,6 +12,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapOrgLevelCadre,
     MapTrainingCase,
     MapTrainingParticipant,
     MasOrgUnit,
@@ -148,6 +149,20 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         db.session.flush()
         self.assertEqual(svc.setup_training_project(), {"project": False, "cadre": False, "units": 0})
         self.assertEqual(project.recode_window_minutes, 60)
+
+    def test_setup_adds_missing_trainee_roles_to_an_existing_grid_row(self):
+        # digitva-4650: a backfilled row may lack a training role (reviewer).
+        row = next(
+            r for r in db.session.scalars(sa.select(MapOrgLevelCadre)).all()
+            if r.cadre_id == svc._trainee_cadre().cadre_id and "reviewer" in r.allowed_roles
+        )
+        row.allowed_roles = ["coder", "collaborator"]
+        db.session.flush()
+        svc.setup_training_project()
+        self.assertEqual(
+            set(row.allowed_roles),
+            {"coder", "collaborator", "reviewer", "interviewer", "interview_supervisor", "death_reporter"},
+        )
 
     def test_setup_is_idempotent(self):
         before = db.session.scalar(sa.select(sa.func.count()).select_from(MasOrgUnit))

@@ -59,22 +59,15 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
 
     def _upsert(self, level_code, cadre_code, **kwargs):
         level, cadre = self._row(level_code, cadre_code)
-        current = self._grid()[(level_code, cadre_code)]
-        args = dict(
-            can_fill_va_form=current["can_fill_va_form"], can_code_va_form=current["can_code_va_form"],
-            can_supervise_interviews=current["can_supervise_interviews"],
-            can_report_deaths=current["can_report_deaths"],
-        )
-        args.update(kwargs)
         return org.upsert_level_cadre(
-            self.PROJECT, org_level_id=level.org_level_id, cadre_id=cadre.cadre_id, **args)
+            self.PROJECT, org_level_id=level.org_level_id, cadre_id=cadre.cadre_id, **kwargs)
 
     def _put(self, level_code, cadre_code, **body):
         level, cadre = self._row(level_code, cadre_code)
         return self.client.put(
             self._url("/level-cadres"), headers=self._csrf_headers(),
             json={"org_level_id": str(level.org_level_id), "cadre_id": str(cadre.cadre_id),
-                  "can_fill_va_form": False, "can_code_va_form": False, **body})
+                  **body})
 
     def _import_users(self, text):
         return self.client.post(
@@ -114,18 +107,20 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
         for key, roles in org.DEFAULT_TYPICAL_ROLES.items():
             self.assertEqual(set(grid[key]["default_roles"]), set(roles), key)
 
-    def test_a_default_the_flags_do_not_allow_is_refused_and_nothing_changes(self):
+    def test_a_default_the_row_does_not_allow_is_refused_and_nothing_changes(self):
         org.seed_default_organization(self.PROJECT)
         db.session.commit()
-        # (subcentre, CHO): fill only. Each flag-bound role is refused, interviewer is not.
-        for role in ("coder", "interview_supervisor", "death_reporter"):
+        # (subcentre, CHO) allows interviewer only: every other role is refused
+        # as a default (digitva-4650: every role is gated, reviewer too).
+        for role in ("coder", "interview_supervisor", "death_reporter", "reviewer"):
             with self.subTest(role=role):
                 with self.assertRaises(org.OrganizationError) as raised:
                     self._upsert("subcentre", "CHO", default_roles=[role])
                 self.assertIn(role, str(raised.exception))
         db.session.rollback()
         self.assertEqual(self._grid()[("subcentre", "CHO")]["default_roles"], ["interviewer"])
-        saved = self._upsert("subcentre", "CHO", default_roles=["interviewer", "reviewer", "collaborator_pii"])
+        saved = self._upsert("subcentre", "CHO", allowed_roles=["interviewer", "reviewer", "collaborator_pii"],
+                             default_roles=["interviewer", "reviewer", "collaborator_pii"])
         self.assertEqual(saved.default_roles, ["collaborator_pii", "reviewer", "interviewer"])
 
     def test_roles_that_cannot_be_held_at_a_unit_or_do_not_exist_are_refused(self):
@@ -136,35 +131,42 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
                 self._upsert("district", "MO", default_roles=[role])
             db.session.rollback()
 
-    def test_the_flag_rule_is_the_grant_writes(self):
-        # One rule: every role the grant write ties to a flag is checked here.
-        from app.services.org_grant_service import CADRE_FLAG_BY_ROLE
+    def test_defaults_follow_the_allowed_list_the_grant_write_reads(self):
+        # One rule: a default is accepted exactly when validate_org_unit_grant
+        # would accept that role for the cadre at the level.
+        from app.services.org_grant_service import ROLES_ALLOWING_ORG_UNIT, validate_org_unit_grant
 
         org.seed_default_organization(self.PROJECT)
+        levels = {lv.level_code: lv for lv in org.list_levels(self.PROJECT)}
+        district = org.create_unit(self.PROJECT, org_level_id=levels["district"].org_level_id,
+                                   unit_code="DD9", unit_name="District")
         db.session.commit()
-        for role, (flag, _permits) in CADRE_FLAG_BY_ROLE.items():
-            # (village, ASHA) carries only Report deaths.
-            flagged = flag == "can_report_deaths"
+        _level, dpm = self._row("district", "DPM")
+        for role in sorted(ROLES_ALLOWING_ORG_UNIT, key=lambda r: r.value):
+            # (district, DPM) allows only data_manager.
             with self.subTest(role=role.value):
-                if flagged:
+                if role == VaAccessRoles.data_manager:
                     self.assertEqual(
-                        self._upsert("village", "ASHA", default_roles=[role.value]).default_roles, [role.value])
+                        self._upsert("district", "DPM", default_roles=[role.value]).default_roles, [role.value])
+                    validate_org_unit_grant(role=role, org_unit_id=district.org_unit_id, cadre_id=dpm.cadre_id)
                 else:
                     with self.assertRaises(org.OrganizationError):
-                        self._upsert("village", "ASHA", default_roles=[role.value])
+                        self._upsert("district", "DPM", default_roles=[role.value])
                     db.session.rollback()
+                    with self.assertRaises(org.OrganizationError):
+                        validate_org_unit_grant(role=role, org_unit_id=district.org_unit_id, cadre_id=dpm.cadre_id)
 
-    def test_clearing_a_flag_drops_the_stored_defaults_that_relied_on_it(self):
+    def test_disallowing_a_role_drops_it_from_the_stored_defaults(self):
         org.seed_default_organization(self.PROJECT)
         db.session.commit()
-        # Supplied defaults are checked against the new flags: refused.
+        # Supplied defaults are checked against the new allowed list: refused.
         with self.assertRaises(org.OrganizationError):
-            self._upsert("phc", "MO", can_code_va_form=False, default_roles=["site_pi", "coder"])
+            self._upsert("phc", "MO", allowed_roles=["site_pi"], default_roles=["site_pi", "coder"])
         db.session.rollback()
         self.assertEqual(self._grid()[("phc", "MO")]["default_roles"], ["site_pi", "coder"])
-        # A caller that never mentions defaults (an older workbook) can still clear the flag.
-        row = self._upsert("phc", "MO", can_code_va_form=False)
-        self.assertEqual((row.can_code_va_form, row.default_roles), (False, ["site_pi"]))
+        # A caller that never mentions defaults can still disallow the role.
+        row = self._upsert("phc", "MO", allowed_roles=["site_pi", "interview_supervisor"])
+        self.assertEqual((row.allowed_roles, row.default_roles), (["site_pi", "interview_supervisor"], ["site_pi"]))
 
     def test_none_keeps_the_stored_defaults_and_an_empty_list_clears_them(self):
         org.seed_default_organization(self.PROJECT)
@@ -182,7 +184,7 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
                   for r in self.client.get(self._url("/level-cadres")).get_json()["level_cadres"]}
         self.assertEqual(listed[("phc", "MO")]["default_roles"], ["site_pi", "coder"])
 
-        body = {"can_code_va_form": True, "can_supervise_interviews": True}
+        body = {}
         kept = self._put("phc", "MO", **body)  # key absent keeps
         self.assertEqual(kept.status_code, 200, kept.get_json())
         self.assertEqual(kept.get_json()["level_cadre"]["default_roles"], ["site_pi", "coder"])
@@ -190,12 +192,12 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
         self.assertEqual(changed.get_json()["level_cadre"]["default_roles"], ["coder", "interview_supervisor"])
         self.assertEqual(self._grid()[("phc", "MO")]["default_roles"], ["coder", "interview_supervisor"])
 
-    def test_api_refuses_a_default_the_flags_do_not_allow(self):
+    def test_api_refuses_a_default_the_row_does_not_allow(self):
         self._login(str(self.base_admin_id))
         org.seed_default_organization(self.PROJECT)
         db.session.commit()
         before = self._grid()[("subcentre", "CHO")]["default_roles"]
-        refused = self._put("subcentre", "CHO", can_fill_va_form=True, default_roles=["coder"])
+        refused = self._put("subcentre", "CHO", default_roles=["coder"])
         self.assertEqual(refused.status_code, 400)
         self.assertIn("coder", refused.get_json()["error"])
         for bad in ("coder", {"coder": True}):
@@ -218,7 +220,8 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
         self.assertEqual(sheet[("phc", "MO")]["default_roles"], "site_pi|coder")
 
         # CSV import changes them; the unedited export re-imports unchanged.
-        edited = text.replace("phc,MO,False,True,True,False,site_pi|coder", "phc,MO,False,True,True,False,reviewer| coder")
+        edited = text.replace("phc,MO,site_pi|coder|interview_supervisor,site_pi|coder",
+                              "phc,MO,site_pi|coder|reviewer|interview_supervisor,reviewer| coder")
         self.assertNotEqual(edited, text)
         plan = org.import_organization(
             self.PROJECT, org.parse_organization_csv(io.BytesIO(edited.encode()), "level_cadres"), dry_run=False)
@@ -232,15 +235,16 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
 
         # XLSX rows: a blank cell keeps, a bad one is refused with nothing written.
         sheet[("phc", "MO")]["default_roles"] = None
+        sheet[("phc", "MO")]["allowed_roles"] = None  # exported before reviewer was allowed
         plan = org.import_organization(self.PROJECT, {"level_cadres": list(sheet.values())}, dry_run=False)
         self.assertEqual(plan.errors, [])
         self.assertEqual(self._grid()[("phc", "MO")]["default_roles"], ["coder", "reviewer"])
 
-    def test_import_refuses_a_default_the_row_flags_do_not_allow(self):
+    def test_import_refuses_a_default_the_row_does_not_allow(self):
         org.seed_default_organization(self.PROJECT)
         db.session.commit()
         text = org.export_organization_csv(self.PROJECT, "level_cadres")
-        bad = text.replace("subcentre,CHO,True,False,False,False,interviewer", "subcentre,CHO,True,False,False,False,interviewer|coder")
+        bad = text.replace("subcentre,CHO,interviewer,interviewer", "subcentre,CHO,interviewer,interviewer|coder")
         self.assertNotEqual(bad, text)
         plan = org.import_organization(
             self.PROJECT, org.parse_organization_csv(io.BytesIO(bad.encode()), "level_cadres"), dry_run=False)
@@ -255,6 +259,7 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
         self._login(str(self.base_admin_id))
         org.seed_default_organization(self.PROJECT)
         phc = self._phc_unit()
+        self._upsert("phc", "MO", allowed_roles=["site_pi", "coder", "reviewer", "interview_supervisor"])
         db.session.commit()
 
         # Names a role: that role only, defaults ignored.
@@ -307,12 +312,12 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
         self.assertEqual(self._import_users(USER_HEADER + "base.coder@test.local,,,DP1,MO,,\n").status_code, 200)
         self.assertEqual(self._grant_roles(phc), ["coder", "site_pi"])
 
-        changed = self._put("phc", "MO", can_code_va_form=True, default_roles=["reviewer"])
+        changed = self._put("phc", "MO", allowed_roles=["site_pi", "coder", "reviewer"], default_roles=["reviewer"])
         self.assertEqual(changed.status_code, 200, changed.get_json())
         self.assertEqual(self._grid()[("phc", "MO")]["default_roles"], ["reviewer"])
         db.session.expire_all()
         self.assertEqual(self._grant_roles(phc), ["coder", "site_pi"])
-        self.assertEqual(self._put("phc", "MO", can_code_va_form=True, default_roles=[]).status_code, 200)
+        self.assertEqual(self._put("phc", "MO", default_roles=[]).status_code, 200)
         db.session.expire_all()
         self.assertEqual(self._grant_roles(phc), ["coder", "site_pi"])
 
@@ -345,7 +350,7 @@ class LevelCadreDefaultRolesTests(BaseTestCase):
         db.session.commit()
         # A role the application checks let through but the CHECK refuses.
         with patch.object(org, "normalize_default_roles", return_value=["admin"]):
-            response = self._put("phc", "MO", can_code_va_form=True, default_roles=["coder"])
+            response = self._put("phc", "MO", default_roles=["coder"])
             self.assertEqual(response.status_code, 400)
             self.assertIn("constraint", response.get_json()["error"])
             text = org.export_organization_csv(self.PROJECT, "level_cadres")

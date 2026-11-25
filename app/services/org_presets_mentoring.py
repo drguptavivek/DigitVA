@@ -9,10 +9,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
-    MapOrgLevelCadre,
     MapOrgUnitVaPresets,
-    MasCadre,
-    MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
     VaAccessScopeTypes,
@@ -403,7 +400,7 @@ def sync_mentor_scientist_unit_grants(
     actor: VaUsers,
 ) -> list[tuple[dict, str]]:
     """Sync a mentoring-institute scientist's unit grants for *role_name* in *project_id*."""
-    from app.services.mentor_institute_service import MENTOR_ROLES, check_mentor_grant
+    from app.services.mentor_institute_service import MENTOR_ROLES
     from app.services.org_grant_service import validate_org_unit_grant
 
     _get_project(project_id)
@@ -437,23 +434,6 @@ def sync_mentor_scientist_unit_grants(
         if uid not in project_units:
             raise OrganizationError("Selected unit does not belong to this project or is inactive.")
 
-    # For 'coder', validate_org_unit_grant requires an active cadre at the unit's level with can_code_va_form=True.
-    coding_cadre_by_level: dict[uuid.UUID, uuid.UUID] = {}
-    if role == VaAccessRoles.coder and target_ids:
-        for lc, cadre in db.session.execute(
-            sa.select(MapOrgLevelCadre, MasCadre)
-            .join(MasCadre, MasCadre.cadre_id == MapOrgLevelCadre.cadre_id)
-            .join(MasOrgLevel, MasOrgLevel.org_level_id == MapOrgLevelCadre.org_level_id)
-            .where(
-                MasOrgLevel.project_id == project_id,
-                MapOrgLevelCadre.is_active.is_(True),
-                MapOrgLevelCadre.can_code_va_form.is_(True),
-                MasCadre.is_active.is_(True),
-            )
-            .order_by(MasCadre.cadre_code)
-        ).all():
-            coding_cadre_by_level.setdefault(lc.org_level_id, cadre.cadre_id)
-
     existing_grants = {
         g.org_unit_id: g
         for g in db.session.scalars(
@@ -471,19 +451,9 @@ def sync_mentor_scientist_unit_grants(
     changed: list[tuple[dict, str]] = []
 
     for uid in target_ids:
-        unit = project_units[uid]
-        check_mentor_grant(target_user_uuid, role, unit)
-        cadre_id = coding_cadre_by_level.get(unit.org_level_id) if role == VaAccessRoles.coder else None
-        if role == VaAccessRoles.coder and cadre_id is None:
-            raise OrganizationError(
-                f"To grant 'coder' at {unit.unit_code} ({unit.level.level_name}), enable 'Code VA' for at least one cadre at that level first."
-            )
-        validate_org_unit_grant(
-            role=role,
-            org_unit_id=uid,
-            cadre_id=cadre_id,
-            user_id=target_user_uuid,
-        )
+        # A mentor grant carries no cadre (digitva-4650); validate_org_unit_grant
+        # runs the institute guard.
+        validate_org_unit_grant(role=role, org_unit_id=uid, user_id=target_user_uuid)
         if not authz.can_grant(
             actor,
             authz.GrantTarget(
@@ -503,7 +473,6 @@ def sync_mentor_scientist_unit_grants(
                 scope_type=VaAccessScopeTypes.org_unit,
                 project_id=None,
                 org_unit_id=uid,
-                cadre_id=cadre_id,
                 grant_status=VaStatuses.active,
                 created_by_user_id=actor.user_id,
             )
@@ -517,14 +486,13 @@ def sync_mentor_scientist_unit_grants(
                     "role": role.value,
                     "scope_type": VaAccessScopeTypes.org_unit.value,
                     "org_unit_id": uid,
-                    "cadre_id": cadre_id,
+                    "cadre_id": None,
                 },
                 "grant_created",
             ))
         elif g.grant_status != VaStatuses.active:
             g.grant_status = VaStatuses.active
-            if cadre_id is not None:
-                g.cadre_id = cadre_id
+            g.cadre_id = None
             changed.append((
                 {
                     "user_id": target_user_uuid,

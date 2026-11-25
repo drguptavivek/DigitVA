@@ -12,10 +12,10 @@ import redis
 import sqlalchemy as sa
 
 from app import db
-from app.models import VaProjectSites, VaStatuses, VaUserAccessGrants
+from app.models import MasOrgUnitWorker, VaProjectSites, VaStatuses, VaUserAccessGrants
 from app.services import organization_service as org
 from app.services.authz import grant_cache, grants, invalidate, resolve_grants
-from tests.authz.fixture import SP, TA, USERS, AuthzFixtureMixin, P, R
+from tests.authz.fixture import SP, TA, USERS, AuthzFixtureMixin, P, R, U
 from tests.authz.test_grants import count_queries
 from tests.base import BaseTestCase
 
@@ -205,6 +205,42 @@ class GrantCacheTests(AuthzFixtureMixin, BaseTestCase):
         user.user_status = VaStatuses.deactive
         db.session.commit()
         self.assertNotEqual(self._key(user), key)
+
+    def test_a_worker_record_change_bumps_its_users(self):
+        """digitva-4650: a mentor's cadre grant is PII only while a worker
+        record backs it; worker writes bump the cache with no invalidate()."""
+        mentor, other = self.users["mentor"], self.users["nobody"]
+        unit = self.units["SC1"]
+        db.session.add(VaUserAccessGrants(
+            user_id=mentor.user_id, role=R.reviewer, scope_type=U, org_unit_id=unit.org_unit_id,
+            cadre_id=self.any_cadre[TA], grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+
+        def backed():
+            resolved = self._resolve(mentor)
+            match = next(g for g in resolved.grants
+                         if g.role == R.reviewer and g.org_unit_id == unit.org_unit_id)
+            self.assertEqual(match.worker_backed, resolved.is_pii_grant(match))
+            return match.worker_backed
+
+        self.assertFalse(backed())  # cached now
+        worker = MasOrgUnitWorker(
+            project_id=TA, org_unit_id=unit.org_unit_id, cadre_id=self.any_cadre[TA],
+            user_id=mentor.user_id, worker_code="AZW1", worker_name="Mentor worker", is_active=True,
+        )
+        db.session.add(worker)
+        db.session.commit()
+        self.assertTrue(backed())
+        worker.is_active = False
+        db.session.commit()
+        self.assertFalse(backed())
+        worker.is_active = True
+        db.session.commit()
+        self.assertTrue(backed())
+        worker.user_id = other.user_id  # the previous user is bumped too
+        db.session.commit()
+        self.assertFalse(backed())
 
     def test_a_rolled_back_change_still_reads_the_database(self):
         """No commit, no bump: the cached answer is the committed one."""

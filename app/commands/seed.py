@@ -717,6 +717,7 @@ def _build_test_project(org, user_import, actor, spec: dict, *, staging: bool) -
     for code in {cadre_code for *_rest, cadre_code, _roles in roster if cadre_code}:
         if not cadres[code].is_active:
             org.update_cadre(project_id, cadres[code].cadre_id, is_active=True)
+    _allow_roster_roles(org, project_id, roster, units, cadres)
     summary["tree"] = (
         f"{len(levels)} levels, {len(units)} units, "
         f"{len(org.list_level_cadres(project_id))} grid rows"
@@ -816,13 +817,14 @@ def _build_test_project(org, user_import, actor, spec: dict, *, staging: bool) -
     # A mentoring institute member (set up by hand) may hold only grants inside
     # the districts the institute covers; leave out what the import would refuse.
     refused = set()
-    for email, role, unit_code, _cadre_code in grant_specs:
+    for email, role, unit_code, cadre_code in grant_specs:
         user = users.get(email)
         if user is None:
             continue
         try:
             mentor_institute_service.check_mentor_grant(
-                user.user_id, VaAccessRoles(role), units[unit_code] if unit_code else None
+                user.user_id, VaAccessRoles(role), units[unit_code] if unit_code else None,
+                cadre_id=cadres[cadre_code].cadre_id if cadre_code else None,
             )
         except org.OrganizationError:
             refused.add(email)
@@ -885,6 +887,29 @@ def _build_test_project(org, user_import, actor, spec: dict, *, staging: bool) -
     return summary
 
 
+def _allow_roster_roles(org, project_id, roster, units, cadres) -> None:
+    """Allow on the level x cadre grid every role the roster grants a cadre at
+    a level (digitva-4650: every unit grant's role must be allowed for its
+    cadre), e.g. collaborator_pii for DEPI at the district, which the
+    template leaves out. Only adds; a role allowed by hand stays."""
+    needed: dict[tuple, set[str]] = {}
+    for _local, _landing, unit_code, cadre_code, roles in roster:
+        if unit_code and cadre_code:
+            key = (units[unit_code].org_level_id, cadres[cadre_code].cadre_id)
+            needed.setdefault(key, set()).update(roles)
+    current = {
+        (lc["org_level_id"], lc["cadre_id"]): lc for lc in org.list_level_cadres(project_id)
+    }
+    for (level_id, cadre_id), roles in needed.items():
+        row = current.get((str(level_id), str(cadre_id)))
+        allowed = set(row["allowed_roles"]) if row else set()
+        if row is None or not row["is_active"] or not roles <= allowed:
+            org.upsert_level_cadre(
+                project_id, org_level_id=level_id, cadre_id=cadre_id,
+                allowed_roles=sorted(allowed | roles),
+            )
+
+
 def _ensure_test_institute(units, project_id, actor_user_id) -> str:
     """Create TSTMI01 if missing, reactivate it, and attach it to DH01 of *project_id*.
 
@@ -932,7 +957,8 @@ def _log_test_project_grants(audit, actor_user_id, project_id=TEST_PROJECT_ID) -
 
 
 #: (role key, landing_page, unit_code, cadre_code, roles) for one e2e run on
-#: TST001. "all" mirrors test.all; the unit rows need a cadre the grid permits.
+#: TST001. "all" mirrors test.all; the unit rows need a cadre the grid
+#: allows, except the mentor's, which carry none.
 _E2E_MENTOR_ROLES = ("coder", "reviewer")
 _E2E_ROSTER = (
     ("all", "coder", None, None, ("coder", "reviewer", "data_manager")),
@@ -947,9 +973,9 @@ _E2E_ROSTER = (
     ("supervisor", "intake", "PHC01", "MO", ("interview_supervisor",)),
     ("reviewer", "coder", None, None, ("reviewer",)),
     ("datamgr", "data_manager", None, None, ("data_manager",)),
-    # Mentoring-institute staff (TSTMI01) at the district: the mentor guard allows
-    # only unit-scope coder/reviewer/coding_tester/collaborator inside DH01.
-    ("mentor", "coder", "DH01", "MO", _E2E_MENTOR_ROLES),
+    # Mentoring-institute staff (TSTMI01) at the district: mentor grants carry
+    # no cadre (digitva-4650) and stay Non-PII, inside DH01 only.
+    ("mentor", "coder", "DH01", None, _E2E_MENTOR_ROLES),
 )
 #: The same shape for TST002 (single-step coding): the coders, a death reporter
 #: and an interviewer so the suite can register and interview TST002 cases.
@@ -959,7 +985,7 @@ _E2E_ROSTER_T2 = (
     ("coder2", "coder", None, None, ("coder",)),
     ("reporter_t2", "intake", "SC01", "ANM", ("death_reporter",)),
     ("interviewer_t2", "intake", "SC01", "CHO", ("interviewer",)),
-    ("mentor", "coder", "DH01", "MO", _E2E_MENTOR_ROLES),
+    ("mentor", "coder", "DH01", None, _E2E_MENTOR_ROLES),
 )
 _E2E_PROJECTS = ((TEST_PROJECT_ID, _E2E_ROSTER), (TEST_PROJECT_2_ID, _E2E_ROSTER_T2))
 # A real domain we never take mail on: web sign-in's email check rejects the special-use .test TLD.
@@ -1006,7 +1032,7 @@ def e2e_users_create(out_path):
     import json
     from datetime import UTC, datetime
 
-    from app.models import MapOrgLevelCadre, MasCadre, VaProjectMaster, VaUsers
+    from app.models import MasCadre, VaProjectMaster, VaUsers
     from app.services import organization_service as org
     from app.services import project_user_import_service as user_import
 
@@ -1056,8 +1082,8 @@ def e2e_users_create(out_path):
         for project_id, roster in _E2E_PROJECTS:
             # Workers: the person-holds-cadre-at-unit record the unit grants pair with.
             for key, _landing, unit_code, cadre_code, _roles in roster:
-                if unit_code is None:
-                    continue
+                if unit_code is None or cadre_code is None:
+                    continue  # project scope, or a mentor grant (no cadre, no worker)
                 unit = org.find_unit_by_code(project_id, unit_code)
                 cadre = db.session.scalar(sa.select(MasCadre).where(
                     MasCadre.project_id == project_id, MasCadre.cadre_code == cadre_code,
@@ -1069,13 +1095,6 @@ def e2e_users_create(out_path):
                     worker_name=f"E2E {run_id} {key}",
                     worker_code=f"E2E_{run_id}_{key[:3]}{key[-3:]}_{unit_code}".upper(), user=emails[key],
                 )
-                if key == "supervisor":
-                    # Flow 75 corrects an interview: the supervisor's cadre needs "Can edit interviews".
-                    db.session.execute(sa.update(MapOrgLevelCadre).where(
-                        MapOrgLevelCadre.org_level_id == unit.org_level_id,
-                        MapOrgLevelCadre.cadre_id == cadre.cadre_id,
-                        MapOrgLevelCadre.can_supervise_interviews.is_(True),
-                    ).values(can_edit_interviews=True))
             rows = [
                 {"_line_number": n, "email": emails[key], "name": "", "role": role,
                  "org_unit_code": unit_code or "", "cadre_code": cadre_code or "",

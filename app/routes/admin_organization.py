@@ -29,6 +29,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
+from app.models.mas_organization import RETIRED_LEVEL_CADRE_FLAGS
 from app.routes._json import _json_error
 from app.routes.admin import _current_user_can_manage_project, admin
 from app.services import collection_hold, org_grant_service
@@ -542,25 +543,22 @@ def admin_org_upsert_level_cadre(project_id):
     if err := _guard(project_id):
         return err
     p = _payload()
-    if p.get("default_roles") is not None and not isinstance(p["default_roles"], list):
-        return _json_error("default_roles must be a list of role names.", 400)
+    # digitva-4650: an old client's flags would otherwise be ignored silently.
+    if retired := sorted(set(p) & set(RETIRED_LEVEL_CADRE_FLAGS)):
+        return _json_error(
+            f"{', '.join(retired)} no longer exist; send allowed_roles (a list of role names) instead.",
+            400,
+        )
+    for key in ("allowed_roles", "default_roles"):
+        if p.get(key) is not None and not isinstance(p[key], list):
+            return _json_error(f"{key} must be a list of role names.", 400)
     try:
         row = org.upsert_level_cadre(
             project_id,
             org_level_id=p.get("org_level_id"),
             cadre_id=p.get("cadre_id"),
-            can_fill_va_form=bool(p.get("can_fill_va_form", False)),
-            can_code_va_form=bool(p.get("can_code_va_form", False)),
-            # Absent keeps the current value (clients that predate the flag).
-            can_supervise_interviews=(
-                None if p.get("can_supervise_interviews") is None else bool(p["can_supervise_interviews"])
-            ),
-            can_report_deaths=(
-                None if p.get("can_report_deaths") is None else bool(p["can_report_deaths"])
-            ),
-            can_edit_interviews=(
-                None if p.get("can_edit_interviews") is None else bool(p["can_edit_interviews"])
-            ),
+            # Absent keeps the current value.
+            allowed_roles=p.get("allowed_roles"),
             default_roles=p.get("default_roles"),
             is_active=bool(p.get("is_active", True)),
         )

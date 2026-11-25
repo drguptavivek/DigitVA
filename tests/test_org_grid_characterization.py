@@ -117,6 +117,10 @@ class ProjectUsersGridCharacterizationTests(BaseTestCase):
         self.u2 = self._make_user("grid.char.u2@test.local", "GridChar123")
         self.u3 = self._make_user("grid.char.u3@test.local", "GridChar123")  # no placement
         self.mo = cadres["MO"]
+        # MO at a CHC may also review here (digitva-4650 allowed roles; the
+        # template allows coder only).
+        org.upsert_level_cadre(self.PROJECT, org_level_id=self.chc_level_id,
+                               cadre_id=self.mo.cadre_id, allowed_roles=["coder", "reviewer"])
         for code, user, unit in (("GW1", self.u1, self.c1), ("GW2", self.u2, self.c2)):
             db.session.add(MasOrgUnitWorker(
                 project_id=self.PROJECT, org_unit_id=unit.org_unit_id, cadre_id=self.mo.cadre_id,

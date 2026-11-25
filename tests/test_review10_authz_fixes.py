@@ -299,15 +299,19 @@ class ImportRefusesBeforeUnitValidationTests(UnitScopeFixture, BaseTestCase):
             f"r10.import.grantee.{uuid.uuid4().hex[:8]}@test.local", "Review10Imp1",
         )
 
-    def _row(self, number, unit_code):
+    def _row(self, number, unit_code, cadre_code=""):
         return {"_line_number": number, "email": self.grantee.email, "name": "", "role": "data_manager",
-                "org_unit_code": unit_code, "cadre_code": "", "language_codes": "", "phone": ""}
+                "org_unit_code": unit_code, "cadre_code": cadre_code, "language_codes": "", "phone": ""}
 
     def test_missing_and_out_of_scope_units_get_the_same_refusal(self):
         # Positive control: the actor may grant below its own unit's scope.
         sub = _unit(self.PROJECT, "subcentre", "R10S1", self.phc_a)
+        anm = next(c for c in org.list_cadres(self.PROJECT) if c.cadre_code == "ANM")
+        # A unit grant names a cadre allowed the role (digitva-4650).
+        org.upsert_level_cadre(self.PROJECT, org_level_id=sub.org_level_id, cadre_id=anm.cadre_id,
+                               allowed_roles=["interviewer", "death_reporter", "data_manager"])
         db.session.commit()
-        plan = user_import.prepare(self.PROJECT, [self._row(2, sub.unit_code)], actor=self.unit_dm)
+        plan = user_import.prepare(self.PROJECT, [self._row(2, sub.unit_code, "ANM")], actor=self.unit_dm)
         self.assertEqual([item["action"] for item in plan], ["grant"])
 
         with self.assertRaises(user_import.ProjectUserImportError) as raised:

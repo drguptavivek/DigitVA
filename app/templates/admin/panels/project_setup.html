@@ -1403,14 +1403,13 @@
   }
   var UG_OP_BY_ROLE_KEY = { coder: 'coder_non_pii', reviewer: 'reviewer_non_pii', coder_pii: 'coder_non_pii', coder_non_pii: 'coder_non_pii', reviewer_pii: 'reviewer_non_pii', reviewer_non_pii: 'reviewer_non_pii', site_pi: 'in_charge', collaborator: 'viewer_non_pii' };
   var UG_RAW_ROLE_BY_OP = { coder_non_pii: 'coder', reviewer_non_pii: 'reviewer', in_charge: 'site_pi', viewer_non_pii: 'collaborator' };
-  // Roles a unit grant may carry only where a cadre at that level permits them
-  // (org_grant_service.CADRE_FLAG_BY_ROLE); the server refuses the rest.
-  var UG_CADRE_FLAG = { coder: 'can_code_va_form', interview_supervisor: 'can_supervise_interviews', death_reporter: 'can_report_deaths' };
+  // A unit grant's role must be allowed for some cadre at that level
+  // (allowed_roles, org_grant_service.validate_org_unit_grant, digitva-4650);
+  // the server refuses the rest.
   function ugUnitAllows(unitObj, rawRole) {
-    var flag = UG_CADRE_FLAG[rawRole];
-    if (!flag) return true;
     return (_ugData.level_cadres || []).some(function (lc) {
-      return lc.org_level_id === unitObj.org_level_id && lc.is_active !== false && lc[flag];
+      return lc.org_level_id === unitObj.org_level_id && lc.is_active !== false
+        && (lc.allowed_roles || []).indexOf(rawRole) >= 0;
     });
   }
   var UG_RAW_ROLE_BY_DISPLAY = { coder_pii: 'coder', coder_non_pii: 'coder', reviewer_pii: 'reviewer', reviewer_non_pii: 'reviewer' };

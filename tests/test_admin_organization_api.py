@@ -523,11 +523,11 @@ class AdminOrganizationApiTests(BaseTestCase):
 
         perm = self.client.put(
             self._url("/level-cadres"),
-            json={"org_level_id": levels["district"]["org_level_id"], "cadre_id": summary["cadres"][0]["cadre_id"], "can_fill_va_form": False, "can_code_va_form": True},
+            json={"org_level_id": levels["district"]["org_level_id"], "cadre_id": summary["cadres"][0]["cadre_id"], "allowed_roles": ["coder"]},
             headers=headers,
         )
         self.assertEqual(perm.status_code, 200)
-        self.assertTrue(perm.get_json()["level_cadre"]["can_code_va_form"])
+        self.assertEqual(perm.get_json()["level_cadre"]["allowed_roles"], ["coder"])
 
         reactivated = self.client.post(self._url(f"/units/{district['org_unit_id']}/toggle"), json={"is_active": True}, headers=headers)
         self.assertEqual(reactivated.status_code, 200)
@@ -545,52 +545,61 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertEqual(worker.status_code, 201, worker.get_json())
         blocked = self.client.put(
             self._url("/level-cadres"),
-            json={"org_level_id": levels["chc"]["org_level_id"], "cadre_id": smo_cadre_id, "can_fill_va_form": False, "can_code_va_form": True, "is_active": False},
+            json={"org_level_id": levels["chc"]["org_level_id"], "cadre_id": smo_cadre_id, "is_active": False},
             headers=headers,
         )
         self.assertEqual(blocked.status_code, 400)
         self.assertIn("first", blocked.get_json()["error"])
 
-    def test_put_level_cadres_without_the_report_deaths_key_keeps_the_stored_value(self):
+    def test_put_level_cadres_without_a_list_keeps_the_stored_value(self):
         self._login(str(self.base_admin_id))
         headers = self._csrf_headers()
         self.client.post(self._url("/seed-template"), json={}, headers=headers)
         levels = {lv["level_code"]: lv for lv in self.client.get(self._url("/levels")).get_json()["levels"]}
         cadres = {c["cadre_code"]: c for c in self.client.get(self._url()).get_json()["cadres"]}
-        body = {"org_level_id": levels["subcentre"]["org_level_id"], "cadre_id": cadres["ANM"]["cadre_id"],
-                "can_fill_va_form": False, "can_code_va_form": False}
-        # Present first: the seeded ANM may report deaths at a sub-centre.
+        body = {"org_level_id": levels["subcentre"]["org_level_id"], "cadre_id": cadres["ANM"]["cadre_id"]}
+        # Present first: the seeded ANM may report deaths at a sub-centre, by default.
         seeded = {(r["level_code"], r["cadre_code"]): r for r in self.client.get(self._url("/level-cadres")).get_json()["level_cadres"]}
-        self.assertTrue(seeded[("subcentre", "ANM")]["can_report_deaths"])
+        self.assertEqual(seeded[("subcentre", "ANM")]["allowed_roles"], ["interviewer", "death_reporter"])
+        self.assertEqual(seeded[("subcentre", "ANM")]["default_roles"], ["death_reporter"])
         kept = self.client.put(self._url("/level-cadres"), json=body, headers=headers)
         self.assertEqual(kept.status_code, 200, kept.get_json())
-        self.assertTrue(kept.get_json()["level_cadre"]["can_report_deaths"])
-        cleared = self.client.put(self._url("/level-cadres"), json={**body, "can_report_deaths": False}, headers=headers)
-        self.assertFalse(cleared.get_json()["level_cadre"]["can_report_deaths"])
+        self.assertEqual(kept.get_json()["level_cadre"]["allowed_roles"], ["interviewer", "death_reporter"])
+        # Disallowing a role drops it from the defaults too.
+        cleared = self.client.put(self._url("/level-cadres"), json={**body, "allowed_roles": ["interviewer"]}, headers=headers)
+        self.assertEqual(cleared.get_json()["level_cadre"]["allowed_roles"], ["interviewer"])
+        self.assertEqual(cleared.get_json()["level_cadre"]["default_roles"], [])
         again = self.client.put(self._url("/level-cadres"), json=body, headers=headers)
-        self.assertFalse(again.get_json()["level_cadre"]["can_report_deaths"])  # absent keeps the cleared value
+        self.assertEqual(again.get_json()["level_cadre"]["allowed_roles"], ["interviewer"])  # absent keeps it
 
-    def test_put_level_cadres_edit_interviews_needs_supervise(self):
+    def test_put_level_cadres_refuses_a_default_that_is_not_allowed(self):
         self._login(str(self.base_admin_id))
         headers = self._csrf_headers()
         self.client.post(self._url("/seed-template"), json={}, headers=headers)
         levels = {lv["level_code"]: lv for lv in self.client.get(self._url("/levels")).get_json()["levels"]}
         cadres = {c["cadre_code"]: c for c in self.client.get(self._url()).get_json()["cadres"]}
-        body = {"org_level_id": levels["phc"]["org_level_id"], "cadre_id": cadres["MO"]["cadre_id"],
-                "can_fill_va_form": False, "can_code_va_form": True, "can_supervise_interviews": True}
-        ticked = self.client.put(self._url("/level-cadres"), json={**body, "can_edit_interviews": True}, headers=headers)
-        self.assertEqual(ticked.status_code, 200, ticked.get_json())
-        self.assertTrue(ticked.get_json()["level_cadre"]["can_edit_interviews"])
-        kept = self.client.put(self._url("/level-cadres"), json=body, headers=headers)
-        self.assertTrue(kept.get_json()["level_cadre"]["can_edit_interviews"])
-        # Unticking supervise unticks edit; edit alone is refused.
-        unticked = self.client.put(self._url("/level-cadres"), json={**body, "can_supervise_interviews": False}, headers=headers)
-        self.assertEqual(unticked.status_code, 200, unticked.get_json())
-        self.assertFalse(unticked.get_json()["level_cadre"]["can_edit_interviews"])
+        body = {"org_level_id": levels["phc"]["org_level_id"], "cadre_id": cadres["MO"]["cadre_id"]}
+        allowed = self.client.put(self._url("/level-cadres"), json={
+            **body, "allowed_roles": ["coder", "interview_supervisor"], "default_roles": ["coder"]}, headers=headers)
+        self.assertEqual(allowed.status_code, 200, allowed.get_json())
+        self.assertEqual(allowed.get_json()["level_cadre"]["default_roles"], ["coder"])
         refused = self.client.put(self._url("/level-cadres"), json={
-            **body, "can_supervise_interviews": False, "can_edit_interviews": True}, headers=headers)
+            **body, "default_roles": ["reviewer"]}, headers=headers)
         self.assertEqual(refused.status_code, 400)
-        self.assertIn("can_edit_interviews", refused.get_json()["error"])
+        self.assertIn("not allowed", refused.get_json()["error"])
+        bad_type = self.client.put(self._url("/level-cadres"), json={**body, "allowed_roles": "coder"}, headers=headers)
+        self.assertEqual(bad_type.status_code, 400)
+        # An old client's retired flag is refused by name, never ignored (digitva-4650).
+        for flag in ("can_fill_va_form", "can_code_va_form", "can_supervise_interviews",
+                     "can_edit_interviews", "can_report_deaths"):
+            with self.subTest(flag=flag):
+                retired = self.client.put(self._url("/level-cadres"), json={
+                    **body, "allowed_roles": ["coder", "reviewer"], flag: True}, headers=headers)
+                self.assertEqual(retired.status_code, 400)
+                self.assertIn(flag, retired.get_json()["error"])
+        rows = {(r["level_code"], r["cadre_code"]): r
+                for r in self.client.get(self._url("/level-cadres")).get_json()["level_cadres"]}
+        self.assertEqual(rows[("phc", "MO")]["allowed_roles"], ["coder", "interview_supervisor"])  # unchanged
 
     def _seed_one_unit(self, headers):
         self.client.post(self._url("/seed-template"), json={}, headers=headers)
@@ -796,7 +805,7 @@ class AdminOrganizationApiTests(BaseTestCase):
         self.assertEqual(self._import_csv(headers, "cadres", cadres, dry_run=False).status_code, 200)
         self.assertIn("LT", {c.cadre_code for c in org.list_cadres(self.PROJECT)})
 
-        placements = "level_code,cadre_code,can_fill_va_form,can_code_va_form\nchc,LT,true,false\n"
+        placements = "level_code,cadre_code,allowed_roles\nchc,LT,interviewer\n"
         self.assertEqual(self._import_csv(headers, "level_cadres", placements, dry_run=False).status_code, 200)
 
         workers = "worker_code,worker_name,unit_code,cadre_code,phone,user_email,remarks,is_active\nW01,Lab Person,C01,LT,,,,\n"
@@ -846,14 +855,8 @@ class AdminOrganizationApiTests(BaseTestCase):
              "is_active", "NEWLEVEL"),
             ("cadres", "cadre_code,cadre_name,is_active\nLT,Lab Technician,true\nXT,Other,falseish\n",
              "is_active", "LT"),
-            ("level_cadres", "level_code,cadre_code,can_fill_va_form,can_code_va_form,is_active\n"
-             "district,MO,true,false,true\ndistrict,SMO,maybe,false,true\n",
-             "can_fill_va_form", None),
-            ("level_cadres", "level_code,cadre_code,can_fill_va_form,can_code_va_form,is_active\n"
-             "district,MO,true,false,true\ndistrict,SMO,false,maybe,true\n",
-             "can_code_va_form", None),
-            ("level_cadres", "level_code,cadre_code,can_fill_va_form,can_code_va_form,is_active\n"
-             "district,MO,true,false,true\ndistrict,SMO,false,false,maybe\n",
+            ("level_cadres", "level_code,cadre_code,allowed_roles,is_active\n"
+             "district,MO,interviewer,true\ndistrict,SMO,coder,maybe\n",
              "is_active", None),
             ("workers", "worker_code,worker_name,unit_code,cadre_code,is_active\n"
              "W90,First,C90,MO,true\nW91,Second,C90,MO,maybe\n",
@@ -1182,7 +1185,7 @@ class AdminOrganizationApiTests(BaseTestCase):
         cadre_id = cadre.cadre_id
         org.upsert_level_cadre(
             self.PROJECT, org_level_id=district.org_level_id, cadre_id=cadre_id,
-            can_fill_va_form=False, can_code_va_form=False, default_roles=[],
+            allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coding_tester", "reviewer", "data_manager", "interviewer"], default_roles=[],
         )
         db.session.commit()
         response = self.client.post(
@@ -1204,8 +1207,7 @@ class AdminOrganizationApiTests(BaseTestCase):
             self.PROJECT,
             org_level_id=level.org_level_id,
             cadre_id=cadre.cadre_id,
-            can_fill_va_form=False,
-            can_code_va_form=False,
+            allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coding_tester", "reviewer", "data_manager", "interviewer"],
             default_roles=[],
         )
         db.session.commit()
@@ -1393,9 +1395,7 @@ class AdminOrganizationApiTests(BaseTestCase):
             self.PROJECT,
             org_level_id=levels["phc"].org_level_id,
             cadre_id=cadres["MO"].cadre_id,
-            can_fill_va_form=False,
-            can_code_va_form=True,
-            can_supervise_interviews=True,
+            allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coder", "coding_tester", "reviewer", "data_manager", "interviewer", "interview_supervisor"],
             default_roles=["coder", "interview_supervisor"],
         )
         dist = org.create_unit(
@@ -1688,7 +1688,7 @@ class AdminOrganizationApiTests(BaseTestCase):
         deactive_worker.user_status = VaStatuses.deactive
         db.session.commit()
 
-        # 1. Home cadre lacks can_code_va_form at CHC -> refused instead of substituting SMO/MO.
+        # 1. Home cadre may not hold coder at CHC -> refused instead of substituting SMO/MO.
         with self.assertRaises(org.OrganizationError) as ctx:
             org.bulk_apply_project_users_grid(
                 self.PROJECT,

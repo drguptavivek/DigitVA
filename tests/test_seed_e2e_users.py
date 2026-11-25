@@ -226,23 +226,23 @@ class SeedE2eUsersTests(BaseTestCase):
             self.app.testing = True
         self.assertFalse(os.path.exists(self.out))
 
-    def test_create_ticks_can_edit_interviews_for_the_supervisor_cadre(self):
-        from app.models import MapOrgLevelCadre, MasCadre
+    def test_create_gives_the_mentor_cadre_less_grants_and_no_worker(self):
+        # digitva-4650: a mentor grant carries no cadre and stays Non-PII; a
+        # worker record with a cadre would make it health-system (PII).
+        from app.models import MasOrgUnitWorker
+        from app.services.authz.grants import resolve_grants
 
-        unit = db.session.scalar(sa.select(MasOrgUnit).where(
-            MasOrgUnit.project_id == TEST_PROJECT_ID, MasOrgUnit.unit_code == "PHC01"))
-        cadre = db.session.scalar(sa.select(MasCadre).where(
-            MasCadre.project_id == TEST_PROJECT_ID, MasCadre.cadre_code == "MO"))
-        tick = sa.select(MapOrgLevelCadre.can_edit_interviews).where(
-            MapOrgLevelCadre.org_level_id == unit.org_level_id, MapOrgLevelCadre.cadre_id == cadre.cadre_id)
-        db.session.execute(sa.update(MapOrgLevelCadre).where(
-            MapOrgLevelCadre.org_level_id == unit.org_level_id, MapOrgLevelCadre.cadre_id == cadre.cadre_id,
-        ).values(can_edit_interviews=False))
-        db.session.commit()
-        self.assertIs(db.session.scalar(tick), False)
-        self._create()
-        db.session.expire_all()
-        self.assertIs(db.session.scalar(tick), True)
+        _result, creds = self._create()
+        mentor = db.session.scalar(sa.select(VaUsers).where(VaUsers.email == creds["users"]["mentor"]))
+        grants = db.session.scalars(sa.select(VaUserAccessGrants).where(
+            VaUserAccessGrants.user_id == mentor.user_id,
+            VaUserAccessGrants.grant_status == VaStatuses.active)).all()
+        self.assertTrue(grants)  # present first
+        self.assertEqual({g.cadre_id for g in grants}, {None})
+        self.assertIsNone(db.session.scalar(sa.select(MasOrgUnitWorker.worker_id).where(
+            MasOrgUnitWorker.user_id == mentor.user_id)))
+        resolved = resolve_grants(mentor)
+        self.assertFalse(any(resolved.is_pii_grant(g) for g in resolved.grants))
 
 
 class SeedE2eUsersReleaseTests(CodingScopeFixtureMixin, BaseTestCase):

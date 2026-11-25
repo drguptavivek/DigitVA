@@ -214,11 +214,13 @@ class MentorViewTests(UnitScopeFixture, BaseTestCase):
         self.assertTrue({str(self.d1.org_unit_id), str(self.d2.org_unit_id)} <= ids)
         self.assertEqual(self._table(self.base_admin_user).status_code, 200)
 
-    def test_mentor_with_district_dm_grant_sees_names(self):
+    def test_mentor_with_district_dm_grant_sees_pseudonyms(self):
+        # digitva-4650 (owner 2026-11-25): a mentor's own data_manager grant is
+        # Non-PII; only a worker-backed health-system grant shows names.
         mentor = self._mentor("mv.mentor.dm@test.local", R.data_manager)
         body = self._table(mentor).get_json()
-        self.assertTrue(body["names_visible"])
-        self.assertIn("Alpha Coder", [r["label"] for r in body["coders"]])
+        self.assertEqual([r["label"] for r in body["coders"]], ["Coder 1", "Coder 2"])
+        self.assertFalse(body["names_visible"])
 
     # -- drill-down --------------------------------------------------------
 

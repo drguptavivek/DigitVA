@@ -110,7 +110,7 @@ class OrgUnitGrantTests(BaseTestCase):
             og.validate_org_unit_grant(
                 role=VaAccessRoles.coder, org_unit_id=phc.org_unit_id, cadre_id=cadres["CHO"].cadre_id
             )
-        self.assertIn("may not code", str(ctx.exception))
+        self.assertIn("may not hold coder", str(ctx.exception))
 
         # SMO codes at a CHC but is not defined at a sub-centre at all.
         with self.assertRaises(org.OrganizationError) as ctx:
@@ -121,10 +121,12 @@ class OrgUnitGrantTests(BaseTestCase):
             )
         self.assertIn("not defined at level", str(ctx.exception))
 
-        # A coder grant without any cadre is refused outright.
+        # A coder grant without any cadre is refused for anyone outside a
+        # mentoring institute (digitva-4650: the grantee decides).
         with self.assertRaises(org.OrganizationError) as ctx:
-            og.validate_org_unit_grant(role=VaAccessRoles.coder, org_unit_id=chc.org_unit_id)
-        self.assertIn("requires a cadre", str(ctx.exception))
+            og.validate_org_unit_grant(role=VaAccessRoles.coder, org_unit_id=chc.org_unit_id,
+                                       user_id=self.base_coder_user.user_id)
+        self.assertIn("needs the person's cadre", str(ctx.exception))
 
     def test_non_coding_role_may_omit_cadre_but_a_named_cadre_must_exist_at_the_level(self):
         _, chc, _, subcentre, _ = self._tree()
@@ -413,6 +415,7 @@ class OrgUnitGrantApiTests(BaseTestCase):
                     "role": "reviewer",
                     "scope_type": "org_unit",
                     "org_unit_id": str(chc.org_unit_id),
+                    "cadre_id": str(cadres["SMO"].cadre_id),
                 }
             ).status_code,
             201,
@@ -466,7 +469,7 @@ class OrgUnitGrantApiTests(BaseTestCase):
         self.assertEqual(allowed.status_code, 201, allowed.get_json())
 
     def test_project_pi_may_revoke_a_unit_grant_in_their_own_project(self):
-        chc, _ = self._tree()
+        chc, cadres = self._tree()
         self._login(str(self.base_admin_id))
         created = self._post_grant(
             {
@@ -474,6 +477,7 @@ class OrgUnitGrantApiTests(BaseTestCase):
                 "role": "reviewer",
                 "scope_type": "org_unit",
                 "org_unit_id": str(chc.org_unit_id),
+                "cadre_id": str(cadres["SMO"].cadre_id),
             }
         )
         self.assertEqual(created.status_code, 201, created.get_json())
@@ -512,7 +516,7 @@ class OrgUnitGrantApiTests(BaseTestCase):
         self._login(str(self.base_admin_id))
         url = "/data-management/api/access-grants"
         for role, extra in (
-            ("reviewer", {}),
+            ("reviewer", {"cadre_id": str(cadres["SMO"].cadre_id)}),
             ("coder", {"cadre_id": str(cadres["SMO"].cadre_id)}),
         ):
             body = {

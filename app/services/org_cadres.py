@@ -38,11 +38,7 @@ def serialize_level_cadre(row: MapOrgLevelCadre, *, level: MasOrgLevel, cadre: M
         "level_code": level.level_code,
         "cadre_id": str(row.cadre_id),
         "cadre_code": cadre.cadre_code,
-        "can_fill_va_form": row.can_fill_va_form,
-        "can_code_va_form": row.can_code_va_form,
-        "can_supervise_interviews": row.can_supervise_interviews,
-        "can_report_deaths": row.can_report_deaths,
-        "can_edit_interviews": row.can_edit_interviews,
+        "allowed_roles": list(row.allowed_roles or []),
         "default_roles": list(row.default_roles or []),
         "is_active": row.is_active,
     }

@@ -60,7 +60,11 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
             body["project_site_id"] = str(self.project_site_ids[where])
         else:
             body["org_unit_id"] = str(self.units[where].org_unit_id)
-        return body
+            # Unit grants name a cadre allowing the role (digitva-4650); mentor
+            # grants carry none. Pass cadre_id=None to send no cadre.
+            if "cadre_id" not in extra and user is not self.users["mentor"]:
+                body["cadre_id"] = self.any_cadre[self.units[where].project_id]
+        return {key: value for key, value in body.items() if value is not None}
 
     def _post(self, url, body):
         return self.client.post(url, json=body, headers=self._csrf_headers())
@@ -178,29 +182,32 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
         self.assertTrue(can_grant(self.users["dm_c1"], GrantTarget(
             role=R.coder, scope_type=U, org_unit_id=self.units["P1"].org_unit_id)))
         self._as("dm_c1")
-        no_cadre = self._post(DM_GRANTS, self._body(R.coder, U, "P1"))
+        no_cadre = self._post(DM_GRANTS, self._body(R.coder, U, "P1", cadre_id=None))
         self.assertEqual(no_cadre.status_code, 400, no_cadre.get_json())
-        self.assertIn("requires a cadre", no_cadre.get_json()["error"])
+        self.assertIn("needs the person's cadre", no_cadre.get_json()["error"])
 
         self.assertTrue(can_grant(self.users["dm_ta"], GrantTarget(
-            role=R.data_manager, scope_type=U, org_unit_id=self.units["P1"].org_unit_id),
+            role=R.interviewer, scope_type=U, org_unit_id=self.units["P1"].org_unit_id),
             grantee_id=mentor.user_id))
         self._as("dm_ta")
-        guarded = self._post(DM_GRANTS, self._body(R.data_manager, U, "P1", user=mentor))
+        guarded = self._post(DM_GRANTS, self._body(R.interviewer, U, "P1", user=mentor))
         self.assertEqual(guarded.status_code, 400, guarded.get_json())
         self.assertIn("mentoring institute", guarded.get_json()["error"])
         # The same grant for someone outside the institute is written.
-        self.assertEqual(self._post(DM_GRANTS, self._body(R.data_manager, U, "P1")).status_code, 201)
+        self.assertEqual(self._post(DM_GRANTS, self._body(R.interviewer, U, "P1")).status_code, 201)
+        # A mentor data manager, no cadre, is a mentor grant (digitva-4650).
+        mentor_dm = self._post(DM_GRANTS, self._body(R.data_manager, U, "P1", user=mentor))
+        self.assertEqual(mentor_dm.status_code, 201, mentor_dm.get_json())
 
     def test_a_death_reporter_grant_needs_a_cadre_with_the_flag_and_only_at_unit_scope(self):
         self.assertIn(R.death_reporter, DM_TREE_ASSIGNABLE)
         self._as("dm_c1")
-        none = self._post(DM_GRANTS, self._body(R.death_reporter, U, "SC1"))
+        none = self._post(DM_GRANTS, self._body(R.death_reporter, U, "SC1", cadre_id=None))
         self.assertEqual(none.status_code, 400, none.get_json())
-        self.assertIn("requires a cadre", none.get_json()["error"])
+        self.assertIn("needs the person's cadre", none.get_json()["error"])
         cho = self._post(DM_GRANTS, self._body(R.death_reporter, U, "SC1", cadre_id=str(self._cadre("CHO").cadre_id)))
         self.assertEqual(cho.status_code, 400, cho.get_json())
-        self.assertIn("may not report deaths", cho.get_json()["error"])
+        self.assertIn("may not hold death_reporter", cho.get_json()["error"])
         self.assertIsNone(self._held_by_grantee(R.death_reporter))
         anm = self._post(DM_GRANTS, self._body(R.death_reporter, U, "SC1", cadre_id=str(self._cadre("ANM").cadre_id)))
         self.assertEqual(anm.status_code, 201, anm.get_json())
@@ -215,13 +222,13 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
         # Owner 2026-11-16 (digitva-dcdb): data managers grant field supervisors.
         self.assertIn(R.interview_supervisor, DM_TREE_ASSIGNABLE)
         self._as("dm_c1")
-        none = self._post(DM_GRANTS, self._body(R.interview_supervisor, U, "P1"))
+        none = self._post(DM_GRANTS, self._body(R.interview_supervisor, U, "P1", cadre_id=None))
         self.assertEqual(none.status_code, 400, none.get_json())
-        self.assertIn("requires a cadre", none.get_json()["error"])
+        self.assertIn("needs the person's cadre", none.get_json()["error"])
         cho = self._post(DM_GRANTS, self._body(R.interview_supervisor, U, "P1",
                                                cadre_id=str(self._cadre("CHO").cadre_id)))
         self.assertEqual(cho.status_code, 400, cho.get_json())
-        self.assertIn("may not supervise interviews", cho.get_json()["error"])
+        self.assertIn("may not hold interview_supervisor", cho.get_json()["error"])
         self.assertIsNone(self._held_by_grantee(R.interview_supervisor))
         mo = self._post(DM_GRANTS, self._body(R.interview_supervisor, U, "P1",
                                               cadre_id=str(self._cadre("MO").cadre_id)))
@@ -248,6 +255,8 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
 
     def test_toggle_follows_the_same_rule_on_the_stored_grant(self):
         inside = self._held("reviewer_c1", R.reviewer, U)
+        inside.cadre_id = self.any_cadre[TA]  # reactivation re-validates (digitva-4650)
+        db.session.commit()
         outside = self._held("reviewer_ta", R.reviewer, P)
         self._as("dm_c1")
         self.assertEqual(self._toggle(DM_GRANTS, outside.grant_id).status_code, 403)
@@ -406,6 +415,7 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
             "initial_project_id": TA, "initial_role": "reviewer",
             "initial_scope_type": "org_unit",
             "initial_org_unit_id": str(self.units["P1"].org_unit_id),
+            "initial_cadre_id": self.any_cadre[TA],
         }
         with patch("app.services.user_account_service.send_invitation"):
             made = self._post("/data-management/api/users", payload)
@@ -588,7 +598,7 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
         db.session.get(VaProjectMaster, TA).project_structure_mode = "organization"
         db.session.flush()
         rows = [{"_line_number": 2, "email": self.grantee.email, "name": "", "role": "data_manager",
-                 "org_unit_code": "C1", "cadre_code": "", "language_codes": "", "phone": ""}]
+                 "org_unit_code": "C1", "cadre_code": "ANY", "language_codes": "", "phone": ""}]
         plan = user_import.prepare(TA, rows, actor=self.users["pi_ta"])
         self.assertEqual([item["action"] for item in plan], ["grant"])
         # A project PI of another project is refused row by row, even if a
@@ -612,9 +622,9 @@ class DmGrantWriteTests(AuthzFixtureMixin, BaseTestCase):
         # Present first: the ANM, who may report deaths at a sub-centre, is accepted.
         plan = user_import.prepare(TA, [row], actor=self.users["pi_ta"])
         self.assertEqual([item["action"] for item in plan], ["grant"])
-        with self.assertRaisesRegex(user_import.ProjectUserImportError, "needs a cadre permitted to report deaths"):
+        with self.assertRaisesRegex(user_import.ProjectUserImportError, "cadre CHO may not hold death_reporter"):
             user_import.prepare(TA, [{**row, "cadre_code": "CHO"}], actor=self.users["pi_ta"])
-        with self.assertRaisesRegex(user_import.ProjectUserImportError, "needs a cadre permitted to report deaths"):
+        with self.assertRaisesRegex(user_import.ProjectUserImportError, "needs a cadre allowed to hold it"):
             user_import.prepare(TA, [{**row, "cadre_code": ""}], actor=self.users["pi_ta"])
         with self.assertRaisesRegex(user_import.ProjectUserImportError, "requires an organization unit"):
             user_import.prepare(TA, [{**row, "org_unit_code": "", "cadre_code": ""}], actor=self.users["pi_ta"])
@@ -670,7 +680,7 @@ class DmGrantPickerDefaultRolesTests(AuthzFixtureMixin, BaseTestCase):
         # The answer is the write path's: each offered role posts, the withheld one is refused.
         grantee = self._get_or_make_user("authz.dm.picker.grantee@test.local", "AuthzTest123")
         body = {"user_id": str(grantee.user_id), "scope_type": "org_unit",
-                "org_unit_id": str(self.units["C1"].org_unit_id)}
+                "org_unit_id": str(self.units["C1"].org_unit_id), "cadre_id": self.any_cadre[TA]}
         for role, expected in (("reviewer", 201), ("data_manager", 403)):
             response = self.client.post(
                 DM_GRANTS, json={**body, "role": role}, headers=self._csrf_headers())

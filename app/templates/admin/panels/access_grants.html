@@ -559,10 +559,11 @@
 
   // ── scope visibility ──────────────────────────────────────────────────────
 
-  // Roles whose unit grant needs a cadre carrying a level x cadre flag
-  // (org_grant_service.CADRE_FLAG_BY_ROLE); interview_supervisor and
-  // death_reporter are unit-only.
-  var CADRE_FLAG = { coder: 'can_code_va_form', interview_supervisor: 'can_supervise_interviews', death_reporter: 'can_report_deaths' };
+  // Every unit grant names a cadre whose allowed_roles at the unit's level
+  // include the role (org_grant_service.validate_org_unit_grant,
+  // digitva-4650); only a mentoring-institute member's mentor grant carries
+  // none, which the server decides. interview_supervisor and death_reporter
+  // are unit-only.
   var UNIT_ONLY_ROLES = { interview_supervisor: true, death_reporter: true };
 
   document.getElementById('ag-scope').addEventListener('change', function () {
@@ -730,16 +731,10 @@
     var sel = document.getElementById('ag-cadre');
     var unit = selectedUnit();
     var role = document.getElementById('ag-role').value;
-    var flag = CADRE_FLAG[role];
-    var codingRole = !!flag;
-    document.getElementById('ag-cadre-required').classList.toggle('d-none', !codingRole);
-    document.getElementById('ag-cadre-help').textContent = role === 'coder'
-      ? "Cadres allowed to code at this unit's level."
-      : role === 'interview_supervisor'
-        ? "Cadres allowed to supervise interviews at this unit's level."
-        : role === 'death_reporter'
-          ? "Cadres allowed to report deaths at this unit's level."
-          : "Cadres defined at this unit's level (optional).";
+    document.getElementById('ag-cadre-required').classList.remove('d-none');
+    document.getElementById('ag-cadre-help').textContent = role
+      ? "Cadres allowed to hold " + role + " at this unit's level. Leave none only for mentoring-institute staff (a Non-PII mentor grant)."
+      : "Cadres placed at this unit's level.";
     if (!unit) {
       sel.innerHTML = '<option value="">— select unit first —</option>';
       renderDefaultRoles();
@@ -747,20 +742,20 @@
     }
     var allowed = _orgLevelCadres.filter(function (lc) {
       if (lc.org_level_id !== unit.org_level_id || !lc.is_active) return false;
-      return codingRole ? !!lc[flag] : true;
+      return !role || (lc.allowed_roles || []).indexOf(role) >= 0;
     });
+    var noneOption = '<option value="">— none (mentoring-institute staff only) —</option>';
     if (!allowed.length) {
-      sel.innerHTML = '<option value="">— none defined at ' + esc(unit.level_code) + ' —</option>';
+      sel.innerHTML = noneOption;
       renderDefaultRoles();
       return;
     }
-    sel.innerHTML = (codingRole ? '' : '<option value="">— none —</option>')
-      + allowed.map(function (lc) {
+    sel.innerHTML = allowed.map(function (lc) {
         var cadre = _orgCadres[lc.cadre_id] || {};
         return '<option value="' + esc(lc.cadre_id) + '">'
           + esc(lc.cadre_code) + (cadre.cadre_name ? ' — ' + esc(cadre.cadre_name) : '')
           + '</option>';
-      }).join('');
+      }).join('') + noneOption;
     renderDefaultRoles();
   }
 
@@ -827,17 +822,8 @@
       if (!unitVal) { errEl.textContent = 'Select a unit.'; return; }
       body.org_unit_id = unitVal;
       var cadreVal = document.getElementById('ag-cadre').value;
+      // No cadre: the server accepts it only for a mentoring-institute member.
       if (cadreVal) body.cadre_id = cadreVal;
-      for (var i = 0; i < roles.length; i++) {
-        if (CADRE_FLAG[roles[i]] && !cadreVal) {
-          errEl.textContent = roles[i] === 'coder'
-            ? 'A coder grant on a unit needs a cadre that may code at that level.'
-            : roles[i] === 'death_reporter'
-              ? 'A death reporter grant needs a cadre that may report deaths at that level.'
-              : 'An interview supervisor grant needs a cadre that may supervise interviews at that level.';
-          return;
-        }
-      }
     }
 
     var btn = this;

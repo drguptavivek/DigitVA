@@ -4,12 +4,13 @@ An institute is a cross-project master (``mas_mentor_institute``) attached to
 district-level units (``map_mentor_institute_org_unit``) and staffed by users
 (``map_mentor_institute_user``). Mentor access is through ordinary unit
 grants; the maps only *guard* writing them: ``check_mentor_grant`` refuses a
-member any grant outside an attached district's subtree or outside
-``MENTOR_ROLES``. Detach, remove and deactivate soft-deactivate (``is_active``).
+member any grant outside an attached district's subtree, and a mentor grant
+(no cadre) outside ``MENTOR_UNIT_ROLES``. Detach, remove and deactivate soft-deactivate (``is_active``).
 Detach leaves grants alone; removing a person (``remove_member``,
 ``remove_staff``) or deactivating an institute also deactivates the person's
 unit grants inside the institute's districts that would otherwise turn into
-Tier 3 PII once the membership lapses (``_deactivate_institute_grants``).
+Tier 3 PII once the membership lapses (``_deactivate_institute_grants``),
+except grants their own worker record backs.
 Reactivating restores neither membership-lapsed grants nor anything else.
 
 An institute admin (``map_mentor_institute_user.is_admin``) creates and
@@ -45,7 +46,7 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
-from app.services.org_grant_service import active_project_condition
+from app.services.org_grant_service import active_project_condition, worker_backed_condition
 from app.services.organization_service import (
     OrganizationError,
     find_unit_by_code,
@@ -62,12 +63,19 @@ MENTOR_ROLES = frozenset(
         VaAccessRoles.collaborator,
     }
 )
-_MENTOR_ROLE_NAMES = ", ".join(sorted(role.value for role in MENTOR_ROLES))
+
+# Every role a member's mentor grant (no cadre) may carry: MENTOR_ROLES plus
+# data_manager, at any unit inside an attached district. All Non-PII
+# (owner 2026-11-25, digitva-4650).
+MENTOR_UNIT_ROLES = MENTOR_ROLES | {VaAccessRoles.data_manager}
+_MENTOR_UNIT_ROLE_NAMES = ", ".join(sorted(role.value for role in MENTOR_UNIT_ROLES))
 
 # Unit roles that are Non-PII only while the holder is institute staff and
 # become Tier 3 PII (or full In-charge) once the membership lapses, so they are
-# deactivated with it. data_manager is the exceptional PII path and stays.
-_LAPSING_UNIT_ROLES = MENTOR_ROLES | {
+# deactivated with it. A grant backed by the member's own worker record
+# (health-system enrolment, org_grant_service.worker_backed_condition) is
+# never touched (digitva-4650).
+_LAPSING_UNIT_ROLES = MENTOR_UNIT_ROLES | {
     VaAccessRoles.site_pi,
     VaAccessRoles.interviewer,
     VaAccessRoles.interview_supervisor,
@@ -241,8 +249,9 @@ def _forget_grants(user_id) -> None:
 
 def add_member(institute_code, email: str | None = None, *, user_id=None, actor_user_id=None) -> int:
     """Make the user (email or user_id) institute staff. Returns how many active grants
-    the guard would now refuse (not unit scope, not a mentor role, or a unit
-    outside every district their institutes are attached to); those stay in
+    the guard would now refuse (not unit scope, a cadre-less grant outside the
+    mentor roles, a cadre no worker record of theirs backs, or a unit outside
+    every district their institutes are attached to); those stay in
     place until an admin revokes them.
     """
     institute = _institute(institute_code)
@@ -275,7 +284,16 @@ def add_member(institute_code, email: str | None = None, *, user_id=None, actor_
             sa.not_(
                 sa.and_(
                     VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-                    VaUserAccessGrants.role.in_(MENTOR_ROLES),
+                    sa.or_(
+                        sa.and_(
+                            VaUserAccessGrants.cadre_id.is_(None),
+                            VaUserAccessGrants.role.in_(MENTOR_UNIT_ROLES),
+                        ),
+                        worker_backed_condition(
+                            VaUserAccessGrants.user_id, VaUserAccessGrants.org_unit_id,
+                            VaUserAccessGrants.cadre_id,
+                        ),
+                    ),
                     _covered_by_institutes(user.user_id, VaUserAccessGrants.org_unit_id),
                 )
             ),
@@ -429,9 +447,10 @@ def remove_staff(
     """Remove a person from *institute*'s staff; returns (account deactivated, grants deactivated).
 
     Membership is deactivated, and so are (never deleted) the person's active
-    lapsing unit grants (mentor roles, site_pi, interviewer, interview_supervisor)
-    inside this institute's attached district subtrees,
-    except units another institute they remain staff of still covers. The
+    lapsing unit grants (mentor roles, data_manager, site_pi, interviewer,
+    interview_supervisor) inside this institute's attached district subtrees,
+    except units another institute they remain staff of still covers and
+    grants their own worker record backs. The
     account is deactivated only when this institute created it and the person
     belongs to no other active institute, so an institute never switches off
     someone who is also another body's staff or was not its own hire; nor,
@@ -488,7 +507,8 @@ def _holds_project_access(user_id) -> bool:
 def _deactivate_institute_grants(institute: MasMentorInstitute, user_ids) -> int:
     """Deactivate (never delete) the users' active ``_LAPSING_UNIT_ROLES`` unit
     grants inside *institute*'s district subtrees (any attachment, active or
-    not) that no remaining active membership of the same user covers. One
+    not) that no remaining active membership of the same user covers and no
+    worker record of theirs backs (``worker_backed_condition``). One
     UPDATE for all *user_ids*; the caller flushes the membership or institute
     change first. Returns the count."""
     user_ids = list(user_ids)
@@ -515,6 +535,10 @@ def _deactivate_institute_grants(institute: MasMentorInstitute, user_ids) -> int
             VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
             VaUserAccessGrants.grant_status == VaStatuses.active,
             VaUserAccessGrants.role.in_(_LAPSING_UNIT_ROLES),
+            sa.not_(worker_backed_condition(
+                VaUserAccessGrants.user_id, VaUserAccessGrants.org_unit_id,
+                VaUserAccessGrants.cadre_id,
+            )),
             in_institute,
             sa.not_(
                 _covered_by_institutes(VaUserAccessGrants.user_id, VaUserAccessGrants.org_unit_id)
@@ -695,30 +719,41 @@ def _covered_by_institutes(user_id, unit_id_expr):
     )
 
 
-def check_mentor_grant(user_id, role: VaAccessRoles, unit: MasOrgUnit | None) -> None:
-    """Refuse a grant a mentoring institute member may not hold.
+def check_mentor_grant(
+    user_id, role: VaAccessRoles, unit: MasOrgUnit | None, *, cadre_id=None
+) -> bool:
+    """Refuse a grant a mentoring institute member may not hold; return
+    whether *user_id* is a member (False: no-op for everyone else).
 
     *unit* is the unit of an org_unit-scope grant, or None for any other scope.
-    No-op for non-members. Raises OrganizationError with an operator message.
+    A member's unit grant must lie inside a district attached to one of their
+    institutes. Without *cadre_id* it is a mentor grant: ``MENTOR_UNIT_ROLES``
+    only, always Non-PII. With *cadre_id* it is a health-system grant, valid
+    only where the member's own active worker record at *unit* holds that
+    cadre (``worker_backed_condition``); the cadre's allowed roles are
+    checked by ``org_grant_service.validate_org_unit_grant``. Raises
+    OrganizationError with an operator message.
     """
     if user_id not in member_user_ids([user_id]):
-        return
+        return False
     if unit is None:
         raise OrganizationError(
             "This user is staff of a mentoring institute and may only hold "
             "unit-scope grants inside a district the institute is attached to."
         )
-    if role == VaAccessRoles.data_manager:
-        level = db.session.get(MasOrgLevel, unit.org_level_id)
-        if level is None or level.level_code != "district":
+    if cadre_id is None:
+        if role not in MENTOR_UNIT_ROLES:
             raise OrganizationError(
-                f"A mentoring institute member may hold only {_MENTOR_ROLE_NAMES}; "
+                f"A mentoring institute member may hold only {_MENTOR_UNIT_ROLE_NAMES}; "
                 f"not {role.value}."
             )
-    elif role not in MENTOR_ROLES:
+    elif not db.session.scalar(
+        sa.select(worker_backed_condition(user_id, unit.org_unit_id, cadre_id))
+    ):
         raise OrganizationError(
-            f"A mentoring institute member may hold only {_MENTOR_ROLE_NAMES}; "
-            f"not {role.value}."
+            "This user is staff of a mentoring institute: a grant with a cadre needs "
+            "their worker record with that cadre at this unit. Enrol them as a worker "
+            "first, or grant without a cadre."
         )
     covered = db.session.scalar(sa.select(_covered_by_institutes(user_id, unit.org_unit_id)))
     if not covered:
@@ -726,6 +761,7 @@ def check_mentor_grant(user_id, role: VaAccessRoles, unit: MasOrgUnit | None) ->
             "This user is staff of a mentoring institute: the unit must be inside "
             "a district the institute is attached to."
         )
+    return True
 
 
 def mentors_for_unit(unit_id) -> list[tuple[MasMentorInstitute, VaUsers]]:

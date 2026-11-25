@@ -3,7 +3,7 @@ title: District Reference Model (Hierarchy, Cadres and Roles)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-26
+last_updated: 2026-11-25
 ---
 
 # District Reference Model
@@ -96,7 +96,7 @@ This is the default template in code (`DEFAULT_LEVEL_TEMPLATE`,
 `DEFAULT_CADRE_TEMPLATE`, `DEFAULT_LEVEL_CADRE_TEMPLATE` in
 `app/services/organization_service.py`). *Populate district defaults* on the
 Organization page (`flask org seed-template`) adds whatever of it a project is
-missing and never changes an existing level, cadre or grid row, so flags an
+missing and never changes an existing level, cadre or grid row, so allowed roles an
 administrator set are kept. The page shows this table, with the default roles,
 under *District reference model*.
 
@@ -110,34 +110,35 @@ under *District reference model*.
 | `subcentre` | SC-AAM / Sub-centre | Sub-centre |
 | `village` | Village | Optional |
 
-| Level code | Cadre | Fill VA | Code VA | Supervise interviews | Report deaths |
-|---|---|---|---|---|---|
-| `state` | SNO State Nodal Officer | – | – | ✓ | – |
-| `state` | SPM State Programme Manager | – | – | – | – |
-| `state` | SEPI State Epidemiologist | – | – | – | – |
-| `district` | CS Civil Surgeon | – | – | ✓ | – |
-| `district` | DPM District Programme Manager | – | – | – | – |
-| `district` | DEPI District Epidemiologist | – | – | – | – |
-| `district` | MO Medical Officer | – | ✓ | – | – |
-| `district` | SN Staff Nurse | ✓ | – | – | – |
-| `chc` | SMO Senior Medical Officer | – | ✓ | ✓ | – |
-| `chc` | MO Medical Officer | – | ✓ | – | – |
-| `chc` | BPM Block Programme Manager | – | – | – | – |
-| `chc` | SN Staff Nurse | ✓ | – | – | – |
-| `phc` | MO Medical Officer | – | ✓ | ✓ | – |
-| `phc` | CHO Community Health Officer | ✓ | – | – | – |
-| `subcentre` | CHO Community Health Officer | ✓ | – | – | – |
-| `subcentre` | MPW Multipurpose Worker | ✓ | – | – | ✓ |
-| `subcentre` | ANM Auxiliary Nurse Midwife | ✓ | – | – | ✓ |
-| `village` | ASHA Accredited Social Health Activist | – | – | – | ✓ |
+| Level code | Cadre | Allowed roles |
+|---|---|---|
+| `state` | SNO State Nodal Officer | interview_supervisor |
+| `state` | SPM State Programme Manager | – |
+| `state` | SEPI State Epidemiologist | – |
+| `district` | CS Civil Surgeon | site_pi, interview_supervisor |
+| `district` | DPM District Programme Manager | data_manager |
+| `district` | DEPI District Epidemiologist | data_manager |
+| `district` | MO Medical Officer | coder, reviewer |
+| `district` | SN Staff Nurse | interviewer |
+| `chc` | SMO Senior Medical Officer | site_pi, coder, reviewer, interview_supervisor |
+| `chc` | MO Medical Officer | coder |
+| `chc` | BPM Block Programme Manager | data_manager |
+| `chc` | SN Staff Nurse | interviewer |
+| `phc` | MO Medical Officer | site_pi, coder, interview_supervisor |
+| `phc` | CHO Community Health Officer | interviewer |
+| `subcentre` | CHO Community Health Officer | interviewer |
+| `subcentre` | MPW Multipurpose Worker | interviewer, death_reporter |
+| `subcentre` | ANM Auxiliary Nurse Midwife | interviewer, death_reporter |
+| `village` | ASHA Accredited Social Health Activist | death_reporter |
 
-ASHA has no *Fill VA*: ASHAs report deaths and do not interview. ANM and MPW
+ASHA is not allowed `interviewer`: ASHAs report deaths and do not interview. ANM and MPW
 may fill VAs (owner, 2026-10-12, reversing the 2026-10-06 rule that they must
 not interview); their default role stays `death_reporter`, and an
 `interviewer` grant is added where they interview. The template applies to
 projects populated after that date; an existing project's grid rows are never
-rewritten, so its administrator changes *Fill VA* in the grid editor if
-wanted.
+rewritten, so its administrator allows `interviewer` in the grid editor if
+wanted. The allowed roles (`DEFAULT_LEVEL_CADRE_TEMPLATE`, `digitva-4650`)
+are each row's default roles plus the roles the old permission flags gave.
 
 ## Default roles by cadre
 
@@ -160,11 +161,10 @@ by the level_cadres sheet of the organization export and import
 - **Unit-scope roles only**, `death_reporter` included: the roles a unit grant
   may carry (see [Organization Model Policy](organization-model.md),
   "Unit-scoped grants").
-- **A default can only name roles the row allows**, by the same rule the grant
-  write uses: *Code VA* for `coder`, *Supervise interviews* for
-  `interview_supervisor`, *Report deaths* for `death_reporter`; `interviewer`
-  and the other unit roles have no flag. Saving defaults that break the rule
-  is refused; clearing a flag drops the stored defaults that relied on it.
+- **A default can only name a role the row allows** (its allowed roles, the
+  list every unit grant's role is checked against, `digitva-4650`). Saving a
+  default outside it is refused; disallowing a role drops it from the
+  defaults.
 - **Seed.** A new project's grid takes the table below as its defaults
   (`DEFAULT_TYPICAL_ROLES` in `app/services/organization_service.py`). An
   existing project's grid rows are never rewritten: their defaults start empty
@@ -191,7 +191,7 @@ The table is the seed. Access still comes only from each person's grants.
 | Tier 3 (Inside) | State / Province | SNO (or State/Province Director) | State/Province **In-charge** (`in_charge`) | **PII** | all districts and units in the state/province |
 | Tier 3 (Inside) | State / Province | SPM, SEPI | `data_manager` (at `org_unit` scope) | **PII** | all districts and units in the state/province |
 | Tier 3 (Inside) | DH | CS (or CMO) | District **In-charge** (`in_charge`, *stored as unit `site_pi` prior to enum split*) | **PII** | whole district, with every data manager power in it plus field supervision and unit reporting |
-| Tier 3 (Inside) | DH | DPM, DEPI | `data_manager` (at `org_unit` scope) | **PII** | whole district: supervising the worklist, data & epidemiology (also used when an external person exceptionally needs PII at district level) |
+| Tier 3 (Inside) | DH | DPM, DEPI | `data_manager` (at `org_unit` scope) | **PII** | whole district: supervising the worklist, data & epidemiology (also used when an external person exceptionally needs PII at district level, enrolled as a worker with that cadre; a mentor's cadre-less data_manager is Non-PII) |
 | Tier 3 (Inside) | DH | MO | `coder`, or `reviewer` | **PII** (in-system doctor, within-tree or cross-tree) | whole district |
 | Tier 3 (Inside) | DH | SN | `interviewer` | **PII** | facility deaths at the DH |
 | Tier 3 (Inside) | CHC | SMO | Block **In-charge**, `reviewer` | **PII** | the block |

@@ -879,6 +879,15 @@ def manage_create_user():
         )
     except accounts.UserAccountError as exc:
         return _json_error(str(exc), 400)
+    # The grantee rules (a unit grant names a cadre, digitva-4650) now that
+    # the grantee exists; a new account is never institute staff.
+    guard_error = _mentor_guard_error(
+        new_user.user_id, scope.role,
+        scope.org_unit_id if scope.scope_type == _U else None, scope.cadre_id,
+    )
+    if guard_error:
+        db.session.rollback()
+        return _json_error(guard_error, 400)
     new_grant = VaUserAccessGrants(
         user_id=new_user.user_id,
         role=scope.role,

@@ -110,7 +110,7 @@ class InterviewSupervisorTests(BaseTestCase):
         # MO may supervise at a PHC (decision 12); the template leaves it off.
         org.upsert_level_cadre(
             cls.PROJECT_ID, org_level_id=cls.phc_level_id, cadre_id=cls.cadres["MO"].cadre_id,
-            can_fill_va_form=False, can_code_va_form=True, can_supervise_interviews=True,
+            allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coder", "coding_tester", "reviewer", "data_manager", "interviewer", "interview_supervisor"],
         )
 
         def grant(user, role, **scope):
@@ -197,37 +197,33 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertEqual((unit.org_unit_id, cadre.cadre_code), (self.p1.org_unit_id, "MO"))
 
         # MO is placed at CHC too, but not flagged to supervise there.
-        with self.assertRaisesRegex(org.OrganizationError, "may not supervise interviews"):
+        with self.assertRaisesRegex(org.OrganizationError, "may not hold interview_supervisor"):
             og.validate_org_unit_grant(
                 role=VaAccessRoles.interview_supervisor, org_unit_id=self.c1.org_unit_id,
                 cadre_id=self.cadres["MO"].cadre_id,
             )
-        with self.assertRaisesRegex(org.OrganizationError, "requires a cadre"):
+        # A health-system grantee must name a cadre (digitva-4650).
+        with self.assertRaisesRegex(org.OrganizationError, "needs the person's cadre"):
             og.validate_org_unit_grant(
                 role=VaAccessRoles.interview_supervisor, org_unit_id=self.p1.org_unit_id,
+                user_id=self.base_coder_user.user_id,
             )
-        # CHO is placed at PHC without the flag.
-        with self.assertRaisesRegex(org.OrganizationError, "may not supervise interviews"):
+        # CHO is placed at PHC without interview_supervisor allowed.
+        with self.assertRaisesRegex(org.OrganizationError, "may not hold interview_supervisor"):
             og.validate_org_unit_grant(
                 role=VaAccessRoles.interview_supervisor, org_unit_id=self.p1.org_unit_id,
                 cadre_id=self.cadres["CHO"].cadre_id,
             )
 
-    def test_the_grid_flag_is_kept_when_a_caller_omits_it(self):
-        row = org.upsert_level_cadre(
-            self.PROJECT_ID, org_level_id=self.phc_level_id, cadre_id=self.cadres["MO"].cadre_id,
-            can_fill_va_form=True, can_code_va_form=True,
-        )
-        self.assertTrue(row.can_supervise_interviews)
-        row = org.upsert_level_cadre(
-            self.PROJECT_ID, org_level_id=self.phc_level_id, cadre_id=self.cadres["MO"].cadre_id,
-            can_fill_va_form=True, can_code_va_form=True, can_supervise_interviews=False,
-        )
-        self.assertFalse(row.can_supervise_interviews)
+    def test_the_allowed_list_is_kept_when_a_caller_omits_it(self):
+        args = dict(org_level_id=self.phc_level_id, cadre_id=self.cadres["MO"].cadre_id)
+        row = org.upsert_level_cadre(self.PROJECT_ID, **args)
+        self.assertIn("interview_supervisor", row.allowed_roles)
+        row = org.upsert_level_cadre(self.PROJECT_ID, **args, allowed_roles=["coder"])
+        self.assertNotIn("interview_supervisor", row.allowed_roles)
         exported = {(r["level_code"], r["cadre_code"]): r
                     for r in org.export_organization_rows(self.PROJECT_ID)["level_cadres"]}
-        self.assertIn("can_supervise_interviews", exported[("phc", "MO")])
-        self.assertFalse(exported[("phc", "MO")]["can_supervise_interviews"])
+        self.assertEqual(exported[("phc", "MO")]["allowed_roles"], "coder")
 
     def test_a_supervisor_grant_is_unit_scoped_only(self):
         self._login(str(self.base_admin_id))
@@ -270,8 +266,9 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertEqual(plan[0]["role"], VaAccessRoles.interview_supervisor)
         for bad, message in (
             (row(org_unit_code="", cadre_code=""), "requires an organization unit"),
-            (row(cadre_code="CHO"), "permitted to supervise interviews"),
-            (row(org_unit_code="SC1"), "permitted to supervise interviews"),
+            (row(cadre_code="CHO"), "may not hold interview_supervisor"),
+            (row(org_unit_code="SC1"), "may not hold interview_supervisor"),
+            (row(cadre_code=""), "needs a cadre"),
         ):
             with self.assertRaisesRegex(user_import.ProjectUserImportError, message):
                 user_import.prepare(self.PROJECT_ID, [bad], actor=self.base_admin_user)
@@ -520,19 +517,19 @@ class InterviewSupervisorTests(BaseTestCase):
 
         org.upsert_level_cadre(
             self.PROJECT_ID, org_level_id=self.phc_level_id, cadre_id=self.cadres["MO"].cadre_id,
-            can_fill_va_form=False, can_code_va_form=True, can_supervise_interviews=False,
+            allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coder", "coding_tester", "reviewer", "data_manager", "interviewer"],
         )
         db.session.commit()
         try:
             response = self.client.post(url, headers=self._csrf_headers())
             self.assertEqual(response.status_code, 400, response.get_json())
-            self.assertIn("may not supervise interviews", response.get_json()["error"])
+            self.assertIn("may not hold interview_supervisor", response.get_json()["error"])
             db.session.refresh(row)
             self.assertEqual(row.grant_status, VaStatuses.deactive)
         finally:
             org.upsert_level_cadre(
                 self.PROJECT_ID, org_level_id=self.phc_level_id, cadre_id=self.cadres["MO"].cadre_id,
-                can_fill_va_form=False, can_code_va_form=True, can_supervise_interviews=True,
+                allowed_roles=["site_pi", "collaborator", "collaborator_pii", "coder", "coding_tester", "reviewer", "data_manager", "interviewer", "interview_supervisor"],
             )
             db.session.commit()
 
@@ -1085,10 +1082,10 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertFalse(site_pi.is_interview_supervisor())
         self.assertFalse(cases.is_interview_supervisor_for(site_pi, case))
 
-    def test_the_user_import_accepts_an_in_charge_with_a_unit_code_only(self):
+    def test_the_user_import_accepts_an_in_charge_with_a_unit_and_cadre(self):
         def row(**kw):
             base = {"email": "sup.ian@test.local", "name": "", "role": "site_pi",
-                    "org_unit_code": "SC1", "cadre_code": "", "language_codes": "", "phone": "",
+                    "org_unit_code": "SC1", "cadre_code": "SMO", "language_codes": "", "phone": "",
                     "_line_number": 2}
             base.update(kw)
             return base
@@ -1097,4 +1094,7 @@ class InterviewSupervisorTests(BaseTestCase):
         self.assertEqual(plan[0]["role"], VaAccessRoles.site_pi)
         self.assertEqual(plan[0]["unit"].org_unit_id, self.c1.org_unit_id)
         with self.assertRaisesRegex(user_import.ProjectUserImportError, "requires an organization unit"):
-            user_import.prepare(self.PROJECT_ID, [row(org_unit_code="")], actor=self.base_admin_user)
+            user_import.prepare(self.PROJECT_ID, [row(org_unit_code="", cadre_code="")], actor=self.base_admin_user)
+        # digitva-4650: a health-system unit grant names the person's cadre.
+        with self.assertRaisesRegex(user_import.ProjectUserImportError, "needs a cadre"):
+            user_import.prepare(self.PROJECT_ID, [row(cadre_code="")], actor=self.base_admin_user)

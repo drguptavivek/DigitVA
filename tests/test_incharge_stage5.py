@@ -31,6 +31,7 @@ from app.models import (
 )
 from app.services import mentor_institute_service as mentors
 from app.services import org_grant_service as og
+from app.services import organization_service as org
 from app.services.organization_service import OrganizationError
 from app.services.sitepi_reporting_service import get_sitepi_unit_dashboard_data
 from tests.base import BaseTestCase
@@ -96,11 +97,18 @@ class InChargeTests(UnitScopeFixture, BaseTestCase):
 
     def test_the_validator_accepts_site_pi_at_a_unit_of_a_tree_project(self):
         user = self._get_or_make_user("stage5.valid@test.local", "Stage5Test123")
+        smo = next(c for c in org.list_cadres(self.PROJECT) if c.cadre_code == "SMO")
         unit, cadre = og.validate_org_unit_grant(
-            role=R.site_pi, org_unit_id=self.chc.org_unit_id, user_id=user.user_id,
+            role=R.site_pi, org_unit_id=self.chc.org_unit_id, cadre_id=smo.cadre_id,
+            user_id=user.user_id,
         )
         self.assertEqual(unit.org_unit_id, self.chc.org_unit_id)
-        self.assertIsNone(cadre)  # optional for site_pi
+        self.assertEqual(cadre.cadre_code, "SMO")
+        # No longer optional (digitva-4650): the In-charge names its cadre.
+        with self.assertRaisesRegex(OrganizationError, "needs the person's cadre"):
+            og.validate_org_unit_grant(
+                role=R.site_pi, org_unit_id=self.chc.org_unit_id, user_id=user.user_id,
+            )
         self.assertIn(R.site_pi, og.ROLES_ALLOWING_ORG_UNIT)
 
     def test_the_validator_refuses_mentoring_institute_staff(self):

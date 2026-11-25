@@ -161,6 +161,7 @@ class GrantRouteNotificationTests(AuthzFixtureMixin, BaseTestCase):
             body["project_id"] = where
         else:
             body["org_unit_id"] = str(self.units[where].org_unit_id)
+            body["cadre_id"] = self.any_cadre[TA]  # digitva-4650: unit grants name a cadre
         return body
 
     def _post(self, url, body):

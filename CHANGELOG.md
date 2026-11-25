@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Cross-site requests cannot act as the user (owner 2026-11-25,
+  `digitva-r8nh.39`, `docs/policy/api-v1.md` rule 5): the auth API's CSRF
+  exemption is now 13 named views instead of the whole blueprint; sign-in
+  cookies are same-site, with any other env value logged as an error and
+  replaced with Lax rather than stopping the app; no route sends CORS
+  headers. The admin System health panel lists the cookie and CSRF settings
+  the server runs with, ok or warning. Route auth matrix unchanged.
+
 - ICD-10 allowability overrides layer (owner 2026-11-25, `digitva-ghqe`):
   "Apply DigitVA overrides" in the admin ICD-10 browser and
   `flask icd10 apply-overrides` re-apply the owner's selectability

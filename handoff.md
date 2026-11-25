@@ -131,6 +131,9 @@ and maps stay in the browser).
 
 ## Caveats
 
+- Before the next staging deploy (`digitva-r8nh.39`): grep the staging `.env`
+  for `*_COOKIE_SAMESITE`. Anything but Lax/Strict is now logged as an error
+  and replaced with Lax at startup; System health shows the live values.
 - Docker's disk on this Mac filled on 2026-11-19 and stopped the dev
   database; rebuildable cache was cleared and `.dockerignore` now drops local
   APK build folders. Rebuilding `doris_public_service` (`--profile icd11`)

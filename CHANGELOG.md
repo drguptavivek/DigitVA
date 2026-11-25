@@ -5,6 +5,12 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Every route's auth outcome is pinned before the request-principal refactor
+  (`r8nh.6` step 1, owner 2026-11-25: matrix first, then review): 725
+  method/rule keys x device bearer, cookie, cookie+CSRF and none, with admin
+  columns on `/api/v1`, in `tests/fixtures/route_auth_matrix.json`. Test only.
+  Findings for the owner in `r8nh.39` (a bearer admin is an interviewer on
+  every `/api/v1` rule; open JSON endpoints; 14 CSRF-exempt cookie writes).
 - ICD-10 symptom codes withdrawn from coding (owner 2026-11-25,
   `digitva-82l9`): every `R00`-`R94` family, `R10` included, is no longer
   coding-selectable. Coding search hides them on every surface. The masked

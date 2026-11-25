@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Grant forms: the cadre dropdown starts at "none" again for every role
+  except coder, interview supervisor and death reporter (owner 2026-11-25,
+  `digitva-oqa1`). Since `digitva-4650` listed "none (mentoring-institute
+  staff only)" last, every role preselected the first allowed cadre, so
+  saving without touching the dropdown attached one. Admin Access Grants and
+  the data manager's user and grant forms; template-only, no route or
+  migration. A grant that needs a cadre and names none is still refused by
+  `org_grant_service.check_grantee`.
 - Web app: Home cards in a fixed order, a leaner More menu, and compact
   dropdowns for offices and units (owner 2026-11-25, `digitva-t8oa`). Home
   role cards now read Interviews, Coding, Review, Data management instead of

@@ -432,6 +432,8 @@
   // org_grant_service.validate_org_unit_grant enforces, digitva-4650). Every
   // unit grant names one; "none" is only for mentoring-institute staff, whose
   // mentor grant carries no cadre.
+  var CADRE_FIRST_ROLES = { coder: true, interview_supervisor: true, death_reporter: true };
+
   function fillCadreSelect(sel, org, unitId, role) {
     var unit = org.units.filter(function (u) { return u.org_unit_id === unitId; })[0];
     if (!unit) { sel.innerHTML = '<option value="">-- select unit first --</option>'; return; }
@@ -446,10 +448,13 @@
       sel.innerHTML = noneOption;
       return;
     }
-    sel.innerHTML = allowed.map(function (lc) {
+    var cadreOptions = allowed.map(function (lc) {
         return '<option value="' + esc(lc.cadre_id) + '">' + esc(lc.cadre_code)
           + (names[lc.cadre_id] ? ' - ' + esc(names[lc.cadre_id]) : '') + '</option>';
-      }).join('') + noneOption;
+      }).join('');
+    // Only the cadre-bound roles preselect a cadre; any other role starts at
+    // none, so saving without choosing never attaches a cadre by accident.
+    sel.innerHTML = CADRE_FIRST_ROLES[role] ? cadreOptions + noneOption : noneOption + cadreOptions;
   }
 
   function scopeLabelOf(g) {

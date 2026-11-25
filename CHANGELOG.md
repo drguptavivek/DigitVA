@@ -5,6 +5,21 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Route auth matrix findings decided (owner 2026-11-25, `digitva-r8nh.39`):
+  - by design, recorded in `docs/policy/api-v1.md` and `access-control-model.md`:
+    device tokens carry device roles only (an admin's phone is an interviewer),
+    unknown-device decommission answers 200, the deletion request needs no
+    body, and three public JSON routes;
+  - the matrix now also records a coder, a data manager and an interview
+    supervisor on every rule, and builds the reporting views its rows need
+    (18 former 500/503 values are real outcomes; test only);
+  - `/help/icd-codes/search-demo` sends signed-out visitors to login;
+  - the KPI dashboard warns "Refresh failed: the numbers may be stale." when
+    `dm-kpi/refresh` reports `mv_refreshed: false` (the 200 is kept);
+  - DORIS clinical refusals add a top-level `code` equal to `error.code`.
+  Found on the way: `/data-management/api/project-sites` 500s for a data
+  manager with an active site (`digitva-b94q`, not fixed here).
+
 - COD bucket editor lists ICD-11 codes not mapped to the scheme (owner
   2026-11-25, `digitva-rzmh`). The "Codes Not Mapped To This Scheme" card follows
   the ICD-10/ICD-11 toggle. The ICD-11 view lists default-release categories

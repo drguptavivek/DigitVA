@@ -5,6 +5,18 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Code audit refactors, wave 5, backend (owner go 2026-11-25; same
+  protocol, no reply body, status or error-code change; URL map of the app
+  identical, 710 rules): `routes/api/intake.py` split into the
+  `intake/` package with one refusal-transition check
+  (`interview_intake_gate`), supervisor phone death edit pinned first
+  (`r8nh.9`); services no longer import routes, shared helpers moved to
+  services and `app/tasks/common.py` (`r8nh.13`); data-manager API filter
+  parsing, typed not-found errors, sync preview, export cache and unrouted
+  queue moved to services (`r8nh.15`; pre-existing bugs pinned in
+  `r8nh.37`); workspace per-mode functions, org grid ops split, shared
+  demo/signing-key checks (`r8nh.11`, `.14`, `.17`). Full suite 8267
+  passed; the 2 KPI subtest failures are pre-existing (`digitva-jajs`).
 - Collect: the supervisor's death report edit has the browser's fields
   (informant, phones, ABHA, GPS, registration numbers) (`cbd1d06a0`,
   `digitva-hftq`; owner decision 2026-11-24). Same server validation and

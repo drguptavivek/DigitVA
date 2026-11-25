@@ -4552,15 +4552,15 @@
   "none": "404 text/html title=DigitVA | Page Not Found"
  },
  "GET /help/icd-codes/search-demo": {
-  "bearer": "403 text/html title=DigitVA | Access Denied",
-  "coder_bearer": "403 text/html title=DigitVA | Access Denied",
+  "bearer": "302 text/html -> /vaauth/valogin?next",
+  "coder_bearer": "302 text/html -> /vaauth/valogin?next",
   "coder_cookie": "200 text/html title=Try the Coding Search \u2014 Help \u2014 DigitVA",
   "cookie": "403 text/html title=DigitVA | Access Denied",
   "data_manager_cookie": "403 text/html title=DigitVA | Access Denied",
   "endpoint": "help.icd_codes_search_demo",
-  "interview_supervisor_bearer": "403 text/html title=DigitVA | Access Denied",
+  "interview_supervisor_bearer": "302 text/html -> /vaauth/valogin?next",
   "interview_supervisor_cookie": "403 text/html title=DigitVA | Access Denied",
-  "none": "403 text/html title=DigitVA | Access Denied"
+  "none": "302 text/html -> /vaauth/valogin?next"
  },
  "GET /help/icd10-codes": {
   "bearer": "200 text/html title=ICD-10 Code Browser \u2014 Help \u2014 DigitVA",

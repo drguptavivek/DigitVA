@@ -121,7 +121,6 @@ PUBLIC_ENDPOINTS = {
     "help.cod_bucket_scheme_json": "Published COD bucket scheme reference data; public fields only.",
     "help.cod_bucket_scheme_csv": "Published COD bucket scheme reference data (CSV); public fields only.",
     "help.digitva_overrides": "Published DigitVA override decisions; codes, decisions, dates and beads only.",
-    "help.icd_codes_search_demo": "Public help demo; same in-body role check as help.page.",
     "help.icd10_codes_browser": "Published ICD-10 reference browser.",
     "help.icd10_codes_browser_children": "Published ICD-10 reference browser.",
     "help.icd10_codes_browser_csv": "Published ICD-10 reference browser.",

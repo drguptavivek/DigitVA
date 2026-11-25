@@ -3,7 +3,7 @@ title: Auth Decorator and RBAC Gating Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-25
 ---
 
 # Auth Decorator and RBAC Gating Policy
@@ -165,8 +165,10 @@ surface is the sign-in and account instructions a logged-out user needs, and
 (owner, 2026-11-06) all of the help: every `HELP_PAGES` entry is `roles=None`,
 and the navbar shows Help to logged-out visitors. Two exceptions stay signed in:
 `organization-demo` (`login_required`; it lists sign-in links for the synthetic
-demo accounts) and `/help/icd-codes/search-demo`, which keeps the roles of the
-search API it drives (`_SEARCH_DEMO_ROLES`). `help.page` keeps its in-body
+demo accounts) and `/help/icd-codes/search-demo` (`login_required`, so a
+signed-out visitor gets the login redirect like any signed-in page; owner
+2026-11-25, `digitva-r8nh.39`), which then keeps the roles of the search API
+it drives (`_SEARCH_DEMO_ROLES`): a signed-in user without one gets 403. `help.page` keeps its in-body
 `_user_has_role` check, so a page given roles later is still guarded.
 
 **The landing page is public.** `va_main.va_index` (`/`, `/index`,

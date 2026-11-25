@@ -420,10 +420,13 @@ _SEARCH_DEMO_ROLES = ["coder", "coding_tester", "reviewer", "admin"]  # as api/c
     "font-src": "'self' data:",
     "connect-src": "'self' http://127.0.0.1:8382",
 })
+@login_required
 def icd_codes_search_demo():
     """Live coding-search demo: try the real search without opening a death."""
     page_info = _PAGES_BY_SLUG["icd-codes"]
-    # The page drives the role-gated search API, so it keeps that API's roles.
+    # Signed out: the login redirect (owner 2026-11-25, digitva-r8nh.39).
+    # Signed in: the page drives the role-gated search API, so it keeps that
+    # API's roles.
     if not _user_has_role(current_user, _SEARCH_DEMO_ROLES):
         abort(403)
     return render_template(

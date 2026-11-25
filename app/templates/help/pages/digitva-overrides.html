@@ -1,0 +1,89 @@
+{# Rendered by help.digitva_overrides (not help.page). Read-only; data from
+   digitva_overrides_public_service.build_digitva_overrides. #}
+{% macro cause(row) %}{{ row.va_code }}{% if row.label %} {{ row.label }}{% endif %}{% endmacro %}
+{% macro applied(flag) %}<span class="badge {{ 'text-bg-success' if flag else 'text-bg-warning' }}">{{ 'yes' if flag else 'no' }}</span>{% endmacro %}
+
+<p>
+  WHO's releases are the baseline. DigitVA's own decisions are layered on top
+  of them and kept separate, so you can see exactly what DigitVA decided and
+  where it differs from WHO. An administrator applies the layers with
+  "Apply DigitVA overrides" in the admin ICD-10 browser or the COD bucket
+  editor. "Applied on this server" says whether this server currently matches
+  the decision, looking only at active codes and mappings (the ones coders
+  see). Background: the policies "WHO 2022 ICD-10 Coding Allowability
+  Policy" and "ICD-11 COD Bucket Schemes" in the project documentation. This
+  page is read-only.
+</p>
+
+<div class="mb-3">
+  <label class="form-label small mb-1" for="override-q">Search</label>
+  <input type="search" class="form-control form-control-sm" id="override-q" maxlength="100"
+         placeholder="Code, title or note">
+</div>
+
+<h2 class="h5 mt-4">ICD-10 coding allowability ({{ overrides.allowability_count }})</h2>
+<p class="small text-muted">Which ICD-10 codes coders may select, on top of WHO's reviewed policy.</p>
+{% if overrides.allowability is none %}<p class="text-muted small">Not available on this server.</p>{% endif %}
+{% for group in overrides.allowability or [] %}
+<h3 class="h6 mt-3">{{ group.decision }} <span class="text-muted fw-normal">({{ group.rows|length }} rows{% if group.decided_on %}, decided {{ group.decided_on }}{% endif %}{% if group.bead %}, {{ group.bead }}{% endif %})</span></h3>
+{% if group.note %}<p class="small text-muted mb-1">{{ group.note }}</p>{% endif %}
+<table class="table table-sm small override-table">
+  <thead><tr><th>Code</th><th>Title</th><th>Match</th><th>Sets</th><th>Applied on this server</th></tr></thead>
+  <tbody>
+  {% for row in group.rows %}
+    <tr><td>{{ row.code }}</td><td>{{ row.title }}</td><td>{{ row.match }}</td><td>{{ row.sets }}</td><td>{{ applied(row.applied) }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+
+<h2 class="h5 mt-4">COD bucket scheme {{ overrides.scheme_code }}: ICD-10 owner decisions ({{ (overrides.icd10_decisions or [])|length }})</h2>
+<p class="small text-muted">ICD-10 codes DigitVA places in a different VA cause than WHO's ICD-10 column.</p>
+{% if overrides.icd10_decisions is none %}<p class="text-muted small">Not available on this server.</p>{% else %}
+<table class="table table-sm small override-table">
+  <thead><tr><th>ICD-10 code</th><th>Title</th><th>VA cause</th><th>Note</th><th>Applied on this server</th></tr></thead>
+  <tbody>
+  {% for row in overrides.icd10_decisions %}
+    <tr><td>{{ row.code }}</td><td>{{ row.title }}</td><td>{{ cause(row) }}</td><td>{{ row.note }}</td><td>{{ applied(row.applied) }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2 class="h5 mt-4">COD bucket scheme {{ overrides.scheme_code }}: ICD-11 decisions ({{ (overrides.icd11_digitva or [])|length }})</h2>
+<p class="small text-muted">ICD-11 codes and ranges DigitVA places in a VA cause where WHO's annex gives none or a different one.</p>
+{% if overrides.icd11_digitva is none %}<p class="text-muted small">Not available on this server.</p>{% else %}
+<table class="table table-sm small override-table">
+  <thead><tr><th>Code or range</th><th>VA cause</th><th>Decision</th><th>Date</th><th>Note</th></tr></thead>
+  <tbody>
+  {% for row in overrides.icd11_digitva %}
+    <tr><td>{{ row.code }}</td><td>{{ cause(row) }}</td><td>{{ row.decision }}</td><td>{{ row.decided_on }}</td><td>{{ row.note }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h3 class="h6 mt-4">Corrections needed to read WHO's annex ({{ (overrides.icd11_who_fix or [])|length }})</h3>
+<p class="small text-muted">These are not DigitVA choices: they repair typos or gaps in WHO's annex so it can be read at all.</p>
+{% if overrides.icd11_who_fix is none %}<p class="text-muted small">Not available on this server.</p>{% else %}
+<table class="table table-sm small override-table">
+  <thead><tr><th>Code or range</th><th>VA cause</th><th>Decision</th><th>Date</th><th>Note</th></tr></thead>
+  <tbody>
+  {% for row in overrides.icd11_who_fix %}
+    <tr><td>{{ row.code }}</td><td>{{ cause(row) }}</td><td>{{ row.decision }}</td><td>{{ row.decided_on }}</td><td>{{ row.note }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<script>
+(function () {
+  var box = document.getElementById("override-q");
+  box.addEventListener("input", function () {
+    var q = box.value.trim().toLowerCase();
+    document.querySelectorAll(".override-table tbody tr").forEach(function (tr) {
+      tr.hidden = q !== "" && tr.textContent.toLowerCase().indexOf(q) === -1;
+    });
+  });
+})();
+</script>

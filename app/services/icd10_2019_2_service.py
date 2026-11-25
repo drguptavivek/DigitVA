@@ -1398,8 +1398,14 @@ def _read_allowability_overrides(path: Path) -> list[dict]:
             raise ValueError(
                 f"{where} ({code}): invalid age_group_selectable {values['age_group_selectable']!r}."
             )
-        parsed.append({"match": match, "code": code, **values})
+        provenance = {key: (raw.get(key) or "").strip() for key in ("decision", "decided_on", "bead", "note")}
+        parsed.append({"match": match, "code": code, **values, **provenance})
     return parsed
+
+
+def read_allowability_overrides(path: Path | str = DEFAULT_ICD10_ALLOWABILITY_OVERRIDES_PATH) -> list[dict]:
+    """Public reader of the overrides CSV (same validation as the apply)."""
+    return _read_allowability_overrides(Path(path))
 
 
 def apply_icd10_2019_2_allowability_overrides(

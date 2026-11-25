@@ -22,18 +22,20 @@ from flask_login import current_user, login_required
 
 from app import limiter, talisman
 from app.services.authz import effective_roles
-from app.services.icd11_licence import ICD11_CITATION
 from app.services.cod_bucket_mapping_service import (
     default_reporting_scheme_code,
     export_public_cod_bucket_scheme,
     list_public_cod_bucket_schemes,
 )
+from app.services.digitva_overrides_public_service import build_digitva_overrides
+from app.services.help_registry import HELP_PAGES, _user_has_role
 from app.services.icd10_2019_2_service import (
     AGE_GROUP_SELECTABLE_OPTIONS,
     SEX_SELECTABLE_OPTIONS,
     get_icd10_2019_2_node_details,
     list_icd10_2019_2_children,
 )
+from app.services.icd11_licence import ICD11_CITATION
 from app.services.icd11_mms_service import (
     get_icd11_mms_node_details,
     list_icd11_mms_children,
@@ -71,7 +73,6 @@ from app.services.va_code_mapping_public_service import (
     public_origin_display,
 )
 from app.services.worker_enrolment_service import hosted_android_apk, valid_android_apk_url
-from app.services.help_registry import HELP_PAGES, _user_has_role
 
 help_bp = Blueprint("help", __name__, template_folder="../templates/help")
 log = logging.getLogger(__name__)
@@ -1117,6 +1118,23 @@ def cod_bucket_schemes():
         page_template="help/pages/cod-bucket-schemes.html",
         bucket_schemes=schemes,
         bucket_selected=selected,
+        **_base_ctx(),
+    )
+
+
+@help_bp.route("/help/digitva-overrides")
+@limiter.limit("60 per minute")
+def digitva_overrides():
+    """Public read-only list of every DigitVA override layer."""
+    page_info = _PAGES_BY_SLUG["digitva-overrides"]
+    return render_template(
+        "help/help_base.html",
+        page_slug=page_info[0],
+        page_title=page_info[1],
+        page_icon=page_info[2],
+        page_category=page_info[3],
+        page_template="help/pages/digitva-overrides.html",
+        overrides=build_digitva_overrides(),
         **_base_ctx(),
     )
 

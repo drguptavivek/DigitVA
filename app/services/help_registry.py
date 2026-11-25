@@ -38,6 +38,7 @@ HELP_PAGES = [
     ("va-definitions",        "VA Cause Definitions",         "fa-list-check",           "Coding Workflow",  None),
     ("va-code-mappings",      "ICD to VA Cause Mappings",     "fa-table-list",           "Coding Workflow",  None),
     ("cod-bucket-schemes",    "COD Bucket Schemes",           "fa-sitemap",              "Coding Workflow",  None),
+    ("digitva-overrides",     "DigitVA Overrides",            "fa-code-branch",          "Coding Workflow",  None),
     ("recode-window",         "Recode Window & Time Limits",  "fa-clock-rotate-left",    "Coding Workflow",  None),
     ("viewing-history",       "Viewing Coding History",       "fa-clock-rotate-left",    "Coding Workflow",  None),
     # ── Data Manager ─────────────────────────────────────────────────

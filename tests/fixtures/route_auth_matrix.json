@@ -2604,6 +2604,12 @@
   "endpoint": "help.cod_bucket_scheme_json",
   "none": "404 text/html title=DigitVA | Page Not Found"
  },
+ "GET /help/digitva-overrides": {
+  "bearer": "200 text/html title=DigitVA Overrides \u2014 Help \u2014 DigitVA",
+  "cookie": "200 text/html title=DigitVA Overrides \u2014 Help \u2014 DigitVA",
+  "endpoint": "help.digitva_overrides",
+  "none": "200 text/html title=DigitVA Overrides \u2014 Help \u2014 DigitVA"
+ },
  "GET /help/docs": {
   "bearer": "200 text/html title=Engineering Docs \u2014 Help \u2014 DigitVA",
   "cookie": "200 text/html title=Engineering Docs \u2014 Help \u2014 DigitVA",

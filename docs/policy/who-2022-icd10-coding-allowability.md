@@ -267,6 +267,9 @@ Owner decision 2026-11-25 (`digitva-ghqe`). This mirrors the COD bucket
   - `R00`-`R94` withdrawn except `R50` and `R54` (2026-11-25,
     `digitva-82l9`)
 
+  The layer is published read-only at `/help/digitva-overrides`, with
+  whether each row is applied on the server.
+
   A new decision adds a row here as well as its migration. Tests keep the
   CSV equal to the migrations' embedded lists.
 - **Applying the layer.** Admins use "Apply DigitVA overrides" in the

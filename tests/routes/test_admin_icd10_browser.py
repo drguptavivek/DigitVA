@@ -148,6 +148,7 @@ class TestAdminIcd10Browser(BaseTestCase):
         self.assertIn("A00", body)
         self.assertIn("I84", body)
         self.assertIn("A00.0", body)
+        self.assertIn('href="/help/digitva-overrides"', body)
 
     def test_admin_reporting_alias_create_rejects_current_master_code_as_legacy(self):
         self._login(str(self.base_admin_user.user_id))

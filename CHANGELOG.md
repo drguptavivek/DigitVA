@@ -5,6 +5,18 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- DigitVA overrides help page (owner 2026-11-25, `digitva-j5n2`): public,
+  read-only `/help/digitva-overrides`, listed under Coding Workflow and
+  linked as "View overrides" next to "Apply DigitVA overrides" in the admin
+  ICD-10 browser. It lists every DigitVA layer on top of WHO's releases:
+  - the 260 ICD-10 allowability rows
+  - the `WHO_2022_VA_2026` ICD-10 owner decisions
+  - the ICD-11 decisions, with WHO-annex fixes kept apart from DigitVA's
+    own choices
+
+  Rows are grouped by decision with date and bead. Each ICD-10 row shows
+  whether it is applied on this server. The page makes 4 indexed queries
+  keyed on the listed codes, and a missing CSV drops only its own section.
 - Cross-site requests cannot act as the user (owner 2026-11-25,
   `digitva-r8nh.39`, `docs/policy/api-v1.md` rule 5): the auth API's CSRF
   exemption is now 13 named views instead of the whole blueprint; sign-in

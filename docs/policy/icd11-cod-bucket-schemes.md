@@ -3,7 +3,7 @@ title: ICD-11 COD Bucket Schemes
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-11
+last_updated: 2026-11-25
 ---
 
 # ICD-11 COD Bucket Schemes
@@ -176,6 +176,8 @@ For `WHO_2022_VA_2026` the owner chose "WHO then layer":
   decided bucket, with `match_type` `owner_decision` (never the admin
   editor's `manual_override`). It is idempotent. Reset then apply gives the
   state the migrations produced.
+- **Published read-only** at `/help/digitva-overrides` (all override layers,
+  with whether each ICD-10 row is applied on the server).
 - **`who_fix` versus `digitva`.** The ICD-11 decisions file has a `layer`
   column. `who_fix` is a correction without which a WHO annex token cannot be
   read at all (decision 4, the mistyped `5C52.Y-5C52-Z`). Everything else is

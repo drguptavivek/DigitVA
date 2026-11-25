@@ -135,7 +135,7 @@ describe("web shell navigation and last visit", () => {
     await openMore(renderer);
     expect(navLabels(renderer)).toEqual([
       "home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics", "navMore",
-      "navOrg", "navUsers", "navSettings", "navWebsite", "navData", "navMentorView", "signOut",
+      "navOrg", "navUsers", "navSettings", "navMentorView", "signOut",
     ]);
     await act(async () => { renderer.unmount(); });
   });
@@ -172,25 +172,23 @@ describe("web shell navigation and last visit", () => {
     await act(async () => { renderer.unmount(); });
   });
 
-  test("a coder sees no Statistics (oversight roles only), Deaths, Interview or Data management", async () => {
+  test("a coder sees no Statistics (oversight roles only), Deaths or Interview; nobody has Website or Data management under More", async () => {
     const renderer = await render();
     await openMore(renderer);
-    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navMore", "navOrg", "navSettings", "navWebsite", "signOut"]);
+    expect(navLabels(renderer)).toEqual(["home", "navVaCode", "navMore", "navOrg", "navSettings", "signOut"]);
+    expect(navLabels(renderer)).toContain("navSettings");
+    expect(navLabels(renderer)).not.toContain("navWebsite");
+    expect(navLabels(renderer)).not.toContain("navData");
     await act(async () => { renderer.unmount(); });
   });
 
-  test("Deaths opens my registrations; Home goes to /; Website opens the public site in a new tab", async () => {
+  test("Deaths opens my registrations; Home goes to /", async () => {
     mockBootstrap = bootstrap(["death_reporter"], { registerDeath: true, registeredDeaths: true });
-    const open = jest.fn();
-    Object.defineProperty(window, "open", { configurable: true, value: open });
     const renderer = await render();
     await act(async () => { navItem(renderer, "navDeaths")!.props.onPress(); });
     expect(mockRouter.push).toHaveBeenLastCalledWith({ pathname: "/death-registration", params: { view: "mine" } });
     await act(async () => { navItem(renderer, "home")!.props.onPress(); });
     expect(mockRouter.push).toHaveBeenLastCalledWith("/");
-    await openMore(renderer);
-    await act(async () => { navItem(renderer, "navWebsite")!.props.onPress(); });
-    expect(open).toHaveBeenCalledWith("/vaindex", "_blank", "noopener");
     await act(async () => { renderer.unmount(); });
   });
 
@@ -233,10 +231,8 @@ describe("web shell navigation and last visit", () => {
     await act(async () => { renderer.unmount(); });
   });
 
-  test("with a dirty navigation guard the left menu asks first: Stay keeps the user, Leave navigates; a new tab is never held", async () => {
+  test("with a dirty navigation guard the left menu asks first: Stay keeps the user, Leave navigates", async () => {
     mockBootstrap = bootstrap(["data_manager"], { intake: true });
-    const open = jest.fn();
-    Object.defineProperty(window, "open", { configurable: true, value: open });
     const unregister = registerNavigationGuard({ isDirty: () => true, save: async () => true });
     const renderer = await render();
     await act(async () => { navItem(renderer, "home")!.props.onPress(); });
@@ -248,12 +244,6 @@ describe("web shell navigation and last visit", () => {
     await act(async () => { leavePage(); });
     expect(mockRouter.push).toHaveBeenLastCalledWith("/statistics");
     unregister();
-    const again = registerNavigationGuard({ isDirty: () => true, save: async () => true });
-    await openMore(renderer);
-    await act(async () => { navItem(renderer, "navWebsite")!.props.onPress(); });
-    expect(open).toHaveBeenCalledWith("/vaindex", "_blank", "noopener");
-    expect(leaveDialogOpen()).toBe(false);
-    again();
     await act(async () => { renderer.unmount(); });
   });
 

@@ -97,6 +97,23 @@ describe("MentorViewScreen", () => {
     expect(button(tree, "Retract")).toBeTruthy();
   });
 
+  it("picks the district from a dropdown labelled project and district", async () => {
+    const two = { ...DISTRICT, district_id: "d2", name: "District Two" };
+    (getMentorDistricts as jest.Mock).mockResolvedValue({ districts: [DISTRICT, two] });
+    (getMentorCoders as jest.Mock).mockResolvedValue({ names_visible: true, coders: [], truncated: false });
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<MentorViewScreen />); });
+    await settle();
+    const field = (label: string) => tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function")[0];
+    expect(field("Project – District Office: Proj – District One")).toBeDefined();
+    await act(async () => field("Project – District Office: Proj – District One").props.onPress());
+    const radios = tree.root.findAll((n) => n.props.accessibilityRole === "radio");
+    expect([...new Set(radios.map((n) => n.props.accessibilityLabel))]).toEqual(["Proj – District One", "Proj – District Two"]);
+    await act(async () => field("Proj – District Two").props.onPress());
+    await settle();
+    expect(getMentorCoders).toHaveBeenLastCalledWith("d2", "all", mockBootstrap.csrf);
+  });
+
   it("offers no drill-down when names are hidden", async () => {
     const { coder_id: _omit, ...pseudonym } = ROW;
     (getMentorCoders as jest.Mock).mockResolvedValue({

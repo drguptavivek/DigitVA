@@ -41,7 +41,6 @@ type NavItem = { key: string; href: string; to?: string; label: string; icon: st
 /** Tabler outline icons (24 grid, stroke 2); paths are the tabler.io originals. */
 const ICONS: Record<string, string[]> = {
   home: ["M5 12l-2 0l9 -9l9 9l-2 0", "M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7", "M9 21v-6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v6"],
-  website: ["M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0", "M3.6 9h16.8", "M3.6 15h16.8", "M11.5 3a17 17 0 0 0 0 18", "M12.5 3a17 17 0 0 1 0 18"],
   admin: ["M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3"],
   coding: ["M14 3v4a1 1 0 0 0 1 1h4", "M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z", "M9 9l1 0", "M9 13l6 0", "M9 17l6 0"],
   reviewing: ["M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0", "M6 21v-2a4 4 0 0 1 4 -4h4", "M15 19l2 2l4 -4"],
@@ -50,7 +49,6 @@ const ICONS: Record<string, string[]> = {
   mentoring: ["M22 9l-10 -4l-10 4l10 4l10 -4v6", "M6 10.6v5.4a6 3 0 0 0 12 0v-5.4"],
   area: ["M3 7l6 -3l6 3l6 -3v13l-6 3l-6 -3l-6 3v-13", "M9 4v13", "M15 7v13"],
   training: ["M22 9l-10 -4l-10 4l10 4l10 -4v6", "M6 10.6v5.4a6 3 0 0 0 12 0v-5.4"],
-  data: ["M12 6m-8 0a8 3 0 1 0 16 0a8 3 0 1 0 -16 0", "M4 6v6a8 3 0 0 0 16 0v-6", "M4 12v6a8 3 0 0 0 16 0v-6"],
   users: ["M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0", "M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2", "M16 3.13a4 4 0 0 1 0 7.75", "M21 21v-2a4 4 0 0 0 -3 -3.85"],
   organization: ["M3 21l18 0", "M9 8l1 0", "M9 12l1 0", "M9 16l1 0", "M14 8l1 0", "M14 12l1 0", "M14 16l1 0", "M5 21v-16a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v16"],
   settings: ["M4 10a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "M6 4v4", "M6 12v8", "M10 16a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "M12 4v10", "M12 18v2", "M16 7a2 2 0 1 0 4 0a2 2 0 0 0 -4 0", "M18 4v1", "M18 9v11"],
@@ -68,7 +66,7 @@ function Icon({ name, size = 18 }: { name: string; size?: number }) {
 /** Bottom-bar and sheet icon per navEntries key. */
 const ENTRY_ICONS: Record<string, string> = {
   "/": "home", "/death-registration": "register", "/collection": "collection", "/coding": "coding", "/reviewing": "reviewing", "/statistics": "area", "/training": "training",
-  "/organization": "organization", "/users": "users", "/settings": "settings", website: "website", "/data": "data", "/mentoring": "mentoring", "/mentor-view": "users", "/withdrawn-cases": "admin", "/admin/": "admin",
+  "/organization": "organization", "/users": "users", "/settings": "settings", "/mentoring": "mentoring", "/mentor-view": "users", "/withdrawn-cases": "admin", "/admin/": "admin",
 };
 
 /**

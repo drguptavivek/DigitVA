@@ -27,12 +27,12 @@ const BEFORE: Array<[string, Fixture, string[]]> = [
   ["death reporter (register only)", { roles: ["death_reporter"], caps: { registerDeath: true } }, ["/death-registration"]],
   ["death reporter (my list only)", { roles: ["death_reporter"], caps: { registeredDeaths: true } }, ["/death-registration"]],
   ["interview supervisor", { roles: ["interview_supervisor"], caps: { supervision: true } }, ["/death-registration", "/statistics"]],
-  ["data manager", { roles: ["data_manager"], caps: { supervision: true } }, ["/death-registration", "/statistics", "/data", "/users", "/mentor-view"]],
+  ["data manager", { roles: ["data_manager"], caps: { supervision: true } }, ["/death-registration", "/statistics", "/users", "/mentor-view"]],
   ["mentor member", { mentor: { member: true } }, ["/mentoring", "/mentor-view"]],
   ["mentor institute admin", { mentor: { admin_of: ["I1"] } }, ["/mentoring", "/mentor-view"]],
   ["mentoring capability", { caps: { mentoring: true } }, ["/mentoring", "/mentor-view"]],
-  ["platform admin", { is_admin: true }, ["/admin/", "/withdrawn-cases", "/users", "/statistics", "/data", "/mentor-view"]],
-  ["admin role", { roles: ["admin"] }, ["/admin/", "/withdrawn-cases", "/users", "/statistics", "/data", "/mentor-view"]],
+  ["platform admin", { is_admin: true }, ["/admin/", "/withdrawn-cases", "/users", "/statistics", "/mentor-view"]],
+  ["admin role", { roles: ["admin"] }, ["/admin/", "/withdrawn-cases", "/users", "/statistics", "/mentor-view"]],
   ["project PI", { roles: ["project_pi"] }, ["/users", "/statistics"]],
   ["no role", {}, []],
 ];
@@ -42,8 +42,8 @@ test.each(BEFORE)("%s keeps every destination it had", (_name, fixture, had) => 
   for (const route of [...had, "/organization", "/settings", "/"]) expect(now).toContain(route);
 });
 
-test.each(BEFORE)("%s gains nothing beyond its roles but Home and the public website", (_name, fixture, had) => {
-  expect([...reachable(fixture)].sort()).toEqual([...had, "/organization", "/settings", "/", "/vaindex"].sort());
+test.each(BEFORE)("%s gains nothing beyond its roles but Home", (_name, fixture, had) => {
+  expect([...reachable(fixture)].sort()).toEqual([...had, "/organization", "/settings", "/"].sort());
 });
 
 test("Statistics shows for the oversight roles and admin, not for people who follow their own work", () => {
@@ -57,10 +57,12 @@ test("Statistics shows for the oversight roles and admin, not for people who fol
   expect(reachable({ is_admin: true })).toContain("/statistics");
   expect(reachable({})).not.toContain("/statistics");
   expect(reachable({ mentor: { member: true } })).not.toContain("/statistics");
-  // Data is for data managers, the two viewer roles and admin only.
-  for (const role of ["data_manager", "collaborator", "collaborator_pii", "admin"]) expect(reachable({ roles: [role] })).toContain("/data");
-  expect(reachable({ is_admin: true })).toContain("/data");
-  for (const role of ["site_pi", "project_pi", "coder", "interview_supervisor"]) expect(reachable({ roles: [role] })).not.toContain("/data");
+  // Data management is reached from Home (its block and quick action), not from the menu; Settings is still there.
+  for (const role of ["data_manager", "collaborator", "collaborator_pii", "admin", "coder"]) {
+    expect(reachable({ roles: [role] })).toContain("/settings");
+    expect(reachable({ roles: [role] })).not.toContain("/data");
+    expect(reachable({ roles: [role] })).not.toContain("/vaindex");
+  }
 });
 
 test("order: the owner's primary items, then More in the owner's order", () => {
@@ -72,7 +74,7 @@ test("order: the owner's primary items, then More in the owner's order", () => {
   });
   const { primary, more } = navEntries(all);
   expect(primary.map((entry) => entry.labelKey)).toEqual(["home", "navDeaths", "navVaInterview", "navVaCode", "navVaReview", "navStatistics"]);
-  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navUsers", "navSettings", "navWebsite", "navData", "navMentoring", "navMentorView", "navWithdrawnCases", "homeAdminConsole"]);
+  expect(more.map((entry) => entry.labelKey)).toEqual(["navOrg", "navUsers", "navSettings", "navMentoring", "navMentorView", "navWithdrawnCases", "homeAdminConsole"]);
 });
 
 test("Deaths opens the deaths list for a user who interviews or reports deaths", () => {

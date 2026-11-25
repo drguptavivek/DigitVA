@@ -4,7 +4,8 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDim
 import type { AccessProject, IntakeContextEntry } from "../api";
 import { t } from "../i18n";
 import { controls, fontSize, radius, spacing, typography, useTheme } from "../theme";
-import { MenuChoiceRow, RemovableChip } from "../ui/controls";
+import { RemovableChip } from "../ui/controls";
+import { Select } from "../ui/Select";
 
 /** 40px controls, 44px under 768px (the touch target); as `useControlHeight` in src/ui.tsx, which tests here mock away. */
 function useControlHeight(): number {
@@ -178,7 +179,6 @@ function useFilterStyles() {
     badge: { minWidth: 20, height: 20, paddingHorizontal: 6, borderRadius: radius.full, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
     badgeText: { ...typography.caption, fontWeight: "700", color: colors.onAccent, fontFamily: controls.fontFamily },
     linkText: { ...typography.caption, fontWeight: "600", color: colors.accent, fontFamily: controls.fontFamily },
-    note: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
     backdropSheet: { flex: 1, justifyContent: "flex-end", backgroundColor: ui.scrim },
     backdropSide: { flex: 1, flexDirection: "row", justifyContent: "flex-end", backgroundColor: ui.scrim },
     sheet: {
@@ -364,29 +364,23 @@ function AdvancedFiltersSheet({ open, value, place, projects, units, unitBreadcr
   const [draftPlace, setDraftPlace] = useState(place);
   // Area scope and the place are two controls over one value: "One unit" opens the unit list before a unit is chosen.
   const [pickingUnit, setPickingUnit] = useState(false);
-  const [unitQuery, setUnitQuery] = useState("");
   useEffect(() => {
     if (open) {
       setDraft(value);
       setDraftPlace(place);
       setPickingUnit(false);
-      setUnitQuery("");
     }
   }, [open, value, place.project, place.unit]);
   const areaMode = pickingUnit || (draftPlace.unit && draftPlace.unit !== WITHIN_AREA) ? "unit" : draftPlace.unit === WITHIN_AREA ? "mine" : "all";
-  // The row ends with the unit's own name: a breadcrumb's last segment comes from a unit code, which can repeat across projects.
-  const crumb = (unit: string) => [...(unitBreadcrumb?.(unit) ?? unit).split(" › ").slice(0, -1), unit].join(" › ");
-  const needle = unitQuery.trim().toLowerCase();
   // An applied unit missing from today's options (an old link, another project) stays listed so the sheet shows it.
   const unitRows = (place.unit && place.unit !== WITHIN_AREA && !units.includes(place.unit) ? [...units, place.unit] : units)
-    .map((unit) => ({ unit, label: crumb(unit) }))
-    .filter((row) => !needle || row.label.toLowerCase().includes(needle))
+    .map((unit) => ({ unit, label: unitBreadcrumb?.(unit) ?? unit }))
     .sort((a, b) => a.label.localeCompare(b.label));
   const set = (patch: Partial<AdvancedFilters>) => setDraft((previous) => ({ ...previous, ...patch }));
   return (
     <FilterPanel open={open} title={t("advancedFilters")} onClose={onClose} footer={(
       <>
-        <Button kind="secondary" label={t("clearAll")} onPress={() => { setDraft(EMPTY_ADVANCED); setDraftPlace({}); setPickingUnit(false); setUnitQuery(""); }} />
+        <Button kind="secondary" label={t("clearAll")} onPress={() => { setDraft(EMPTY_ADVANCED); setDraftPlace({}); setPickingUnit(false); }} />
         <Button label={t("applyFilters")} onPress={() => onApply(draft, draftPlace)} />
       </>
     )}>
@@ -422,15 +416,15 @@ function AdvancedFiltersSheet({ open, value, place, projects, units, unitBreadcr
                     a11yLabel={(label) => t("filterAreaLabel", { label })}
                   />
                   {areaMode === "unit" ? (
-                    <View accessibilityRole="radiogroup" accessibilityLabel={t("filterOneUnit")} style={{ gap: spacing.xxs }}>
-                      {!draftPlace.unit || draftPlace.unit === WITHIN_AREA ? <Text style={s.note}>{t("filterUnitPick")}</Text> : null}
-                      {units.length > 8 ? (
-                        <TextInput accessibilityLabel={t("filterUnitSearch")} placeholder={t("filterUnitSearch")} value={unitQuery} onChangeText={setUnitQuery} style={[s.searchInput, { flex: undefined }]} />
-                      ) : null}
-                      {unitRows.map((row) => (
-                        <MenuChoiceRow key={row.unit} label={row.label} selected={draftPlace.unit === row.unit} onPress={() => setDraftPlace((previous) => ({ ...previous, unit: row.unit }))} />
-                      ))}
-                    </View>
+                      <Select
+                        label={t("filterOneUnit")}
+                        placeholder={t("filterUnitPick")}
+                        searchable
+                        searchLabel={t("filterUnitSearch")}
+                        options={unitRows.map((row) => ({ value: row.unit, label: row.label }))}
+                        value={draftPlace.unit && draftPlace.unit !== WITHIN_AREA ? draftPlace.unit : ""}
+                        onChange={(unit) => setDraftPlace((previous) => ({ ...previous, unit }))}
+                      />
                   ) : null}
                 </View>
               </View>
@@ -644,7 +638,8 @@ export function useAreaFilter(projects: AccessProject[] | undefined, context: In
     }
     const breadcrumb = (path: string, name: string) => {
       const parts = path.split(".").filter(Boolean);
-      return parts.length <= 1 ? name : parts.map((code) => codeToName.get(code) ?? code).join(" › ");
+      // The unit's own name ends the trail: codeToName spans projects, so a code repeated elsewhere could mislabel it.
+      return parts.length <= 1 ? name : [...parts.slice(0, -1).map((code) => codeToName.get(code) ?? code), name].join(" › ");
     };
     const add = (id: string, info: Omit<UnitInfo, "breadcrumb">) => {
       const full = { ...info, breadcrumb: breadcrumb(info.path, info.name) };

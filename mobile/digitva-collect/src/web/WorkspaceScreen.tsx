@@ -49,8 +49,8 @@ const BLOCK_GRANT_ROLES: Record<keyof HomeBlocks, string[]> = {
 };
 
 type HomeMetric = { label: string; value: number };
-/** One role's Home block: at most three numbers, the actionable backlog first, and one primary action. */
-type RoleBlock = { key: keyof HomeBlocks; title: string; metrics: HomeMetric[]; backlog: number; cta: string; onPress: () => void };
+/** One role's Home block: at most three numbers, and one primary action. */
+type RoleBlock = { key: keyof HomeBlocks; title: string; metrics: HomeMetric[]; cta: string; onPress: () => void };
 
 /** The projects where *roles* hold an active grant: their names, or their count above MANY_PROJECTS. */
 export function projectSubline(projects: AccessProject[], roles: string[]): string {
@@ -60,7 +60,7 @@ export function projectSubline(projects: AccessProject[], roles: string[]): stri
   return names.length > MANY_PROJECTS ? t("homeProjectsCount", { count: names.length }) : names.join(" · ");
 }
 
-/** Work blocks for the roles held, most actionable backlog first (stable for ties). Progress is not one of them. */
+/** Work blocks for the roles held, in the fixed order Interviews, Supervision, Coding, Review, Data management, Death reporter. Progress is not one of them. */
 export function roleBlocks(blocks: HomeBlocks, go: (key: keyof HomeBlocks) => void): RoleBlock[] {
   const list: RoleBlock[] = [];
   const { death_reporter: reporter, interviewer, interview_supervisor: supervisor, coder, reviewer, data_manager: dm } = blocks;
@@ -71,7 +71,6 @@ export function roleBlocks(blocks: HomeBlocks, go: (key: keyof HomeBlocks) => vo
       { label: t("homeDraftsInProgress"), value: interviewer.drafts_in_progress },
       { label: t("homeMetricNeedingVisit"), value: interviewer.needing_visit },
     ],
-    backlog: interviewer.drafts_in_progress + interviewer.needing_visit,
     cta: t(interviewer.drafts_in_progress > 0 ? "homeCtaResumeDraft" : "homeCtaStartInterview"),
     onPress: () => go("interviewer"),
   });
@@ -84,7 +83,6 @@ export function roleBlocks(blocks: HomeBlocks, go: (key: keyof HomeBlocks) => vo
       { label: t("homeMetricOpenCases"), value: supervisor.open },
       { label: t("homeMetricSubmitted"), value: supervisor.submitted },
     ],
-    backlog: supervisor.needs_decision,
     cta: t("homeCtaNeedsDecision"),
     onPress: () => go("interview_supervisor"),
   });
@@ -92,8 +90,6 @@ export function roleBlocks(blocks: HomeBlocks, go: (key: keyof HomeBlocks) => vo
     key: "coder",
     title: t("homeBlockPracticeCoding"),
     metrics: [{ label: t("homeMetricReadyForPractice"), value: coder.ready }],
-    // Practice is never a backlog.
-    backlog: 0,
     cta: t("homeCtaPracticeNext"),
     onPress: () => go("coder"),
   } : {
@@ -104,7 +100,6 @@ export function roleBlocks(blocks: HomeBlocks, go: (key: keyof HomeBlocks) => vo
       { label: t("homeMetricCompleted"), value: coder.completed ?? 0 },
       { label: t("homeMetricRecodeable"), value: coder.recodeable ?? 0 },
     ],
-    backlog: coder.ready,
     cta: t("homeCtaCodeNext"),
     onPress: () => go("coder"),
   });
@@ -115,7 +110,6 @@ export function roleBlocks(blocks: HomeBlocks, go: (key: keyof HomeBlocks) => vo
       { label: t("homeMetricReadyToReview"), value: reviewer.available },
       { label: t("homeMetricCompleted"), value: reviewer.completed },
     ],
-    backlog: reviewer.available,
     cta: t("homeCtaReviewNext"),
     onPress: () => go("reviewer"),
   });
@@ -127,7 +121,6 @@ export function roleBlocks(blocks: HomeBlocks, go: (key: keyof HomeBlocks) => vo
       { label: t("homeMetricReadyForCoding"), value: dm.ready_for_coding },
       { label: t("homeMetricNotCodeable"), value: dm.not_codeable },
     ],
-    backlog: dm.screening_pending,
     cta: t("homeCtaDataManagement"),
     onPress: () => go("data_manager"),
   });
@@ -138,12 +131,10 @@ export function roleBlocks(blocks: HomeBlocks, go: (key: keyof HomeBlocks) => vo
       { label: t("homeMetricDeathsIRegistered"), value: reporter.registered },
       { label: t("homeMetricAwaitingInterview"), value: reporter.awaiting_interview },
     ],
-    // Awaiting interview is someone else's work: a reporter's next step is always the next death.
-    backlog: 0,
     cta: t("registerDeath"),
     onPress: () => go("death_reporter"),
   });
-  return list.sort((a, b) => b.backlog - a.backlog);
+  return list;
 }
 
 function first(value: string | string[] | undefined): string | undefined {

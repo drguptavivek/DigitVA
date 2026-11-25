@@ -160,7 +160,7 @@ const ICON_PATHS: Record<string, string[]> = {
 /** Sidebar icon name per navEntries key; decorative, every link carries its label. */
 const NAV_ICONS: Record<string, string> = {
   "/": "home", "/death-registration": "fileText", "/collection": "clipboardList", "/coding": "pencil", "/reviewing": "checks", "/statistics": "chartBar", "/training": "school",
-  "/organization": "sitemap", "/users": "users", "/settings": "settings", website: "externalLink", "/data": "database", "/mentoring": "bank", "/admin/": "shield",
+  "/organization": "sitemap", "/users": "users", "/settings": "settings", "/data": "database", "/mentoring": "bank", "/admin/": "shield",
 };
 
 function NavIcon({ name, color }: { name: string; color: string }) {

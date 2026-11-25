@@ -13,7 +13,7 @@ export type ProjectChoice = { id: string; name: string };
 const WIDE = 768;
 const MENU_WIDTH = 280;
 
-function useSelectStyles() {
+export function useSelectStyles() {
   const { colors, typography } = useTheme();
   return useMemo(() => StyleSheet.create({
     field: {
@@ -39,7 +39,7 @@ function useSelectStyles() {
   }), [colors, typography]);
 }
 
-function CheckMark({ color }: { color: string }) {
+export function CheckMark({ color }: { color: string }) {
   return <Svg width={16} height={16} viewBox="0 0 16 16"><Path d="M3 8.5l3.5 3.5L13 4.5" stroke={color} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" /></Svg>;
 }
 

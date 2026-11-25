@@ -178,7 +178,7 @@ describe("role home dashboard", () => {
     });
   });
 
-  test("one block per role, most actionable backlog first, numbers and one action each, no role chips or project cards", async () => {
+  test("one block per role in the fixed order (never by backlog), numbers and one action each, no role chips or project cards", async () => {
     const project: AccessProject = {
       project_id: "TST001",
       project_name: "Test Project",
@@ -196,27 +196,31 @@ describe("role home dashboard", () => {
     mockAppBootstrap = bootstrap(["interviewer", "coder", "reviewer"], { intake: true, coding: true, reviewing: true }, [project]);
     mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
     mockHome = {
-      roles: ["coder", "interviewer", "reviewer"],
+      roles: ["coder", "interviewer", "reviewer", "data_manager"],
       blocks: {
         interviewer: { drafts_in_progress: 0, needing_visit: 2 },
         coder: { ready: 9, practice: false, completed: 4, recodeable: 1 },
         reviewer: { available: 5, completed: 0 },
+        data_manager: { screening_pending: 20, ready_for_coding: 0, not_codeable: 0 },
       },
     };
 
     const renderer = await render(<WorkspaceScreen />);
     expect(mockRequest).toHaveBeenCalledWith("/api/v1/me/home");
     const json = JSON.stringify(renderer.toJSON());
-    // Coder (9) before reviewer (5) before interviewer (2).
-    expect(json).toContain("homeBlockCoder");
-    expect(json.indexOf("homeBlockCoder")).toBeLessThan(json.indexOf("homeBlockReviewer"));
-    expect(json.indexOf("homeBlockReviewer")).toBeLessThan(json.indexOf("homeBlockInterviewer"));
+    // Interviews, Coding, Review, Data management, whatever the backlogs (data management has the biggest here).
+    const at = (key: string) => { expect(json).toContain(key); return json.indexOf(key); };
+    expect(at("homeBlockInterviewer")).toBeLessThan(at("homeBlockCoder"));
+    expect(at("homeBlockCoder")).toBeLessThan(at("homeBlockReviewer"));
+    expect(at("homeBlockReviewer")).toBeLessThan(at("homeBlockDataManager"));
     // The project is a subline, not a card with role chips or per-project actions.
     expect(json).toContain("Test Project");
     expect(json).not.toContain("role_coder");
     expect(json).not.toContain("Sites_in_project_TST001");
     const labels = buttonLabels(renderer);
-    expect(labels).toContain("homeCtaCodeNext");
+    // Only the first block (Interviews, by the fixed order) carries the action.
+    expect(labels).toContain("homeCtaStartInterview");
+    expect(labels).not.toContain("homeCtaCodeNext");
     expect(labels).not.toContain("navCoding");
     expect(labels).not.toContain("navOrganization");
     // No progress role: no progress block.
@@ -226,7 +230,7 @@ describe("role home dashboard", () => {
     });
   });
 
-  test("the first block takes the action, an interviewer with drafts resumes, and a practice tester is never ranked by backlog", async () => {
+  test("the first block takes the action, an interviewer with drafts resumes, and a practice tester's block keeps its place in the fixed order", async () => {
     mockAppBootstrap = bootstrap(["interviewer", "coding_tester"], { intake: true, coding: true });
     mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
     mockHome = {
@@ -350,7 +354,6 @@ describe("role home dashboard", () => {
     const go = jest.fn();
     const [block] = roleBlocks({ interview_supervisor: { flagged: 1, needs_decision: 5, open: 7, submitted: 2 } } as never, go);
     expect(block.cta).toBe("homeCtaNeedsDecision");
-    expect(block.backlog).toBe(5);
     expect(block.metrics).toContainEqual({ label: "homeMetricNeedsDecision", value: 5 });
     block.onPress();
     expect(go).toHaveBeenCalledWith("interview_supervisor");

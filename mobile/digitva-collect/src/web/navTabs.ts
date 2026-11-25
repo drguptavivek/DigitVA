@@ -2,7 +2,7 @@
 import type { ClientBootstrap } from "../client/api";
 import type { StringKey } from "../i18n";
 import { TRAINING_REPORTING_ROUTE, TRAINING_ROUTES, trainingAreas } from "../training";
-import { dataAccess, roleScreens, statisticsAllowed } from "./roleHome";
+import { roleScreens, statisticsAllowed } from "./roleHome";
 
 /** Pre-login and device screens: nobody is signed in to see navigation there. */
 export const HEADERLESS_ROUTES = ["/sign-in", "/enrol", "/unlock", "/pin-setup", "/register"];
@@ -33,12 +33,9 @@ const TRAINING_LABELS: Record<keyof typeof TRAINING_ROUTES, StringKey> = {
   review: "trainingReview",
 };
 
-/** The public website (Flask va_main.va_index), the same page the account menu's "Open web version" opens. */
-export const WEBSITE_HREF = "/vaindex";
-
 /**
  * The menu of the left sidebar (wide) and the bottom bar (phone), identical in both: `primary` in the owner's
- * order, then everything else under More. Visibility reuses roleScreens/dataAccess; Admin console copies the home
+ * order, then everything else under More. Visibility reuses roleScreens; Admin console copies the home
  * screen's rule (WorkspaceScreen). Showing an item grants nothing: every route checks access on the server.
  * Sign out is not an entry; each menu appends it to More.
  */
@@ -72,11 +69,7 @@ export function navEntries(bootstrap: NavBootstrap): { primary: NavEntry[]; more
   if (bootstrap.access?.is_admin || roles.some((role) => role === "admin" || role === "project_pi" || role === "data_manager")) {
     more.push({ key: "/users", labelKey: "navUsers", route: "/users" });
   }
-  more.push(
-    { key: "/settings", labelKey: "navSettings", route: "/settings" },
-    { key: "website", labelKey: "navWebsite", href: WEBSITE_HREF },
-  );
-  if (dataAccess(bootstrap).allowed) more.push({ key: "/data", labelKey: "navData", route: "/data" });
+  more.push({ key: "/settings", labelKey: "navSettings", route: "/settings" });
   if (screens.includes("/mentoring")) more.push({ key: "/mentoring", labelKey: "navMentoring", route: "/mentoring" });
   // Mentor view: mentoring staff, data managers (In-charge included) and admin; the server re-derives the districts.
   if (screens.includes("/mentoring") || bootstrap.access?.is_admin || roles.includes("admin") || roles.includes("data_manager")) {

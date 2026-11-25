@@ -192,9 +192,8 @@ test("bottom bar: the owner's labels and order, icons hidden from assistive tech
   expect(bar()!.querySelector("a[href='/app/statistics']")).toBeNull();
   act(() => moreButton().click());
   const labels = Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
-  expect(labels).toEqual(["Statistics", "Organization", "Users", "Settings", "Website", "Data management", "Mentoring Institution", "Mentor view", "Withdrawn cases", "Admin console", "Sign out"]);
-  const website = host.querySelector<HTMLAnchorElement>("[role='menuitem'][href='/vaindex']")!;
-  expect([website.target, website.rel]).toEqual(["_blank", "noopener"]);
+  expect(labels).toEqual(["Statistics", "Organization", "Users", "Settings", "Mentoring Institution", "Mentor view", "Withdrawn cases", "Admin console", "Sign out"]);
+  expect(host.querySelector("[role='menuitem'][href='/vaindex']")).toBeNull();
   expect(host.querySelector("[role='menuitem'][href='/app/organization']")).not.toBeNull();
   expect(host.querySelector("[role='menuitem'][href='/admin/']")).not.toBeNull();
 });
@@ -312,7 +311,7 @@ test("phone: in-app click on a bottom tab navigates without leaving, and the Mor
   expect(mockRouter.push).toHaveBeenLastCalledWith("/reviewing");
   act(() => moreButton().click());
   const labels = Array.from(host.querySelectorAll("[role='menuitem']")).map((el) => el.textContent);
-  expect(labels).toEqual(["Statistics", "Organization", "Settings", "Website", "Sign out"]);
+  expect(labels).toEqual(["Statistics", "Organization", "Settings", "Sign out"]);
   expect(click(host.querySelector("[role='menuitem'][href='/app/settings']")!).defaultPrevented).toBe(true);
   expect(mockRouter.push).toHaveBeenLastCalledWith("/settings");
   expect(host.querySelector("[role='menu']")).toBeNull();

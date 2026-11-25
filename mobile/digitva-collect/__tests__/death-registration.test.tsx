@@ -157,6 +157,46 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("lists the units in a searchable dropdown labelled with the ancestor names, not codes", async () => {
+    const unit = (id: string, code: string, name: string, path: string, selectable: boolean) =>
+      ({ org_unit_id: id, unit_code: code, unit_name: name, path, selectable, is_active: true, roles: [] });
+    const units = [unit("o1", "CMO", "CMO Office", "CMO", false), unit("o2", "CHC1", "Hamirpur CHC 1", "CMO.CHC1", false), unit("o3", "AAM01", "AAM01", "CMO.CHC1.AAM01", true)];
+    const project = mockBootstrap.access.projects[0] as unknown as { units: unknown[]; actions: { register_death: Array<{ org_units: unknown[] }> } };
+    project.units = units;
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+
+    const field = tree!.root.findAll((node) => node.props.accessibilityLabel === "chooseUnit" && node.props.accessibilityRole === "button")[0];
+    expect(field).toBeDefined();
+    await act(async () => field.props.onPress());
+    const rows = tree!.root.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel);
+    // Only the selectable unit is an option; its label walks the ancestors by name.
+    expect([...new Set(rows)]).toEqual(["CMO Office › Hamirpur CHC 1 › AAM01"]);
+    await act(async () => tree!.root.findAll((node) => node.props.accessibilityRole === "radio")[0].props.onPress());
+    expect(tree!.root.findAll((node) => node.props.accessibilityLabel === "chooseUnit: CMO Office › Hamirpur CHC 1 › AAM01")[0]).toBeDefined();
+    await act(async () => tree!.unmount());
+  });
+
+  it("labels each unit with its own name when two projects share a unit code", async () => {
+    const unit = (id: string, name: string) =>
+      ({ org_unit_id: id, unit_code: "X1", unit_name: name, path: `ROOT.X1`, selectable: true, is_active: true, roles: [] });
+    const root = { org_unit_id: "r", unit_code: "ROOT", unit_name: "Root Office", path: "ROOT", selectable: false, is_active: true, roles: [] };
+    const base = mockBootstrap.access.projects[0] as unknown as Record<string, unknown>;
+    mockBootstrap.access.projects = [
+      { ...base, units: [root, unit("u1", "Alpha Unit")] },
+      { ...base, project_id: "P2", value: "P2", label: "P2", units: [root, unit("u2", "Beta Unit")] },
+    ] as never;
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    const field = tree!.root.findAll((node) => node.props.accessibilityLabel === "chooseUnit" && node.props.accessibilityRole === "button")[0];
+    await act(async () => field.props.onPress());
+    const rows = [...new Set(tree!.root.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel as string))];
+    expect(rows).toContain("Root Office › Alpha Unit");
+    await act(async () => tree!.unmount());
+  });
+
   it("on a station, blocks saving informant details until consent is granted, then sends it", async () => {
     (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__ = "tok";
     let tree: ReturnType<typeof create>;

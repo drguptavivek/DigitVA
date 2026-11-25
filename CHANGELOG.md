@@ -5,6 +5,18 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Web app: Home cards in a fixed order, a leaner More menu, and compact
+  dropdowns for offices and units (owner 2026-11-25, `digitva-t8oa`). Home
+  role cards now read Interviews, Coding, Review, Data management instead of
+  sorting by backlog. The More menu drops Website and Data management (Home's
+  Data management card is the way in). Mentor view picks its office from one
+  "Project – District Office" dropdown; Add a Death and the Reported deaths /
+  VA Interview "One unit" filter pick a unit from a searchable dropdown of
+  hierarchical names ("CMO Office › CHC › PHC"). One shared `src/ui/Select`.
+  The unit breadcrumb now always ends in the unit's own name, so a unit code
+  repeated in another project no longer borrows that project's name. Web
+  only: no APK change, no route, no migration. See
+  `docs/current-state/expo-client.md`.
 - COD bucket editor's VA code dropdown names the default code (owner
   2026-11-25, `digitva-dvba`). The first option of Edit Disease read "No
   explicit code (use the default)"; it now reads the code the bucket falls

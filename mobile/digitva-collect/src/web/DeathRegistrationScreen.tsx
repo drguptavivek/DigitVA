@@ -14,6 +14,8 @@ import { t, uiLocale, type StringKey } from "../i18n";
 import { calculateRegistrationAge } from "../registrationAgeDisplay";
 import { formatRegistrationAge } from "../registrationAgeText";
 import { Button, FieldLabel, useUiStyles } from "../ui";
+import { Select } from "../ui/Select";
+import { useAreaFilter, type RowUnit } from "./caseFilters";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { DeathsListPanel } from "./DeathsList";
@@ -145,6 +147,9 @@ function draftIssueFor(key: keyof RegistrationInput, message: string): DraftIssu
       : undefined;
   return { code, message };
 }
+
+/** A stable empty row list for useAreaFilter, which memoises on it. */
+const NO_ROWS: RowUnit[] = [];
 
 export default function DeathRegistrationScreen() {
   const router = useRouter();
@@ -399,6 +404,8 @@ export default function DeathRegistrationScreen() {
     () => intake?.context.find((entry) => entry.project_id === projectId && entry.site_id === siteId),
     [intake, projectId, siteId]
   );
+  // The same ancestor-name breadcrumbs the Advanced filters show.
+  const { orgLookup } = useAreaFilter(bootstrap?.access.projects, intake?.context, NO_ROWS, projectId);
   // A supervisor-only user lands on the list, except when the supervision case opened one death's edit form.
   const supervisorEditing = fromSupervision && Boolean(editingDeathId);
   const showRegisteredDeaths = (listMode || (canSupervise && !hasOwnDeaths && !supervisorEditing)) && canList;
@@ -970,16 +977,18 @@ export default function DeathRegistrationScreen() {
           {!editingDeathId && context?.org_units?.filter((unit) => unit.selectable !== false).length ? (
             <View>
               <Text style={styles.fieldLabel}>{t("chooseUnit")}</Text>
-              <View style={styles.row} accessibilityRole="radiogroup">
-                {context.org_units.filter((unit) => unit.is_active !== false && unit.selectable !== false).map((unit) => (
-                  <Button
-                    key={unit.org_unit_id}
-                    kind={unit.org_unit_id === orgUnitId ? "primary" : "secondary"}
-                    label={unit.unit_name ?? unit.unit_code ?? unit.org_unit_id}
-                    onPress={() => setOrgUnitId(unit.org_unit_id)}
-                  />
-                ))}
-              </View>
+              <Select
+                label={t("chooseUnit")}
+                placeholder={t("chooseUnit")}
+                searchable
+                searchLabel={t("filterUnitSearch")}
+                options={context.org_units
+                  .filter((unit) => unit.is_active !== false && unit.selectable !== false)
+                  .map((unit) => ({ value: unit.org_unit_id, label: orgLookup.byId.get(unit.org_unit_id)?.breadcrumb ?? unit.unit_name ?? unit.unit_code ?? unit.org_unit_id }))
+                  .sort((a, b) => a.label.localeCompare(b.label))}
+                value={orgUnitId}
+                onChange={setOrgUnitId}
+              />
             </View>
           ) : null}
           {renderField(FIELD_DEFINITIONS[0])}

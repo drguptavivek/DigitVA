@@ -93,13 +93,15 @@ async function chooseInSheet(tree: ReturnType<typeof create>, label: string): Pr
   await act(async () => tree.root.findAll((node) => node.props["data-label"] === "applyFilters")[0].props.onClick());
 }
 
-/** One unit: the scope toggle opens the unit list (rows labelled "Parent › Unit"), then the unit's row. */
+/** One unit: the scope toggle shows the unit dropdown (rows labelled "Parent › Unit"), then the unit's row. */
 async function chooseUnitInSheet(tree: ReturnType<typeof create>, unit: string): Promise<void> {
   const open = tree.root.findAll((node) => String(node.props.accessibilityLabel).startsWith("advancedFilters") && typeof node.props.onPress === "function")[0];
   await act(async () => open.props.onPress());
   // Units are not chips beside the scope: the list appears only under "One unit".
   expect(tree.root.findAll((node) => node.props.accessibilityLabel === `filterAreaLabel:${unit}`)).toHaveLength(0);
   await act(async () => tree.root.findByProps({ accessibilityLabel: "filterAreaLabel:filterOneUnit" }).props.onPress());
+  // The units are a searchable dropdown: open it, then press the unit's row.
+  await act(async () => tree.root.findAll((node) => node.props.accessibilityLabel === "filterOneUnit" && node.props.accessibilityRole === "button")[0].props.onPress());
   const row = tree.root.findAll((node) => node.props.accessibilityRole === "radio" && typeof node.props.onPress === "function"
     && String(node.props.accessibilityLabel).split(" › ").pop() === unit)[0];
   expect(row).toBeDefined();
@@ -664,12 +666,13 @@ describe("CollectionScreen refresh", () => {
     // Reopened on a unit, the sheet shows the unit list; Clear all returns the area to "All areas" and hides the list.
     const reopen = tree!.root.findAll((node) => String(node.props.accessibilityLabel).startsWith("advancedFilters") && typeof node.props.onPress === "function")[0];
     await act(async () => reopen.props.onPress());
-    const radios = () => tree!.root.findAll((node) => node.props.accessibilityRole === "radio" && typeof node.props.onPress === "function");
-    expect(radios().length).toBeGreaterThan(0);
+    // The unit dropdown shows the chosen unit on its field.
+    const unitField = () => tree!.root.findAll((node) => String(node.props.accessibilityLabel).startsWith("filterOneUnit:") && node.props.accessibilityRole === "button");
+    expect(unitField().length).toBeGreaterThan(0);
     await act(async () => tree!.root.findByProps({ accessibilityLabel: "filterAreaLabel:filterOneUnit" }).props.onPress());
     const clearButtons = tree!.root.findAll((node) => node.props.label === "clearAll" && typeof node.props.onPress === "function");
     await act(async () => clearButtons[clearButtons.length - 1].props.onPress());
-    expect(radios()).toHaveLength(0);
+    expect(unitField()).toHaveLength(0);
 
     await act(async () => tree!.unmount());
   });

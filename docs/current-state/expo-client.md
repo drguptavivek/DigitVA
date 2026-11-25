@@ -165,6 +165,17 @@ when the export is present (`VaUsers.landing_url()`, policy
   home card explaining that no project roles have been assigned yet, with
   actions for Settings / Profile, Help (`/help`), and Demo Coding when
   `demo_coding.available` is true.
+- Home's role blocks (`roleBlocks`) appear in a fixed order, not by backlog:
+  Interviews, Supervision, Coding, Review, Data management, then Death reporter
+  (a phone shows the first as the card and the rest as one-line rows). The More
+  menu holds no Website or Data management entry; Home's Open data management
+  card and quick action are the ways in, and "Open web version" stays in the
+  account menu.
+- Single-choice pickers share `src/ui/Select.tsx` (field button, menu below on
+  a wide window or a bottom sheet on a narrow one, capped scrolling list,
+  optional search). The unit choice of Add a death and of Advanced filters
+  (One unit) use it, labelled with the unit's ancestor names joined by " › "
+  from `useAreaFilter`'s `orgLookup`.
 - For a user with roles or project grants, it fetches `GET /api/v1/me/activity`
   and displays:
   1. Overall personal activity counts (forms filled / submitted interviews,
@@ -235,7 +246,7 @@ switch and Back to collection all scroll away with the form (the screen renders
 only the case strip stays pinned at the top of the viewport, with the form's sticky
 section progress below it. Every other route keeps the sticky root header.
 The form's Back, Save draft, Preview, Next are one row of four equal-width buttons (package testID `form-footer`), sticky above the phone bottom tabs below 768px and in flow at the card's end from 768px; the package's "More sections appear as you answer" note is blanked via `uiTranslations`.
-While the open interview has changes not yet acknowledged by the server, one navigation guard (`src/web/navigationGuard.ts`) holds the left menu, phone bottom bar and More sheet, header logo, Profile, Sign out, Back to collection, router back and tab close/reload behind a "Leave this interview?" alertdialog (Stay, Save and leave, Leave without saving); new-tab links (Help, Website) are not held. Answers are not saved on every change: the browser interview saves on section navigation (Next, Previous, a Sections jump), every 20 s, and when the page is hidden or closed (`visibilitychange` hidden, `pagehide`, `beforeunload`), and before submit, a language switch, leaving and sign-out (`digitva-jrm5`, docs/policy/web-intake.md "Browser autosave"). The dialog therefore opens while answers changed since the last acknowledged save, or after a save failed, and its body says which; a save of older answers settling late does not clear newer pending ones.
+While the open interview has changes not yet acknowledged by the server, one navigation guard (`src/web/navigationGuard.ts`) holds the left menu, phone bottom bar and More sheet, header logo, Profile, Sign out, Back to collection, router back and tab close/reload behind a "Leave this interview?" alertdialog (Stay, Save and leave, Leave without saving); new-tab links (Help) are not held. Answers are not saved on every change: the browser interview saves on section navigation (Next, Previous, a Sections jump), every 20 s, and when the page is hidden or closed (`visibilitychange` hidden, `pagehide`, `beforeunload`), and before submit, a language switch, leaving and sign-out (`digitva-jrm5`, docs/policy/web-intake.md "Browser autosave"). The dialog therefore opens while answers changed since the last acknowledged save, or after a save failed, and its body says which; a save of older answers settling late does not clear newer pending ones.
 
 Saves are latest-wins at both ends. The WHO form's `saveDraft` keeps at most one save in flight and one waiting; every caller after the one in flight shares the waiting save, which reads the answers when it starts, so a burst of changes costs at most two store writes and navigation (Next and Previous alike) never waits for a save. `ServerDraftStore` is a single writer with no debounce: a save is sent at once (same-tick saves share one write), one made while a write is out waits in `pending` and goes when it ends, and its promise settles only when the server acknowledged a write that includes it, so "Draft saved" and the case strip's "Saved HH:MM" keep meaning the server has it. A write with no answer section and no metadata change (locale, translation version, definition pin, workflow timeline) is not sent: a section move alone sends nothing and `current_section` goes with the next real write. A language switch's two saves go through `flush` and wait on no timer (`digitva-t382`). The phone keeps `autoSaveDraftOnChange` (it saves to its local SQLite store).
 A save the server refuses (any 4xx but 401, `csrf_failed`, 408 and 429; for example 400 `invalid_request`, 409 `draft_stale` or a closed draft, 422) holds autosave (`ServerDraftStore.isSaveHeld`): the form's 20 s interval stops, later changes are kept on the page and in this tab's sessionStorage and send nothing, and the screen shows the server's reason with a Try saving again button (`retrySave`, one request). Before this hold one refused save was resent every 20 s for as long as the tab stayed open. A held 409 `draft_stale` shows who changed the draft, where and when from the refusal's `last_change` (`draftChangeText`: "You changed this interview on your phone at …") with Keep the newer version (`keepNewerVersion`, then reload) and Use my answers (`useMyAnswers`, a `PATCH` with `overwrite: true` based on the refusal's `updated_at`); over a consent refusal only the first. On load, answers this tab kept on an older version are offered the same way before the form opens (`overtakenAnswers`, `useOvertakenAnswers`, `discardOvertakenAnswers`) instead of being dropped; a refusal, or a server reply without `last_change`, still drops them (docs/policy/web-intake.md, "Stale browser saves"). A refusal or sign-out also rejects every save waiting behind the refused write (`digitva-96wi`), so nothing hangs on a write that will not come. A 5xx, network failure or malformed reply is not held: every waiting save is rejected, only the latest answers are kept, and the store resends them after 2, 4, 8 s and so on (at most 60 s), or at once on the browser's `online` event; a save with new answers or a flush replaces the wait, a save of the same answers (the 20 s interval) does not, and a success resets it. The screen calls `dispose()` when it lets a store go, which stops retries but not a flush already asked for. The server logs each refused draft save or submit as `intake draft write refused` with the code and the check that refused it (`function:line`), never the message or answers.
@@ -365,7 +376,7 @@ cadre only.
 
 Mentor view (`/mentor-view`, web only, `src/web/MentorViewScreen.tsx`) is the
 per-coder table of one district over `GET /api/v1/mentor/*` (policy
-`docs/policy/mentor-view.md`): district and period chips, one card per coder,
+`docs/policy/mentor-view.md`): a Project – District Office dropdown (`src/ui/Select.tsx`) and period chips, one card per coder,
 and, when the server returns `names_visible`, a drill-down to the coder's
 coded cases with the read-only case link (`/coding/area/<sid>`) and feedback
 notes (add with the no-PII warning, retract when `can_retract`). More menu:
@@ -428,8 +439,10 @@ Data (`/data`, `src/web/DataScreen.tsx`, pieces in `src/web/data/`, client
 the data manager dashboard over `/api/v1/data-management/*` and
 `/api/v1/analytics/{demographics,mv/refresh}`; Pipeline is a later slice (Flask
 `/data-management/` and `/data-management/cod-buckets` stay until it lands; Flask links from Statistics map to
-`/data` through `dataRouteForLink`). Menu entry under More and Home button:
-`dataAccess` in `src/web/roleHome.ts` (data manager, either viewer role, admin; a
+`/data` through `dataRouteForLink`). Not under More; the entry is Home only: the Data management block (data manager)
+and the quick action (either viewer role without data manager). Access is
+`dataAccess` in `src/web/roleHome.ts` (data manager, either viewer role, admin; an admin
+with none of those roles has no Home entry, only Statistics links and the URL; a
 remembered `/data-management/` visit maps to `/data`). The URL is the whole view,
 with the Flask names (`search`, `project`, `site`, `date_from`, `date_to`,
 `odk_status`, `smartva`, `age_group`, `gender`, `odk_sync` default `in_sync`,

@@ -22,6 +22,7 @@ import {
   type MentorNote,
   type MentorPeriod,
 } from "../api";
+import { Select } from "../ui/Select";
 import { spacing, useTheme } from "../theme";
 import { Button, useUiStyles } from "../ui";
 import { openServerPage } from "./roleHome";
@@ -199,12 +200,13 @@ export default function MentorViewScreen() {
       {districts === null && !error ? <Text style={styles.muted}>Loading...</Text> : null}
       {districts && districts.length > 0 ? (
         <View style={{ gap: spacing.sm }}>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
-            {districts.map((d) => (
-              <Button key={d.district_id} size="sm" kind={d.district_id === district ? undefined : "secondary"}
-                selected={d.district_id === district} label={`${d.name} (${d.project_name})`} onPress={() => setDistrict(d.district_id)} />
-            ))}
-          </View>
+          <Select
+            label="Project – District Office"
+            placeholder="Project – District Office"
+            options={districts.map((d) => ({ value: d.district_id, label: `${d.project_name} – ${d.name}` }))}
+            value={district}
+            onChange={setDistrict}
+          />
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.xs }}>
             {PERIODS.map((p) => (
               <Button key={p.key} size="sm" kind={p.key === period ? undefined : "secondary"}

@@ -3,6 +3,24 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-26
+
+- Staging release 0.3.30 (owner go 2026-11-25): staging runs `a4b9fd083`
+  (from `b754a36`), migrations `1f037b4717e4`, `c3a7e1f9d4b2`, `b5e2c8d4a9f7`
+  applied, web `expo-web-v2026.11.25.1`, Collect and Collect Plus 0.3.30
+  published and pinned (not yet hosted for phone updates). Before it: four
+  read-only reviews of `b754a36..f4a6a7dab` and one of the last commits (no
+  blockers), full pytest 8379 passed, Jest, tsc and check-web green, EBS
+  snapshots of the app and DB hosts (`snap-03fb87ec5fd088dc4`,
+  `snap-0feaa4a000c1d20ba`, `snap-0ad6f805e7f25f65e`, `snap-066a195393a27bd4b`)
+  and the deploy script's verified pg_dump (`pg_dump_minerva_20261125T193348Z`).
+  The `/me` access snapshot of all 662 users before and after differs only in
+  date fields (`server_time`, `project_today`, `today_count`); no role,
+  project or PII change. `flask org cadreless-grants` dry run: 153
+  interviewer unit grants without a cadre, nothing written (`digitva-hofh`).
+  The 0.3.30 web and Plus builds first failed on a CI timing flake in
+  `native-supervisor-revision`, fixed in `56bde4541` (`digitva-cpxy`).
+
 ## 2026-11-25
 
 - Route auth matrix findings decided (owner 2026-11-25, `digitva-r8nh.39`):

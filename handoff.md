@@ -2,16 +2,28 @@
 
 ## Start here
 
-Staging runs `b754a36` (deployed 2026-11-23 on the owner's go; web
-`expo-web-v2026.11.23.2`; includes the supervisor corrections and migration
-`a7d3e9c5b2f1`; rollback:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 1dc8322554703c6d6a78a726ab0c8214eb7207eb`).
-Published `android-v0.3.29` and `collect-plus-v0.3.29-plus.1` (from
-`8bb9420`), pinned and copied into staging's `private/android-hosted`;
-`/api/v1/app/android/latest` serves 0.3.29 for both variants. Play AAB 0.3.29
-(from `30b1578`) awaits the owner's upload. Only Collect was smoke-checked on
-the emulator (launch to Enrol, from `30b1578`).
+Staging runs `a4b9fd083`, release 0.3.30 (deployed 2026-11-26 on the
+owner's go; web `expo-web-v2026.11.25.1`; migrations at `b5e2c8d4a9f7`;
+rollback, which also needs the migration downgrade first:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh b754a364b51f5038978e59bb8cfdfbe625e925f7`;
+EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-26). Published and pinned
+`android-v0.3.30` and `collect-plus-v0.3.30-plus.1`, NOT yet copied into
+staging's `private/android-hosted`: phones are still offered 0.3.29. Play AAB
+0.3.30 (run 45673955783) awaits the owner's upload. No device check of 0.3.30.
 
+Owner actions left from the 0.3.30 deploy, each needs the owner's go:
+- Copy the 0.3.30 APKs into the hosted override
+  (`docs/current-state/android-release-builds.md`, "temporary names and
+  atomic renames") so phones are offered the update.
+- `flask org cadreless-grants --apply` on staging: the dry run lists 153
+  interviewer unit grants without a cadre (`digitva-hofh`). They still work;
+  the new rule refuses to re-activate them once revoked.
+- Rerun training setup on staging (`digitva-veq5`).
+- `/data-management/api/project-sites` returns 500 on staging for data
+  managers since `87fff09cd` (not this release); fix in progress after the
+  deploy (`digitva-b94q`).
+- Never re-run the ICD-10 CSV or policy import on staging: it re-enables the
+  withdrawn R00-R94 codes (`1f037b4717e4`).
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect
@@ -40,9 +52,8 @@ and maps stay in the browser).
   informant, phone, ABHA, GPS and registration fields). `data_manager` on
   the phone: owner "not now" (2026-11-24, mobile-sign-in.md). Maestro 60/70/75/81 passed together
   on 2026-11-25 (flow 70 runs 36-61 min; `run-suite.sh` needs per-flow caps
-  over an hour, `digitva-flkc`). Before a
-  staging deploy, audit for old APKs: interviewer+supervisor phones now get
-  `supervises_deaths` true. Dev test DB `minerva_test_sup` kept for this.
+  over an hour, `digitva-flkc`). Dev test DB
+  `minerva_test_sup` kept for this.
 0. Consent withdrawal landed (`digitva-4gu7`); erasure of a withdrawn case
    is not built (owner to decide). Migrations since staging:
    `e3b7c9d1f5a2`, `f4c2a8e6b1d9`. Follow-ups: phone SA panel
@@ -131,18 +142,8 @@ and maps stay in the browser).
 
 ## Caveats
 
-- Before the next staging deploy (`digitva-4650`): snapshot access with
-  `scripts/me_access_snapshot.py` on staging before and after the deploy and
-  diff it (real mentor accounts may gain `pii_visible`); run `flask org
-  cadreless-grants` (dry run) and give the owner its lists, plus
-  supervisors gaining interview correction, mentor data managers losing PII
-  and mentors enrolled as workers gaining PII; `--apply` only on the owner's
-  go (`digitva-hofh`). After deploy rerun training setup (`digitva-veq5`).
-  Old cadre columns stay until `digitva-8qh6`.
-
-- Before the next staging deploy (`digitva-r8nh.39`): grep the staging `.env`
-  for `*_COOKIE_SAMESITE`. Anything but Lax/Strict is now logged as an error
-  and replaced with Lax at startup; System health shows the live values.
+- `digitva-4650` deployed: the `/me` snapshot of all 662 staging users
+  showed no access change. Old cadre columns stay until `digitva-8qh6`.
 - Docker's disk on this Mac filled on 2026-11-19 and stopped the dev
   database; rebuildable cache was cleared and `.dockerignore` now drops local
   APK build folders. Rebuilding `doris_public_service` (`--profile icd11`)

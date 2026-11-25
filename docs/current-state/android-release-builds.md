@@ -3,7 +3,7 @@ title: Android Release Builds
 doc_type: runbook
 status: active
 owner: engineering
-last_updated: 2026-11-18
+last_updated: 2026-11-26
 ---
 
 # Android release builds
@@ -16,6 +16,25 @@ pending and must not be implied. Local release builds are authorized in this
 session. The normal package remains the default download.
 Version 0.3.13 introduces the manual Settings server compatibility/build check
 (`digitva-hs7e.18`); the server contract and deployed commit are distinct values.
+
+## Public 0.3.30 APKs and Play bundle (2026-11-26)
+
+Collect built on CI from `577739af6` (run 45673942075); Collect Plus (run
+45679711537) and web release `expo-web-v2026.11.25.1`
+(`fc67d7da757924e76e249be91f3a9198517b25988b3273f7b1f43111b512c3f9`) from
+`56bde4541`, which adds only a test fix, so the app code is identical. Pinned
+in `docker-compose.yml` by `a4b9fd083`, the commit staging runs. Release
+certificate `6d94718a…6d361767`, versionCode 3302 (arm64), checked with
+`scripts/verify-android-release.sh`; checksums verified after download
+against each release's `.sha256`. The Play bundle is a run artifact of
+`android-play-bundle.yml` (run 45673955783, from `577739af6`); the Play
+upload is the owner's. Not yet copied into staging's `private/android-hosted`:
+`/api/v1/app/android/latest` still offers 0.3.29 until the owner's go.
+
+| Variant | Public release | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| Collect | `android-v0.3.30` | 70,004,984 | `03e8280f388bfc8e238d7551b835ef8b29c305be6fc732f6d75cf18286d807e8` |
+| Collect Plus | `collect-plus-v0.3.30-plus.1` (prerelease) | 150,944,116 | `868732c398f7ea446d83b37f52c6805672758486087df5a55936bce38336c982` |
 
 ## Public 0.3.25 APKs and Play bundle (2026-11-18)
 

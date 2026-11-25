@@ -3,7 +3,7 @@ title: Data Manager Workflow Policy
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-25
 ---
 
 # Data Manager Workflow Policy
@@ -162,6 +162,17 @@ Export policy:
     cache, which also dropped unrelated entries (SmartVA run markers, captcha
     and passkey challenges).
     Anything that cannot be versioned (Redis down) is computed fresh.
+- **Identifiers each DM export may carry** (owner decision 2026-11-25,
+  digitva-r8nh.38). The payload `unique_id` (and `unique_id2`) is never
+  exported; the code constants are `CSV_EXPORT_OMIT_PAYLOAD_FIELDS` and
+  `CSV_EXPORT_OMIT_BASE_HEADERS` in `app/services/data_management_service.py`.
+  - Submissions: the base `va_uniqueid_masked` column stays; `va_uniqueid_real`,
+    `va_instance_name`, `va_data_collector` and the payload `unique_id`,
+    `unique_id2` and `instanceName` are omitted.
+  - COD snapshot: follows the submissions rule from 2026-11-25; the
+    `unique_id` column is dropped. `va_sid`, project, site and form ids stay.
+  - SmartVA input, results and likelihoods: carry `va_sid` (the input export
+    as `sid`) and `va_uniqueid_masked`; none carries the payload `unique_id`.
 - exports may retain non-PII narrative text needed for operational review
 - SmartVA-specific exports must not include the full raw VA payload when a
   narrower SmartVA-specific shape is sufficient

@@ -54,7 +54,7 @@ The coded COD snapshot export currently includes:
   `WHO_2022_VA_2026` bucket section, bucket and `*_who_bucket_provenance`
   (`icd10`, `icd11_native`, `unmapped`); ICD-11-coded deaths are bucketed
   through the scheme's ICD-11 rows
-- active payload `unique_id` and `survey_block` fields when present
+- active payload `survey_block` fields when present (no `unique_id` column since 2026-11-25)
 - individual NQA question columns alongside score/rating
 - Social Autopsy analysis summary fields
 - raw Social Autopsy questionnaire payload fields (`sa*`) from the active

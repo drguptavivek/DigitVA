@@ -2176,6 +2176,9 @@ def dm_coded_cod_snapshot_export_csv(
         "social_autopsy_saved_at",
         *SOCIAL_AUTOPSY_PAYLOAD_FIELDS,
     ]
+    # Same identifier rule as the submissions export (policy: data-manager-workflow
+    # "Identifiers each export may carry"): the payload unique_id is not exported.
+    headers = [header for header in headers if header not in CSV_EXPORT_OMIT_PAYLOAD_FIELDS]
 
     # submission_date is the submission's day on its project clock
     # (docs/policy/kpis.md, "Days follow the project clock"), taken here

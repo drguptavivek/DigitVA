@@ -42,7 +42,9 @@ export function AttachmentAudioPlayer({ uri, headers, accessibilityLabel, onErro
     }
   };
   return (
-    <View accessibilityLabel={accessibilityLabel} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8 }}>
+    // flexShrink + minWidth: in the interview the engine puts Delete beside this in one row, and the flex: 1
+    // track would otherwise take the whole row and leave Delete zero wide (digitva-j9vk).
+    <View accessibilityLabel={accessibilityLabel} style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 8, flexShrink: 1, minWidth: 0 }}>
       {/* Play / Pause as an icon, like the web's native audio controls. */}
       <Pressable
         accessibilityRole="button"

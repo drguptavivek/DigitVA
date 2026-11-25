@@ -5,6 +5,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Collect: the interview's Delete recording button is back in view
+  (`digitva-j9vk`). Since 0.3.24 the audio player's seek bar took the whole
+  row and pushed Delete off the right edge; the player now shrinks to leave
+  it room. Maestro flow 30 passes again.
 - Code audit refactors, wave 4, Collect app (same protocol: characterization
   tests first, refactor with tests unedited, independent equivalence review;
   no API, request, response code or error-code change): one code-to-message

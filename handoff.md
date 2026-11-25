@@ -38,8 +38,7 @@ and maps stay in the browser).
   private/screenshots/supervisor-phone-2026-11-24). Left: owner look at the
   fixed screens, a CI APK device check. Maestro 60/70/75/81 passed together
   on 2026-11-25 (flow 70 runs 36-61 min; `run-suite.sh` needs per-flow caps
-  over an hour, `digitva-flkc`). Delete recording squeezed to zero width on
-  the phone (`digitva-j9vk`, P1, pre-existing; flow 30 fails on it). Before a
+  over an hour, `digitva-flkc`). Before a
   staging deploy, audit for old APKs: interviewer+supervisor phones now get
   `supervises_deaths` true. Dev test DB `minerva_test_sup` kept for this.
 0. Consent withdrawal landed (`digitva-4gu7`); erasure of a withdrawn case

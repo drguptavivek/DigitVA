@@ -26,6 +26,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme, MasIcd11Mms
+from app.models.mas_cod_bucket import derived_va_code
 from app.services.cod_bucket_mapping_service import (
     ICD_CLASSIFICATION_ICD10,
     ICD_CLASSIFICATION_ICD11,
@@ -256,10 +257,13 @@ def _pa_split(code: str, title: str) -> tuple[str, bool, str]:
 
 
 def va_code_for_node(node_code: str) -> str:
-    """`vas_01_02` -> `VAs-01.02`; '' for a bucket that is not a VA cause."""
-    if not node_code.startswith("vas_"):
-        return ""
-    return "VAs-" + node_code[4:].replace("_", ".")
+    """`vas_01_02` -> `VAs-01.02`; '' for a bucket that is not a VA cause.
+
+    Derived from node_code only, on purpose: the generator and the overrides
+    it writes are keyed by node_code. Display and definition lookups use
+    `effective_va_code`, which honours a node's explicit `va_code`.
+    """
+    return derived_va_code(node_code) or ""
 
 
 def _is_residual(node_code: str) -> bool:

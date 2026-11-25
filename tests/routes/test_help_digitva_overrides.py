@@ -149,6 +149,27 @@ class HelpDigitvaOverridesTests(BaseTestCase):
         _a80("vas_99")
         self.assertIs(_applied(self.client, "A80"), False)
 
+    def test_bucket_shows_its_explicit_va_code(self):
+        # digitva-0o3z: an explicit va_code wins over the code node_code derives.
+        # VAs-01.06 is no override row's bucket, so it appears only via the node.
+        _a80("vas_01_07")
+        body = self.client.get(URL).get_data(as_text=True)
+        self.assertIn("VAs-01.07", body)
+        self.assertNotIn("VAs-01.06", body)
+        node = db.session.scalar(
+            db.select(MasCodBucketNode)
+            .join(MasCodBucketScheme, MasCodBucketScheme.scheme_id == MasCodBucketNode.scheme_id)
+            .where(
+                MasCodBucketScheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026,
+                MasCodBucketNode.node_code == "vas_01_07",
+                MasCodBucketNode.age_scope.is_(None),
+            )
+        )
+        node.va_code = "VAs-01.06"
+        db.session.commit()
+        body = self.client.get(URL).get_data(as_text=True)
+        self.assertIn("VAs-01.06", body)
+
     def test_unreadable_csv_only_drops_its_section(self):
         _r10(False)
         with mock.patch(

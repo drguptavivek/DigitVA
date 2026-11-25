@@ -70,6 +70,7 @@ from app.services.cod_bucket_mapping_service import (
     reset_cod_bucket_scheme_age_band_to_source,
     apply_cod_bucket_scheme_overrides,
     search_cod_bucket_icd_candidates,
+    set_cod_bucket_node_va_code,
     update_cod_bucket_scheme,
 )
 from app.services.icd_coding_value import PROJECT_ICD_CLASSIFICATIONS
@@ -5727,6 +5728,13 @@ def admin_cod_bucket_scheme_update_node(scheme_code, node_id):
     except (TypeError, ValueError):
         return _json_error("sort_order must be an integer.", 400)
 
+    # Optional: a body without va_code leaves the node's VA code alone.
+    if "va_code" in data:
+        try:
+            set_cod_bucket_node_va_code(node, data["va_code"])
+        except ValueError as exc:
+            return _json_error(str(exc), 400)
+
     node.node_label = node_label
     node.sort_order = sort_order
     db.session.commit()
@@ -5736,6 +5744,8 @@ def admin_cod_bucket_scheme_update_node(scheme_code, node_id):
                 "node_id": str(node.node_id),
                 "node_type": node.node_type,
                 "node_label": node.node_label,
+                "va_code": node.va_code,
+                "effective_va_code": node.disease_va_code,
                 "sort_order": node.sort_order,
             }
         }

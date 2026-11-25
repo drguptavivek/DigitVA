@@ -232,6 +232,10 @@ Current behavior:
   - `category`
   - `subcategory`
   - `field`
+- `va_code` (nullable, `String(16)`): explicit WHO VA cause code of a `field`
+  node; NULL falls back to the code `node_code` derives
+  (`effective_va_code` in `app/models/mas_cod_bucket.py`; policy:
+  docs/policy/cod-bucket-reporting.md, "VA cause code of a bucket")
 
 ### `map_icd_cod_buckets`
 
@@ -1241,7 +1245,8 @@ Current behavior:
   same file, skipping existing codes
 - read by `GET /api/v1/va-definitions` in one query, in `va_code` order;
   `GET /api/v1/va-definitions/for-icd` joins `map_icd_cod_buckets` ->
-  `mas_cod_bucket_nodes` (`vas_01_02` -> `VAs-01.02`) to find the definition
+  `mas_cod_bucket_nodes` (the node's effective VA code: its `va_code`, else
+  `vas_01_02` -> `VAs-01.02`) to find the definition
   for a selected ICD code; edited through
   `/admin/api/va-definitions` (`app/routes/admin_va_definitions.py`)
 
@@ -1449,6 +1454,8 @@ Key fields:
 - `parent_node_id`
 - `node_code`
 - `node_label`
+- `va_code` (explicit VA cause code of a disease node; NULL uses the one
+  `node_code` derives)
 
 Current behavior:
 

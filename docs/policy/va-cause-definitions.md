@@ -3,7 +3,7 @@ title: VA Cause Definitions
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-11-25
 ---
 
 # VA Cause Definitions
@@ -69,12 +69,14 @@ coders and reviewers consult while assigning causes of death.
   404 when no mapping resolves. ICD-11 also returns `bucket_code`,
   `bucket_label`, `bucket_section` and `has_definition`. A bucket without a
   definition has `definition_html` `""` and `title` set to the bucket label;
-  its `va_code` is the `VAs-` code of a `vas_*` node, else the node code.
+  its `va_code` is the node's effective VA code, else the node code.
 - An ICD code reaches a VA cause through the COD bucket mappings: ICD-10 in
   scheme `WHO_2022_VA`, ICD-11 in `WHO_2022_VA_2026` (`icd_classification =
-  'icd11'`), fixed in `VA_DEFINITION_SCHEMES`. A bucket node `vas_01_02` is VA
-  cause `VAs-01.02`; nodes that are not `vas_*` causes, and `vas_09_99`
-  (not in the WHO table), have no definition. The exact code is tried first,
+  'icd11'`), fixed in `VA_DEFINITION_SCHEMES`. A bucket's VA cause is its
+  effective VA code: the node's explicit `va_code` when an admin set one, else
+  `vas_01_02` -> `VAs-01.02` (docs/policy/cod-bucket-reporting.md, "VA cause
+  code of a bucket"); nodes without one, and `vas_09_99` (not in the WHO
+  table), have no definition. The exact code is tried first,
   then its three-character category (ICD-10) or its ancestors in
   `mas_icd11_mms` (ICD-11). For ICD-11 this walk is replaced by the bucket
   rule in the next section.

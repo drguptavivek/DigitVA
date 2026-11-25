@@ -448,18 +448,20 @@ def who_2026_bucket_ctes(*, start_codes_param: str | None = None, with_nodes: bo
     that limits the ancestor walk to those codes, so a request walks one chain
     instead of the catalogue; ``icd11_buckets`` still lists every mapped code,
     so callers filter it. ``with_nodes`` adds ``bucket_code`` (the leaf
-    ``node_code``) and ``bucket_section_code`` (the parent's) to
+    ``node_code``), ``bucket_va_code`` (the leaf's explicit ``va_code``, NULL
+    when it has none) and ``bucket_section_code`` (the parent's) to
     ``bucket_rows`` and ``icd11_buckets``. The defaults emit exactly the text the
     frozen migrations replay (tests/migrations/test_migrate_cod_mvs_primary_stem.py).
     """
     node_columns = (
-        "\n        leaf.node_code AS bucket_code,\n        parent.node_code AS bucket_section_code,"
+        "\n        leaf.node_code AS bucket_code,\n        leaf.va_code AS bucket_va_code,"
+        "\n        parent.node_code AS bucket_section_code,"
         if with_nodes
         else ""
     )
-    bucket_node_columns = ", bucket_code, bucket_section_code" if with_nodes else ""
+    bucket_node_columns = ", bucket_code, bucket_va_code, bucket_section_code" if with_nodes else ""
     ancestor_node_columns = (
-        "\n            m.bucket_code,\n            m.bucket_section_code,"
+        "\n            m.bucket_code,\n            m.bucket_va_code,\n            m.bucket_section_code,"
         if with_nodes
         else ""
     )
@@ -547,7 +549,9 @@ def resolve_who_2026_icd11_buckets(start_codes: Iterable[str] | None = None) -> 
     """ICD-11 codes resolved to their VA bucket: the shared lookup and pack source.
 
     Rows are ``(icd_code, bucket_code, bucket_label, bucket_section_code,
-    bucket_section)`` from ``who_2026_bucket_ctes``, the CTEs of the COD
+    bucket_section, bucket_va_code)`` from ``who_2026_bucket_ctes``
+    (``bucket_va_code`` is the leaf's explicit code; pass it with
+    ``bucket_code`` to ``effective_va_code``), the CTEs of the COD
     snapshot. ``start_codes`` (upper-case) limits the walk to those codes
     (one chain per request, the server lookup); None resolves the whole
     catalogue plus every mapped code (the offline pack). A code with no
@@ -558,7 +562,7 @@ def resolve_who_2026_icd11_buckets(start_codes: Iterable[str] | None = None) -> 
     seeded = "" if param is None else "\nWHERE icd_code = ANY(:start_codes)"
     statement = sa.text(
         f"WITH RECURSIVE {who_2026_bucket_ctes(start_codes_param=param, with_nodes=True)}\n"
-        "SELECT icd_code, bucket_code, bucket_label, bucket_section_code, bucket_section\n"
+        "SELECT icd_code, bucket_code, bucket_label, bucket_section_code, bucket_section, bucket_va_code\n"
         f"FROM icd11_buckets{seeded}\nORDER BY icd_code"
     )
     params = {} if start_codes is None else {"start_codes": list(start_codes)}

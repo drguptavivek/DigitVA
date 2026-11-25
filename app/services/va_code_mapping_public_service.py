@@ -38,11 +38,11 @@ from app.models import (
     MasIcd11Mms,
     MasIcd1020192,
 )
+from app.models.mas_cod_bucket import effective_va_code
 from app.services.cod_bucket_icd11_generator import (
     expand_range,
     load_catalogue,
     parse_icd11_ranges,
-    va_code_for_node,
 )
 from app.services.cod_bucket_mapping_service import (
     ICD_CLASSIFICATION_ICD10,
@@ -419,17 +419,21 @@ def _cache_key(scheme_code: str, annex_path: Path, footnotes_path: Path, release
 
 
 def _build_rows(scheme_code: str, annex_path: Path, footnotes_path: Path, release: str) -> list[dict]:
-    node_labels = dict(
-        db.session.execute(
-            sa.select(MasCodBucketNode.node_code, MasCodBucketNode.node_label)
-            .join(MasCodBucketScheme, MasCodBucketScheme.scheme_id == MasCodBucketNode.scheme_id)
-            .where(
-                MasCodBucketScheme.scheme_code == scheme_code,
-                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
-                MasCodBucketNode.node_code.like("vas\\_%", escape="\\"),
-            )
-        ).all()
-    )
+    # Annex causes match nodes by node_code slug or title (build_annex_claims);
+    # what a row shows is the node's effective VA code.
+    node_rows = db.session.execute(
+        sa.select(MasCodBucketNode.node_code, MasCodBucketNode.node_label, MasCodBucketNode.va_code)
+        .join(MasCodBucketScheme, MasCodBucketScheme.scheme_id == MasCodBucketNode.scheme_id)
+        .where(
+            MasCodBucketScheme.scheme_code == scheme_code,
+            MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+            MasCodBucketNode.node_code.like("vas\\_%", escape="\\"),
+        )
+    ).all()
+    node_labels = {node_code: label for node_code, label, _va_code in node_rows}
+    va_code_by_node = {
+        node_code: effective_va_code(node_code, va_code) for node_code, _label, va_code in node_rows
+    }
     catalogue = load_catalogue(release)
     annex = build_annex_claims(_read_csv(annex_path), _read_csv(footnotes_path), node_labels, catalogue)
 
@@ -441,6 +445,7 @@ def _build_rows(scheme_code: str, annex_path: Path, footnotes_path: Path, releas
             MapIcdCodBucket.mapping_note,
             MasCodBucketNode.node_code,
             MasCodBucketNode.node_label,
+            MasCodBucketNode.va_code,
             MasIcd1020192.title.label("icd10_title"),
             MasIcd1020192.chapter_code,
             MasIcd1020192.chapter_title,
@@ -470,7 +475,7 @@ def _build_rows(scheme_code: str, annex_path: Path, footnotes_path: Path, releas
             claims = annex["icd11"].get(code, {})
             title = (catalogue.get(code) or {}).get("title", "")
         origin, rule = derive_origin(code, m.node_code, claims, m.match_type, m.mapping_note or "")
-        va_code = va_code_for_node(m.node_code)
+        va_code = effective_va_code(m.node_code, m.va_code) or ""
         row = {
             "classification": m.icd_classification,
             "code": m.icd_code,
@@ -480,7 +485,7 @@ def _build_rows(scheme_code: str, annex_path: Path, footnotes_path: Path, releas
             "origin": origin,
             "rule": rule,
             "also_claimed_by": "; ".join(
-                sorted(va_code_for_node(node) for node in claims if node != m.node_code)
+                sorted(va_code_by_node[node] for node in claims if node != m.node_code)
             ),
             "note": m.mapping_note or "",
             "origin_tooltip": _review_tooltip(m.mapping_note or ""),

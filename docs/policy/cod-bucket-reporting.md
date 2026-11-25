@@ -3,7 +3,7 @@ title: COD Bucket Reporting Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-04
+last_updated: 2026-11-25
 ---
 
 # COD Bucket Reporting Policy
@@ -293,6 +293,40 @@ Supported examples:
 - `SRS India`
 - `CMEA10`
 - `WHO 2022 VA`
+
+## VA cause code of a bucket
+
+Owner decision 2026-11-25 (digitva-0o3z).
+
+- A disease (leaf, `field`) bucket's WHO VA cause code is its effective code:
+  the explicit `mas_cod_bucket_nodes.va_code` when set, else the code its
+  `node_code` derives (`vas_01_09` -> `VAs-01.09`), else none.
+- Admins set or clear it in the COD bucket editor (`/admin/panels/cod-buckets`,
+  Edit Disease). The dropdown lists the active VA Definitions
+  (`mas_va_cause_definitions`) as `VAs-01.09 — Pulmonary tuberculosis`; its
+  first option clears the explicit code and falls back to the derived one.
+- A code must look like `VAs-NN.NN` or `VAs-99`, be an active VA definition,
+  and sit on a disease bucket. No two buckets in the same scheme and age scope
+  may share an effective code, so a set (or a clear whose derived code is
+  taken) naming another bucket's code is refused with that bucket's label.
+- `node_code` is never renamed. The override CSVs, the ICD-11 generator,
+  Apply DigitVA overrides and the `source_category` they write stay keyed by
+  `node_code`; only displays and definition lookups (the coder VA definition
+  lookup, the offline pack, the public ICD-to-VA list) use the effective code.
+- A change bumps the scheme's `mapping_version` and touches no ICD mapping.
+  Reports are keyed by `node_id` and are unaffected.
+- Scheme JSON export, import and snapshots carry `va_code` (an older file
+  without it imports as none); the XLSX export lists the effective code. Reset
+  from source rebuilds the nodes from the workbook, so explicit codes are lost,
+  like any other admin edit; the snapshot taken before the reset keeps them.
+- **Phones need a new APK.** The phone's offline VA definitions pack
+  (`mobile/digitva-collect/assets/va-definitions-WHO_2022_VA_2026.json`) is
+  built into the app. After an explicit code is set, rerun
+  `scripts/export_offline_va_definitions.py` and ship the pack in the next
+  APK. Until then, offline phones show the derived code while the server
+  shows the new one, and `tests/services/test_export_offline_va_display_pack.py`
+  fails on that database. Online coding on every surface uses the server and
+  is unaffected.
 
 ## Age scope policy
 

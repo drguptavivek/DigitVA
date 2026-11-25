@@ -22,6 +22,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme
+from app.models.mas_cod_bucket import effective_va_code, effective_va_code_sql
 from app.models.mas_va_cause_definitions import MasVaCauseDefinition
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE, icd11_primary_stem
 from app.services.icd_coding_value import (
@@ -269,26 +270,20 @@ def _icd11_lookup_stem(value: str | None, provenance_item: dict | None) -> str |
     return icd11_primary_stem(codeinfo, first)
 
 
-def _va_code_of_node(node_code: str) -> str | None:
-    """``vas_01_02`` -> ``VAs-01.02``; None for a node that is not a ``vas_*`` cause."""
-    if not node_code.startswith("vas_"):
-        return None
-    return "VAs-" + node_code[4:].replace("_", ".")
-
-
 def _find_icd11_bucket(code: str) -> dict | None:
     """The VA bucket an ICD-11 stem resolves to, with its definition when it has one.
 
     The bucket is the one the COD snapshot gives the code (nearest mapped node,
     never an ancestor's past it: ``resolve_who_2026_icd11_buckets``). The
-    definition is attached only when that very node has an active row in
-    mas_va_cause_definitions; a node without one shows its label alone.
+    definition is attached only when that very node's effective VA code
+    (``effective_va_code``) has an active row in mas_va_cause_definitions; a
+    node without one shows its label alone.
     """
     rows = resolve_who_2026_icd11_buckets([code])
     if not rows:
         return None
-    _, node_code, node_label, _, section = rows[0]
-    va_code = _va_code_of_node(node_code)
+    _, node_code, node_label, _, section, node_va_code = rows[0]
+    va_code = effective_va_code(node_code, node_va_code)
     definition = (
         db.session.scalar(
             sa.select(MasVaCauseDefinition).where(
@@ -324,8 +319,8 @@ def find_va_definition_for_icd(
     and ICD-11 code shapes do not overlap).
 
     ICD-10: the code, then its three-character category, looked up among the
-    ``vas_*`` nodes of WHO_2022_VA that have a definition; ``vas_01_02`` is
-    VA cause ``VAs-01.02``.
+    nodes of WHO_2022_VA whose effective VA code (``effective_va_code``: the
+    node's ``va_code``, else ``vas_01_02`` -> ``VAs-01.02``) has a definition.
 
     ICD-11 (WHO_2022_VA_2026): the bucket the COD snapshot gives the code's
     primary stem (``_icd11_lookup_stem``; ``provenance_item`` is a saved
@@ -346,7 +341,7 @@ def find_va_definition_for_icd(
         return _find_icd11_bucket(stem.upper()) if stem else None
 
     candidates = [code] if len(code) <= 3 else [code, code[:3]]
-    va_code_expr = sa.literal("VAs-") + sa.func.replace(sa.func.substr(MasCodBucketNode.node_code, 5), "_", ".")
+    va_code_expr = effective_va_code_sql(MasCodBucketNode)
     matches = db.session.execute(
         sa.select(sa.func.upper(MapIcdCodBucket.icd_code), MasVaCauseDefinition)
         .join(MasCodBucketScheme, MasCodBucketScheme.scheme_id == MapIcdCodBucket.scheme_id)
@@ -359,7 +354,6 @@ def find_va_definition_for_icd(
             MapIcdCodBucket.is_active.is_(True),
             MasCodBucketNode.is_active.is_(True),
             sa.func.upper(MapIcdCodBucket.icd_code).in_(candidates),
-            MasCodBucketNode.node_code.like("vas\\_%", escape="\\"),
             MasVaCauseDefinition.is_active.is_(True),
         )
         .order_by(MapIcdCodBucket.age_scope.nullsfirst(), MasVaCauseDefinition.va_code)

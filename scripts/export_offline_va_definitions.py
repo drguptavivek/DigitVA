@@ -13,7 +13,8 @@ checks it, and that the committed pack equals the database at head.
 Pack layout (schema 2):
   buckets      node_code -> {label, section, section_code, va_code}; section and
                section_code are null for a node without a parent; va_code is
-               ``VAs-NN.NN`` for a ``vas_*`` node (null otherwise), whether or not
+               the node's effective VA code (its explicit va_code, else
+               ``VAs-NN.NN`` for a ``vas_*`` node, else null), whether or not
                ``definitions`` holds it.
   definitions  va_code -> {title, definition_html}, active ones that buckets name.
   codes        ICD-11 stem -> node_code, every code the shared helper resolves.
@@ -35,10 +36,11 @@ from pathlib import Path
 import sqlalchemy as sa
 
 from app import create_app, db
+from app.models.mas_cod_bucket import effective_va_code
 from app.models.mas_va_cause_definitions import MasVaCauseDefinition
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
 from app.services.submission_analytics_mv import resolve_who_2026_icd11_buckets
-from app.services.va_cause_definition_service import VA_DEFINITION_SCHEMES, _va_code_of_node
+from app.services.va_cause_definition_service import VA_DEFINITION_SCHEMES
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "mobile/digitva-collect/assets/va-definitions-WHO_2022_VA_2026.json"
@@ -56,11 +58,11 @@ def build_pack() -> dict:
     """The pack from the current database (needs an app context)."""
     buckets: dict[str, dict] = {}
     codes: dict[str, str] = {}
-    for code, node_code, label, section_code, section in resolve_who_2026_icd11_buckets():
+    for code, node_code, label, section_code, section, node_va_code in resolve_who_2026_icd11_buckets():
         # JS orders integer-like keys first, which would break the app's hash.
         if code.isdecimal():
             raise ValueError(f"ICD-11 code {code!r} cannot be a JSON object key in the pack.")
-        bucket = {"label": label, "section": section, "section_code": section_code, "va_code": _va_code_of_node(node_code)}
+        bucket = {"label": label, "section": section, "section_code": section_code, "va_code": effective_va_code(node_code, node_va_code)}
         if buckets.setdefault(node_code, bucket) != bucket:
             raise ValueError(f"Bucket node {node_code!r} resolves to different labels or sections.")
         codes[code] = node_code

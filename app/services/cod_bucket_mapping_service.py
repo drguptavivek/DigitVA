@@ -30,12 +30,15 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
+from app.models.mas_cod_bucket import effective_va_code, effective_va_code_sql
+from app.models.mas_va_cause_definitions import MasVaCauseDefinition
 from app.services.duplicate_exclusion import (
     DUPLICATE_CASE_STATUS,
     not_confirmed_duplicate_condition,
 )
 from app.services.cod_bucket_materialization import mark_scheme_stale
 from app.services.icd11_mms_service import DEFAULT_ICD11_RELEASE
+from app.services.va_cause_definition_service import VA_CODE_RE
 from app.services.submission_analytics_mv import (
     CORE_MV_NAME,
     COD_MV_NAME,
@@ -2321,6 +2324,8 @@ def get_cod_bucket_scheme_editor_payload(
                 "age_scope": node.age_scope,
                 "node_type": node.node_type,
                 "node_label": node.node_label,
+                "va_code": node.va_code,
+                "effective_va_code": node.disease_va_code,
                 "sort_order": node.sort_order,
                 "parent_node_id": str(node.parent_node_id) if node.parent_node_id else None,
                 "path_label": _node_path_label(node),
@@ -2435,6 +2440,7 @@ def export_cod_bucket_scheme_json(*, scheme_code: str) -> dict:
                 "node_type": node.node_type,
                 "node_code": node.node_code,
                 "node_label": node.node_label,
+                "va_code": node.va_code,
                 "sort_order": node.sort_order,
                 "is_active": node.is_active,
                 "parent_node_id": str(node.parent_node_id) if node.parent_node_id else None,
@@ -2684,12 +2690,23 @@ def import_cod_bucket_scheme_json(
         except (TypeError, ValueError):
             raise ValueError(f"Node '{import_node_id}' sort order must be an integer.")
         parent_node_id = str(raw_node.get("parent_node_id") or "").strip() or None
+        # Absent in files exported before digitva-0o3z: no explicit VA code.
+        # A restore re-checks the shape only, not that the definition is
+        # still active or the code unique (set_cod_bucket_node_va_code does).
+        va_code = _normalize_label(raw_node.get("va_code"))
+        if va_code is not None and (
+            node_type != NODE_TYPE_FIELD or not VA_CODE_RE.match(va_code)
+        ):
+            raise ValueError(
+                f"Node '{import_node_id}' va_code must be VAs-NN.NN or VAs-99 on a disease node."
+            )
         cleaned = {
             "import_node_id": import_node_id,
             "age_scope": age_scope,
             "node_type": node_type,
             "node_code": node_code,
             "node_label": node_label,
+            "va_code": va_code,
             "sort_order": sort_order,
             "is_active": bool(raw_node.get("is_active", True)),
             "parent_node_id": parent_node_id,
@@ -2809,6 +2826,7 @@ def import_cod_bucket_scheme_json(
             parent=parent_node,
             node_code=node["node_code"],
             node_label=node["node_label"],
+            va_code=node["va_code"],
             sort_order=node["sort_order"],
             is_active=node["is_active"],
         )
@@ -2868,6 +2886,7 @@ def export_cod_bucket_scheme_xlsx(*, scheme_code: str) -> bytes:
         "Node Type",
         "Node Code",
         "Node Label",
+        "VA Code",
         "Bucket Path",
         "Sort Order",
         "Active",
@@ -2884,6 +2903,11 @@ def export_cod_bucket_scheme_xlsx(*, scheme_code: str) -> bytes:
                 node["node_type"],
                 node["node_code"],
                 node["node_label"],
+                (
+                    effective_va_code(node["node_code"], node["va_code"])
+                    if node["node_type"] == NODE_TYPE_FIELD
+                    else None
+                ),
                 node["path_label"],
                 node["sort_order"],
                 "Yes" if node["is_active"] else "No",
@@ -3163,6 +3187,57 @@ def _ensure_unmapped_replacement_leaf(
         replacement_leaf = existing
 
     return replacement_leaf
+
+
+def set_cod_bucket_node_va_code(node: MasCodBucketNode, value) -> bool:
+    """Set or clear a disease node's explicit WHO VA cause code (``va_code``).
+
+    ``value`` is request input: None or "" clears it (the node falls back to
+    the code its node_code derives). A code must match VA_CODE_RE, be an
+    active VA definition, and sit on a disease (field) node. Either way the
+    node's resulting effective code must not be another node's effective code
+    in the same scheme and age scope. A change bumps the scheme's
+    mapping_version; node_code and map_icd_cod_buckets are never touched.
+    Does not commit. Returns whether va_code changed; raises ValueError with
+    a message for the admin.
+    """
+    if value is not None and not isinstance(value, str):
+        raise ValueError("va_code must be a string.")
+    va_code = (value or "").strip() or None
+    if va_code == node.va_code:
+        return False
+    if va_code is not None:
+        if node.node_type != NODE_TYPE_FIELD:
+            raise ValueError("Only a disease bucket can have a VA cause code.")
+        if not VA_CODE_RE.match(va_code):
+            raise ValueError("va_code must look like VAs-NN.NN (or VAs-99).")
+        if not db.session.scalar(
+            sa.select(MasVaCauseDefinition.id).where(
+                MasVaCauseDefinition.va_code == va_code,
+                MasVaCauseDefinition.is_active.is_(True),
+            )
+        ):
+            raise ValueError(f"{va_code} is not an active VA definition.")
+    effective = effective_va_code(node.node_code, va_code)
+    if effective is not None:
+        other = db.session.scalar(
+            sa.select(MasCodBucketNode.node_label)
+            .where(
+                MasCodBucketNode.scheme_id == node.scheme_id,
+                _scope_clause(MasCodBucketNode.age_scope, node.age_scope),
+                MasCodBucketNode.node_id != node.node_id,
+                MasCodBucketNode.node_type == NODE_TYPE_FIELD,
+                effective_va_code_sql(MasCodBucketNode) == effective,
+            )
+            .limit(1)
+        )
+        if other is not None:
+            raise ValueError(
+                f"{effective} is already the VA code of bucket '{other}' in this scheme and age band."
+            )
+    node.va_code = va_code
+    node.scheme.mapping_version = (node.scheme.mapping_version or 0) + 1
+    return True
 
 
 def delete_cod_bucket_node(

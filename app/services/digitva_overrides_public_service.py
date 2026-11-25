@@ -17,6 +17,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import MapIcdCodBucket, MasCodBucketNode, MasCodBucketScheme, MasIcd1020192
+from app.models.mas_cod_bucket import effective_va_code
 from app.services.cod_bucket_icd11_generator import (
     DECISIONS_PATH,
     LAYER_DIGITVA,
@@ -47,9 +48,11 @@ def _sets(override):
     return ", ".join(parts)
 
 
-def _va_cause(node_code, labels):
-    """`VAs-01.07 Label` for a bucket node code."""
-    return {"va_code": va_code_for_node(node_code) or node_code, "label": labels.get(node_code, "")}
+def _va_cause(node_code, labels, va_codes):
+    """`VAs-01.07 Label` for a bucket node code: its effective VA code (an explicit
+    `va_code` wins over the one `node_code` derives, digitva-0o3z)."""
+    va_code = va_codes.get(node_code) or va_code_for_node(node_code) or node_code
+    return {"va_code": va_code, "label": labels.get(node_code, "")}
 
 
 def _read_section(name, reader):
@@ -128,14 +131,20 @@ def build_digitva_overrides():
             MasCodBucketScheme.scheme_code == SCHEME_CODE_WHO_2022_VA_2026
         )
     )
-    labels, node_code_by_id, live = {}, {}, {}
+    labels, va_codes, node_code_by_id, live = {}, {}, {}, {}
     if scheme_id is not None:
         for node in db.session.execute(
-            sa.select(MasCodBucketNode.node_id, MasCodBucketNode.node_code, MasCodBucketNode.node_label).where(
+            sa.select(
+                MasCodBucketNode.node_id,
+                MasCodBucketNode.node_code,
+                MasCodBucketNode.node_label,
+                MasCodBucketNode.va_code,
+            ).where(
                 MasCodBucketNode.scheme_id == scheme_id, MasCodBucketNode.age_scope.is_(None)
             )
         ):
             labels[node.node_code] = node.node_label
+            va_codes[node.node_code] = effective_va_code(node.node_code, node.va_code)
             node_code_by_id[node.node_id] = node.node_code
         live = {
             code.upper(): node_id
@@ -154,7 +163,7 @@ def build_digitva_overrides():
         {
             "code": code,
             "title": by_code[code].title if code in by_code else "",
-            **_va_cause(d["node_code"], labels),
+            **_va_cause(d["node_code"], labels, va_codes),
             "note": d["mapping_note"] or "",
             "applied": node_code_by_id.get(live.get(code)) == d["node_code"],
         }
@@ -164,7 +173,7 @@ def build_digitva_overrides():
     def icd11(layer):
         return [
             {
-                "code": r["code"], **_va_cause(r["node_code"], labels), "decision": r["decision"],
+                "code": r["code"], **_va_cause(r["node_code"], labels, va_codes), "decision": r["decision"],
                 "decided_on": r["decided_on"], "note": r["note"],
             }
             for r in rows11 or []

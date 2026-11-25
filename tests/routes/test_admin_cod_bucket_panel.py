@@ -18,6 +18,7 @@ from app.models import (
     # Deprecated as of 2026-04-20: retained here only for legacy fixture coverage.
     VaIcdCodes,
 )
+from app.services import va_cause_definition_service as va_definitions
 from app.services.cod_bucket_mapping_service import (
     SCHEME_CODE_SRS_INDIA,
     import_srs_india_scheme,
@@ -1259,3 +1260,133 @@ class AdminCodBucketPanelTests(BaseTestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("Confirm", response.get_json()["error"])
+
+    # ── VA cause code of a bucket (digitva-0o3z) ─────────────────────────────
+
+    def _va_code_scheme(self):
+        """Own scheme (route commits outlive the test) plus active VA definitions."""
+        va_definitions.import_va_definitions(va_definitions.load_seed_rows())
+        fixture = self._seed_scheme_fixture(f"TEST_VACODE_{uuid.uuid4().hex[:8].upper()}")
+        db.session.commit()
+        return fixture
+
+    def test_cod_bucket_node_patch_sets_keeps_and_clears_va_code(self):
+        fixture = self._va_code_scheme()
+        url = f"/admin/api/cod-bucket-schemes/{fixture['scheme_code']}/nodes"
+        scheme = db.session.get(MasCodBucketScheme, fixture["scheme_id"])
+        version = scheme.mapping_version
+        self._login(self.base_admin_id)
+
+        response = self.client.patch(
+            f"{url}/{fixture['field_a_id']}",
+            json={"node_label": "Pedestrian Road Injury", "sort_order": 1, "va_code": "VAs-12.01"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        self.assertEqual(response.get_json()["node"]["effective_va_code"], "VAs-12.01")
+        node = db.session.get(MasCodBucketNode, fixture["field_a_id"])
+        self.assertEqual((node.va_code, node.node_code), ("VAs-12.01", "pedestrian"))
+        self.assertEqual(db.session.get(MasCodBucketScheme, fixture["scheme_id"]).mapping_version, version + 1)
+        mapping = db.session.get(MapIcdCodBucket, fixture["mapping_id"])
+        self.assertEqual((mapping.icd_code, mapping.node_id), ("V01", fixture["field_a_id"]))
+
+        editor = self.client.get(f"/admin/api/cod-bucket-schemes/{fixture['scheme_code']}?age_scope=adult_over5y")
+        field_a = next(n for n in editor.get_json()["nodes"] if n["node_id"] == str(fixture["field_a_id"]))
+        self.assertEqual((field_a["va_code"], field_a["effective_va_code"]), ("VAs-12.01", "VAs-12.01"))
+
+        duplicate = self.client.patch(
+            f"{url}/{fixture['field_b_id']}",
+            json={"node_label": "Vehicle Occupant Injury", "sort_order": 2, "va_code": "VAs-12.01"},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(duplicate.status_code, 400)
+        self.assertIn("Pedestrian Road Injury", duplicate.get_json()["error"])
+        self.assertIsNone(db.session.get(MasCodBucketNode, fixture["field_b_id"]).va_code)
+
+        # A body without va_code (label and order only) keeps it.
+        self.client.patch(
+            f"{url}/{fixture['field_a_id']}",
+            json={"node_label": "Pedestrian", "sort_order": 1},
+            headers=self._csrf_headers(),
+        )
+        db.session.expire_all()
+        self.assertEqual(db.session.get(MasCodBucketNode, fixture["field_a_id"]).va_code, "VAs-12.01")
+
+        cleared = self.client.patch(
+            f"{url}/{fixture['field_a_id']}",
+            json={"node_label": "Pedestrian", "sort_order": 1, "va_code": ""},
+            headers=self._csrf_headers(),
+        )
+        self.assertEqual(cleared.status_code, 200)
+        db.session.expire_all()
+        self.assertIsNone(db.session.get(MasCodBucketNode, fixture["field_a_id"]).va_code)
+
+    def test_cod_bucket_node_va_code_patch_needs_admin_and_csrf(self):
+        fixture = self._va_code_scheme()
+        url = f"/admin/api/cod-bucket-schemes/{fixture['scheme_code']}/nodes/{fixture['field_a_id']}"
+        body = {"node_label": "Pedestrian Road Injury", "sort_order": 1, "va_code": "VAs-12.01"}
+
+        self._login(self.base_coder_id)
+        self.assertEqual(self.client.patch(url, json=body, headers=self._csrf_headers()).status_code, 403)
+        self._login(self.base_admin_id)
+        self.assertEqual(self.client.patch(url, json=body).status_code, 400)
+        db.session.expire_all()
+        node = db.session.get(MasCodBucketNode, fixture["field_a_id"])
+        self.assertIsNotNone(node)
+        self.assertIsNone(node.va_code)
+
+    def test_cod_bucket_xlsx_export_lists_the_effective_va_code(self):
+        fixture = self._va_code_scheme()
+        node = db.session.get(MasCodBucketNode, fixture["field_a_id"])
+        node.va_code = "VAs-12.01"
+        # A group whose slugged code looks like a cause still shows no code.
+        db.session.get(MasCodBucketNode, fixture["category_id"]).node_code = "vas_12_injuries"
+        db.session.commit()
+        self._login(self.base_admin_id)
+        editor = self.client.get(f"/admin/api/cod-bucket-schemes/{fixture['scheme_code']}?age_scope=adult_over5y")
+        codes = {n["node_label"]: n["effective_va_code"] for n in editor.get_json()["nodes"]}
+        self.assertEqual(codes["Pedestrian Road Injury"], "VAs-12.01")
+        self.assertIn("Injuries", codes)
+        self.assertIsNone(codes["Injuries"])
+        response = self.client.get(f"/admin/api/cod-bucket-schemes/{fixture['scheme_code']}/export.xlsx")
+        sheet = load_workbook(BytesIO(response.data), read_only=True)["Bucket Nodes"]
+        headers = [cell.value for cell in next(sheet.iter_rows(min_row=1, max_row=1))]
+        rows = [dict(zip(headers, row)) for row in sheet.iter_rows(min_row=2, values_only=True)]
+        by_label = {row["Node Label"]: row["VA Code"] for row in rows}
+        self.assertEqual(by_label["Pedestrian Road Injury"], "VAs-12.01")
+        self.assertIsNone(by_label["Vehicle Occupant Injury"])
+        self.assertIsNone(by_label["Injuries"])
+
+    def test_reset_from_source_drops_va_code_but_the_snapshot_keeps_it(self):
+        va_definitions.import_va_definitions(va_definitions.load_seed_rows())
+        workbook_path = self._make_srs_workbook()
+        scheme = import_srs_india_scheme(workbook_path)
+        node = db.session.scalar(sa.select(MasCodBucketNode).where(
+            MasCodBucketNode.scheme_id == scheme.scheme_id,
+            MasCodBucketNode.age_scope == "adult_over5y",
+            MasCodBucketNode.node_label == "Adult Disease",
+        ))
+        node.va_code = "VAs-01.01"
+        db.session.commit()
+
+        self._login(self.base_admin_id)
+        with patch(
+            "app.services.cod_bucket_mapping_service.MIGRATION_ARTIFACT_SRS_WORKBOOK_PATH",
+            workbook_path,
+        ):
+            response = self.client.post(
+                f"/admin/api/cod-bucket-schemes/{scheme.scheme_code}/reset-default",
+                json={"age_scope": "adult_over5y"},
+                headers=self._csrf_headers(),
+            )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        snapshot = db.session.get(VaCodBucketSchemeSnapshot, uuid.UUID(response.get_json()["snapshot_id"]))
+        saved = next(n for n in snapshot.payload["nodes"] if n["node_label"] == "Adult Disease")
+        self.assertEqual(saved["va_code"], "VAs-01.01")
+        rebuilt = db.session.scalar(sa.select(MasCodBucketNode).where(
+            MasCodBucketNode.scheme_id == scheme.scheme_id,
+            MasCodBucketNode.age_scope == "adult_over5y",
+            MasCodBucketNode.node_label == "Adult Disease",
+        ))
+        self.assertIsNotNone(rebuilt)
+        self.assertIsNone(rebuilt.va_code)

@@ -196,6 +196,11 @@
             <label for="cb-node-edit-order" class="form-label small text-muted text-uppercase">Display Order</label>
             <input type="number" class="form-control" id="cb-node-edit-order" min="1" step="1">
           </div>
+          <div class="mt-3 d-none" id="cb-node-edit-va-code-group">
+            <label for="cb-node-edit-va-code" class="form-label small text-muted text-uppercase">VA Cause Code</label>
+            <select class="form-select" id="cb-node-edit-va-code" disabled></select>
+            <div class="form-text">From the active VA Definitions. The bucket's internal code is not renamed.</div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-sm btn-outline-danger me-auto" id="cb-node-delete-open">Delete</button>
@@ -655,6 +660,8 @@
     nodeEditId: document.getElementById('cb-node-edit-id'),
     nodeEditLabel: document.getElementById('cb-node-edit-label'),
     nodeEditOrder: document.getElementById('cb-node-edit-order'),
+    nodeEditVaCodeGroup: document.getElementById('cb-node-edit-va-code-group'),
+    nodeEditVaCode: document.getElementById('cb-node-edit-va-code'),
     nodeDeleteOpen: document.getElementById('cb-node-delete-open'),
     nodeEditSave: document.getElementById('cb-node-edit-save'),
     nodeDeleteModalEl: document.getElementById('cb-node-delete-modal'),
@@ -846,6 +853,17 @@
   function nodeById(nodeId) {
     return nodes().find(node => node.node_id === nodeId) || null;
   }
+  // A disease bucket is named with its VA cause code ("VAs-01.09 Pulmonary
+  // tuberculosis"); other levels by label alone. Callers set it as text.
+  function nodeTitle(node) {
+    if (!node) return '';
+    return node.effective_va_code ? `${node.effective_va_code} ${node.node_label}` : node.node_label;
+  }
+  function nodePath(node) {
+    if (!node) return '';
+    const path = node.path_label || node.node_label;
+    return node.effective_va_code ? `${path} (${node.effective_va_code})` : path;
+  }
 
   function paneNodes(depth) {
     if (depth === 0) return roots();
@@ -973,13 +991,17 @@
              data-node-id="${esc(node.node_id)}">
           <span class="badge bg-secondary me-2" style="min-width:32px;">${esc(node.sort_order)}</span>
           <div class="flex-fill" style="cursor:pointer;">
-            <div class="small fw-semibold">${esc(node.node_label)}</div>
+            <div class="small fw-semibold">${node.effective_va_code ? '<span class="badge text-bg-light border font-monospace me-1 cb-va-code"></span>' : ''}${esc(node.node_label)}</div>
           </div>
           <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-1 cb-node-edit" title="Edit">
             <i class="fa-solid fa-pen fa-xs"></i>
           </button>
         </div>
       `).join('');
+      // Codes go in as text, never markup.
+      listEl.querySelectorAll('.cb-va-code').forEach(chip => {
+        chip.textContent = nodeById(chip.closest('[data-node-id]').dataset.nodeId)?.effective_va_code || '';
+      });
     });
   }
 
@@ -1001,8 +1023,8 @@
       els.mappingBody.innerHTML = '<div class="text-muted small">Select a last-level disease node above.</div>';
       return;
     }
-    els.mappingHeader.textContent = leaf.node_label;
-    els.mappingHeader.title = leaf.path_label || leaf.node_label;
+    els.mappingHeader.textContent = nodeTitle(leaf);
+    els.mappingHeader.title = nodePath(leaf);
     if (state.mappingLoading && state.mappingNodeId === leaf.node_id) {
       els.mappingBody.innerHTML = `<div class="text-muted small">Loading ${icdLabel} mappings...</div>`;
       return;
@@ -1215,12 +1237,12 @@
     const hasEffectiveAgeSelection = currentAgeValue !== ''
       || (ageBands.length === 1 && (ageBands[0].value || '') === '');
     els.bulkMapModalNodeId.disabled = !hasEffectiveAgeSelection || state.bulkTargetNodesLoading || !targetOptions.length;
-    els.bulkMapModalNodeId.innerHTML = [
-      `<option value="">${state.bulkTargetNodesLoading ? 'Loading headings hierarchy...' : 'Select headings hierarchy'}</option>`,
+    els.bulkMapModalNodeId.replaceChildren(
+      new Option(state.bulkTargetNodesLoading ? 'Loading headings hierarchy...' : 'Select headings hierarchy', ''),
       ...targetOptions.map(node => (
-        `<option value="${esc(node.node_id)}" ${state.bulkTargetNodeId === node.node_id ? 'selected' : ''}>${esc(node.path_label || node.node_label)}</option>`
+        new Option(nodePath(node), node.node_id, false, state.bulkTargetNodeId === node.node_id)
       )),
-    ].join('');
+    );
 
     const selectedNode = targetOptions.find(node => node.node_id === state.bulkTargetNodeId) || null;
     const selectedAgeBand = ageBands.find(ageBand => (ageBand.value || '') === currentAgeValue) || null;
@@ -1242,7 +1264,7 @@
     els.bulkMapModalSubmitBtn.disabled = !(state.selectedUnmappedCodes.length && state.bulkTargetNodeId);
     els.bulkConfirmCount.textContent = String(state.selectedUnmappedCodes.length || 0);
     els.bulkConfirmAgeScope.textContent = selectedAgeBand?.label || '—';
-    els.bulkConfirmNodePath.textContent = selectedNode?.path_label || selectedNode?.node_label || '—';
+    els.bulkConfirmNodePath.textContent = selectedNode ? nodePath(selectedNode) : '—';
   }
 
   function renderAll() {
@@ -1379,8 +1401,8 @@
     } catch (error) {
       if (state.mappingRequestToken !== requestToken) return;
       state.mappingLoading = false;
-      els.mappingHeader.textContent = leaf.node_label;
-      els.mappingHeader.title = leaf.path_label || leaf.node_label;
+      els.mappingHeader.textContent = nodeTitle(leaf);
+      els.mappingHeader.title = nodePath(leaf);
       els.mappingBody.innerHTML = `<div class="text-danger small">${esc(error.message || 'Failed to load ICD mappings.')}</div>`;
     }
   }
@@ -1679,8 +1701,49 @@
     els.nodeEditId.value = node.node_id;
     els.nodeEditLabel.value = node.node_label || '';
     els.nodeEditOrder.value = node.sort_order || 1;
+    renderVaCodeSelect(node);
     getNodeEditModal().show();
     window.setTimeout(() => els.nodeEditLabel.focus(), 150);
+  }
+
+  // Active VA Definitions for the disease VA code dropdown, fetched once.
+  let vaDefinitionsPromise = null;
+  function loadVaDefinitions() {
+    if (!vaDefinitionsPromise) {
+      vaDefinitionsPromise = apiJson('/admin/api/va-definitions')
+        .then(payload => (payload.definitions || []).filter(row => row.is_active))
+        .catch(error => {
+          vaDefinitionsPromise = null;
+          throw error;
+        });
+    }
+    return vaDefinitionsPromise;
+  }
+
+  // The select stays disabled until the list loads; saveNodeEdit sends
+  // va_code only from an enabled select, so a failed load never clears it.
+  function renderVaCodeSelect(node) {
+    const select = els.nodeEditVaCode;
+    const isDisease = node.node_type === 'field';
+    els.nodeEditVaCodeGroup.classList.toggle('d-none', !isDisease);
+    select.disabled = true;
+    select.replaceChildren(new Option('Loading VA definitions...', ''));
+    if (!isDisease) return;
+    loadVaDefinitions().then(definitions => {
+      if (els.nodeEditId.value !== node.node_id) return;
+      const current = node.va_code || '';
+      const options = [new Option('No explicit code (use the default)', '')];
+      definitions.forEach(row => options.push(new Option(`${row.va_code} \u2014 ${row.title}`, row.va_code)));
+      if (current && !definitions.some(row => row.va_code === current)) {
+        options.push(new Option(`${current} (not an active VA definition)`, current));
+      }
+      select.replaceChildren(...options);
+      select.value = current;
+      select.disabled = false;
+    }).catch(error => {
+      select.replaceChildren(new Option('VA definitions could not be loaded.', ''));
+      setStatus(error.message || 'Failed to load VA definitions.', true);
+    });
   }
 
   async function deleteSelectedNode() {
@@ -1698,8 +1761,8 @@
     state.pendingDeleteNodeId = null;
     setStatus(
       mappingDisposition === 'move_to_unmapped'
-        ? `Deleted ${node ? node.node_label : 'bucket'} and moved affected ICD-10 codes to Unmapped.`
-        : `Deleted ${node ? node.node_label : 'bucket'} and unmapped affected ICD-10 codes.`,
+        ? `Deleted ${node ? nodeTitle(node) : 'bucket'} and moved affected ICD-10 codes to Unmapped.`
+        : `Deleted ${node ? nodeTitle(node) : 'bucket'} and unmapped affected ICD-10 codes.`,
       false
     );
     await loadScheme();
@@ -1762,7 +1825,11 @@
       els.nodeEditOrder.focus();
       return;
     }
-    updateNode(nodeId, { node_label: nodeLabel, sort_order: sortOrder }, 'Heading updated.')
+    const payload = { node_label: nodeLabel, sort_order: sortOrder };
+    if (node.node_type === 'field' && !els.nodeEditVaCode.disabled) {
+      payload.va_code = els.nodeEditVaCode.value;
+    }
+    updateNode(nodeId, payload, 'Heading updated.')
       .then(() => getNodeEditModal().hide())
       .catch(error => setStatus(error.message || 'Failed to update heading.', true));
   }
@@ -2483,7 +2550,7 @@
     state.icdSearchUnmappedOnly = false;
     state.icdSearchResults = [];
     state.icdSearchLoading = false;
-    els.icdSearchModalPath.textContent = leaf.path_label || leaf.node_label;
+    els.icdSearchModalPath.textContent = nodePath(leaf);
     els.icdSearchInput.value = '';
     els.icdSearchUnmappedOnly.checked = false;
     renderIcdSearchResults();
@@ -2530,7 +2597,7 @@
     const node = nodeById(nodeId);
     if (!node) return;
     state.pendingDeleteNodeId = nodeId;
-    els.nodeDeleteModalBody.textContent = `Delete ${node.path_label || node.node_label}. This cascades to lower levels under it. Choose what to do with associated ICD-10 codes.`;
+    els.nodeDeleteModalBody.textContent = `Delete ${nodePath(node)}. This cascades to lower levels under it. Choose what to do with associated ICD-10 codes.`;
     document.getElementById('cb-node-delete-disposition-unmap').checked = true;
     getNodeEditModal().hide();
     getNodeDeleteModal().show();

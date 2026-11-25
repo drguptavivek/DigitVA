@@ -5,6 +5,25 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- COD bucket editor shows and sets each disease bucket's VA cause code
+  (owner 2026-11-25, `digitva-0o3z`). Each disease shows its code, e.g.
+  "VAs-01.09 Pulmonary tuberculosis", in the headings, the mapping header
+  and the dialogs. Edit Disease has a dropdown of active VA Definitions.
+  - **Storage:** an explicit code is stored in the new nullable
+    `mas_cod_bucket_nodes.va_code` (migration `b5e2c8d4a9f7`, additive).
+    It wins over the code `node_code` derives.
+  - **Unchanged:** `node_code` is never renamed, so the override CSVs, the
+    ICD-11 generator and Apply DigitVA overrides keep working.
+  - **Readers updated:** the coder VA-definition lookup, the public ICD-to-VA
+    list, the overrides help page, exports and snapshots.
+  - **Refused:** a code that is badly formed or not an active definition, a
+    code on a group node, and a code another bucket in the scheme and age
+    scope already holds.
+
+  The phone's offline pack picks an explicit code up only in the next APK.
+  Rule in `docs/policy/cod-bucket-reporting.md` ("VA cause code of a
+  bucket"). No route added; the route matrix is unchanged.
+
 - Allowed and default roles per level × cadre (owner 2026-11-25,
   `digitva-4650`, `docs/policy/organization-model.md`): each cadre at a level
   now has an allowed-roles list, with default roles a subset pre-ticked at

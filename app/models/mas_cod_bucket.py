@@ -153,6 +153,10 @@ class MasCodBucketNode(db.Model):
     )
     node_code: so.Mapped[str] = so.mapped_column(sa.String(128), nullable=False)
     node_label: so.Mapped[str] = so.mapped_column(sa.String(256), nullable=False)
+    # Explicit WHO VA cause code of a disease (field) node; NULL uses the one
+    # derived from node_code (effective_va_code). node_code is never renamed
+    # (docs/policy/cod-bucket-reporting.md, "VA cause code of a bucket").
+    va_code: so.Mapped[str | None] = so.mapped_column(sa.String(16), nullable=True)
     sort_order: so.Mapped[int] = so.mapped_column(sa.Integer, nullable=False, default=0)
     is_active: so.Mapped[bool] = so.mapped_column(sa.Boolean, nullable=False, default=True)
     created_at: so.Mapped[datetime] = so.mapped_column(
@@ -186,8 +190,41 @@ class MasCodBucketNode(db.Model):
         passive_deletes=True,
     )
 
+    @property
+    def disease_va_code(self) -> str | None:
+        """Effective VA cause code of a disease (``field``) node; None for a
+        group, whose slugged node_code may look like ``vas_*`` but is no cause."""
+        if self.node_type != "field":
+            return None
+        return effective_va_code(self.node_code, self.va_code)
+
     def __repr__(self) -> str:
         return f"<MasCodBucketNode {self.node_type}:{self.node_code}>"
+
+
+def derived_va_code(node_code: str | None) -> str | None:
+    """``vas_01_02`` -> ``VAs-01.02``; None for a node that is not a ``vas_*`` cause."""
+    if not node_code or not node_code.startswith("vas_"):
+        return None
+    return "VAs-" + node_code[4:].replace("_", ".")
+
+
+def effective_va_code(node_code: str | None, va_code: str | None) -> str | None:
+    """A bucket's VA cause code: its explicit ``va_code``, else the one its
+    ``node_code`` derives, else None."""
+    return va_code or derived_va_code(node_code)
+
+
+def effective_va_code_sql(node=MasCodBucketNode):
+    """SQL form of ``effective_va_code`` for ``node`` (the model or an alias)."""
+    derived = sa.case(
+        (
+            node.node_code.like("vas\\_%", escape="\\"),
+            sa.literal("VAs-") + sa.func.replace(sa.func.substr(node.node_code, 5), "_", "."),
+        ),
+        else_=None,
+    )
+    return sa.func.coalesce(node.va_code, derived)
 
 
 class MapIcdCodBucket(db.Model):

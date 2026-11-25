@@ -424,6 +424,24 @@ class PublicMappingBuildTests(BaseTestCase):
         self.assertIn("K70.2", {row["code"] for row in rows})
         self.assertNotIn("K72", {row["code"] for row in rows})
 
+    def test_rows_show_a_node_explicit_va_code(self):
+        rows, _ = self.build()
+        by_code = {row["code"]: row for row in rows}
+        self.assertEqual((by_code["K75"]["va_code"], by_code["K70.2"]["also_claimed_by"]), ("", "VAs-98"))
+        nodes = {
+            node.node_code: node
+            for node in db.session.scalars(
+                db.select(MasCodBucketNode).where(MasCodBucketNode.scheme_id == self.scheme.scheme_id)
+            )
+        }
+        nodes["other_gastrointestinal_diseases"].va_code = "VAs-06.99"
+        nodes["vas_98"].va_code = "VAs-99"  # test-only: shows the effective code reaches also_claimed_by
+        db.session.commit()
+        rows, _ = self.build()
+        by_code = {row["code"]: row for row in rows}
+        self.assertEqual(by_code["K75"]["va_code"], "VAs-06.99")
+        self.assertEqual(by_code["K70.2"]["also_claimed_by"], "VAs-99")
+
     def test_icd11_title_edit_is_seen_on_next_load(self):
         # digitva-yog: a title change in mas_icd11_mms alone must refresh the
         # mapping-row cache. PA00's title is asserted nowhere else.

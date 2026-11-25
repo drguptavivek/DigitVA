@@ -82,8 +82,9 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
     from app.services.viewer_pii_service import should_redact_pii
     from app.services.submission_payload_version_service import get_active_payload_version, joined_payload
     from app.services.workflow.upstream_changes import get_latest_pending_upstream_change
-    from app.tasks.sync_tasks import run_open_submission_repair
+    from app.services.task_dispatch import enqueue_open_submission_repair, load_task_module
     from app.utils import va_get_form_type_code_for_form
+    load_task_module()
 
     # A coding session repairs its payload before the coder works on it. A
     # read-only opening repairs only for someone who may sync the submission,
@@ -95,7 +96,7 @@ def render_va_coding_page(submission, va_action: str, va_actiontype: str, back_d
         try:
             cache_key = f"open-repair-queued:{submission.va_sid}:{va_action}"
             if not flask_cache.get(cache_key):
-                run_open_submission_repair.delay(
+                enqueue_open_submission_repair(
                     va_sid=submission.va_sid,
                     trigger_source=f"{va_action}_open_repair",
                 )

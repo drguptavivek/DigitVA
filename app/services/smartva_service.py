@@ -1718,7 +1718,8 @@ def enqueue_smartva(
     another starting plain run of the form take it into its batch.
     ``_known_no_current_result`` is reserved for after-commit callbacks that
     have just committed a new active payload version."""
-    from app.tasks.sync_tasks import run_smartva_for_submission
+    from app.services.task_dispatch import enqueue_smartva_for_submission, load_task_module
+    load_task_module()
 
     if (
         not regenerate
@@ -1801,7 +1802,7 @@ def enqueue_smartva(
             log.warning("SmartVA [%s]: could not set the plain-run flag.", va_sid, exc_info=True)
     try:
         extra = {"requested_by": requested_by} if requested_by else {}
-        run_smartva_for_submission.delay(
+        enqueue_smartva_for_submission(
             va_sid=va_sid, triggered_by=triggered_by, regenerate=regenerate, **extra
         )
     except Exception:

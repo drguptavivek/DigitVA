@@ -21,6 +21,13 @@ from app.services.attachment_service import (
     S3_UPLOAD_TRIGGER,
     attachment_state_by_submission,
 )
+# Re-exported: sync_tasks calls these by its own names, and tests patch or
+# import them here (app.tasks.sync_tasks.<name>).
+from app.services.odk_repair_helpers import (
+    _get_single_form_odk_client,
+    _normalize_batch_plan,
+    _release_read_transaction,  # noqa: F401
+)
 # Re-exported: tests patch sync_tasks._lock_client, which _sweep_lock
 # looks up in this module.
 from app.tasks.common import ANALYTICS_MV_TRIGGER, _lock_client
@@ -76,31 +83,6 @@ INTERRUPTED_RUN_MESSAGE = (
     "Interrupted run — the worker stopped before completion. "
     "Re-initiate Sync or Repair to continue remaining gaps."
 )
-
-
-def _normalize_batch_plan(batch_map: dict | None) -> dict[str, dict]:
-    """Normalize legacy and stage-aware batch payloads into one shape."""
-    normalized: dict[str, dict] = {}
-    for va_sid, value in (batch_map or {}).items():
-        if isinstance(value, dict):
-            normalized[va_sid] = {
-                "instance_id": value.get("instance_id") or value.get("KEY") or "",
-                "needs_metadata": bool(value.get("needs_metadata")),
-                "needs_attachments": bool(value.get("needs_attachments")),
-                "needs_smartva": bool(value.get("needs_smartva")),
-                "payload_revalidated": bool(value.get("payload_revalidated")),
-                "legacy_attachment_rows": int(value.get("legacy_attachment_rows") or 0),
-            }
-        else:
-            normalized[va_sid] = {
-                "instance_id": value or "",
-                "needs_metadata": True,
-                "needs_attachments": True,
-                "needs_smartva": True,
-                "payload_revalidated": False,
-                "legacy_attachment_rows": 0,
-            }
-    return normalized
 
 
 def _batch_stage_counts(batch_plan: dict[str, dict]) -> dict[str, int]:
@@ -179,35 +161,6 @@ def _refresh_batch_plan_after_enrichment(
         item["needs_attachments"] = bool(recalculated.get("needs_attachments"))
         item["needs_smartva"] = bool(recalculated.get("needs_smartva"))
     return refreshed_plan, summary, upstream_changed_count
-
-def _get_single_form_odk_client(va_form):
-    """Return one pyODK client for the single-form sync run."""
-    from app.utils import va_odk_clientsetup
-    from app.services.runtime_form_sync_service import get_active_mapping_for_form
-
-    mapping = get_active_mapping_for_form(va_form)
-    if mapping is None:
-        raise ValueError(
-            f"Active runtime mapping not found for form '{va_form.form_id}'."
-        )
-
-    return va_odk_clientsetup(project_id=va_form.project_id)
-
-
-def _release_read_transaction(*entities) -> None:
-    """Detach loaded rows and end the current read transaction before remote I/O."""
-    from app import db
-
-    for entity in entities:
-        if entity is None:
-            continue
-        try:
-            db.session.expunge(entity)
-        except Exception:
-            log.debug("_release_read_transaction: expunge failed for %r", entity, exc_info=True)
-            continue
-    db.session.rollback()
-
 
 def _log_progress(db, run_id, msg: str):
     """Append a timestamped progress entry to va_sync_runs.progress_log.

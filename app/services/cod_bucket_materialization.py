@@ -246,16 +246,16 @@ def _enqueue_rebuilds(session):
     if not pending or not current_app.config.get("COD_BUCKET_REBUILD_ON_COMMIT", True):
         return
     try:
-        from app.tasks.sync_tasks import (
-            rebuild_cod_bucket_rows_task,
-            rebuild_cod_bucket_scheme_task,
+        from app.services.task_dispatch import (
+            enqueue_cod_bucket_rows_rebuild,
+            enqueue_cod_bucket_scheme_rebuild,
         )
 
         if _ALL_SCHEMES in pending:
-            rebuild_cod_bucket_rows_task.delay()
+            enqueue_cod_bucket_rows_rebuild()
         else:
             for scheme_id in pending:
-                rebuild_cod_bucket_scheme_task.delay(str(scheme_id))
+                enqueue_cod_bucket_scheme_rebuild(str(scheme_id))
     except Exception:
         # The edit is committed; the next sweep (after the hourly MV refresh)
         # rebuilds the scheme anyway.

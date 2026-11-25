@@ -15,6 +15,11 @@ import sqlalchemy as sa
 from app import db
 from app.models import VaForms, VaSubmissions
 from app.services import smartva_service
+from app.services.odk_repair_helpers import (
+    _get_single_form_odk_client,
+    _normalize_batch_plan,
+    _release_read_transaction,
+)
 from app.services.va_data_sync.va_data_sync_01_odkcentral import (
     _attach_all_odk_comments,
     _finalize_enriched_submissions_for_form,
@@ -29,12 +34,12 @@ from app.services.workflow.transitions import (
     mark_smartva_completed,
     system_actor,
 )
+
+# These two stay in sync_tasks: tests patch names their bodies resolve there
+# (attachment_state_by_submission, _build_repair_map_for_form).
 from app.tasks.sync_tasks import (
     _build_repair_map_for_form,
-    _get_single_form_odk_client,
-    _normalize_batch_plan,
     _refresh_batch_plan_after_enrichment,
-    _release_read_transaction,
 )
 from app.utils import va_odk_fetch_submissions_by_ids, va_odk_sync_form_attachments
 

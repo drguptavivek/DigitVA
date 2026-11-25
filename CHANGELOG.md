@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Data-manager COD snapshot export drops the payload `unique_id` column
+  (behaviour change, owner 2026-11-25, `r8nh.38`): it now follows the
+  submissions export rule, written down in `docs/policy/data-manager-workflow.md`
+  ("Identifiers each DM export may carry"). Nothing in the repo reads the
+  column; rows join other exports by `va_sid`. Also the last two repair
+  helpers leave `sync_tasks`, with the owner-approved patch-target edits
+  (`r8nh.13`). Full suite 8306 passed (2 KPI subtests, `digitva-jajs`).
 - Code audit refactors, wave 6, backend leftovers (owner go 2026-11-25; same
   protocol, no reply, status, error-code or CSV byte change; URL map
   identical): intake browser save/submit pre-steps in the service and public

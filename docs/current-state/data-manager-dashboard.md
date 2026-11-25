@@ -3,7 +3,7 @@ title: Data Manager Dashboard
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-24
+last_updated: 2026-11-25
 ---
 
 # Data Manager Dashboard
@@ -423,6 +423,11 @@ created before authorization was included in the key are never reused.
 The separate data-manager KPI panel cache also computes fresh results when
 the global authorization version is unavailable.
 
+The cache identity, the scratch file and the store write are
+`export_cache_filters`, `build_export_file` and `store_export` in
+`app/services/export_store_service.py`; the route only looks up, delivers and
+builds the response.
+
 The legacy `APP_DATA/exports/cache/` directory is no longer written or read. It
 holds nothing but expired derived data and can be deleted on any deployment.
 
@@ -582,6 +587,11 @@ resolve to their own unit are listed here so a data manager can assign them.
 - Both require a `data_manager` grant covering the submission's project-site,
   and the unit must belong to that submission's project and be active. Pins
   are written to the submission audit log.
+
+The queue query (with per-project masking of `data_collector`) and the pin or
+clear are `dm_unrouted_submissions` and `dm_set_submission_org_unit` in
+`app/services/data_management_service.py`; the route keeps the authorization
+checks, the audit row and the commit.
 
 Policy: `docs/policy/organization-model.md`.
 

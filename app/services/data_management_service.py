@@ -15,8 +15,11 @@ import pickle
 import re
 import tempfile
 import uuid
-from dataclasses import dataclass
+from collections import defaultdict
+from dataclasses import asdict, dataclass
+from dataclasses import fields as dataclass_fields
 from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 from urllib.parse import quote
 import pytz
 import sqlalchemy as sa
@@ -31,6 +34,7 @@ from app.utils.va_render.va_render_07_serialisedates import (
 from app.models import (
     MasOdkConnections,
     MapProjectOdk,
+    MasOrgLevel,
     MasOrgUnit,
     VaCoderReview,
     VaDataManagerReview,
@@ -336,6 +340,47 @@ def _redact_staff_identity_export_row(
     return row
 
 
+@dataclass(frozen=True)
+class DmFilters:
+    """The data-management dashboard's fifteen filters, as the API reads them.
+
+    Text filters default to ``""`` and are passed on exactly as sent (not
+    stripped or validated here; each service decides what an unknown value
+    means). A missing or empty date is ``None``. Services keep their keyword
+    signatures: callers splat ``kwargs()``.
+    """
+
+    search: str = ""
+    project: str = ""
+    site: str = ""
+    date_from: str | None = None
+    date_to: str | None = None
+    death_from: str | None = None
+    death_to: str | None = None
+    odk_status: str = ""
+    smartva: str = ""
+    age_group: str = ""
+    gender: str = ""
+    odk_sync: str = ""
+    workflow: str = ""
+    visit_note: str = ""
+    org_unit: str = ""
+
+    @classmethod
+    def from_args(cls, args) -> "DmFilters":
+        """Parse a query-string mapping (``request.args``)."""
+        return cls(**{
+            field.name: (args.get(field.name) or None)
+            if field.default is None
+            else args.get(field.name, "")
+            for field in dataclass_fields(cls)
+        })
+
+    def kwargs(self, *, without: tuple[str, ...] = ()) -> dict[str, str | None]:
+        """The filters as service keyword arguments, minus *without*."""
+        return {name: value for name, value in asdict(self).items() if name not in without}
+
+
 # ---------------------------------------------------------------------------
 # Scope helpers
 #
@@ -568,6 +613,94 @@ def filter_scoped_forms(
         if (not selected_projects or form["project_id"] in selected_projects)
         and (not selected_sites or form["site_id"] in selected_sites)
     ]
+
+
+def preview_sync(forms: list[dict]) -> dict:
+    """What syncing *forms* (``dm_scoped_forms`` rows the caller may sync)
+    would do: per form and in total, local vs ODK submission counts, the
+    instances not yet fetched, local rows ODK no longer has, and ODK's
+    updated-since-last-sync count (None when unknown).
+
+    One query for every form's local ids; one ODK client, one instance-id
+    listing and one delta count per mapped form. A form with no ODK mapping
+    is ``unmapped``. A delta-count failure leaves that form's
+    ``updated_candidates`` None; any other ODK or database error propagates.
+    """
+    # Imported here, not at module level: tests patch these names in app.utils.
+    from app.utils import va_odk_delta_count, va_odk_fetch_instance_ids
+    from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
+
+    totals = {
+        "forms": len(forms), "local_submissions": 0, "odk_submissions": 0,
+        "new_fetch_candidates": 0, "missing_in_odk_flags": 0, "updated_candidates": 0,
+    }
+    if not forms:
+        return {"totals": totals, "forms": []}
+
+    local_sids_by_form = defaultdict(set)
+    for form_id, va_sid in db.session.execute(
+        sa.select(VaSubmissions.va_form_id, VaSubmissions.va_sid).where(
+            VaSubmissions.va_form_id.in_({form["form_id"] for form in forms})
+        )
+    ):
+        local_sids_by_form[form_id].add(va_sid)
+
+    forms_preview = []
+    for form in forms:
+        local_sids = local_sids_by_form[form["form_id"]]
+        if not form["odk_project_id"] or not form["odk_form_id"]:
+            forms_preview.append({
+                "form_id": form["form_id"], "project_id": form["project_id"],
+                "site_id": form["site_id"], "site_name": form["site_name"],
+                "last_synced_at": form["last_synced_at"],
+                "local_submissions": len(local_sids), "odk_submissions": 0,
+                "new_fetch_candidates": 0, "missing_in_odk_flags": 0,
+                "updated_candidates": None, "preview_status": "unmapped",
+            })
+            totals["local_submissions"] += len(local_sids)
+            continue
+
+        client = va_odk_clientsetup(project_id=form["project_id"])
+        odk_ids = va_odk_fetch_instance_ids(
+            SimpleNamespace(
+                form_id=form["form_id"], project_id=form["project_id"],
+                odk_project_id=form["odk_project_id"], odk_form_id=form["odk_form_id"],
+            ),
+            client=client,
+        )
+        form_id_lower = form["form_id"].lower()
+        expected = {f"{iid}-{form_id_lower}" for iid in odk_ids}
+        missing_locally = max(len(expected - local_sids), 0)
+        missing_in_odk = max(len(local_sids - expected), 0)
+        updated_candidates = None
+        if form["last_synced_at"]:
+            try:
+                updated_candidates = va_odk_delta_count(
+                    odk_project_id=int(form["odk_project_id"]),
+                    odk_form_id=form["odk_form_id"],
+                    since=datetime.fromisoformat(form["last_synced_at"]),
+                    app_project_id=form["project_id"],
+                    client=client,
+                )
+            except Exception:
+                updated_candidates = None
+
+        forms_preview.append({
+            "form_id": form["form_id"], "project_id": form["project_id"],
+            "site_id": form["site_id"], "site_name": form["site_name"],
+            "last_synced_at": form["last_synced_at"],
+            "local_submissions": len(local_sids), "odk_submissions": len(odk_ids),
+            "new_fetch_candidates": missing_locally, "missing_in_odk_flags": missing_in_odk,
+            "updated_candidates": updated_candidates, "preview_status": "ok",
+        })
+        totals["local_submissions"] += len(local_sids)
+        totals["odk_submissions"] += len(odk_ids)
+        totals["new_fetch_candidates"] += missing_locally
+        totals["missing_in_odk_flags"] += missing_in_odk
+        if updated_candidates is not None:
+            totals["updated_candidates"] += updated_candidates
+
+    return {"totals": totals, "forms": forms_preview}
 
 
 # ---------------------------------------------------------------------------
@@ -2823,19 +2956,32 @@ def audit_dm_submission_action(
 # Revoked submission resolution
 # ---------------------------------------------------------------------------
 
+class SubmissionNotFound(ValueError):
+    """The submission does not exist.
+
+    A ValueError so every caller that catches ValueError still does; the
+    data-management API answers it 404 where it used to compare the message.
+    """
+
+
+class NotPermitted(PermissionError):
+    """The submission is outside the user's data-management scope (403)."""
+
+
 def _dm_submission_scope_check(user, va_sid: str):
     """Return (submission, form_row) for a submission *user* may triage.
 
-    ``authz.require(TRIAGE)`` (admin bypasses); raises ValueError when the
-    submission does not exist and PermissionError when it is out of scope,
-    the contract the routes translate to 404 and 403.
+    ``authz.require(TRIAGE)`` (admin bypasses); raises SubmissionNotFound
+    (a ValueError) when the submission does not exist and NotPermitted (a
+    PermissionError) when it is out of scope, the contract the routes
+    translate to 404 and 403.
     """
     try:
         require(user, Action.TRIAGE, va_sid)
     except AuthzError as exc:
         if exc.status_code == 404:
-            raise ValueError("Submission not found.") from exc
-        raise PermissionError("You do not have access to this submission.") from exc
+            raise SubmissionNotFound("Submission not found.") from exc
+        raise NotPermitted("You do not have access to this submission.") from exc
     submission = db.session.get(VaSubmissions, va_sid)
     form_row = db.session.execute(
         sa.select(VaForms.project_id, VaForms.site_id).where(
@@ -3448,3 +3594,125 @@ def dm_reject_upstream_change(user, va_sid: str) -> str | None:
     send-back/reopen returned to, None for an ODK change.
     """
     return dm_keep_current_icd_on_upstream_change(user, va_sid)
+
+
+# ---------------------------------------------------------------------------
+# Organization routing: the unrouted queue and the hand pin
+#
+# Policy: docs/policy/organization-model.md; the routes and their authz are
+# in app/routes/api/data_management.py.
+# ---------------------------------------------------------------------------
+
+UNROUTED_QUEUE_MAX_ROWS = 200
+
+
+def dm_unrouted_submissions(user, *, include: str, project_id: str) -> dict:
+    """The newest ``UNROUTED_QUEUE_MAX_ROWS`` submissions of tree projects in
+    *user*'s scope that are not attributed to their own unit.
+
+    *include* is ``"unrouted"`` (no unit: authz ``LIST_UNROUTED``) or
+    ``"fallback"`` (also those on their ODK mapping's fallback unit that the
+    user may pin: ``ROUTE_PIN``); the caller validates it. An empty
+    *project_id* means every project. ``data_collector`` is None for a row
+    whose project the user may not see PII of. Returns the API reply body.
+    """
+    from app.services.org_unit_routing_service import RESOLUTION_MAPPING_FALLBACK
+
+    # Only projects that actually have a tree can have a routing problem.
+    project_has_tree = sa.exists(
+        sa.select(1).where(
+            MasOrgLevel.project_id == VaForms.project_id,
+            MasOrgLevel.is_active.is_(True),
+        )
+    )
+    unit = sa.orm.aliased(MasOrgUnit)
+    routing_condition = scope_filter(user, Action.LIST_UNROUTED)
+    if include == "fallback":
+        routing_condition = sa.or_(
+            routing_condition,
+            sa.and_(
+                VaSubmissions.org_unit_resolution == RESOLUTION_MAPPING_FALLBACK,
+                scope_filter(user, Action.ROUTE_PIN),
+            ),
+        )
+
+    stmt = (
+        sa.select(
+            VaSubmissions.va_sid,
+            VaSubmissions.va_submission_date,
+            VaSubmissions.va_data_collector,
+            VaSubmissions.org_unit_resolution,
+            VaForms.project_id,
+            VaForms.site_id,
+            unit.unit_code,
+            unit.unit_name,
+        )
+        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
+        .outerjoin(unit, unit.org_unit_id == VaSubmissions.org_unit_id)
+        .where(project_has_tree, routing_condition)
+        .order_by(VaSubmissions.va_submission_date.desc())
+        .limit(UNROUTED_QUEUE_MAX_ROWS + 1)
+    )
+    if project_id:
+        stmt = stmt.where(VaForms.project_id == project_id)
+
+    rows = db.session.execute(stmt).all()
+    truncated = len(rows) > UNROUTED_QUEUE_MAX_ROWS
+    # Per row by project (digitva-ssg7.3).
+    pii = pii_scope(user)
+    return {
+        "submissions": [
+            {
+                "va_sid": row.va_sid,
+                "submission_date": row.va_submission_date.isoformat()
+                if row.va_submission_date
+                else None,
+                "data_collector": row.va_data_collector if pii.sees(row.project_id) else None,
+                "project_id": row.project_id,
+                "site_id": row.site_id,
+                "resolution": row.org_unit_resolution,
+                "unit_code": row.unit_code,
+                "unit_name": row.unit_name,
+            }
+            for row in rows[:UNROUTED_QUEUE_MAX_ROWS]
+        ],
+        "truncated": truncated,
+        "limit": UNROUTED_QUEUE_MAX_ROWS,
+    }
+
+
+def dm_set_submission_org_unit(user, va_sid: str, raw_unit_id):
+    """Pin *va_sid* to the unit *raw_unit_id*, or clear its pin when that is
+    None or empty, so the next sync routes it from its payload again.
+
+    The caller has already authorized the submission and the target unit.
+    Returns ``(submission, audit_action, message, unit_code)``; raises
+    ``OrganizationError`` for a unit that cannot take the pin. Does not
+    audit or commit.
+    """
+    from app.services.org_unit_routing_service import clear_pin, pin_submission_org_unit
+
+    submission = db.session.get(VaSubmissions, va_sid)
+    if raw_unit_id in (None, ""):
+        clear_pin(submission)
+        return (
+            submission,
+            "data_manager_cleared_submission_org_unit_pin",
+            "Unit pin cleared. The next sync will route this submission again.",
+            None,
+        )
+    form_row = db.session.execute(
+        sa.select(VaForms.project_id).where(VaForms.form_id == submission.va_form_id)
+    ).first()
+    unit = pin_submission_org_unit(
+        submission,
+        raw_unit_id,
+        actor_user_id=user.user_id,
+        project_id=form_row.project_id,
+    )
+    return (
+        submission,
+        "data_manager_pinned_submission_org_unit",
+        f"Submission pinned to {unit.unit_code}.",
+        unit.unit_code,
+    )

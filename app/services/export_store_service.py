@@ -38,6 +38,7 @@ import logging
 import os
 import re
 import tempfile
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -222,6 +223,71 @@ def export_cache_lookup(*, export_kind: str, user_id, filters: dict, ttl_seconds
         log.warning("export store: could not list the export prefix; serving a fresh export")
         return None
     return newest
+
+
+def export_cache_filters(
+    filters: dict, *, timezone_name: str, scope: str | None, bom: bool,
+) -> dict:
+    """The cache identity of one export: its filters plus what must also
+    match for a stored file to be reused.
+
+    The timezone (a changed one must not be served the old day boundaries)
+    and the access-scope fingerprint *scope*; with no fingerprint the
+    identity is random, so nothing can match it. A no-BOM export carries
+    ``bom: False``: cached BOM-framed files of those kinds predate the flag.
+    """
+    identity = {
+        **filters,
+        "timezone": timezone_name,
+        "authorization_v2": scope or uuid.uuid4().hex,
+    }
+    if not bom:
+        identity["bom"] = False
+    return identity
+
+
+def build_export_file(write_fn, user, filters: dict):
+    """Run ``write_fn(out, user, **filters)`` into a scratch file and return
+    it open, flushed, for the caller to store, send and close.
+
+    ``newline=""`` so the csv module's own line endings reach the file
+    untouched. The file is closed if the writer fails.
+    """
+    csv_file = tempfile.TemporaryFile(
+        mode="w+",
+        encoding="utf-8",
+        newline="",
+        dir=current_app.config.get("DB_BACKUP_TMP_DIR") or tempfile.gettempdir(),
+    )
+    try:
+        write_fn(csv_file, user, **filters)
+        csv_file.flush()
+    except BaseException:
+        csv_file.close()
+        raise
+    return csv_file
+
+
+def store_export(*, export_kind: str, user_id, filters: dict, csv_file, bom: bool):
+    """``write_export`` from an open scratch file, or None when the store
+    fails (logged): the CSV is already in hand, so only the caching is lost.
+    Any other failure closes *csv_file* and propagates; on success and on
+    None the file stays open for the caller.
+    """
+    try:
+        return write_export(
+            export_kind=export_kind,
+            user_id=user_id,
+            filters=filters,
+            csv_file=csv_file,
+            bom=bom,
+        )
+    except (ExportStoreError, AttachmentStoreError, OSError) as exc:
+        log.warning("Export store write failed for kind=%s: %s", export_kind, exc)
+        return None
+    except BaseException:
+        csv_file.close()
+        raise
 
 
 # ---------------------------------------------------------------------------

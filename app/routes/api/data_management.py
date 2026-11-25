@@ -16,11 +16,9 @@ import hashlib
 import json
 import logging
 import os
-import tempfile
 import uuid
 from datetime import datetime, timezone
 from functools import partial
-from types import SimpleNamespace
 
 import sqlalchemy as sa
 from flask import (
@@ -36,16 +34,21 @@ from flask_login import current_user
 
 from app import cache, db, limiter
 from app.decorators import role_required
-from app.models import VaForms, VaSyncRun, VaSubmissions
+from app.models import VaSyncRun
 from app.routes.api.request_helpers import error as api_error
 from app.routes.api.request_helpers import optional_object_body
 from app.services.data_management_service import (
+    DmFilters,
+    NotPermitted,
+    SubmissionNotFound,
     audit_dm_submission_action,
     dm_accept_upstream_change,
     dm_cancel_revision_request,
     dm_coded_cod_snapshot_export_csv,
     dm_coder_daily_statistics,
     dm_filter_options,
+    dm_set_submission_org_unit,
+    dm_unrouted_submissions,
     dm_grant_scope,
     dm_screening_pass,
     dm_screening_reject,
@@ -56,24 +59,23 @@ from app.services.data_management_service import (
     dm_submissions_page,
     dm_upstream_change_details,
     filter_scoped_forms,
+    preview_sync,
     sync_run_entries,
     sync_run_target_label,
     write_dm_smartva_input_export_csv,
     write_dm_submissions_export_csv,
 )
 from app.services import collection_hold, smartva_service, training_scope
-from app.services.authz import Action, AuthzError, can, require, scope_filter
+from app.services.authz import Action, AuthzError, can, require
 from app.services import dm_dashboard_cache
 from app.services.authz import grant_cache
 from app.services.authz.grants import resolve_grants
 from app.services.viewer_pii_service import pii_scope
 from app.utils import va_user_timezone_name
 from app.services import export_store_service as export_store
-from app.services.attachment_store import AttachmentStoreError
 from app.services.export_store_service import (
     EXPORT_CONTENT_TYPE,
     UTF8_BOM,
-    ExportStoreError,
 )
 from app.services.submission_analytics_mv import (
     get_dm_kpi_from_mv,
@@ -87,6 +89,15 @@ bp = Blueprint("data_management_api", __name__)
 log = logging.getLogger(__name__)
 _CACHE_TTL = 300
 _EXPORT_CACHE_TTL = 900
+
+
+@bp.errorhandler(SubmissionNotFound)
+@bp.errorhandler(NotPermitted)
+def _submission_refused(exc):
+    """404 / 403 with the service's message. Only routes that let these
+    escape reach it: the action routes that answer a missing submission 400
+    still catch it as a ValueError themselves."""
+    return api_error(str(exc), status_code=404 if isinstance(exc, SubmissionNotFound) else 403)
 
 
 def _refusal(action: Action, target, message: str):
@@ -154,26 +165,6 @@ def _refresh_dm_dashboard_analytics() -> None:
 
 # SmartVA reads these files directly; a BOM would corrupt its first header.
 _NO_BOM_EXPORT_KINDS = frozenset({"smartva_input", "smartva_input_raw"})
-
-
-def _export_filters_from_request() -> dict[str, str | None]:
-    return {
-        "search": request.args.get("search", ""),
-        "project": request.args.get("project", ""),
-        "site": request.args.get("site", ""),
-        "date_from": request.args.get("date_from") or None,
-        "date_to": request.args.get("date_to") or None,
-        "death_from": request.args.get("death_from") or None,
-        "death_to": request.args.get("death_to") or None,
-        "odk_status": request.args.get("odk_status", ""),
-        "smartva": request.args.get("smartva", ""),
-        "age_group": request.args.get("age_group", ""),
-        "gender": request.args.get("gender", ""),
-        "odk_sync": request.args.get("odk_sync", ""),
-        "workflow": request.args.get("workflow", ""),
-        "visit_note": request.args.get("visit_note", ""),
-        "org_unit": request.args.get("org_unit", ""),
-    }
 
 
 def _export_cache_ttl_seconds() -> int:
@@ -253,19 +244,12 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, write_fn) -
     can never reach another user's export. A store failure is never fatal — the
     CSV is already in hand, so it is sent inline and only the caching is lost.
     """
-    filters = _export_filters_from_request()
+    filters = DmFilters.from_args(request.args).kwargs()
     bom = export_kind not in _NO_BOM_EXPORT_KINDS
-    # Part of the cache identity only (not an export argument): a changed
-    # timezone must not be served the old day boundaries.
     scope = _scope_cache_key()
-    cache_filters = {
-        **filters,
-        "timezone": va_user_timezone_name(current_user),
-        "authorization_v2": scope or uuid.uuid4().hex,
-    }
-    if not bom:
-        # Cached BOM-framed files of these kinds predate this; a new key retires them.
-        cache_filters["bom"] = False
+    cache_filters = export_store.export_cache_filters(
+        filters, timezone_name=va_user_timezone_name(current_user), scope=scope, bom=bom,
+    )
     ttl_seconds = _export_cache_ttl_seconds()
     filename = f"{filename_prefix}-{datetime.now(timezone.utc):%Y%m%d-%H%M%S}.csv"
 
@@ -282,33 +266,16 @@ def _serve_cached_export_csv(export_kind: str, filename_prefix: str, write_fn) -
         if response is not None:
             return response
 
-    # newline="" so the csv module's own line endings reach the file untouched.
-    csv_file = tempfile.TemporaryFile(
-        mode="w+",
-        encoding="utf-8",
-        newline="",
-        dir=current_app.config.get("DB_BACKUP_TMP_DIR") or tempfile.gettempdir(),
+    csv_file = export_store.build_export_file(write_fn, current_user, filters)
+    ref = export_store.store_export(
+        export_kind=export_kind,
+        user_id=current_user.user_id,
+        filters=cache_filters,
+        csv_file=csv_file,
+        bom=bom,
     )
-    try:
-        write_fn(csv_file, current_user, **filters)
-        csv_file.flush()
-    except BaseException:
-        csv_file.close()
-        raise
-    try:
-        ref = export_store.write_export(
-            export_kind=export_kind,
-            user_id=current_user.user_id,
-            filters=cache_filters,
-            csv_file=csv_file,
-            bom=bom,
-        )
-    except (ExportStoreError, AttachmentStoreError, OSError) as exc:
-        log.warning("Export store write failed for kind=%s: %s", export_kind, exc)
+    if ref is None:
         return _csv_response(csv_file, filename, cache_status="BYPASS", bom=bom)
-    except BaseException:
-        csv_file.close()
-        raise
 
     try:
         response = _deliver_export(ref, filename, cache_status="MISS")
@@ -341,21 +308,7 @@ def submissions():
         current_user,
         page=page,
         per_page=per_page,
-        search=request.args.get("search", ""),
-        project=request.args.get("project", ""),
-        site=request.args.get("site", ""),
-        date_from=request.args.get("date_from") or None,
-        date_to=request.args.get("date_to") or None,
-        death_from=request.args.get("death_from") or None,
-        death_to=request.args.get("death_to") or None,
-        odk_status=request.args.get("odk_status", ""),
-        smartva=request.args.get("smartva", ""),
-        age_group=request.args.get("age_group", ""),
-        gender=request.args.get("gender", ""),
-        odk_sync=request.args.get("odk_sync", ""),
-        workflow=request.args.get("workflow", ""),
-        visit_note=request.args.get("visit_note", ""),
-        org_unit=request.args.get("org_unit", ""),
+        **DmFilters.from_args(request.args).kwargs(),
         sort_field=sort_field,
         sort_dir=sort_dir,
     )
@@ -434,25 +387,13 @@ def submissions_export_coded_cod_snapshot_csv():
 @limiter.limit("120 per minute")
 def kpi():
     scope = dm_grant_scope(current_user, viewers=True)
+    filters = DmFilters.from_args(request.args).kwargs(without=("search",))
     return jsonify(_cached("kpi", lambda:
         get_dm_kpi_from_mv(
             sorted(scope.project_ids),
             scope.pairs,
             unit_ids=scope.unit_subtree(),
-            project=request.args.get("project", ""),
-            site=request.args.get("site", ""),
-            date_from=request.args.get("date_from") or None,
-            date_to=request.args.get("date_to") or None,
-            death_from=request.args.get("death_from") or None,
-            death_to=request.args.get("death_to") or None,
-            odk_status=request.args.get("odk_status", ""),
-            smartva=request.args.get("smartva", ""),
-            age_group=request.args.get("age_group", ""),
-            gender=request.args.get("gender", ""),
-            odk_sync=request.args.get("odk_sync", ""),
-            workflow=request.args.get("workflow", ""),
-            visit_note=request.args.get("visit_note", ""),
-            org_unit=request.args.get("org_unit", ""),
+            **filters,
         )
     ))
 
@@ -461,7 +402,7 @@ def kpi():
 @role_required("data_manager", "admin")
 @limiter.limit("120 per minute")
 def coder_daily_stats():
-    filters = _export_filters_from_request()
+    filters = DmFilters.from_args(request.args).kwargs()
     return jsonify(
         _cached(
             "coder_daily_stats",
@@ -559,87 +500,8 @@ def sync_preview():
         return api_error("project_ids and site_ids must be lists of text.", status_code=400)
 
     try:
-        from app.utils import va_odk_fetch_instance_ids, va_odk_delta_count
-        from app.utils.va_odk.va_odk_01_clientsetup import va_odk_clientsetup
-
-        scoped = _dm_syncable_forms(current_user)
-        matched = filter_scoped_forms(scoped, project_ids, site_ids)
-        if not matched:
-            return jsonify({
-                "totals": {
-                    "forms": 0, "local_submissions": 0, "odk_submissions": 0,
-                    "new_fetch_candidates": 0, "missing_in_odk_flags": 0, "updated_candidates": 0,
-                },
-                "forms": [],
-            })
-
-        forms_preview = []
-        totals = {
-            "forms": len(matched), "local_submissions": 0, "odk_submissions": 0,
-            "new_fetch_candidates": 0, "missing_in_odk_flags": 0, "updated_candidates": 0,
-        }
-
-        for form in matched:
-            local_sids = set(
-                db.session.scalars(
-                    sa.select(VaSubmissions.va_sid).where(
-                        VaSubmissions.va_form_id == form["form_id"]
-                    )
-                ).all()
-            )
-            if not form["odk_project_id"] or not form["odk_form_id"]:
-                forms_preview.append({
-                    "form_id": form["form_id"], "project_id": form["project_id"],
-                    "site_id": form["site_id"], "site_name": form["site_name"],
-                    "last_synced_at": form["last_synced_at"],
-                    "local_submissions": len(local_sids), "odk_submissions": 0,
-                    "new_fetch_candidates": 0, "missing_in_odk_flags": 0,
-                    "updated_candidates": None, "preview_status": "unmapped",
-                })
-                totals["local_submissions"] += len(local_sids)
-                continue
-
-            client = va_odk_clientsetup(project_id=form["project_id"])
-            odk_ids = va_odk_fetch_instance_ids(
-                SimpleNamespace(
-                    form_id=form["form_id"], project_id=form["project_id"],
-                    odk_project_id=form["odk_project_id"], odk_form_id=form["odk_form_id"],
-                ),
-                client=client,
-            )
-            form_id_lower = form["form_id"].lower()
-            expected = {f"{iid}-{form_id_lower}" for iid in odk_ids}
-            missing_locally = max(len(expected - local_sids), 0)
-            missing_in_odk = max(len(local_sids - expected), 0)
-            updated_candidates = None
-            if form["last_synced_at"]:
-                try:
-                    updated_candidates = va_odk_delta_count(
-                        odk_project_id=int(form["odk_project_id"]),
-                        odk_form_id=form["odk_form_id"],
-                        since=datetime.fromisoformat(form["last_synced_at"]),
-                        app_project_id=form["project_id"],
-                        client=client,
-                    )
-                except Exception:
-                    updated_candidates = None
-
-            forms_preview.append({
-                "form_id": form["form_id"], "project_id": form["project_id"],
-                "site_id": form["site_id"], "site_name": form["site_name"],
-                "last_synced_at": form["last_synced_at"],
-                "local_submissions": len(local_sids), "odk_submissions": len(odk_ids),
-                "new_fetch_candidates": missing_locally, "missing_in_odk_flags": missing_in_odk,
-                "updated_candidates": updated_candidates, "preview_status": "ok",
-            })
-            totals["local_submissions"] += len(local_sids)
-            totals["odk_submissions"] += len(odk_ids)
-            totals["new_fetch_candidates"] += missing_locally
-            totals["missing_in_odk_flags"] += missing_in_odk
-            if updated_candidates is not None:
-                totals["updated_candidates"] += updated_candidates
-
-        return jsonify({"totals": totals, "forms": forms_preview})
+        matched = filter_scoped_forms(_dm_syncable_forms(current_user), project_ids, site_ids)
+        return jsonify(preview_sync(matched))
     except Exception as exc:
         log.error("sync_preview failed", exc_info=True)
         return api_error("Operation failed. Check server logs.", status_code=500)
@@ -701,22 +563,9 @@ def project_site_submissions():
     project_ids = sorted(scope.project_ids)
     project_site_pairs = scope.pairs
     unit_ids = scope.unit_subtree()
-    project_filter = request.args.get("project", "")
-    common_filters = dict(
-        site=request.args.get("site", ""),
-        date_from=request.args.get("date_from") or None,
-        date_to=request.args.get("date_to") or None,
-        death_from=request.args.get("death_from") or None,
-        death_to=request.args.get("death_to") or None,
-        odk_status=request.args.get("odk_status", ""),
-        smartva=request.args.get("smartva", ""),
-        age_group=request.args.get("age_group", ""),
-        gender=request.args.get("gender", ""),
-        odk_sync=request.args.get("odk_sync", ""),
-        workflow=request.args.get("workflow", ""),
-        visit_note=request.args.get("visit_note", ""),
-        org_unit=request.args.get("org_unit", ""),
-    )
+    filters = DmFilters.from_args(request.args)
+    project_filter = filters.project
+    common_filters = filters.kwargs(without=("search", "project"))
 
     # Grouping by organization unit needs exactly one project with a tree —
     # units belong to a single project. A project with no tree (org_list_levels
@@ -876,12 +725,15 @@ def collection_hold_decide(va_sid: str, action: str):
     try:
         collection_hold.decide(current_user, va_sid, action, note)
         db.session.commit()
+    except (SubmissionNotFound, NotPermitted):
+        db.session.rollback()
+        raise
     except PermissionError as exc:
         db.session.rollback()
         return api_error(str(exc), status_code=403)
     except ValueError as exc:
         db.session.rollback()
-        return api_error(str(exc), status_code=404 if str(exc) == "Submission not found." else 400)
+        return api_error(str(exc), status_code=400)
     except LookupError as exc:
         db.session.rollback()
         return api_error(str(exc), status_code=409)
@@ -948,11 +800,11 @@ def cancel_revision_request(va_sid: str):
             "message": f"Revision request cancelled; the case returned to {returned_to}.",
             "previous_state": returned_to,
         })
+    except (SubmissionNotFound, NotPermitted):
+        raise
     except PermissionError as exc:
         return api_error(str(exc), "forbidden", 403)
     except ValueError as exc:
-        if str(exc) == "Submission not found.":
-            return api_error(str(exc), "not_found", 404)
         return api_error(str(exc), "not_cancellable", 400)
     except Exception:
         db.session.rollback()
@@ -975,9 +827,6 @@ def cancel_revision_request(va_sid: str):
 # .tasks/digitva-0wc-design.md section 2.3.
 # ---------------------------------------------------------------------------
 
-UNROUTED_QUEUE_MAX_ROWS = 200
-
-
 @bp.get("/submissions/unrouted")
 @role_required("data_manager", "admin")
 @limiter.limit("120 per minute")
@@ -990,75 +839,12 @@ def unrouted_submissions():
     project; admin, tree projects only). Fallback cases are routed, so they
     follow ``ROUTE_PIN``: the ones the user may pin.
     """
-    from app.models import MasOrgLevel, MasOrgUnit
-    from app.services.org_unit_routing_service import RESOLUTION_MAPPING_FALLBACK
-
     include = (request.args.get("include") or "fallback").strip().lower()
     if include not in {"fallback", "unrouted"}:
         return api_error("include must be 'fallback' or 'unrouted'.", status_code=400)
-
-    # Only projects that actually have a tree can have a routing problem.
-    project_has_tree = sa.exists(
-        sa.select(1).where(
-            MasOrgLevel.project_id == VaForms.project_id,
-            MasOrgLevel.is_active.is_(True),
-        )
-    )
-    unit = sa.orm.aliased(MasOrgUnit)
-    routing_condition = scope_filter(current_user, Action.LIST_UNROUTED)
-    if include == "fallback":
-        routing_condition = sa.or_(
-            routing_condition,
-            sa.and_(
-                VaSubmissions.org_unit_resolution == RESOLUTION_MAPPING_FALLBACK,
-                scope_filter(current_user, Action.ROUTE_PIN),
-            ),
-        )
-
-    project_id = (request.args.get("project") or "").strip()
-    stmt = (
-        sa.select(
-            VaSubmissions.va_sid,
-            VaSubmissions.va_submission_date,
-            VaSubmissions.va_data_collector,
-            VaSubmissions.org_unit_resolution,
-            VaForms.project_id,
-            VaForms.site_id,
-            unit.unit_code,
-            unit.unit_name,
-        )
-        .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-        .outerjoin(unit, unit.org_unit_id == VaSubmissions.org_unit_id)
-        .where(project_has_tree, routing_condition)
-        .order_by(VaSubmissions.va_submission_date.desc())
-        .limit(UNROUTED_QUEUE_MAX_ROWS + 1)
-    )
-    if project_id:
-        stmt = stmt.where(VaForms.project_id == project_id)
-
-    rows = db.session.execute(stmt).all()
-    truncated = len(rows) > UNROUTED_QUEUE_MAX_ROWS
-    # Per row by project (digitva-ssg7.3).
-    pii = pii_scope(current_user)
-    return jsonify({
-        "submissions": [
-            {
-                "va_sid": row.va_sid,
-                "submission_date": row.va_submission_date.isoformat()
-                if row.va_submission_date
-                else None,
-                "data_collector": row.va_data_collector if pii.sees(row.project_id) else None,
-                "project_id": row.project_id,
-                "site_id": row.site_id,
-                "resolution": row.org_unit_resolution,
-                "unit_code": row.unit_code,
-                "unit_name": row.unit_name,
-            }
-            for row in rows[:UNROUTED_QUEUE_MAX_ROWS]
-        ],
-        "truncated": truncated,
-        "limit": UNROUTED_QUEUE_MAX_ROWS,
-    })
+    return jsonify(dm_unrouted_submissions(
+        current_user, include=include, project_id=(request.args.get("project") or "").strip(),
+    ))
 
 
 @bp.post("/submissions/<path:va_sid>/org-unit")
@@ -1069,16 +855,11 @@ def set_submission_org_unit(va_sid: str):
     Body ``{"org_unit_id": "<uuid>"}`` pins; ``{"org_unit_id": null}`` clears
     the pin so the next sync routes the submission from its payload again.
     """
-    from app.services.org_unit_routing_service import clear_pin, pin_submission_org_unit
     from app.services.organization_service import OrganizationError
 
     refused = _refusal(Action.ROUTE_PIN, va_sid, "You do not have access to this submission.")
     if refused:
         return refused
-    submission = db.session.get(VaSubmissions, va_sid)
-    form_row = db.session.execute(
-        sa.select(VaForms.project_id).where(VaForms.form_id == submission.va_form_id)
-    ).first()
 
     payload = optional_object_body()
     if payload is None:
@@ -1098,21 +879,9 @@ def set_submission_org_unit(va_sid: str):
             return api_error("You may pin only to a unit inside your area.", status_code=403)
 
     try:
-        if raw_unit_id in (None, ""):
-            clear_pin(submission)
-            action = "data_manager_cleared_submission_org_unit_pin"
-            message = "Unit pin cleared. The next sync will route this submission again."
-            unit_code = None
-        else:
-            unit = pin_submission_org_unit(
-                submission,
-                raw_unit_id,
-                actor_user_id=current_user.user_id,
-                project_id=form_row.project_id,
-            )
-            action = "data_manager_pinned_submission_org_unit"
-            message = f"Submission pinned to {unit.unit_code}."
-            unit_code = unit.unit_code
+        submission, action, message, unit_code = dm_set_submission_org_unit(
+            current_user, va_sid, raw_unit_id
+        )
     except OrganizationError as exc:
         return api_error(str(exc), status_code=400)
 

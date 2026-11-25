@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- The data manager's project-site list (`GET /data-management/api/project-sites`,
+  user management's site pickers) answered 500 for every data manager with an
+  active site since the collection gate (`87fff09cd`, 2026-11-06): its query
+  never selected the four gate columns the shared serializer reads. It now
+  selects them and answers 200 with the same fields as the admin list; the
+  route matrix row moves from 500 to 200, nothing else changes
+  (`digitva-b94q`).
 - Staging release 0.3.30 (owner go 2026-11-25): staging runs `a4b9fd083`
   (from `b754a36`), migrations `1f037b4717e4`, `c3a7e1f9d4b2`, `b5e2c8d4a9f7`
   applied, web `expo-web-v2026.11.25.1`, Collect and Collect Plus 0.3.30

@@ -556,6 +556,11 @@ def manage_project_sites():
             VaProjectSites.coding_start_date,
             VaProjectSites.coding_end_date,
             VaProjectSites.daily_coder_limit,
+            # _serialize_project_site also reads the collection gate (digitva-b94q).
+            VaProjectSites.collection_enabled,
+            VaProjectSites.collection_start_date,
+            VaProjectSites.collection_end_date,
+            VaProjectSites.daily_interviewer_limit,
             VaProjectMaster.project_name,
             VaSiteMaster.site_name,
         )

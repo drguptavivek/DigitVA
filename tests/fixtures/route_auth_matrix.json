@@ -4248,7 +4248,7 @@
   "coder_bearer": "401 application/json code=unauthorized",
   "coder_cookie": "403 application/json code=forbidden",
   "cookie": "403 application/json code=forbidden",
-  "data_manager_cookie": "500 text/html title=DigitVA | Method Failure",
+  "data_manager_cookie": "200 application/json keys=project_sites",
   "endpoint": "data_management.manage_project_sites",
   "interview_supervisor_bearer": "401 application/json code=unauthorized",
   "interview_supervisor_cookie": "403 application/json code=forbidden",

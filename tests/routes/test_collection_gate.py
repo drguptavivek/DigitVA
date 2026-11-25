@@ -308,6 +308,29 @@ class SiteCollectionGateTests(BaseTestCase):
         listed = self.client.get(f"/admin/api/project-sites?project_id={self.PROJECT_ID}").get_json()
         self.assertEqual(listed["project_sites"][0]["collection_start_date"], "2026-11-01")
 
+    def test_a_data_manager_lists_project_sites_with_the_gate(self):
+        """digitva-b94q: the data-manager list carried no gate columns and 500'd."""
+        manager = self._get_or_make_user("gate.manager@test.local", "Gate12345")
+        db.session.add(VaUserAccessGrants(
+            user_id=manager.user_id, role=VaAccessRoles.data_manager,
+            scope_type=VaAccessScopeTypes.project, project_id=self.PROJECT_ID,
+            notes="collection gate test", grant_status=VaStatuses.active,
+        ))
+        db.session.commit()
+        self._gate(collection_enabled=False, collection_start_date=date(2026, 11, 1),
+                   daily_interviewer_limit=7)
+        self._login(str(manager.user_id))
+        response = self.client.get(f"/data-management/api/project-sites?project_id={self.PROJECT_ID}")
+        self.assertEqual(response.status_code, 200)
+        rows = response.get_json()["project_sites"]
+        self.assertEqual([r["site_id"] for r in rows], [self.SITE_ID])
+        self.assertEqual(
+            {k: rows[0][k] for k in ("collection_enabled", "collection_start_date",
+                                     "collection_end_date", "daily_interviewer_limit")},
+            {"collection_enabled": False, "collection_start_date": "2026-11-01",
+             "collection_end_date": None, "daily_interviewer_limit": 7},
+        )
+
     def test_only_an_admin_saves_the_site_gate(self):
         self._login(self.interviewer_id)
         response = self._put_site({"collection_enabled": False})

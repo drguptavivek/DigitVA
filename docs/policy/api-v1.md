@@ -29,7 +29,10 @@ on Android and iOS. Built; "State" below records what shipped.
    (owner, 2026-10-05, `digitva-ey38`): `/api/v1/doris-clinical/*` keeps, for
    its own refusals, its nested `{"schema_version": 1, "error": {"code", "message"}}` because that
    shape is tied to the DORIS editor UI and the WHO DORIS clinical model it
-   serialises. Everything else, whatever the blueprint, answers the flat body;
+   serialises. Since 2026-11-25 (`digitva-r8nh.39`) that body also carries
+   a top-level `code`, the same value as `error.code`; status, nested code and
+   message are unchanged, and DORIS clients keep reading the nested body.
+   Everything else, whatever the blueprint, answers the flat body;
    an error with no domain code takes the code of its HTTP status.
 4. **Everything about the user in one call.** The sign-in confirmation
    carries the access summary; `GET /api/v1/me/access` returns the identical

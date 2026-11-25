@@ -33,7 +33,7 @@ def _assert_error(test, response, status, code=None):
 
 class StaticSweepTests(BaseTestCase):
     def test_no_error_dict_without_code_under_routes_api(self):
-        files = [p for p in sorted(API_DIR.rglob("*.py")) if p.name != "doris_clinical.py"]
+        files = sorted(API_DIR.rglob("*.py"))
         self.assertGreater(len(files), 20)  # the sweep found the blueprints
         offenders = []
         for path in files:

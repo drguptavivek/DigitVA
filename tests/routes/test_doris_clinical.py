@@ -268,6 +268,19 @@ class TestDorisProcessProof(BaseTestCase):
         self.assertEqual(response.get_json()["error"]["code"], "MALFORMED_JSON")
         processor.assert_not_called()
 
+    def test_refusal_keeps_nested_body_and_adds_the_same_top_level_code(self):
+        """digitva-r8nh.39 item 9: the code is additive; status, nested code and
+        message are as before."""
+        with self.app.test_request_context(data="not json", content_type="text/plain"):
+            response, status = clinical_process.__wrapped__("SID-1")
+
+        self.assertEqual(status, 400)
+        self.assertEqual(response.get_json(), {
+            "schema_version": 1,
+            "error": {"code": "MALFORMED_JSON", "message": "A JSON process request is required."},
+            "code": "MALFORMED_JSON",
+        })
+
     def test_terms_returns_bounded_plain_normalized_items(self):
         payload = {"schema_version": 1, "query": "diabetes", "limit": 1, "cursor": None}
         upstream = _upstream(

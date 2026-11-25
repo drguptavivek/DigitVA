@@ -110,7 +110,10 @@ def _record_doris_processed(va_sid: str, context: ClinicalDorisContext) -> None:
 
 
 def _error(code: str, message: str, status_code: int, fields: list[dict] | None = None):
-    payload = {"schema_version": 1, "error": {"code": code, "message": message}}
+    # The nested error is what DORIS clients read (api-v1.md rule 3); the
+    # top-level code repeats it, additively, for clients that only read the
+    # flat shape (owner 2026-11-25, digitva-r8nh.39).
+    payload = {"schema_version": 1, "error": {"code": code, "message": message}, "code": code}
     if fields is not None:
         payload["error"]["fields"] = fields
     return jsonify(payload), status_code

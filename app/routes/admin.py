@@ -2152,7 +2152,6 @@ def admin_create_user():
 def admin_update_user(target_user_id):
     if not current_user.is_admin():
         return _json_error("Admin access required.", 403)
-    from app.models.mas_languages import MasLanguages
 
     target_user = db.session.get(VaUsers, target_user_id)
     if not target_user:
@@ -2168,26 +2167,15 @@ def admin_update_user(target_user_id):
         )
 
     if "email" in payload or "email_confirm" in payload:
-        new_email = (payload.get("email") or "").strip().lower()
-        new_email_confirm = (payload.get("email_confirm") or "").strip().lower()
-        if not new_email or not new_email_confirm:
-            return _json_error("email and email_confirm are required.", 400)
-        if new_email != new_email_confirm:
-            return _json_error("Email confirmation does not match.", 400)
-        if new_email != target_user.email:
-            existing = db.session.scalar(
-                sa.select(VaUsers).where(
-                    VaUsers.email == new_email,
-                    VaUsers.user_id != target_user.user_id,
-                )
+        from app.services import user_account_service as accounts
+
+        try:
+            accounts.apply_email_change(
+                target_user, payload.get("email"), payload.get("email_confirm")
             )
-            if existing:
-                return _json_error("Email already in use.", 400)
-            target_user.email = new_email
-            target_user.email_verified = False
-            # A new address must be proved again; old sessions end.
-            target_user.bump_session_version()
-    
+        except accounts.UserAccountError as exc:
+            return _json_error(str(exc), 400)
+
     if "name" in payload:
         name = (payload["name"] or "").strip()
         if not name:
@@ -2226,19 +2214,13 @@ def admin_update_user(target_user_id):
             return _json_error("Invalid status.", 400)
             
     if "languages" in payload:
+        from app.services import user_account_service as accounts
+
         languages = payload.get("languages")
-        if not isinstance(languages, list) or not languages:
-            return _json_error("At least one language must be selected.", 400)
-        valid_codes = set(
-            db.session.scalars(
-                sa.select(MasLanguages.language_code).where(
-                    MasLanguages.is_active == True
-                )
-            ).all()
-        )
-        invalid = [code for code in languages if code not in valid_codes]
-        if invalid:
-            return _json_error(f"Invalid language codes: {invalid}", 400)
+        try:
+            accounts.validate_language_codes(languages)
+        except accounts.UserAccountError as exc:
+            return _json_error(str(exc), 400)
         target_user.vacode_language = languages
         
     from sqlalchemy.exc import IntegrityError

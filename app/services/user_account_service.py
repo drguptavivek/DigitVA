@@ -219,6 +219,52 @@ def clean_job_title(value) -> str | None:
     return title or None
 
 
+def validate_language_codes(languages) -> None:
+    """Raise UserAccountError unless *languages* is a non-empty list of active
+    ``mas_languages`` codes (the admin and data-manager user screens' rule).
+    The coder's own ``/profile/languages`` endpoint has its own messages and
+    limits and does not use this."""
+    from app.models.mas_languages import MasLanguages
+
+    if not isinstance(languages, list) or not languages:
+        raise UserAccountError("At least one language must be selected.")
+    valid_codes = set(
+        db.session.scalars(
+            sa.select(MasLanguages.language_code).where(MasLanguages.is_active == True)  # noqa: E712
+        ).all()
+    )
+    invalid = [code for code in languages if code not in valid_codes]
+    if invalid:
+        raise UserAccountError(f"Invalid language codes: {invalid}")
+
+
+def apply_email_change(user: VaUsers, email_raw, email_confirm_raw) -> bool:
+    """Set *user*'s email from an admin or data-manager edit; True if it changed.
+
+    Both values are trimmed and lower-cased and must match. A new address is
+    marked unverified and ends the account's sessions (it must be proved
+    again); the same address changes nothing. The caller commits and sends the
+    verification email. Raises UserAccountError for a missing or mismatched
+    pair or an address another account holds.
+    """
+    email = (email_raw or "").strip().lower()
+    email_confirm = (email_confirm_raw or "").strip().lower()
+    if not email or not email_confirm:
+        raise UserAccountError("email and email_confirm are required.")
+    if email != email_confirm:
+        raise UserAccountError("Email confirmation does not match.")
+    if email == user.email:
+        return False
+    if db.session.scalar(
+        sa.select(VaUsers).where(VaUsers.email == email, VaUsers.user_id != user.user_id)
+    ):
+        raise UserAccountError("Email already in use.")
+    user.email = email
+    user.email_verified = False
+    user.bump_session_version()
+    return True
+
+
 def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False) -> dict:
     """Return the cleaned email, name, job title, phone, mobile and languages.
 
@@ -230,8 +276,6 @@ def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False)
     confirmation, an unknown language code, an email already in use or a
     mobile number another account holds.
     """
-    from app.models.mas_languages import MasLanguages
-
     email = (payload.get("email") or "").strip().lower()
     email_confirm = (payload.get("email_confirm") or "").strip().lower()
     name = (payload.get("name") or "").strip()
@@ -257,17 +301,7 @@ def validate_new_user_payload(payload: dict, *, allow_mobile_only: bool = False)
             raise UserAccountError("Email confirmation does not match.")
     if len(phone) > 15:
         raise UserAccountError("Phone number is too long.")
-    if not isinstance(languages, list) or not languages:
-        raise UserAccountError("At least one language must be selected.")
-
-    valid_codes = set(
-        db.session.scalars(
-            sa.select(MasLanguages.language_code).where(MasLanguages.is_active == True)  # noqa: E712
-        ).all()
-    )
-    invalid = [code for code in languages if code not in valid_codes]
-    if invalid:
-        raise UserAccountError(f"Invalid language codes: {invalid}")
+    validate_language_codes(languages)
 
     if email and db.session.scalar(sa.select(VaUsers.user_id).where(VaUsers.email == email)):
         raise EmailInUseError("Email already in use.")

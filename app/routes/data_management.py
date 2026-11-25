@@ -1127,41 +1127,21 @@ def manage_update_user(target_user_id):
                 "You may update email only for users created by you who have not signed in yet.",
                 403,
             )
-        email = (email_raw or "").strip().lower()
-        email_confirm = (email_confirm_raw or "").strip().lower()
-        if not email or not email_confirm:
-            return _json_error("email and email_confirm are required.", 400)
-        if email != email_confirm:
-            return _json_error("Email confirmation does not match.", 400)
-        if email != target_user.email:
-            existing = db.session.scalar(
-                sa.select(VaUsers).where(
-                    VaUsers.email == email,
-                    VaUsers.user_id != target_user.user_id,
-                )
-            )
-            if existing:
-                return _json_error("Email already in use.", 400)
-            target_user.email = email
-            target_user.email_verified = False
-            # A new address must be proved again; old sessions end.
-            target_user.bump_session_version()
-            changed_email = True
+        from app.services import user_account_service as accounts
+
+        try:
+            changed_email = accounts.apply_email_change(target_user, email_raw, email_confirm_raw)
+        except accounts.UserAccountError as exc:
+            return _json_error(str(exc), 400)
 
     if languages_requested:
-        from app.models.mas_languages import MasLanguages
+        from app.services import user_account_service as accounts
 
         languages = payload.get("languages")
-        if not isinstance(languages, list) or not languages:
-            return _json_error("At least one language must be selected.", 400)
-        valid_codes = set(
-            db.session.scalars(
-                sa.select(MasLanguages.language_code).where(MasLanguages.is_active == True)
-            ).all()
-        )
-        invalid = [code for code in languages if code not in valid_codes]
-        if invalid:
-            return _json_error(f"Invalid language codes: {invalid}", 400)
+        try:
+            accounts.validate_language_codes(languages)
+        except accounts.UserAccountError as exc:
+            return _json_error(str(exc), 400)
         old_languages = list(target_user.vacode_language or [])
         if old_languages != list(languages):
             target_user.vacode_language = languages

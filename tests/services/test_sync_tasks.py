@@ -52,7 +52,7 @@ class SyncTaskBatchingTests(BaseTestCase):
         }
 
         with patch(
-            "app.tasks.sync_tasks._build_repair_map_for_form",
+            "app.services.odk_repair_helpers._build_repair_map_for_form",
             return_value=(
                 {
                     "sid-1": {

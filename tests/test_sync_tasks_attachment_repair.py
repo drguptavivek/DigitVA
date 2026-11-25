@@ -248,7 +248,7 @@ class SyncTaskAttachmentRepairTests(BaseTestCase):
         )
 
         with patch(
-            "app.tasks.sync_tasks.attachment_state_by_submission",
+            "app.services.odk_repair_helpers.attachment_state_by_submission",
             return_value={
                 va_sid: SubmissionAttachmentState(
                     va_sid=va_sid, retired=False, ready_count=1, unready=(),

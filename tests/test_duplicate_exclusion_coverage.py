@@ -291,7 +291,7 @@ EXEMPT = {
     "services/workflow/transitions.py::_apply_transition": _WRITER,
     "services/workflow/transitions.py::_apply_release_reset_transition": _WRITER,
     "services/workflow/upstream_changes.py::record_protected_upstream_change": _SYNC,
-    "tasks/sync_tasks.py::_refresh_batch_plan_after_enrichment": _SYNC,
+    "services/odk_repair_helpers.py::_refresh_batch_plan_after_enrichment": _SYNC,
     "tasks/sync_tasks.py::refresh_submission_analytics_mv_task": _MV_DDL,
     "utils/va_permission/va_permission_07_ensurenotreviewed.py::va_permission_ensurenotreviewed": _ONE_ROW,
 }

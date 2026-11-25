@@ -35,9 +35,7 @@ from app.services.workflow.transitions import (
     system_actor,
 )
 
-# These two stay in sync_tasks: tests patch names their bodies resolve there
-# (attachment_state_by_submission, _build_repair_map_for_form).
-from app.tasks.sync_tasks import (
+from app.services.odk_repair_helpers import (
     _build_repair_map_for_form,
     _refresh_batch_plan_after_enrichment,
 )

@@ -352,7 +352,7 @@
           {% if not roster_only %}
           <li class="nav-item" role="presentation">
             <button class="nav-link" id="setup-ptab-grants-btn" data-bs-toggle="tab" data-bs-target="#setup-people-pane-grants" type="button" role="tab">
-              <i class="fa-solid fa-key me-1 text-secondary"></i>2. Project and Mentor Grants
+              <i class="fa-solid fa-key me-1 text-secondary"></i>2. Project and Mentor Grants{% if is_org %} <span class="badge text-bg-warning-subtle border border-warning-subtle text-warning-emphasis fw-normal">Legacy</span>{% endif %}
             </button>
           </li>
           <li class="nav-item" role="presentation">
@@ -591,9 +591,30 @@
           {% if not roster_only %}
           {# Sub-Tab 2: Single Access Grants & Project PIs #}
           <div class="tab-pane fade" id="setup-people-pane-grants" role="tabpanel">
+            {% if is_org %}
+            {# Legacy in an organization project (owner 2026-11-25): every grant made here has a
+               home elsewhere, so the panels stay behind a switch, off on each page load. #}
+            <div class="card border-warning-subtle mb-3">
+              <div class="card-body small">
+                <h6 class="card-title"><i class="fa-solid fa-triangle-exclamation me-1 text-warning"></i>Legacy grants screen</h6>
+                <p class="text-muted mb-2">Not needed in an organization project. Enrol health-system staff through
+                  Workers (unit, cadre and default roles), give mentoring-institute members their roles under
+                  Mentoring Scientists, and use the All Users roster for project-wide roles and Project PI.
+                  These panels remain only to look up or revoke older grants.</p>
+                <div class="form-check form-switch mb-0">
+                  <input class="form-check-input" type="checkbox" role="switch" id="setup-legacy-grants-toggle"
+                         aria-controls="setup-legacy-grants" aria-expanded="false"
+                         onchange="document.getElementById('setup-legacy-grants').classList.toggle('d-none', !this.checked); this.setAttribute('aria-expanded', this.checked);">
+                  <label class="form-check-label" for="setup-legacy-grants-toggle">Show legacy Access Grants and Project PI panels</label>
+                </div>
+              </div>
+            </div>
+            <div id="setup-legacy-grants" class="d-none">
+            {% endif %}
             {% include "admin/panels/access_grants.html" %}
             <hr class="my-4">
             {% include "admin/panels/project_pi.html" %}
+            {% if is_org %}</div>{% endif %}
           </div>
 
           {# Sub-Tab 3: Capability Audit Matrix #}

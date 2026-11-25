@@ -29,4 +29,6 @@ class HelpPublicPagesTests(BaseTestCase):
         self.assertIn('href="/help"', html)
 
     def test_live_search_demo_stays_signed_in(self):
-        self.assertEqual(self.client.get("/help/icd-codes/search-demo").status_code, 403)
+        response = self.client.get("/help/icd-codes/search-demo")
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].startswith("/vaauth/valogin"))

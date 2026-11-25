@@ -426,7 +426,10 @@ def icd_codes_search_demo():
     page_info = _PAGES_BY_SLUG["icd-codes"]
     # Signed out: the login redirect (owner 2026-11-25, digitva-r8nh.39).
     # Signed in: the page drives the role-gated search API, so it keeps that
-    # API's roles.
+    # API's roles. effective_roles records the authz decision that
+    # production's consulted-request guard requires now that the page is no
+    # longer on PUBLIC_ENDPOINTS; the check itself is unchanged.
+    effective_roles(current_user)
     if not _user_has_role(current_user, _SEARCH_DEMO_ROLES):
         abort(403)
     return render_template(

@@ -59,13 +59,22 @@ class HelpIcdCodesSearchDemoRouteTests(BaseTestCase):
             )
         db.session.commit()
 
-    def test_anonymous_gets_403(self):
-        # _user_has_role treats an unauthenticated visitor as holding no
-        # roles, so this role-gated page 403s rather than redirecting —
-        # same behaviour as help.page (tests/test_route_auth_coverage.py).
+    def test_anonymous_gets_the_login_redirect(self):
+        # login_required since 2026-11-25 (digitva-r8nh.39): signed out is a
+        # login redirect, not 403.
         response = self.client.get(self.URL)
 
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].startswith("/vaauth/valogin"))
+
+    def test_coder_gets_the_page_with_consulted_authz_enforced(self):
+        # Production refuses a view that never asked authz; the page must
+        # still open for a coder there.
+        self.app.config["AUTHZ_ENFORCE_CONSULTED"] = True
+        self.addCleanup(self.app.config.__setitem__, "AUTHZ_ENFORCE_CONSULTED", False)
+        self._login(self.base_coder_id)
+
+        self.assertEqual(self.client.get(self.URL).status_code, 200)
 
     def test_coder_can_view_the_demo_page(self):
         self._login(self.base_coder_id)

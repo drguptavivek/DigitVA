@@ -3294,6 +3294,13 @@
   "endpoint": "admin.admin_icd_search_vocabulary_set_active",
   "none": "400 application/json code=csrf_failed"
  },
+ "POST /admin/api/icd10/2019-2/apply-overrides": {
+  "bearer": "400 application/json code=csrf_failed",
+  "cookie": "400 application/json code=csrf_failed",
+  "cookie_csrf": "403 application/json code=forbidden",
+  "endpoint": "admin.admin_icd10_2019_2_apply_overrides",
+  "none": "400 application/json code=csrf_failed"
+ },
  "POST /admin/api/icd10/2019-2/policy-import": {
   "bearer": "400 application/json code=csrf_failed",
   "cookie": "400 application/json code=csrf_failed",

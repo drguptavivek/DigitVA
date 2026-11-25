@@ -99,6 +99,9 @@
       <button type="button" class="btn btn-sm btn-outline-secondary" id="icd10-policy-import-btn">
         Import JSON
       </button>
+      <button type="button" class="btn btn-sm btn-outline-warning" id="icd10-apply-overrides-btn">
+        Apply DigitVA overrides
+      </button>
       <a
         class="btn btn-sm btn-outline-secondary"
         href="/admin/api/icd10/2019-2/policy-export"
@@ -1188,6 +1191,31 @@
     }
     return payload;
   }
+
+  async function applyOverrides() {
+    var response = await fetch(apiBase + '/apply-overrides', {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrf(),
+      },
+    });
+    var payload = await response.json().catch(function () { return {}; });
+    if (!response.ok) {
+      throw new Error(payload.error || 'Applying DigitVA overrides failed.');
+    }
+    return payload;
+  }
+
+  function downloadOverridesReceipt(changed) {
+    var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..*$/, '');
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(changed, null, 2)], { type: 'application/json' }));
+    link.download = 'icd10_allowability_overrides_receipt_' + stamp + '.json';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  }
   {% endif %}
 
   function resetBrowser() {
@@ -1427,6 +1455,30 @@
       .catch(function (error) {
         showStatus(error.message, 'danger');
         event.target.value = '';
+      });
+  });
+
+  panel.querySelector('#icd10-apply-overrides-btn').addEventListener('click', function () {
+    if (!window.confirm(
+      'Re-apply the owner\'s DigitVA allowability decisions on top of the current policy? ' +
+      'This changes ICD-10 coding selectability in every project, and a per-code edit to a ' +
+      'listed code is overwritten. A receipt of the changed rows is downloaded.'
+    )) return;
+    clearStatus();
+    applyOverrides()
+      .then(function (payload) {
+        var counts = payload.counts || {};
+        var message = 'DigitVA overrides applied: ' + counts.rows_changed + ' rows changed (' +
+          counts.fields_changed + ' fields).';
+        if ((payload.missing || []).length) {
+          message += ' No catalogue row for: ' + payload.missing.join(', ') + '.';
+        }
+        showStatus(message, 'success');
+        downloadOverridesReceipt(payload.changed || []);
+        return refreshVisibleLevelsForFilters();
+      })
+      .catch(function (error) {
+        showStatus(error.message, 'danger');
       });
   });
 

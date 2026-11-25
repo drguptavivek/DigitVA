@@ -246,6 +246,47 @@ override the dotted `K70.2`, `K70.3`, `K71.7` codes already carved out to
 `K70`/`K71` range and win the conflict. The same rule applies to any future
 range expansion that overlaps an existing dotted-code exception.
 
+## DigitVA allowability overrides layer
+
+Owner decision 2026-11-25 (`digitva-ghqe`). This mirrors the COD bucket
+"WHO baseline and DigitVA overrides" design
+(`docs/policy/icd11-cod-bucket-schemes.md`).
+
+- **The released policy JSON is the baseline.** Importing
+  `who-2022-va-icd-cod-2026-revision/who_2022_icd10_2019_2_policy_reviewed.json`
+  (admin Policy import or `flask icd10 policy-import`) gives that baseline
+  and nothing more. It is never edited.
+- **DigitVA's own decisions are a separate layer** in
+  `WHO_2022_VA_2026_icd10_allowability_overrides.csv`, in the same folder.
+  Each row names a code or a three-character family, the fields it sets,
+  the decision, its date and its bead. The layer holds every allowability
+  decision made after the released JSON:
+  - `Q00`-`Q99` at all ages (2026-09-24)
+  - `V01`-`V89` and `Y85` not selectable at three characters (decision 15,
+    2026-09-25)
+  - `R00`-`R94` withdrawn except `R50` and `R54` (2026-11-25,
+    `digitva-82l9`)
+
+  A new decision adds a row here as well as its migration. Tests keep the
+  CSV equal to the migrations' embedded lists.
+- **Applying the layer.** Admins use "Apply DigitVA overrides" in the
+  ICD-10 browser, or run `flask icd10 apply-overrides`. Each run:
+  - sets the listed fields on the matching rows, and only where they
+    differ, so a second run changes nothing
+  - commits in one transaction
+  - returns every row it changed with its previous values; the admin page
+    downloads that as a receipt, and no submission data is touched
+- **Import then apply** gives the state the migrations produced. A policy
+  import does not apply the layer by itself, just as a bucket reset does
+  not.
+- **The layer sets its values unconditionally.** The migrations only moved
+  rows still holding the released value. Apply sets every listed field
+  that differs, whatever its current value. On an unedited baseline the two
+  give the same result.
+- **Per-code edits.** A later per-code admin edit to a code the layer lists
+  is overwritten the next time the layer is applied. To keep such an edit,
+  record it in the CSV.
+
 ## Carried-forward overrides in WHO_2022_VA_2026
 
 The `WHO_2022_VA_2026` COD bucket scheme carries forward 33 manual bucket

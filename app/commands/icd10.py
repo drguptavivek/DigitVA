@@ -2,6 +2,8 @@ import click
 
 from app.services.icd10_2019_2_service import (
     DEFAULT_ICD10_2019_2_CSV_PATH,
+    DEFAULT_ICD10_ALLOWABILITY_OVERRIDES_PATH,
+    apply_icd10_2019_2_allowability_overrides,
     get_icd10_2019_2_stats,
     import_icd10_2019_2_from_csv,
     import_icd10_2019_2_policy_json,
@@ -68,6 +70,21 @@ def policy_import(path: str) -> None:
     )
     for skipped in result.skipped_items:
         click.echo(f"  skipped: {skipped}")
+
+
+@icd10_group.command("apply-overrides")
+@click.option("--path", default=str(DEFAULT_ICD10_ALLOWABILITY_OVERRIDES_PATH), show_default=True)
+def apply_overrides(path: str) -> None:
+    """Re-apply DigitVA's allowability decisions on top of the imported policy.
+
+    Global, like policy-import: it changes coding selectability in every project.
+    """
+    result = apply_icd10_2019_2_allowability_overrides(path)
+    click.echo(" ".join(f"{key}={value}" for key, value in result.counts.items()))
+    for item in result.changed:
+        click.echo(f"  {item['code']} {item['field']}: {item['before']} -> {item['after']}")
+    for code in result.missing:
+        click.echo(f"  missing: {code}")
 
 
 def init_app(app):

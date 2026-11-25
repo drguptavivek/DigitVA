@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import csv
 import json
+import logging
 import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -39,14 +41,21 @@ from app.services.icd_search_vocabulary_service import (
 DEFAULT_ICD10_2019_2_CSV_PATH = Path(
     "docs/icd-causegrp-mappings/generated/icd10_2019_hierarchy.csv"
 )
+DEFAULT_ICD10_ALLOWABILITY_OVERRIDES_PATH = Path(
+    "docs/icd-causegrp-mappings/migration-artifacts/who-2022-va-icd-cod-2026-revision/"
+    "WHO_2022_VA_2026_icd10_allowability_overrides.csv"
+)
 SOURCE_VERSION = "ICD-10-2019"
 SEX_SELECTABLE_OPTIONS = ("both", "female", "male")
 AGE_GROUP_SELECTABLE_OPTIONS = ("all", "neonate", "infant", "neonate_infant", "child", "adult")
+_OVERRIDE_FIELDS = ("is_coding_selectable", "sex_selectable", "age_group_selectable")
 POLICY_EDITABLE_LEVELS = frozenset({"three_character", "detailed_code"})
 
 _THREE_CHARACTER_STUZ_EXCEPTION_RE = re.compile(r"^[STUZ]\d{2}$")
 _CODING_ICD_MIN_QUERY_LEN = 2
 _CODING_ICD_MAX_RESULTS = 30
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -1353,3 +1362,105 @@ def import_icd10_2019_2_policy_json(payload: str | bytes | dict) -> Icd1020192Po
         reset_items=reset_items,
         skipped_items=skipped_items,
     )
+
+
+@dataclass(frozen=True)
+class Icd1020192OverridesResult:
+    changed: list[dict]
+    missing: list[str]
+    counts: dict[str, int]
+
+
+def _read_allowability_overrides(path: Path) -> list[dict]:
+    """Parse and validate the overrides CSV; ValueError names the offending row."""
+    with open(path, newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    parsed = []
+    for number, raw in enumerate(rows, start=2):
+        where = f"{path.name} line {number}"
+        match = (raw.get("match") or "").strip()
+        code = (raw.get("code") or "").strip()
+        if match not in ("code", "family"):
+            raise ValueError(f"{where}: unknown match type {match!r}.")
+        if not code:
+            raise ValueError(f"{where}: missing code.")
+        try:
+            values = {
+                "is_coding_selectable": _parse_bool(raw.get("is_coding_selectable") or ""),
+                "sex_selectable": _optional_text(raw.get("sex_selectable") or ""),
+                "age_group_selectable": _optional_text(raw.get("age_group_selectable") or ""),
+            }
+        except ValueError as exc:
+            raise ValueError(f"{where} ({code}): {exc}") from exc
+        if values["sex_selectable"] not in (None, *SEX_SELECTABLE_OPTIONS):
+            raise ValueError(f"{where} ({code}): invalid sex_selectable {values['sex_selectable']!r}.")
+        if values["age_group_selectable"] not in (None, *AGE_GROUP_SELECTABLE_OPTIONS):
+            raise ValueError(
+                f"{where} ({code}): invalid age_group_selectable {values['age_group_selectable']!r}."
+            )
+        parsed.append({"match": match, "code": code, **values})
+    return parsed
+
+
+def apply_icd10_2019_2_allowability_overrides(
+    path: Path | str = DEFAULT_ICD10_ALLOWABILITY_OVERRIDES_PATH,
+) -> Icd1020192OverridesResult:
+    """Re-apply DigitVA's allowability decisions on top of the imported policy.
+
+    Sets only the non-blank fields a row lists, only where the stored value
+    differs, so a rerun changes nothing. One transaction. Returns every
+    changed field with its previous value, and the codes/families that match
+    no catalogue row. A malformed CSV raises ValueError before any write.
+    """
+    overrides = _read_allowability_overrides(Path(path))
+    exact = [o["code"] for o in overrides if o["match"] == "code"]
+    families = [o["code"] for o in overrides if o["match"] == "family"]
+    try:
+        rows = db.session.scalars(
+            sa.select(MasIcd1020192).where(
+                sa.or_(
+                    MasIcd1020192.code.in_(exact),
+                    MasIcd1020192.three_character_code.in_(families),
+                )
+            )
+        ).all()
+        by_code = {row.code: row for row in rows}
+        by_family: dict[str, list[MasIcd1020192]] = {}
+        for row in rows:
+            by_family.setdefault(row.three_character_code, []).append(row)
+
+        changed: list[dict] = []
+        missing: list[str] = []
+        now = datetime.now(UTC)
+        touched: set[str] = set()
+        for override in overrides:
+            if override["match"] == "code":
+                targets = [by_code[override["code"]]] if override["code"] in by_code else []
+            else:
+                targets = by_family.get(override["code"], [])
+            if not targets:
+                missing.append(override["code"])
+                continue
+            for row in targets:
+                for field in _OVERRIDE_FIELDS:
+                    after = override[field]
+                    before = getattr(row, field)
+                    if after is None or before == after:
+                        continue
+                    setattr(row, field, after)
+                    touched.add(row.code)
+                    changed.append({"code": row.code, "field": field, "before": before, "after": after})
+                if row.code in touched:
+                    row.updated_at = now
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    counts = {
+        "overrides": len(overrides),
+        "rows_changed": len(touched),
+        "fields_changed": len(changed),
+        "missing": len(missing),
+    }
+    log.info("ICD-10 allowability overrides applied: %s", counts)
+    return Icd1020192OverridesResult(changed=changed, missing=missing, counts=counts)

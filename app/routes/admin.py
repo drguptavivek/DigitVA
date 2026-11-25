@@ -74,6 +74,7 @@ from app.services.cod_bucket_mapping_service import (
 )
 from app.services.icd_coding_value import PROJECT_ICD_CLASSIFICATIONS
 from app.services.icd10_2019_2_service import (
+    apply_icd10_2019_2_allowability_overrides,
     export_icd10_2019_2_policy_json,
     export_icd10_2019_2_policy_xlsx,
     get_icd10_2019_2_node_details,
@@ -3163,6 +3164,23 @@ def admin_icd10_2019_2_policy_import():
             "reset_items": result.reset_items,
             "skipped_items": result.skipped_items,
             "failed_codes": result.skipped_items,
+        }
+    )
+
+
+@admin.post("/api/icd10/2019-2/apply-overrides")
+@role_required("admin")
+def admin_icd10_2019_2_apply_overrides():
+    try:
+        result = apply_icd10_2019_2_allowability_overrides()
+    except (ValueError, OSError) as exc:
+        return _json_error(str(exc), 400)
+    return jsonify(
+        {
+            "message": "DigitVA allowability overrides applied.",
+            "changed": result.changed,
+            "counts": result.counts,
+            "missing": result.missing,
         }
     )
 

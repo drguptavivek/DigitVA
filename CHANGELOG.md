@@ -5,6 +5,25 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- ICD-10 allowability overrides layer (owner 2026-11-25, `digitva-ghqe`):
+  "Apply DigitVA overrides" in the admin ICD-10 browser and
+  `flask icd10 apply-overrides` re-apply the owner's selectability
+  decisions on top of a policy import:
+  - `Q00`-`Q99` at all ages
+  - decision 15's `V01`-`V89` and `Y85` not selectable at three characters
+  - `R00`-`R94` withdrawn except `R50` and `R54`
+
+  The decisions live in
+  `WHO_2022_VA_2026_icd10_allowability_overrides.csv` (260 rows), next to
+  the released policy JSON, which stays untouched. A test keeps the CSV
+  equal to the three migrations' lists. Applying is idempotent, commits in
+  one transaction, and returns every changed row with its previous values;
+  the page downloads that as a receipt. Rule in
+  `docs/policy/who-2022-icd10-coding-allowability.md` ("DigitVA
+  allowability overrides layer"). Checked on dev in the browser: with R10
+  and R17 turned back on, apply turned them off and reported 2 rows
+  changed.
+
 - Every route's auth outcome is pinned before the request-principal refactor
   (`r8nh.6` step 1, owner 2026-11-25: matrix first, then review): 725
   method/rule keys x device bearer, cookie, cookie+CSRF and none, with admin

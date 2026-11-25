@@ -115,6 +115,8 @@ class NodeVaCodeTests(BaseTestCase):
         db.session.flush()
         self.assertIsNone(node.va_code)
         self.assertEqual(svc.find_va_definition_for_icd("A04")["va_code"], "VAs-01.04")
+        self.assertEqual(node.disease_default_va_code, "VAs-01.04")
+        self.assertIsNone(self._node("WHO_2022_VA", "other_gastrointestinal_diseases").disease_default_va_code)
 
     def test_refusals(self):
         node = self._node("WHO_2022_VA", "other_gastrointestinal_diseases")

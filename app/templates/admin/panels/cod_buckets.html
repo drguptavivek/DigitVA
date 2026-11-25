@@ -1781,7 +1781,16 @@
     loadVaDefinitions().then(definitions => {
       if (els.nodeEditId.value !== node.node_id) return;
       const current = node.va_code || '';
-      const options = [new Option('No explicit code (use the default)', '')];
+      // The empty value stores no explicit code; its label names the code the
+      // bucket then falls back to (derived from its node_code).
+      const fallback = node.default_va_code;
+      const fallbackRow = fallback ? definitions.find(row => row.va_code === fallback) : null;
+      const defaultLabel = !fallback
+        ? 'Default: no VA code'
+        : fallbackRow
+          ? `Default: ${fallback} — ${fallbackRow.title}`
+          : `Default: ${fallback} (not an active VA definition)`;
+      const options = [new Option(defaultLabel, '')];
       definitions.forEach(row => options.push(new Option(`${row.va_code} \u2014 ${row.title}`, row.va_code)));
       if (current && !definitions.some(row => row.va_code === current)) {
         options.push(new Option(`${current} (not an active VA definition)`, current));

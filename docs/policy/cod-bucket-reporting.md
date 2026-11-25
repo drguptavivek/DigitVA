@@ -304,7 +304,9 @@ Owner decision 2026-11-25 (digitva-0o3z).
 - Admins set or clear it in the COD bucket editor (`/admin/panels/cod-buckets`,
   Edit Disease). The dropdown lists the active VA Definitions
   (`mas_va_cause_definitions`) as `VAs-01.09 — Pulmonary tuberculosis`; its
-  first option clears the explicit code and falls back to the derived one.
+  first option clears the explicit code and is labelled with the code the
+  bucket then falls back to (`Default: VAs-01.10 — Pertussis`, or
+  `Default: no VA code`).
 - A code must look like `VAs-NN.NN` or `VAs-99`, be an active VA definition,
   and sit on a disease bucket. No two buckets in the same scheme and age scope
   may share an effective code, so a set (or a clear whose derived code is

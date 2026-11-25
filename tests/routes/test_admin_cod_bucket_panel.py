@@ -1295,6 +1295,9 @@ class AdminCodBucketPanelTests(BaseTestCase):
         editor = self.client.get(f"/admin/api/cod-bucket-schemes/{fixture['scheme_code']}?age_scope=adult_over5y")
         field_a = next(n for n in editor.get_json()["nodes"] if n["node_id"] == str(fixture["field_a_id"]))
         self.assertEqual((field_a["va_code"], field_a["effective_va_code"]), ("VAs-12.01", "VAs-12.01"))
+        # "pedestrian" derives no code, so the dropdown's default option names none.
+        self.assertIn("default_va_code", field_a)
+        self.assertIsNone(field_a["default_va_code"])
 
         duplicate = self.client.patch(
             f"{url}/{fixture['field_b_id']}",

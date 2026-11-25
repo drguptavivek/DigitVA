@@ -198,6 +198,14 @@ class MasCodBucketNode(db.Model):
             return None
         return effective_va_code(self.node_code, self.va_code)
 
+    @property
+    def disease_default_va_code(self) -> str | None:
+        """The code a disease node falls back to without an explicit va_code
+        (derived from node_code); None for a group or a non-``vas_*`` node."""
+        if self.node_type != "field":
+            return None
+        return derived_va_code(self.node_code)
+
     def __repr__(self) -> str:
         return f"<MasCodBucketNode {self.node_type}:{self.node_code}>"
 

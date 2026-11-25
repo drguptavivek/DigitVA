@@ -2326,6 +2326,7 @@ def get_cod_bucket_scheme_editor_payload(
                 "node_label": node.node_label,
                 "va_code": node.va_code,
                 "effective_va_code": node.disease_va_code,
+                "default_va_code": node.disease_default_va_code,
                 "sort_order": node.sort_order,
                 "parent_node_id": str(node.parent_node_id) if node.parent_node_id else None,
                 "path_label": _node_path_label(node),

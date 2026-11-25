@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- COD bucket editor's VA code dropdown names the default code (owner
+  2026-11-25, `digitva-dvba`). The first option of Edit Disease read "No
+  explicit code (use the default)"; it now reads the code the bucket falls
+  back to, e.g. "Default: VAs-01.10 — Pertussis", or "Default: no VA code".
+  Choosing it still stores no explicit code, so saving never pins the
+  derived code. The editor payload gains `default_va_code`. No route and no
+  migration.
 - COD bucket editor shows the selected disease's VA case definition (owner
   2026-11-25, `digitva-2q9z`). Selecting a disease bucket shows a card
   below the editor with its effective VA code, title and WHO case

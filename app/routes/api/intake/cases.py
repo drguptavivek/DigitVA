@@ -114,7 +114,7 @@ def _identifier_reply(death, warnings):
     manager) or as admin gets the supervisor row (``_supervisor_reply``: no
     informant name, phones or address, no links, no prefill) with its
     ``identifiers``, ``can_edit_identifiers`` and ``updated_at``."""
-    if intake_svc.interviewer_reaches(current_user, death) or intake_svc._reporter_reaches(current_user, death):
+    if intake_svc.interviewer_reaches(current_user, death) or intake_svc.reporter_reaches(current_user, death):
         return _case_reply(death, warnings=warnings)
     body = {"case": _pkg()._supervised_body(*intake_svc.supervised_case_row(death))}
     if warnings:

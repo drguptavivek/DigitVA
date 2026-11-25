@@ -1656,3 +1656,66 @@ class ConsentApiTests(BaseTestCase):
         self.assertEqual(set(corrected.get_json()),
                          {"va_sid", "draft", "superseded", "validation_err", "kept", "locked", "can_code_now"})
         self.assertEqual(corrected.get_json()["va_sid"], submitted.get_json()["va_sid"])
+
+    # ── characterization: the browser save and submit pre-steps (r8nh.9 slice 2) ──
+    # Pinned before the pre-steps moved into intake_svc.prepare_browser_save /
+    # prepare_browser_submit: each refusal's exact reply, which check wins, and
+    # what is left stored.
+
+    def _patch_draft(self, draft_id, body):
+        return self.client.patch(f"{INTAKE}/drafts/{draft_id}", headers=self._csrf_headers(), json=body)
+
+    def test_char_save_draft_unanchored_writes_are_draft_stale(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        self._exact(self._patch_draft(draft_id, {"sections": {"main": {"Id10017": "Bina"}}, "resume_refused": True}),
+                    409, "Reload the draft before changing the refusal decision.", "draft_stale")
+        replaced = self._patch_draft(draft_id, {"sections": {"main": {"Id10017": "Bina"}}, "overwrite": True})
+        body = replaced.get_json()
+        self.assertEqual(replaced.status_code, 409, body)
+        self.assertEqual(set(body), {"error", "code", "updated_at", "last_change"})
+        self.assertEqual((body["error"], body["code"]),
+                         ("Reload the draft before replacing it with your answers.", "draft_stale"))
+        self.assertEqual(self._saved_answers(draft_id), {})
+
+    def test_char_save_draft_stale_wins_over_too_many_sections(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        sections = {f"s{i}": {"Id10017": "Bina"} for i in range(129)}
+        stale = self._patch_draft(draft_id, {"sections": sections, "if_updated_at": "2020-01-01T00:00:00+00:00"})
+        self.assertEqual(stale.status_code, 409, stale.get_json())
+        self.assertEqual(set(stale.get_json()), {"error", "code", "updated_at", "last_change"})
+        self.assertEqual(stale.get_json()["code"], "draft_stale")
+        self._exact(self._patch_draft(draft_id, {"sections": sections}), 422,
+                    "Too many draft sections.", "invalid_interview")
+        self.assertEqual(self._saved_answers(draft_id), {})
+
+    def test_char_save_draft_an_empty_later_section_does_not_unlock_a_covered_answer(self):
+        draft_id = self._direct_draft()
+        saved = self._patch_draft(draft_id, {"sections": {"main": {"Id10007": "Ram", "Id10017": "Bina"},
+                                                          "other": {"Id10007": ""}}})
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        answers = self._saved_answers(draft_id)
+        self.assertEqual(answers.get("Id10017"), "Bina")  # present: the rest is kept
+        self.assertNotIn("Id10007", answers)
+
+    def test_char_submit_draft_covered_answers_without_a_consent(self):
+        draft_id = self._direct_draft()
+        response = self._submit(draft_id, _answers(Id10007="Ram"))
+        self.assertEqual((response.status_code, response.get_json()["code"]), (422, "consent_required"),
+                         response.get_json())
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        db.session.refresh(draft)
+        self.assertEqual((draft.status, draft.va_sid), ("draft", None))
+
+    def test_char_submit_draft_stale_tab(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        stale = self.client.post(f"{INTAKE}/drafts/{draft_id}/submit", headers=self._csrf_headers(), json={
+            "completion": {"valid": True, "issues": [], "data": _answers()},
+            "if_updated_at": "2020-01-01T00:00:00+00:00"})
+        body = stale.get_json()
+        self.assertEqual(stale.status_code, 409, body)
+        self.assertEqual(set(body), {"error", "code", "updated_at", "last_change"})
+        self.assertEqual(body["code"], "draft_stale")
+        self.assertIn("also edited on another device", body["error"])
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        db.session.refresh(draft)
+        self.assertEqual((draft.status, draft.va_sid), ("draft", None))

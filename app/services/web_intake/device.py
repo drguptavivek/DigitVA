@@ -42,6 +42,7 @@ from app.services.web_intake.drafts import (
     _answers_of,
     _locked_answers,
     _prefill_from_death,
+    answers_of,
     check_definition_identity,
     check_device_answers,
     check_refusal_resume,
@@ -503,6 +504,77 @@ def prepare_browser_overwrite(draft: VaWebIntakeDraft, sections: dict) -> dict:
             "receivedAt": facade()._utcnow().isoformat(), "overwrittenBy": "web",
         })
     return {**{row.section_name: {} for row in draft.sections}, **sections}
+
+
+def prepare_browser_save(draft: VaWebIntakeDraft, sections: dict, *, base_updated_at: object,
+                         resume_refused: bool) -> dict:
+    """The browser autosave's pre-step (``PATCH /drafts/<id>``), on the draft
+    ``lock_draft_for_browser_write`` returned and after the route's stale
+    checks: returns *sections* without the covered answers no consent on file
+    takes (``strip_unconsented_answers``, judged on every section's answers,
+    an empty later value never hiding a filled earlier one), then applies the
+    refusal rules to the draft's answers with these merged in: a teammate's
+    case refusal hold, the WHO refusal-hold release and the refusal resume.
+    *base_updated_at* is the body's ``if_updated_at``.
+    Raises WebIntakeError: 422 ``invalid_interview`` (over 128 sections), 409
+    ``consent_refused`` (another interview holds the case), 409
+    ``refusal_stale``."""
+    from app.services import consent_service  # local: consent_service imports this module
+    from app.services.interview_intake_gate import check_refusal_transition
+
+    if len(sections) > 128:
+        raise WebIntakeError("Too many draft sections.", 422, "invalid_interview")
+    death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
+    combined = {}
+    for answers in sections.values():
+        if isinstance(answers, dict):
+            for name, value in answers.items():
+                if name not in combined or consent_service.filled(value):
+                    combined[name] = value
+    allowed, _ = consent_service.strip_unconsented_answers(
+        project_id=draft.project_id, death=death, client_draft_id=draft.client_draft_id, answers=combined,
+    )
+    sections = {
+        name: {key: value for key, value in answers.items() if key in allowed}
+        if isinstance(answers, dict) else answers
+        for name, answers in sections.items()
+    }
+    combined = answers_of(draft)
+    for answers in sections.values():
+        if isinstance(answers, dict):
+            combined.update(answers)
+    if death is not None and consent_service.case_refusal_hold(death) and not (draft.meta or {}).get("caseRefusalHold"):
+        raise WebIntakeError("Another interview holds this case after a refusal.", 409, "consent_refused")
+    released = release_who_refusal_hold(
+        draft, answers=combined, base_updated_at=base_updated_at, resume_refused=resume_refused,
+    )
+    if not check_refusal_transition(death_id=draft.death_id, client_draft_id=draft.client_draft_id,
+                                    answers=combined):
+        if not released:
+            check_refusal_resume(draft, base_updated_at=base_updated_at, resume_refused=resume_refused)
+    return sections
+
+
+def prepare_browser_submit(user: VaUsers, draft: VaWebIntakeDraft, completion: object) -> None:
+    """The browser submit's pre-step (``POST /drafts/<id>/submit``), before
+    the route decides between a first submit and a correction: when
+    *completion* carries answers, every branch stores them, so the consent on
+    file must cover them (``apply_interview_consent``; the browser cannot take
+    a consent yet, digitva-athy) and a refusal must carry no interview
+    answers (``check_refusal_answers``). Raises ConsentError."""
+    from app.services import consent_service  # local: consent_service imports this module
+    from app.services.interview_intake_gate import check_refusal_transition
+
+    if not (isinstance(completion, dict) and isinstance(completion.get("data"), dict)):
+        return
+    consent_service.apply_interview_consent(
+        user, project_id=draft.project_id,
+        death=db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None,
+        client_draft_id=draft.client_draft_id, consent=None, answers=completion["data"], channel="web",
+    )
+    if check_refusal_transition(death_id=draft.death_id, client_draft_id=draft.client_draft_id,
+                                answers=completion["data"]):
+        consent_service.check_refusal_answers(completion["data"])
 
 
 def _sync_reply(draft: VaWebIntakeDraft, kept: str, conflict: bool) -> dict:

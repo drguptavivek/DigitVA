@@ -80,8 +80,11 @@ def _register_values(death: VaDeathRegister, register: dict | None, only) -> dic
     return register if register is not None else register_pii_accessor.current_values(death, only)
 
 
-def _without_location(names=register_pii_accessor.SEALED_ATTRS) -> tuple:
+def without_location(names=register_pii_accessor.SEALED_ATTRS) -> tuple:
     return tuple(n for n in names if n not in LOCATION_FIELDS)
+
+
+_without_location = without_location  # the earlier name: this module and tests still use it
 
 
 def serialize_death(death: VaDeathRegister, *, show_gps: bool = False, register: dict | None = None) -> dict:

@@ -499,7 +499,7 @@ def get_draft(user: VaUsers, draft_id: object, *, require_open: bool = False) ->
     return draft
 
 
-def _answers_of(draft: VaWebIntakeDraft) -> dict:
+def answers_of(draft: VaWebIntakeDraft) -> dict:
     """The draft's answers: the ``final`` section alone once the draft is
     closed (a submitted or superseded draft keeps its complete final answers
     there), else the per-section saves merged."""
@@ -509,6 +509,9 @@ def _answers_of(draft: VaWebIntakeDraft) -> dict:
             return dict(section.data or {})
         data.update(section.data or {})
     return data
+
+
+_answers_of = answers_of  # the earlier name: this package and tests still use it
 
 
 def load_draft_envelope(draft: VaWebIntakeDraft) -> dict:

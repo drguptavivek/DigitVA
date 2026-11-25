@@ -144,7 +144,7 @@ def list_deaths():
     # A fix the viewer may not see is never opened (no coordinates decrypted).
     opened = register_pii_accessor.open_register_pii([d for d in deaths if gps[d.death_id]])
     opened |= register_pii_accessor.open_register_pii(
-        [d for d in deaths if not gps[d.death_id]], only=intake_svc._without_location())
+        [d for d in deaths if not gps[d.death_id]], only=intake_svc.without_location())
     return jsonify({"deaths": [
         dict(intake_svc.serialize_death(d, show_gps=gps[d.death_id], register=opened[d.death_id]),
              identifiers=identifiers[d.death_id], can_edit_identifiers=editable[d.death_id])

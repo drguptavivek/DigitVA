@@ -376,7 +376,7 @@ def get_death(user: VaUsers, death_id: object, *, entries: list[dict] | None = N
     return death
 
 
-def _reporter_reaches(user: VaUsers, death: VaDeathRegister) -> bool:
+def reporter_reaches(user: VaUsers, death: VaDeathRegister) -> bool:
     """Whether *death* is one *user* registered and a death_reporter grant of
     theirs still reaches (project, site and unit): the reporter's whole
     claim on a case. An interviewer's reach is ``get_death``'s, separate on
@@ -388,6 +388,9 @@ def _reporter_reaches(user: VaUsers, death: VaDeathRegister) -> bool:
     except WebIntakeError:
         return False
     return True
+
+
+_reporter_reaches = reporter_reaches  # the earlier name: this package and tests still use it
 
 
 def interviewer_reaches(user: VaUsers, death: VaDeathRegister) -> bool:

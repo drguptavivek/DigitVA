@@ -9,7 +9,6 @@ from werkzeug.exceptions import HTTPException
 from app import db, limiter, talisman
 from app.decorators import role_required
 from app.models import (
-    VaDeathRegister,
     VaSubmissionPayloadVersion,
     VaSubmissions,
 )
@@ -21,7 +20,6 @@ from app.routes.api.request_helpers import (
     request_project_id,
 )
 from app.services import attachment_service, training_scope
-from app.services import consent_service as consent_svc
 from app.services import intake_revision_access as revision_access
 from app.services import web_intake_attachment_service as attachments_svc
 from app.services import web_intake_service as intake_svc
@@ -127,39 +125,9 @@ def save_draft(draft_id):
                        **_stale_extra(draft))
     sections = p.get("sections") or {}
     if isinstance(sections, dict):
-        if len(sections) > 128:
-            raise intake_svc.WebIntakeError("Too many draft sections.", 422, "invalid_interview")
-        death = db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None
-        combined = {}
-        for answers in sections.values():
-            if isinstance(answers, dict):
-                for name, value in answers.items():
-                    if name not in combined or consent_svc._filled(value):
-                        combined[name] = value
-        allowed, _ = consent_svc.strip_unconsented_answers(
-            project_id=draft.project_id, death=death, client_draft_id=draft.client_draft_id, answers=combined,
+        sections = intake_svc.prepare_browser_save(
+            draft, sections, base_updated_at=p.get("if_updated_at"), resume_refused=p.get("resume_refused") is True,
         )
-        sections = {
-            name: {key: value for key, value in answers.items() if key in allowed}
-            if isinstance(answers, dict) else answers
-            for name, answers in sections.items()
-        }
-        combined = intake_svc._answers_of(draft)
-        for answers in sections.values():
-            if isinstance(answers, dict):
-                combined.update(answers)
-        if death is not None and consent_svc.case_refusal_hold(death) and not (draft.meta or {}).get("caseRefusalHold"):
-            raise intake_svc.WebIntakeError("Another interview holds this case after a refusal.", 409, "consent_refused")
-        released = intake_svc.release_who_refusal_hold(
-            draft, answers=combined, base_updated_at=p.get("if_updated_at"),
-            resume_refused=p.get("resume_refused") is True,
-        )
-        if not check_refusal_transition(death_id=draft.death_id, client_draft_id=draft.client_draft_id,
-                                        answers=combined):
-            if not released:
-                intake_svc.check_refusal_resume(
-                    draft, base_updated_at=p.get("if_updated_at"), resume_refused=p.get("resume_refused") is True,
-                )
         if overwrite:
             log.info("intake draft overwritten by the browser | draft=%s | user=%s | replaced_version_kept=%s",
                      draft.draft_id, current_user.user_id, bool(draft.sections))
@@ -341,17 +309,7 @@ def submit_draft(draft_id):
     p = parse_body()
     draft = intake_svc.get_draft(current_user, draft_id)
     completion = p.get("completion")
-    if isinstance(completion, dict) and isinstance(completion.get("data"), dict):
-        # Every branch below stores these answers; the browser cannot take a
-        # consent yet (digitva-athy), so only one on file can cover them.
-        consent_svc.apply_interview_consent(
-            current_user, project_id=draft.project_id,
-            death=db.session.get(VaDeathRegister, draft.death_id) if draft.death_id else None,
-            client_draft_id=draft.client_draft_id, consent=None, answers=completion["data"], channel="web",
-        )
-        if check_refusal_transition(death_id=draft.death_id, client_draft_id=draft.client_draft_id,
-                                    answers=completion["data"]):
-            consent_svc.check_refusal_answers(completion["data"])
+    intake_svc.prepare_browser_submit(current_user, draft, completion)
     if draft.status == "submitted":
         if (draft.meta or {}).get("interviewOutcome") == "refused":
             return _refuse("A submitted refusal cannot be changed here.", "consent_refused", 422)
@@ -372,7 +330,7 @@ def submit_draft(draft_id):
             intake_svc.check_refusal_resume(
                 draft, base_updated_at=p.get("if_updated_at"), resume_refused=p.get("resume_refused") is True,
             )
-    if (str(intake_svc._answers_of(draft).get("Id10013") or "").lower() == "no"
+    if (str(intake_svc.answers_of(draft).get("Id10013") or "").lower() == "no"
             and isinstance(completion, dict) and isinstance(completion.get("data"), dict)
             and str(completion["data"].get("Id10013") or "").lower() != "no"):
         return _refuse("Record the new consent decision before resuming the interview.", "consent_refused", 422)

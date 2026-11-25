@@ -444,12 +444,16 @@ def _standalone_version(user, project_id: str, language: str, text: str, text_sh
 # ---------------------------------------------------------------------------
 
 
-def _filled(value: object) -> bool:
+def filled(value: object) -> bool:
     if value is None:
         return False
     if isinstance(value, (list, dict)):
         return bool(value)
     return bool(str(value).strip())
+
+
+# The earlier name, kept for this module: ``gate`` has a local named ``filled``.
+_filled = filled
 
 
 def has_covered_data(values: dict, covered_fields) -> bool:

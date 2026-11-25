@@ -164,6 +164,8 @@ from app.services.web_intake.device import (
     is_attachment_draft,
     lock_draft_for_browser_write,
     prepare_browser_overwrite,
+    prepare_browser_save,
+    prepare_browser_submit,
     resubmit_browser_draft,
     resubmit_device_interview,
     serialize_device_upload,
@@ -216,6 +218,7 @@ from app.services.web_intake.drafts import (
     _prefill_from_death,
     _sync_case_identity,
     _who_place_of_death,
+    answers_of,
     check_definition_identity,
     check_device_answers,
     check_refusal_resume,
@@ -269,6 +272,7 @@ from app.services.web_intake.register import (
     interviewer_reaches,
     list_deaths,
     register_death,
+    reporter_reaches,
 )
 from app.services.web_intake.register_access import (
     _CLOSED_WRITER_ROLES,
@@ -350,6 +354,7 @@ from app.services.web_intake.serializers import (
     serialize_supervised_row,
     serialize_worklist_row,
     shows_gps,
+    without_location,
 )
 from app.services.web_intake.submission import (
     _COMPOSED_VERSION_RE,
@@ -664,6 +669,7 @@ __all__ = [
     "admin_actor",
     "age_field",
     "aliased",
+    "answers_of",
     "apply_submission_projection",
     "attachments",
     "birth_answer",
@@ -765,6 +771,8 @@ __all__ = [
     "possible_duplicates",
     "prefill_policy",
     "prepare_browser_overwrite",
+    "prepare_browser_save",
+    "prepare_browser_submit",
     "project_clock",
     "project_country",
     "public_demo_service",
@@ -783,6 +791,7 @@ __all__ = [
     "release_who_refusal_hold",
     "reopen_coding_after_revision",
     "reported_deaths_page",
+    "reporter_reaches",
     "require_identifier_write",
     "resolve_draft_display_names",
     "resolve_grants",
@@ -830,5 +839,6 @@ __all__ = [
     "update_death",
     "uuid",
     "whole_answer",
+    "without_location",
     "worklist_page",
 ]

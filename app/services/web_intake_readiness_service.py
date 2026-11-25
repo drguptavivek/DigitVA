@@ -24,6 +24,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MapProjectSiteOdk,
     MasOrgLevel,
     MasOrgUnit,
     VaAccessRoles,
@@ -385,7 +386,7 @@ def _check_unplaced_units(project_id: str, levels: list[MasOrgLevel]) -> dict:
 
 
 def _check_geography_fields(
-    levels: list[MasOrgLevel], instrument_code: str | None
+    project_id: str, levels: list[MasOrgLevel], instrument_code: str | None
 ) -> dict:
     """Does the bundled questionnaire itself carry the level code fields?
 
@@ -393,13 +394,26 @@ def _check_geography_fields(
     fills every ``org_<level_code>_code`` from the unit the interviewer chose,
     server-side at submission. This check is about the instrument, which is
     what a project that *also* collects the same questionnaire through ODK
-    depends on, and it is a warning for exactly that reason.
+    depends on, and it is a warning for exactly that reason. A project with
+    no ODK form mapped has nothing that reads them, so there is nothing to say.
     """
     if not levels:
         return _check(
             "geography_fields",
             "ok",
             "No organization tree, so no geography fields are expected.",
+        )
+    has_odk_form = db.session.scalar(
+        sa.select(
+            sa.exists().where(MapProjectSiteOdk.project_id == project_id)
+        )
+    )
+    if not has_odk_form:
+        return _check(
+            "geography_fields",
+            "ok",
+            "No ODK form is mapped; the web form fills the geography codes "
+            "from the unit the interviewer chose.",
         )
     if instrument_code != _REFERENCE_INSTRUMENT_CODE:
         return _check(
@@ -629,7 +643,7 @@ def assess_web_intake_readiness(project_id: str) -> dict:
         form_type_check,
         _check_org_tree(project_id, levels),
         _check_unplaced_units(project_id, levels),
-        _check_geography_fields(levels, instrument_code),
+        _check_geography_fields(project_id, levels, instrument_code),
         _check_interviewers(project_id, levels),
         _check_coding_scope(project),
         _check_locales(project, instrument_code),

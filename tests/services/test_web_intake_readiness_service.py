@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 
 from app import db
 from app.models import (
+    MapProjectSiteOdk,
     VaAccessRoles,
     VaAccessScopeTypes,
     VaProjectMaster,
@@ -209,11 +210,23 @@ class WebIntakeReadinessServiceTests(BaseTestCase):
         self.assertEqual(self._status("org_tree"), "fail")
         # A tree also means the questionnaire is expected to carry the level's
         # code field, and that only project-scoped interviewers is worth saying.
+        # The field matters only to ODK: with no ODK form mapped, nothing to say.
+        self.assertEqual(self._status("geography_fields"), "ok")
+        mapping = MapProjectSiteOdk(
+            project_id=self.PROJECT_ID,
+            site_id=self.SITE_ID,
+            odk_project_id=1,
+            odk_form_id="readiness_test_form",
+        )
+        db.session.add(mapping)
+        db.session.flush()
         geography = self._check("geography_fields")
         self.assertEqual(geography["status"], "warn")
         # Named, so the check cannot pass through the "field list could not be
         # verified" branch and look like it measured the instrument.
         self.assertIn("org_district_code", geography["message"])
+        db.session.delete(mapping)
+        db.session.flush()
         self.assertEqual(self._status("interviewers"), "warn")
 
         unit = org.create_unit(

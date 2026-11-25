@@ -670,8 +670,7 @@ def compose_project_form(
     """The project's form as rows. Raises :class:`XlsFormError` when it cannot
     be built faithfully (non-WHO instrument, an extension without a spec, no
     unique ODK form)."""
-    # Lazy: the routes package imports services, not the other way round.
-    from app.routes.api.organization import (
+    from app.services.project_config_service import (
         _active_languages,
         _resolve_narration_languages,
         project_instrument_and_extensions,

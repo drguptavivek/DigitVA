@@ -10,7 +10,7 @@ public help/definition text are indexed, never SQL results or submission data.
 Every document carries ``roles``: ``["public"]`` (any caller), ``["authenticated"]``
 any signed-in user, else the role names of the help registry. A user sees a
 document when it shares a role with the roles they hold (resolved with
-``app.routes.help._user_has_role``, the filter ``_visible_pages`` uses). A
+``app.services.help_registry._user_has_role``, the filter ``_visible_pages`` uses). A
 ``saved_query`` document is additionally visible to its owner only.
 """
 
@@ -111,7 +111,7 @@ def _plain(text: str) -> str:
 
 
 def _help_docs() -> list[dict]:
-    from app.routes.help import HELP_PAGES
+    from app.services.help_registry import HELP_PAGES
 
     docs = []
     for slug, title, _icon, category, roles in HELP_PAGES:
@@ -308,7 +308,7 @@ def _user_roles(user) -> list[str]:
     Asks ``_user_has_role`` about each token the registry uses, so admin
     and the ``is_<role>`` methods resolve exactly as for the Help sidebar.
     """
-    from app.routes.help import HELP_PAGES, _user_has_role
+    from app.services.help_registry import HELP_PAGES, _user_has_role
 
     tokens = {r for page in HELP_PAGES for r in (page[4] or []) if r != "authenticated"}
     # Help pages are all public (2026-11-06), so the gated kinds name their roles here.

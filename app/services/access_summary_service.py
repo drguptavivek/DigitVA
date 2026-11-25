@@ -415,8 +415,7 @@ def _tree(project_id, grants, resolved) -> dict:
     coding_tester grant covering the unit codes there. Ancestors of reached
     units come as context: ``roles: []``, ``selectable: false``.
     """
-    # Imported here so this service does not import a route module at load.
-    from app.routes.api.organization import units_payload
+    from app.services.org_tree_payload_service import units_payload
 
     tree = units_payload(project_id, None, include_tree_version=False)
     if any(g.role == VaAccessRoles.project_pi for g in grants):

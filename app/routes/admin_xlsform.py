@@ -14,7 +14,8 @@ from flask_login import current_user
 from app import db
 from app.decorators import role_required
 from app.models import VaProjectMaster
-from app.routes.admin import _current_user_can_manage_project, _json_error, admin
+from app.routes._json import _json_error
+from app.routes.admin import _current_user_can_manage_project, admin
 from app.services import xlsform_service
 
 log = logging.getLogger(__name__)

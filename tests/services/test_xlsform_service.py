@@ -491,7 +491,7 @@ class XlsFormRefusalTests(XlsFormBase):
     def test_an_extension_unknown_to_the_generator_is_refused_by_name(self):
         patched = ("WHO_2022_VA", ["digitva_core", "future_extension"])
         with patch(
-            "app.routes.api.organization.project_instrument_and_extensions", return_value=patched
+            "app.services.project_config_service.project_instrument_and_extensions", return_value=patched
         ):
             with self.assertRaises(xf.XlsFormError) as caught:
                 self._build(self.FULL)
@@ -500,7 +500,7 @@ class XlsFormRefusalTests(XlsFormBase):
 
     def test_a_non_who_instrument_is_refused(self):
         with patch(
-            "app.routes.api.organization.project_instrument_and_extensions",
+            "app.services.project_config_service.project_instrument_and_extensions",
             return_value=("PHMRC_2020", ["digitva_core"]),
         ):
             with self.assertRaises(xf.XlsFormError) as caught:

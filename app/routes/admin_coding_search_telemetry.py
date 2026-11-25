@@ -12,7 +12,8 @@ from flask import current_app, stream_with_context
 from flask_login import current_user
 
 from app.decorators import role_required
-from app.routes.admin import _json_error, admin
+from app.routes._json import _json_error
+from app.routes.admin import admin
 from app.services import coding_search_telemetry_service
 
 

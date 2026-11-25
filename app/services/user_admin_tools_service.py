@@ -461,7 +461,7 @@ def save_grid_row(viewer, user_id: str, body: Mapping, *, request_ip=None) -> di
     or nothing. On the account's first active grant, sends the invitation
     and, for a data-collector role, the enrolment email, once. Returns the
     refreshed row and mail ``warnings``. Raises UserDirectoryError."""
-    from app.routes.admin import _resolve_scope_from_payload
+    from app.services.grant_queries import _resolve_scope_from_payload
 
     scope = _require_admin(viewer)
     try:

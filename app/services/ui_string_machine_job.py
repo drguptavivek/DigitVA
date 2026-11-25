@@ -41,7 +41,7 @@ class AlreadyRunning(uis.UiStringError):
 
 
 def _redis():
-    from app.tasks.sync_tasks import _lock_client
+    from app.tasks.common import _lock_client
 
     return _lock_client()
 

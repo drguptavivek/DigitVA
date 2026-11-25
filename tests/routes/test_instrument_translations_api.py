@@ -206,10 +206,11 @@ class InstrumentTranslationServingTests(BaseTestCase):
         from unittest import mock
 
         from app.routes.api import organization
+        from app.services import project_config_service
 
         project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
         forms = [{"is_default": True, "instrument_code": "OTHER_VA", "form_type_code": "OTHER"}]
-        with mock.patch.object(organization, "_project_form_types", return_value=forms):
+        with mock.patch.object(project_config_service, "_project_form_types", return_value=forms):
             code, advertised = organization.served_instrument_locales(project)
             versions = organization.form_options_payload(project)["translation_versions"]
         self.assertEqual(code, INSTRUMENT)
@@ -217,7 +218,7 @@ class InstrumentTranslationServingTests(BaseTestCase):
         self.assertEqual(set(versions), advertised)
 
         self._login(self.base_admin_id)
-        with mock.patch.object(organization, "_project_form_types", return_value=forms):
+        with mock.patch.object(project_config_service, "_project_form_types", return_value=forms):
             for locale in sorted(advertised):
                 response = self.client.get(
                     self._url(locale), query_string={"project_id": self.BASE_PROJECT_ID}

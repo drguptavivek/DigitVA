@@ -29,7 +29,8 @@ from app.models import (
     VaUserAccessGrants,
     VaUsers,
 )
-from app.routes.admin import _current_user_can_manage_project, _json_error, admin
+from app.routes._json import _json_error
+from app.routes.admin import _current_user_can_manage_project, admin
 from app.services import collection_hold, org_grant_service
 from app.services import organization_service as org
 from app.services import project_user_import_service as user_import
@@ -1523,7 +1524,7 @@ def _panel_grants(user_id):
     """The person's active grants in the projects the caller manages
     (``authz.roster_project_ids``; every project for an admin)."""
     from app.models import VaProjectSites
-    from app.routes.admin import (
+    from app.services.grant_queries import (
         _grant_org_unit_columns,
         _grant_project_id_expression,
         _grant_site_id_expression,

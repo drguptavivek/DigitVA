@@ -15,7 +15,8 @@ from flask_login import current_user
 from app import db
 from app.decorators import role_required
 from app.models import AuthDevice
-from app.routes.admin import _json_error, admin
+from app.routes._json import _json_error
+from app.routes.admin import admin
 from app.services import device_auth_service as devices
 from app.services import device_signing_service as signing
 from app.services.totp_service import provisioning_qr_svg

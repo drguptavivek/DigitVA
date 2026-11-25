@@ -6,13 +6,13 @@ client is being built.
 """
 
 import functools
-import os
 import re
 from pathlib import Path
 
 from flask import Blueprint, abort, current_app, send_file
 
 from app import _content_security_policy, talisman
+from app.services.expo_dist import _dist_root
 
 expo_client = Blueprint("expo_client", __name__)
 
@@ -74,15 +74,6 @@ _SPA_ROUTE_ROOTS = frozenset(
         "profile-access",
     }
 )
-
-
-def _dist_root() -> Path:
-    configured = current_app.config.get("EXPO_CLIENT_DIST") or os.environ.get(
-        "EXPO_CLIENT_DIST"
-    )
-    if configured:
-        return Path(configured).expanduser().resolve()
-    return (Path(current_app.root_path).parent / "mobile" / "digitva-collect" / "dist").resolve()
 
 
 @functools.cache

@@ -18,7 +18,8 @@ from flask_login import current_user
 
 from app import db
 from app.decorators import role_required
-from app.routes.admin import _json_error, admin
+from app.routes._json import _json_error
+from app.routes.admin import admin
 from app.services import machine_translation_service as azure
 from app.services import ui_string_machine_job as machine_job
 from app.services.ui_string_service import (

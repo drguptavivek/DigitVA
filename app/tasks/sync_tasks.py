@@ -21,9 +21,11 @@ from app.services.attachment_service import (
     S3_UPLOAD_TRIGGER,
     attachment_state_by_submission,
 )
+# Re-exported: tests patch sync_tasks._lock_client, which _sweep_lock
+# looks up in this module.
+from app.tasks.common import ANALYTICS_MV_TRIGGER, _lock_client
 
 log = get_task_logger(__name__)
-ANALYTICS_MV_TRIGGER = "analytics_mv"
 ENRICHMENT_SYNC_BATCH_SIZE = 5
 # Most attachment gaps are closed by the sync download above; this is the
 # bounded second pass that rebuilds what only ODK Central can supply (a lost
@@ -1660,16 +1662,6 @@ def run_attachment_integrity_check(
             run.error_message = str(exc)[:2000]
             db.session.commit()
         raise
-
-
-def _lock_client():
-    """The Redis client behind Flask-Caching, or ``None`` when there is none."""
-    from app import cache
-
-    try:
-        return cache.cache._write_client  # type: ignore[attr-defined]
-    except Exception:  # noqa: BLE001 - a missing lock must not stop the work
-        return None
 
 
 @contextmanager

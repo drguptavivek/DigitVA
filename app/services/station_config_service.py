@@ -603,8 +603,7 @@ def _form_policy(project_id: str) -> dict:
     servable-locale gate as ``translations_response``). The station serves
     both as they are and its own copy of the composed definition, whose
     SHA-256 must equal ``form_options.definition_sha256``."""
-    # Routes import services: import here, as instruments.py does.
-    from app.routes.api.organization import form_options_payload, served_instrument_locales
+    from app.services.project_config_service import form_options_payload, served_instrument_locales
     from app.services.instrument_translation_service import (
         BASE_LOCALE,
         export_translations,

@@ -258,7 +258,7 @@ def _check_form_type(project: VaProjectMaster) -> tuple[dict, str | None]:
     Returns the check and the resolved ``instrument_code``, which the locales
     check needs and must not resolve a second time.
     """
-    from app.routes.api.organization import _project_form_types
+    from app.services.project_config_service import _project_form_types
     from app.services.field_mapping_service import get_mapping_service
 
     default = next(

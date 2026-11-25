@@ -87,11 +87,10 @@ def _served(project: VaProjectMaster) -> tuple[str, dict[str, str]]:
     """The instrument code and ``{locale: language name}`` the project serves.
 
     The one definition the form-options payload and the translation download
-    use (``served_instrument_locales``): the route module owns it, so it is
-    imported late, as ``routes/api/instruments.py`` does. ``en`` is the
+    use (``project_config_service.served_instrument_locales``). ``en`` is the
     instrument's own language and has nothing to suggest.
     """
-    from app.routes.api.organization import served_instrument_locales
+    from app.services.project_config_service import served_instrument_locales
 
     code, offered = served_instrument_locales(project)
     offered = offered - {translations.BASE_LOCALE}

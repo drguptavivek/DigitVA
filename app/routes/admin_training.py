@@ -13,7 +13,8 @@ from flask_login import current_user
 from app import limiter
 from app.decorators import role_required
 from app.models.mas_training import PARTICIPANT_ROLES, SESSION_TYPES
-from app.routes.admin import _json_error, admin
+from app.routes._json import _json_error
+from app.routes.admin import admin
 from app.services import training_demo_service as service
 
 log = logging.getLogger(__name__)

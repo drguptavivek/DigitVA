@@ -1116,7 +1116,7 @@ def snapshot_refreshed_at():
     manager or analytics screens does not, so this is a lower bound on
     freshness.
     """
-    from app.tasks.sync_tasks import ANALYTICS_MV_TRIGGER
+    from app.tasks.common import ANALYTICS_MV_TRIGGER
 
     return db.session.scalar(
         sa.select(VaSyncRun.finished_at)

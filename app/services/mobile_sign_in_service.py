@@ -269,7 +269,7 @@ def may_edit_account(actor, target_user_id, project_id: str) -> bool:
 
 def _grant_in_projects(user_id_col, project_match) -> sa.ColumnElement:
     """SQL: the account holds an active grant whose project (project, site or
-    unit scope, resolved as ``admin._grant_project_id_expression`` does)
+    unit scope, resolved as ``grant_queries._grant_project_id_expression`` does)
     and the grant row satisfy *project_match(project_id, grant)*."""
     from app.models import MasOrgUnit, VaProjectSites
 

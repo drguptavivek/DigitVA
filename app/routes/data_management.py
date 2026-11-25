@@ -31,18 +31,19 @@ from app.models import (
     VaUsers,
 )
 from app.services.odk_case_service import ODK_SYNC_USER_ID
-from app.routes.admin import (
+from app.routes._json import _json_error
+from app.services.grant_queries import (
     _grant_org_unit_columns,
     _grant_project_id_expression,
     _grant_site_id_expression,
-    _json_error,
-    _mask_email,
-    _mask_phone,
     _payload_grant_target,
     _resolve_scope_from_payload,
     _serialize_grant,
-    _serialize_project_site,
-    _serialize_projects,
+)
+from app.services.project_serializers import _serialize_project_site, _serialize_projects
+from app.services.user_search_service import (
+    _mask_email,
+    _mask_phone,
     _serialize_user,
     serialize_searched_users,
     user_search_condition,

@@ -19,7 +19,8 @@ from flask_login import current_user
 from app import db, limiter
 from app.decorators import role_required
 from app.models import MapMentorInstituteUser, MasMentorInstitute
-from app.routes.admin import _json_error, admin
+from app.routes._json import _json_error
+from app.routes.admin import admin
 from app.services import mentor_institute_service as mentors
 from app.services import user_account_service as accounts
 from app.services.organization_service import OrganizationError

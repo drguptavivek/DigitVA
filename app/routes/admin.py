@@ -5,7 +5,6 @@ import os
 import re
 import uuid
 import secrets
-from dataclasses import dataclass
 from urllib.parse import urlparse
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -22,6 +21,7 @@ from flask_wtf.csrf import generate_csrf
 
 from app import db, limiter
 from app.decorators import role_required
+from app.routes._json import _json_error
 from app.services import collection_gate, collection_hold, consent_service
 from app.services.consent_service import ConsentError
 from app.services.odk_case_service import ODK_SYNC_USER_ID
@@ -90,7 +90,6 @@ from app.models import (
     MasOdkConnections,
     MasCodBucketNode,
     MasCodBucketSchemeAgeBand,
-    MasCadre,
     MasOrgLevel,
     MasOrgUnit,
     MapProjectOdk,
@@ -106,6 +105,28 @@ from app.models import (
     VaCodBucketSchemeSnapshot,
 )
 from app.models.va_submission_payload_versions import VaSubmissionPayloadVersion
+from app.services.grant_queries import (
+    _grant_org_unit_columns,
+    _grant_project_id_expression,
+    _grant_site_id_expression,
+    _payload_grant_target,
+    _refuse_mentor_member,
+    _resolve_scope_from_payload,
+    _serialize_grant,
+)
+from app.services.project_serializers import (
+    _serialize_project,
+    _serialize_project_site,
+    _serialize_projects,
+)
+# _mask_email/_mask_phone: re-exported, tests import them from here.
+from app.services.user_search_service import (  # noqa: F401
+    _mask_email,
+    _mask_phone,
+    _serialize_user,
+    serialize_searched_users,
+    user_search_condition,
+)
 
 
 admin = Blueprint("admin", __name__)
@@ -115,10 +136,6 @@ def _is_training_or_demo(project_id, demo_training_enabled, synthetic_demo_reset
     """Training and demo projects never count on the public home page."""
     training_id = current_app.config.get("DIGITVA_TRAINING_PROJECT_ID") or None
     return bool(demo_training_enabled or synthetic_demo_reset_enabled or project_id == training_id)
-
-
-def _json_error(message, status_code):
-    return jsonify({"error": message}), status_code
 
 
 # Allowlist of schemes; block private/loopback/link-local IPs and reserved hostnames
@@ -299,57 +316,6 @@ def _current_user_can_manage_project(project_id):
     return current_user.is_admin() or current_user.can_manage_project(project_id)
 
 
-def _grant_unit_column(column):
-    """Correlated lookup of one mas_org_unit column for a unit-scoped grant.
-
-    A subquery rather than a join so every grant query resolves the unit
-    without having to remember an extra outerjoin; a missing join would
-    otherwise silently drop unit grants out of a project filter.
-    """
-    return (
-        sa.select(column)
-        .where(MasOrgUnit.org_unit_id == VaUserAccessGrants.org_unit_id)
-        .scalar_subquery()
-    )
-
-
-def _grant_project_id_expression():
-    return sa.case(
-        (
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project,
-            VaUserAccessGrants.project_id,
-        ),
-        (
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.org_unit,
-            _grant_unit_column(MasOrgUnit.project_id),
-        ),
-        else_=VaProjectSites.project_id,
-    )
-
-
-def _grant_org_unit_columns():
-    """Labelled columns describing a grant's unit and cadre, for _serialize_grant."""
-    return (
-        _grant_unit_column(MasOrgUnit.unit_code).label("resolved_unit_code"),
-        _grant_unit_column(MasOrgUnit.unit_name).label("resolved_unit_name"),
-        sa.cast(_grant_unit_column(MasOrgUnit.path), sa.Text).label("resolved_unit_path"),
-        sa.select(MasCadre.cadre_code)
-        .where(MasCadre.cadre_id == VaUserAccessGrants.cadre_id)
-        .scalar_subquery()
-        .label("resolved_cadre_code"),
-    )
-
-
-def _grant_site_id_expression():
-    return sa.case(
-        (
-            VaUserAccessGrants.scope_type == VaAccessScopeTypes.project_site,
-            VaProjectSites.site_id,
-        ),
-        else_=sa.null(),
-    )
-
-
 def _cod_bucket_node_path_label(node):
     labels = [node.node_label]
     parent = node.parent
@@ -362,25 +328,6 @@ def _cod_bucket_node_path_label(node):
 def _cod_bucket_slugify(value):
     slug = re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
     return slug or "node"
-
-
-def _form_type_codes_by_id(form_type_ids):
-    """``{form_type_id: form_type_code}`` for the ids given, in one query.
-
-    Batched so serializing a list of projects costs one lookup rather than one
-    per project.
-    """
-    from app.models import MasFormTypes
-
-    wanted = {ft_id for ft_id in form_type_ids if ft_id is not None}
-    if not wanted:
-        return {}
-    rows = db.session.execute(
-        sa.select(MasFormTypes.form_type_id, MasFormTypes.form_type_code).where(
-            MasFormTypes.form_type_id.in_(wanted)
-        )
-    ).all()
-    return {row.form_type_id: row.form_type_code for row in rows}
 
 
 def _validate_self_coding(self_coding_enabled, web_intake_mode) -> str | None:
@@ -397,74 +344,6 @@ def _validate_self_coding(self_coding_enabled, web_intake_mode) -> str | None:
             "other than 'off' first, or turn self-coding off."
         )
     return None
-
-
-def _serialize_projects(projects):
-    """Serialize a list of projects, resolving every web form type code once."""
-    projects = list(projects)
-    codes = _form_type_codes_by_id(
-        [project.web_intake_form_type_id for project in projects]
-    )
-    return [_serialize_project(project, form_type_codes=codes) for project in projects]
-
-
-def _serialize_project(project, form_type_codes=None):
-    """One project as the admin API serves it.
-
-    ``form_type_codes`` is the prefetched ``{form_type_id: code}`` map
-    ``_serialize_projects`` builds; a single-project caller may omit it and
-    pay one lookup.
-    """
-    if form_type_codes is None:
-        form_type_codes = _form_type_codes_by_id([project.web_intake_form_type_id])
-    return {
-        "project_id": project.project_id,
-        "project_code": project.project_code,
-        "project_name": project.project_name,
-        "project_nickname": project.project_nickname,
-        "status": project.project_status.value,
-        "narrative_qa_enabled": project.narrative_qa_enabled,
-        "social_autopsy_enabled": project.social_autopsy_enabled,
-        "reviewer_social_autopsy_enabled": project.reviewer_social_autopsy_enabled,
-        "coding_intake_mode": project.coding_intake_mode,
-        "icd_classification": project.icd_classification,
-        "masked_cod_required": project.masked_cod_required,
-        "cod_entry_mode": project.cod_entry_mode,
-        "project_structure_mode": project.project_structure_mode,
-        "coding_scope_level_id": str(project.coding_scope_level_id)
-        if project.coding_scope_level_id
-        else None,
-        "above_scope_coding_mode": project.above_scope_coding_mode,
-        "demo_training_enabled": project.demo_training_enabled,
-        "demo_retention_minutes": project.demo_retention_minutes,
-        "home_kpis_included": project.home_kpis_included,
-        "recode_window_minutes": project.recode_window_minutes,
-        "timezone": project.timezone,
-        "project_target_completion_date": project.project_target_completion_date.isoformat()
-        if project.project_target_completion_date
-        else None,
-        "project_country_iso3": project.project_country_iso3,
-        "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
-        "web_intake_mode": project.web_intake_mode,
-        "self_coding_enabled": project.self_coding_enabled,
-        # Tier-2 web form options — docs/policy/va-web-form-options.md.
-        "web_intake_default_locale": project.web_intake_default_locale,
-        "web_intake_available_locales": project.web_intake_available_locales,
-        "web_intake_narration_languages": project.web_intake_narration_languages,
-        "web_intake_show_guidance": project.web_intake_show_guidance,
-        # The web questionnaire and its two extension settings — WP1 of
-        # docs/planning/web-capture-project-configuration-plan.md.
-        "web_intake_form_type_id": str(project.web_intake_form_type_id)
-        if project.web_intake_form_type_id
-        else None,
-        "web_intake_form_type_code": form_type_codes.get(
-            project.web_intake_form_type_id
-        ),
-        "web_intake_intake_note": project.web_intake_intake_note,
-        "web_intake_death_summary_enabled": project.web_intake_death_summary_enabled,
-        "web_intake_medical_records_enabled": project.web_intake_medical_records_enabled,
-        "web_intake_equity_enabled": project.web_intake_equity_enabled,
-    }
 
 
 def _active_language_codes():
@@ -1141,22 +1020,6 @@ def _build_activity_rows(limit=100, page=1, sid=None, project_id=None, site_id=N
     return activity_rows, total_count
 
 
-def _serialize_project_site(row):
-    return {
-        "project_site_id": str(row.project_site_id),
-        "project_id": row.project_id,
-        "site_id": row.site_id,
-        "project_name": row.project_name,
-        "site_name": row.site_name,
-        "status": row.project_site_status.value,
-        "coding_enabled": row.coding_enabled,
-        "coding_start_date": row.coding_start_date.isoformat() if row.coding_start_date else None,
-        "coding_end_date": row.coding_end_date.isoformat() if row.coding_end_date else None,
-        "daily_coder_limit": row.daily_coder_limit,
-        **collection_gate.serialize_settings(row),
-    }
-
-
 def _get_active_project_site(project_id: str, site_id: str):
     return db.session.scalar(
         sa.select(VaProjectSites)
@@ -1170,54 +1033,6 @@ def _get_active_project_site(project_id: str, site_id: str):
             VaSiteMaster.site_status == VaStatuses.active,
         )
     )
-
-
-def _serialize_grant(row):
-    org_unit_id = getattr(row, "org_unit_id", None)
-    return {
-        "grant_id": str(row.grant_id),
-        "user_id": str(row.user_id),
-        "user_email": row.email,
-        "user_name": row.name,
-        "user_job_title": getattr(row, "job_title", None),
-        "role": row.role.value,
-        "scope_type": row.scope_type.value,
-        "project_id": row.resolved_project_id,
-        "site_id": row.resolved_site_id,
-        "project_site_id": str(row.project_site_id) if row.project_site_id else None,
-        "org_unit_id": str(org_unit_id) if org_unit_id else None,
-        "unit_code": getattr(row, "resolved_unit_code", None),
-        "unit_name": getattr(row, "resolved_unit_name", None),
-        "unit_path": getattr(row, "resolved_unit_path", None),
-        "cadre_code": getattr(row, "resolved_cadre_code", None),
-        "status": row.grant_status.value,
-        "notes": row.notes,
-    }
-
-
-@dataclass(frozen=True)
-class ResolvedGrantScope:
-    """One validated grant scope, as parsed from a request payload."""
-
-    role: VaAccessRoles
-    scope_type: VaAccessScopeTypes
-    project_id: str | None
-    project_site_id: uuid.UUID | None
-    org_unit_id: uuid.UUID | None = None
-    cadre_id: uuid.UUID | None = None
-
-
-def _refuse_mentor_member(user_id, role):
-    """A mentoring institute member holds unit-scope grants only (guard)."""
-    if user_id is None:
-        return
-    from app.services.mentor_institute_service import check_mentor_grant
-    from app.services.organization_service import OrganizationError
-
-    try:
-        check_mentor_grant(user_id, role, None)
-    except OrganizationError as exc:
-        raise ValueError(str(exc)) from exc
 
 
 def _apply_mentor_guard(user_id, scope):
@@ -1234,145 +1049,6 @@ def _apply_mentor_guard(user_id, scope):
         check_mentor_grant(user_id, scope.role, unit)
     except OrganizationError as exc:
         raise ValueError(str(exc)) from exc
-
-
-def _resolve_scope_from_payload(payload, user_id=None):
-    """Parse and validate a grant scope; *user_id* (the grantee) enables the
-    mentoring-institute guard."""
-    role_value = payload.get("role")
-    scope_value = payload.get("scope_type")
-    if role_value not in {role.value for role in VaAccessRoles}:
-        raise ValueError("Invalid role.")
-    if scope_value not in {scope.value for scope in VaAccessScopeTypes}:
-        raise ValueError("Invalid scope_type.")
-
-    role = VaAccessRoles(role_value)
-    scope_type = VaAccessScopeTypes(scope_value)
-    project_id = payload.get("project_id")
-    project_site_id_value = payload.get("project_site_id")
-    org_unit_id_value = payload.get("org_unit_id")
-    project_site_id = None
-    project_site = None
-
-    if scope_type == VaAccessScopeTypes.global_scope:
-        if role != VaAccessRoles.admin:
-            raise ValueError("Only admin may use global scope.")
-        if project_id or project_site_id_value or org_unit_id_value:
-            raise ValueError(
-                "Global scope must not include project_id, project_site_id or org_unit_id."
-            )
-        _refuse_mentor_member(user_id, role)
-        return ResolvedGrantScope(role, scope_type, None, None)
-
-    if scope_type == VaAccessScopeTypes.project:
-        if role not in {
-            VaAccessRoles.project_pi,
-            VaAccessRoles.collaborator,
-            VaAccessRoles.collaborator_pii,
-            VaAccessRoles.coder,
-            VaAccessRoles.coding_tester,
-            VaAccessRoles.reviewer,
-            VaAccessRoles.data_manager,
-            VaAccessRoles.interviewer,
-        }:
-            raise ValueError("This role cannot use project scope.")
-        if not project_id or project_site_id_value or org_unit_id_value:
-            raise ValueError("Project scope requires project_id only.")
-        _refuse_mentor_member(user_id, role)
-        return ResolvedGrantScope(role, scope_type, project_id, None)
-
-    if scope_type == VaAccessScopeTypes.org_unit:
-        from app.services.org_grant_service import validate_org_unit_grant
-        from app.services.organization_service import OrganizationError
-
-        if project_id or project_site_id_value:
-            raise ValueError(
-                "Unit scope must not include project_id or project_site_id."
-            )
-        if not org_unit_id_value:
-            raise ValueError("Unit scope requires org_unit_id.")
-        try:
-            unit, cadre = validate_org_unit_grant(
-                role=role,
-                org_unit_id=org_unit_id_value,
-                cadre_id=payload.get("cadre_id"),
-                user_id=user_id,
-            )
-        except OrganizationError as exc:
-            raise ValueError(str(exc)) from exc
-        return ResolvedGrantScope(
-            role,
-            scope_type,
-            unit.project_id,
-            None,
-            org_unit_id=unit.org_unit_id,
-            cadre_id=cadre.cadre_id if cadre else None,
-        )
-
-    if role not in {
-        VaAccessRoles.site_pi,
-        VaAccessRoles.collaborator,
-        VaAccessRoles.collaborator_pii,
-        VaAccessRoles.coder,
-        VaAccessRoles.coding_tester,
-        VaAccessRoles.reviewer,
-        VaAccessRoles.data_manager,
-        VaAccessRoles.interviewer,
-    }:
-        raise ValueError("This role cannot use project_site scope.")
-    if payload.get("project_id"):
-        raise ValueError("Project-site scope must not include project_id.")
-    if org_unit_id_value:
-        raise ValueError("Project-site scope must not include org_unit_id.")
-    if not project_site_id_value:
-        raise ValueError("Project-site scope requires project_site_id.")
-    try:
-        project_site_id = uuid.UUID(project_site_id_value)
-    except (ValueError, TypeError) as exc:
-        raise ValueError("Invalid project_site_id.") from exc
-
-    project_site = db.session.get(VaProjectSites, project_site_id)
-    if not project_site or project_site.project_site_status != VaStatuses.active:
-        raise ValueError("Active project-site mapping not found.")
-    _refuse_mentor_member(user_id, role)
-    return ResolvedGrantScope(
-        role, scope_type, project_site.project_id, project_site.project_site_id
-    )
-
-
-def _payload_grant_target(payload):
-    """The grant a create payload names, before any validation, or None.
-
-    For asking ``authz.can_grant`` first (digitva-xd1q): the cadre and
-    unit checks in ``_resolve_scope_from_payload`` say whether a unit
-    exists, is active or takes the cadre, which a caller who may not write
-    there must not learn. None when the payload names no well-formed target
-    (bad role or scope_type, missing or malformed id); its shape errors
-    disclose nothing and ``_resolve_scope_from_payload`` reports them.
-    """
-    from app.services import authz
-
-    try:
-        role = VaAccessRoles(payload.get("role"))
-        scope_type = VaAccessScopeTypes(payload.get("scope_type"))
-    except ValueError:
-        return None
-    if scope_type == VaAccessScopeTypes.project:
-        project_id = payload.get("project_id")
-        if not project_id or not isinstance(project_id, str):
-            return None
-        return authz.GrantTarget(role=role, scope_type=scope_type, project_id=project_id)
-    key = {
-        VaAccessScopeTypes.project_site: "project_site_id",
-        VaAccessScopeTypes.org_unit: "org_unit_id",
-    }.get(scope_type)
-    if key is None:
-        return None
-    try:
-        target_id = uuid.UUID(str(payload.get(key)))
-    except ValueError:
-        return None
-    return authz.GrantTarget(role=role, scope_type=scope_type, **{key: target_id})
 
 
 def _project_pi_may_write(role, scope_type, project_id, project_site_id, org_unit_id):
@@ -2383,111 +2059,6 @@ def admin_update_project_attachment_central_fetch(project_id):
         "attachment_central_fetch_enabled": project.attachment_central_fetch_enabled,
         "web_intake_mode": project.web_intake_mode,
     })
-
-
-def _serialize_user(user, *, include_profile=False):
-    """``include_profile`` adds the interviewer year of birth and sex (PII):
-    only for admin-only responses, never the project PI user search."""
-    data = {
-        "user_id": str(user.user_id),
-        "email": user.email,
-        "name": user.name,
-        "job_title": user.job_title,
-        "status": user.user_status.value,
-        "email_verified": bool(user.email_verified),
-        "mobile_only": user.is_mobile_only,
-        "mobile_verified": user.mobile_verified_at is not None,
-        "phone": user.phone,
-        "landing_page": user.landing_page,
-        "languages": user.vacode_language or [],
-        "is_admin": user.is_admin(),
-    }
-    if include_profile:
-        data["year_of_birth"] = user.year_of_birth
-        data["sex"] = user.sex
-        from app.services import public_demo_service as demo
-
-        # The kept mark exists only on a demo deployment (public-demo.md section 8).
-        if demo.enabled() and user.is_public_demo:
-            data["public_demo_keep"] = bool(user.public_demo_keep)
-    return data
-
-
-def _mask_email(email):
-    """``vi***@gmail.com``: two characters of a local part of five or more,
-    else one; an address without ``@`` shows its first character only."""
-    if not email:
-        return email
-    local, at, domain = email.partition("@")
-    if not at:
-        return f"{email[:1]}***"
-    return f"{local[:2] if len(local) >= 5 else local[:1]}***@{domain}"
-
-
-def _mask_phone(phone):
-    """``******4321``: the last four digits of a number of eight or more
-    digits; a shorter number is masked whole."""
-    if not phone:
-        return phone
-    digits = re.sub(r"\D", "", phone)
-    if len(digits) < 8:
-        return "*" * len(digits)
-    return "*" * (len(digits) - 4) + digits[-4:]
-
-
-def users_in_caller_reach(user_ids) -> set:
-    """Of *user_ids*, those whose contact details the current user sees in
-    full: holders of an active grant in the caller's own project, site or
-    unit reach (``authz.user_list_filter``, the Users page's rule), the
-    caller themself, and everyone for an admin. One query.
-    Policy: dm-user-grant-management.md, "User listing" (digitva-9xn9.22)."""
-    from app.services import authz
-
-    ids = set(user_ids)
-    if not ids or authz.resolve_grants(current_user).is_admin:
-        return ids
-    found = set(db.session.scalars(
-        sa.select(VaUserAccessGrants.user_id).where(
-            VaUserAccessGrants.user_id.in_(ids),
-            VaUserAccessGrants.grant_status == VaStatuses.active,
-            authz.user_list_filter(current_user),
-        ).distinct()
-    ))
-    if current_user.user_id in ids:
-        found.add(current_user.user_id)
-    return found
-
-
-def serialize_searched_users(users) -> list[dict]:
-    """``_serialize_user`` rows for a platform-wide user search. A user outside
-    the caller's reach (``users_in_caller_reach``) keeps name, user id and
-    status, with email and phone masked and every other key null;
-    ``contact_masked`` says which."""
-    in_reach = users_in_caller_reach(u.user_id for u in users)
-    rows = []
-    for user in users:
-        data = _serialize_user(user)
-        if user.user_id in in_reach:
-            rows.append({**data, "contact_masked": False})
-            continue
-        # Allow-list: every other key stays, as null, so the shape is unchanged.
-        rows.append({
-            **dict.fromkeys(data),
-            "user_id": data["user_id"], "name": data["name"], "status": data["status"],
-            "email": _mask_email(user.email), "phone": _mask_phone(user.phone),
-            "contact_masked": True,
-        })
-    return rows
-
-
-def user_search_condition(query):
-    """A user search matches *query* as a literal substring of email, name or
-    phone (``autoescape``: %, _ and \\ match themselves)."""
-    return sa.or_(
-        VaUsers.email.icontains(query, autoescape=True),
-        VaUsers.name.icontains(query, autoescape=True),
-        VaUsers.phone.icontains(query, autoescape=True),
-    )
 
 
 @admin.get("/api/users")

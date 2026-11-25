@@ -20,7 +20,8 @@ from flask import current_app, jsonify, render_template, request
 from flask_login import current_user
 
 from app.decorators import role_required
-from app.routes.admin import _json_error, admin
+from app.routes._json import _json_error
+from app.routes.admin import admin
 from app.services.icd11_mms_service import (
     AGE_GROUP_SELECTABLE_OPTIONS,
     CODING_FILTER_OPTIONS,

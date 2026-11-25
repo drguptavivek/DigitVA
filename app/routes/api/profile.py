@@ -103,7 +103,7 @@ def _missing_profile_fields(user) -> list[str]:
 def get_profile():
     """Return the current user's profile data, with the active coding
     languages a coder may choose from (``available_languages``, code order)."""
-    from app.routes.api.organization import _active_languages
+    from app.services.project_config_service import _active_languages
 
     missing_profile_fields = _missing_profile_fields(current_user)
     return jsonify({

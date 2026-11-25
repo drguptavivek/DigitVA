@@ -73,7 +73,7 @@ def instrument_translations(instrument_code: str, locale: str):
     locale = (locale or "").strip()
     project_id = (request.args.get("project_id") or "").strip().upper()
     if project_id:
-        from app.routes.api.organization import served_instrument_locales
+        from app.services.project_config_service import served_instrument_locales
 
         reachable = reachable_unit_ids(current_user, project_id, ROLES_ALLOWING_ORG_UNIT)
         project = db.session.get(VaProjectMaster, project_id)
@@ -149,7 +149,8 @@ def instrument_definition(instrument_code: str):
     the project need not enable those extensions today. Same body shape,
     headers, gzip and 304 handling.
     """
-    from app.routes.api.organization import form_options_project, project_instrument_and_extensions
+    from app.routes.api.organization import form_options_project
+    from app.services.project_config_service import project_instrument_and_extensions
 
     training_scope.resolve("interview")
     code = (instrument_code or "").strip().upper()

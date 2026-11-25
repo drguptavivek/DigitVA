@@ -24,7 +24,8 @@ from werkzeug.utils import secure_filename
 from app import db
 from app.decorators import role_required
 from app.models.mas_instrument_locales import SOURCE_EDITED, SOURCE_IMPORTED
-from app.routes.admin import _json_error, admin
+from app.routes._json import _json_error
+from app.routes.admin import admin
 from app.services import instrument_translation_machine_job as machine_job
 from app.services import machine_translation_service as azure
 from app.services.instrument_translation_service import (

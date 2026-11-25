@@ -16,7 +16,8 @@ from flask import current_app, jsonify, render_template, request
 from flask_login import current_user
 
 from app.decorators import role_required
-from app.routes.admin import _json_error, admin
+from app.routes._json import _json_error
+from app.routes.admin import admin
 from app.services.icd_search_vocabulary_service import (
     DEFAULT_PAGE_SIZE,
     code_in_catalogue,

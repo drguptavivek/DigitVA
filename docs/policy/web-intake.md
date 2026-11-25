@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-23
+last_updated: 2026-11-25
 ---
 
 # Web Intake Policy
@@ -862,6 +862,34 @@ shows the other-draft warning. The reply to the final upload is unchanged:
 `POST /submissions` with the same `client_draft_id` completes the same draft.
 Contract: [Device Collection API](../current-state/device-collection-api.md),
 "Draft sync".
+
+#### Browser autosave (owner 2026-11-25, `digitva-jrm5`)
+
+The browser interview saves to the server only, so a save is done when the
+server has acknowledged it, and "Draft saved" and the case strip's "Saved"
+time mean exactly that. The browser keeps no copy of the answers (see
+[Field Data Collection](field-data-collection.md)), apart from the
+sessionStorage copy of a failed or held save described below. When it saves:
+
+- On section navigation (Next, Previous, a jump from Sections), and only when
+  the answers changed since the last acknowledged save. Moving between
+  sections without a change sends nothing; the current section goes with the
+  next save that carries answers.
+- As a safety net, every 20 s and when the page is hidden or closed
+  (`visibilitychange`, `pagehide`), again only when the answers changed.
+- Before submit, a language switch, leaving the interview or signing out,
+  as today.
+
+Answering a question does not save by itself. A save never holds up
+navigation. At most one save is in flight and one waits; newer changes
+replace the waiting one, so changes never queue up one request each. A save
+that fails on the network keeps only the latest answers and retries after a
+growing wait (2, 4, 8 s and so on, at most 60 s), and at once when the
+browser comes back online; a newer save replaces the retry. A refused save
+(401, 403, 409) stops autosave as today and settles every waiting save. The
+phone is unchanged: it saves to its encrypted local store on every change.
+The case strip's name, age and sex refresh from saved answers, so they may
+lag until the next save.
 
 #### Stale browser saves (owner 2026-11-04)
 

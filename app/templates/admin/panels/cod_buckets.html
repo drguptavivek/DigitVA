@@ -108,6 +108,14 @@
       </div>
     </div>
 
+    <div class="card mt-3" id="cb-va-definition-card">
+      <div class="card-header fw-semibold">VA case definition</div>
+      <div class="card-body">
+        <div id="cb-va-definition-title" class="fw-semibold mb-2"></div>
+        <div id="cb-va-definition-body" class="small"></div>
+      </div>
+    </div>
+
     <div class="card mt-3">
       <div class="card-header d-flex justify-content-between align-items-center">
         <div>
@@ -629,6 +637,9 @@
     mappingTitle: document.getElementById('cb-mapping-title'),
     classificationBtns: Array.from(document.querySelectorAll('.cb-classification-btn')),
     mappingBody: document.getElementById('cb-mapping-body'),
+    vaDefCard: document.getElementById('cb-va-definition-card'),
+    vaDefTitle: document.getElementById('cb-va-definition-title'),
+    vaDefBody: document.getElementById('cb-va-definition-body'),
     openIcdModalBtn: document.getElementById('cb-open-icd-modal-btn'),
     unmappedIcdCount: document.getElementById('cb-unmapped-icd-count'),
     unmappedIcdBody: document.getElementById('cb-unmapped-icd-body'),
@@ -1271,10 +1282,48 @@
     renderEditorVisibility();
     renderPanes();
     renderMappingSection();
+    renderVaDefinitionCard();
     renderUnmappedIcdSection();
     renderBulkMappingControls();
     renderBulkMapModal();
     syncTopResetButton();
+  }
+
+  // Case definition of the selected disease's effective VA code. Re-rendered
+  // from renderAll, so a changed selection or a saved code change both land
+  // here; a late fetch only paints if the same node and code are still selected.
+  function renderVaDefinitionCard() {
+    const leaf = currentLeaf();
+    const code = leaf ? leaf.effective_va_code : '';
+    els.vaDefCard.classList.toggle('d-none', !code);
+    if (!code) {
+      els.vaDefCard.dataset.key = '';
+      return;
+    }
+    const key = `${leaf.node_id}|${code}`;
+    if (els.vaDefCard.dataset.key === key) return;
+    els.vaDefCard.dataset.key = key;
+    els.vaDefTitle.textContent = code;
+    els.vaDefBody.textContent = 'Loading...';
+    els.vaDefBody.className = 'small text-muted';
+    loadVaDefinitions().then(definitions => {
+      if (els.vaDefCard.dataset.key !== key) return;
+      const row = definitions.find(item => item.va_code === code);
+      els.vaDefBody.className = 'small';
+      if (!row) {
+        els.vaDefBody.className = 'small text-muted';
+        els.vaDefBody.textContent = `No active VA definition for ${code}`;
+        return;
+      }
+      els.vaDefTitle.textContent = `${row.va_code} \u2014 ${row.title}`;
+      // definition_html is sanitized server-side at write time
+      // (app/utils/rich_text.py), as in va_definitions.js and va_definition_panel.js.
+      els.vaDefBody.innerHTML = row.definition_html || '';
+    }).catch(() => {
+      if (els.vaDefCard.dataset.key !== key) return;
+      els.vaDefBody.className = 'small text-muted';
+      els.vaDefBody.textContent = 'Could not load VA definitions';
+    });
   }
 
   function renderIcdSearchResults() {

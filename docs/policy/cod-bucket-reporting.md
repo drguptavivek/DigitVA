@@ -313,6 +313,7 @@ Owner decision 2026-11-25 (digitva-0o3z).
   Apply DigitVA overrides and the `source_category` they write stay keyed by
   `node_code`; only displays and definition lookups (the coder VA definition
   lookup, the offline pack, the public ICD-to-VA list) use the effective code.
+- Selecting a disease shows its VA cause's case definition below the editor.
 - A change bumps the scheme's `mapping_version` and touches no ICD mapping.
   Reports are keyed by `node_id` and are unaffected.
 - Scheme JSON export, import and snapshots carry `va_code` (an older file

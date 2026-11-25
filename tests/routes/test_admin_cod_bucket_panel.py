@@ -220,6 +220,8 @@ class AdminCodBucketPanelTests(BaseTestCase):
         self.assertIn(b"New Scheme", response.data)
         self.assertIn(b"Utilized In SmartVA", response.data)
         self.assertIn(b"cb-unmapped-smartva-filter", response.data)
+        self.assertIn(b'id="cb-va-definition-card"', response.data)
+        self.assertIn(b"VA case definition", response.data)
 
     def test_cod_bucket_scheme_detail_returns_editor_payload(self):
         self._login(self.base_admin_id)

@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- COD bucket editor shows the selected disease's VA case definition (owner
+  2026-11-25, `digitva-2q9z`). Selecting a disease bucket shows a card
+  below the editor with its effective VA code, title and WHO case
+  definition. It falls back to "No active VA definition" or "Could not load
+  VA definitions", and it follows the selection and a saved code change.
+  The card reuses the definitions the editor already loads. Template-only:
+  no route and no migration.
 - COD bucket editor shows and sets each disease bucket's VA cause code
   (owner 2026-11-25, `digitva-0o3z`). Each disease shows its code, e.g.
   "VAs-01.09 Pulmonary tuberculosis", in the headings, the mapping header

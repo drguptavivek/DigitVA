@@ -54,6 +54,31 @@ on Android and iOS. Built; "State" below records what shipped.
      reply. The phone app and the Expo web build are same-origin or use a
      bearer and need none.
 
+## By design (owner 2026-11-25, `digitva-r8nh.39`)
+
+Found by the route auth matrix (`tests/fixtures/route_auth_matrix.json`) and
+kept as they are:
+
+- **A device token carries device roles only.** On a bearer request an
+  account keeps just its `NATIVE_DEVICE_ROLES` grants and `is_admin` is false
+  (`_device_projection`, `app/services/authz/grants.py`), so an admin's phone
+  acts as an interviewer (or supervisor, where granted) on every `/api/v1`
+  route. Admin work is browser-only.
+- **Decommissioning a device the account does not have answers 200.**
+  `DELETE /api/v1/me/devices/<id>` is idempotent: it ends this account's
+  sessions on that device and reports `sessions_ended` (0 when there were
+  none).
+- **The account deletion request needs no body.**
+  `POST /api/v1/me/deletion-request` is identified by the signed-in session
+  ([Public Privacy and Data Requests](public-privacy-and-data-requests.md));
+  an empty `{}` is a complete request.
+- **Three JSON routes are public**: `GET /api/v1/app/version` (server
+  compatibility and build), `GET /api/v1/ui-strings` (published UI
+  languages, needed before sign-in) and `GET /api/v1/public/totals.json`
+  (the home page's aggregate figures, [Public Home Stats](public-home-stats.md)).
+  None carries user data. Each sits, with its reason, on `PUBLIC_ENDPOINTS`
+  in `app/services/authz/consulted.py`.
+
 ## Access summary
 
 For every user type on the platform (admin, project and site PI, data

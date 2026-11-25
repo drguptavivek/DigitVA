@@ -107,7 +107,11 @@ Roles are additive and do not inherit from each other.
 
 ### `admin`
 
-Global administration.
+Global administration, from the browser only. A device token carries only
+the account's device roles (`NATIVE_DEVICE_ROLES`), never admin: an admin
+signed in on a phone acts there as the interviewer or supervisor they are
+granted as (owner 2026-11-25, `digitva-r8nh.39`;
+[One Client API](api-v1.md), "By design").
 
 May manage:
 

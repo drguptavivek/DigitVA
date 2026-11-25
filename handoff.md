@@ -36,7 +36,9 @@ and maps stay in the browser).
   interview landed (migration `a7d3e9c5b2f1` since staging); first design
   review fixes in `c31195040` (screenshots in
   private/screenshots/supervisor-phone-2026-11-24). Left: owner look at the
-  fixed screens, a CI APK device check. Maestro 60/70/75/81 passed together
+  fixed screens, a CI APK device check (include the death edit's new
+  informant, phone, ABHA, GPS and registration fields). `data_manager` on
+  the phone: owner "not now" (2026-11-24, mobile-sign-in.md). Maestro 60/70/75/81 passed together
   on 2026-11-25 (flow 70 runs 36-61 min; `run-suite.sh` needs per-flow caps
   over an hour, `digitva-flkc`). Before a
   staging deploy, audit for old APKs: interviewer+supervisor phones now get
@@ -99,8 +101,6 @@ and maps stay in the browser).
   no audit row, three routes may be missing from the unauthenticated list
   (`r8nh.32`, old-APK check first).
 
-- Supervisors: `data_manager` on the phone: not done, needs a decision and policy. Phone death edit leaves out informant,
-  phones, ABHA, GPS and registration numbers (browser has them).
 - Golden postcoordination fixtures: 12 re-recorded on 2026-11-19 then the
   change reverted; the corpus is unchanged and approved.
 - `kkdb` step 2 (on-device Dictate button); `wawz` start.

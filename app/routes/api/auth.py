@@ -14,6 +14,7 @@ names the inputs to fix. Request bodies are capped
 included. Terms and maintenance gates are the app-level ones in app/hooks/terms_gate.py.
 """
 
+import functools
 import logging
 from datetime import UTC, datetime
 
@@ -159,6 +160,24 @@ def _enrolment_reply(device, secret) -> dict:
     }
 
 
+def _demo_only(view):
+    """404 unless the public demo is enabled; innermost decorator, so the
+    limiter and body-size checks still run first."""
+    @functools.wraps(view)
+    def wrapper(*args, **kwargs):
+        if not public_demo_service.enabled():
+            abort(404)
+        return view(*args, **kwargs)
+    return wrapper
+
+
+def _parse_signing_key(p):
+    """The optional ``signing_public_key`` of an enrolment body, parsed (None if absent)."""
+    if p.get("signing_public_key") is None:
+        return None
+    return signing.parse_public_key(p["signing_public_key"])
+
+
 @bp.post("/enroll")
 @limiter.limit("10 per minute")
 def enroll():
@@ -168,9 +187,7 @@ def enroll():
     (Collect Plus install UUID): validated the same way, stored on the device."""
     p = _body()
     client_uuid = devices.parse_client_device_uuid(p.get("client_device_uuid"))
-    public_key = None
-    if p.get("signing_public_key") is not None:
-        public_key = signing.parse_public_key(p["signing_public_key"])
+    public_key = _parse_signing_key(p)
     device, secret = devices.enrol_device(
         p.get("code"), device_name=p.get("device_name"), platform=p.get("platform"),
         app_version=p.get("app_version"), client_device_uuid=client_uuid,
@@ -337,9 +354,7 @@ def redeem_sign_in_qr():
     no device yet to key on). The user's email, if any, gets a notice."""
     p = _body()
     client_uuid = devices.parse_client_device_uuid(p.get("client_device_uuid"))
-    public_key = None
-    if p.get("signing_public_key") is not None:
-        public_key = signing.parse_public_key(p["signing_public_key"])
+    public_key = _parse_signing_key(p)
     device, secret, issued, user = sign_in_qr.redeem(
         p.get("token"), device_name=p.get("device_name"), platform=p.get("platform"),
         app_version=p.get("app_version"), client_device_uuid=client_uuid,
@@ -365,6 +380,7 @@ def redeem_sign_in_qr():
 @bp.post("/demo-enroll")
 @limiter.limit("10 per minute", key_func=public_demo_service.signup_remote_key)
 @limiter.limit("20 per hour", key_func=_keyed_digest(_body_key("username")))
+@_demo_only
 def demo_enroll():
     """Enrol the app on the public demo without a QR code (docs/policy/
     public-demo.md section 10): ``{username, password, device_name, platform,
@@ -379,8 +395,6 @@ def demo_enroll():
     another project. At the three-phone cap 409 ``device_limit`` lists the
     account's phones; ``replace_device_id`` signs one out as ``/sessions``
     does. The app then signs in through ``POST /sessions``."""
-    if not public_demo_service.enabled():
-        abort(404)
     p = _body()
     client_uuid = devices.parse_client_device_uuid(p.get("client_device_uuid"))
     try:
@@ -399,19 +413,19 @@ def demo_enroll():
 
 @bp.get("/demo-signup/challenge")
 @limiter.limit("30 per minute", key_func=public_demo_service.signup_remote_key)
+@_demo_only
 def demo_signup_challenge():
     """A fresh proof-of-work challenge for ``POST /demo-signup``
     (``pow_captcha_service.issue_challenge``, the web form's challenge): 200
     ``{salt, difficulty, expires, signature}``. Stateless and signed, valid
     for five minutes, spent by one successful verification. 404 unless
     ``PUBLIC_DEMO_ENABLED``."""
-    if not public_demo_service.enabled():
-        abort(404)
     return jsonify(issue_challenge()), 200
 
 
 @bp.post("/demo-signup")
 @limiter.limit("10 per minute", key_func=public_demo_service.signup_remote_key)
+@_demo_only
 def demo_signup():
     """Public-demo sign-up for the Android app (docs/policy/public-demo.md
     sections 2 and 10): ``{username, password, captcha}``, where ``captcha``
@@ -426,8 +440,6 @@ def demo_signup():
     the app then signs in through ``POST /sessions``. Refusals are
     ``{error, code, fields}`` with ``public_demo_service.create_account``'s
     codes."""
-    if not public_demo_service.enabled():
-        abort(404)
     p = _body()
     if should_block_non_admin_after_cutoff():
         return _error("Site is under maintenance.", "maintenance", 503)

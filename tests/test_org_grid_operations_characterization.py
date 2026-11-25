@@ -193,6 +193,20 @@ class BulkApplyOperationsCharacterizationTests(BaseTestCase):
         with self.assertRaises(org.OrganizationError):
             self._apply([self.u2], "activate_users", "own", actor=self.u1)
 
+    def test_non_admin_account_status_refusal_message_and_no_write(self):
+        # u1 is on the roster (placed at c1), so the roster check passes and the
+        # refusal comes from the account-status handler itself.
+        for operation in ("activate_users", "deactivate_users"):
+            with self.subTest(operation=operation):
+                before = self.u1.user_status
+                with self.assertRaises(org.OrganizationError) as ctx:
+                    self._apply([self.u1], operation, "own", actor=self.u1)
+                self.assertEqual(
+                    str(ctx.exception),
+                    "Only a platform Admin can activate or deactivate user accounts.",
+                )
+                self.assertEqual(self.u1.user_status, before)
+
     # -- ordering of writes and audit rows --------------------------------
 
     def _record_writes(self, fn):

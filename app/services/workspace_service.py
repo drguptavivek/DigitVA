@@ -361,6 +361,111 @@ SESSION_ACTIONTYPE = {
 }
 
 
+@dataclass
+class _ModeResult:
+    """What a mode contributes to the workspace body beyond the shared parts."""
+
+    assessments: dict
+    step: str
+    options: list | None = None
+    prefill: object = None
+    timeline_initial: object = None
+    timeline_final: object = None
+    has_initial: bool = False
+
+
+def _empty_assessments() -> dict:
+    return {
+        "initial": None,
+        "initial_prefill": None,
+        "final": None,
+        "not_codeable": None,
+        "coder_initial": None,
+        "reviewer_initial": None,
+        "reviewer_final": None,
+    }
+
+
+def _coding_mode(case, va_sid, uid, artifacts, coder_final, *, masked, redacted, show_reference) -> _ModeResult:
+    assessments = _empty_assessments()
+    prefill = get_step1_prefill(
+        va_sid, uid, "vacode", recode_resume=True, recode_active=case.recode_active
+    )
+    own = prefill if prefill is not None and prefill.va_iniassess_status == VaStatuses.active else None
+    assessments["initial"] = _initial_json(own)
+    assessments["initial_prefill"] = _initial_json(prefill)
+    step = coding_step(
+        masked=masked, has_initial=own is not None, has_not_codeable=bool(artifacts.vaerrexists)
+    )
+    options = other_conditions_choices(case.active_version.payload_data if case.active_version else None)
+    # The web's active coding panel shows neither before Step 2: another
+    # coder's authoritative final would unblind a masked Step 1, and a
+    # not-codeable review counts only as the caller's own.
+    if step == "final":
+        assessments["final"] = _coder_final_json(coder_final)
+    if artifacts.va_coder_review is not None and artifacts.va_coder_review.va_creview_by == uid:
+        assessments["not_codeable"] = _not_codeable_json(artifacts.va_coder_review)
+    timeline_final = coder_final
+    if timeline_final is not None and timeline_final.va_finassess_by != uid:
+        timeline_final = None
+    return _ModeResult(
+        assessments, step, options, prefill,
+        timeline_initial=own, timeline_final=timeline_final,
+        has_initial=assessments["initial"] is not None,
+    )
+
+
+def _view_mode(case, va_sid, uid, artifacts, coder_final, *, masked, redacted, show_reference) -> _ModeResult:
+    assessments = _empty_assessments()
+    # Read-only reference once coding is finished: the authoritative
+    # final's coder row, the latest reviewer final of any reviewer.
+    if show_reference:
+        assessments["final"] = _coder_final_json(coder_final)
+        assessments["not_codeable"] = _not_codeable_json(artifacts.va_coder_review)
+        assessments["coder_initial"] = _initial_json(artifacts.va_initial_assess)
+        assessments["reviewer_final"] = _reviewer_final_json(
+            get_latest_active_reviewer_final_assessment(va_sid, None)
+        )
+    if redacted:
+        # Staff free text can name people; a redacted viewer gets the codes only.
+        for key, field in (("final", "remark"), ("reviewer_final", "remark"), ("not_codeable", "other")):
+            if assessments[key] is not None:
+                assessments[key][field] = None
+    return _ModeResult(
+        assessments, "view",
+        timeline_initial=artifacts.va_initial_assess, timeline_final=coder_final,
+        has_initial=artifacts.va_reviewer_initial_assess is not None,
+    )
+
+
+def _reviewing_mode(case, va_sid, uid, artifacts, coder_final, *, masked, redacted, show_reference) -> _ModeResult:
+    assessments = _empty_assessments()
+    # The reviewer sees the coder's Step 1, final and not-codeable review
+    # as read-only reference; the reviewer rows are their own.
+    assessments["final"] = _coder_final_json(coder_final)
+    if assessments["final"] is not None and case.project_mode == "unmasked_doris":
+        # As the legacy reviewer panel: the coder's DORIS status and computed code, no reports.
+        assessments["final"].update(_doris_summary_json(coder_final.doris_result))
+    assessments["not_codeable"] = _not_codeable_json(artifacts.va_coder_review)
+    assessments["coder_initial"] = _initial_json(artifacts.va_initial_assess)
+    assessments["reviewer_initial"] = _reviewer_initial_json(artifacts.va_reviewer_initial_assess)
+    assessments["reviewer_final"] = _reviewer_final_json(artifacts.va_reviewer_final_assess)
+    step = reviewing_step(
+        masked=masked,
+        has_initial=artifacts.va_reviewer_initial_assess is not None,
+        has_final=artifacts.va_reviewer_final_assess is not None,
+    )
+    return _ModeResult(
+        assessments, step,
+        timeline_initial=artifacts.va_initial_assess, timeline_final=coder_final,
+        has_initial=artifacts.va_reviewer_initial_assess is not None,
+    )
+
+
+# Any other mode is the reviewer's, as before.
+_MODE_STRATEGIES = {"coding": _coding_mode, "view": _view_mode}
+
+
 def build_workspace(
     case: _Case,
     va_sid: str,
@@ -425,89 +530,26 @@ def build_workspace(
         if authoritative is not None and authoritative.coder_final_assessment_id
         else None
     )
-    assessments = {
-        "initial": None,
-        "initial_prefill": None,
-        "final": None,
-        "not_codeable": None,
-        "coder_initial": None,
-        "reviewer_initial": None,
-        "reviewer_final": None,
-    }
-    options = None
-    if case.mode == "coding":
-        prefill = get_step1_prefill(
-            va_sid, uid, "vacode", recode_resume=True, recode_active=case.recode_active
-        )
-        own = prefill if prefill is not None and prefill.va_iniassess_status == VaStatuses.active else None
-        assessments["initial"] = _initial_json(own)
-        assessments["initial_prefill"] = _initial_json(prefill)
-        step = coding_step(
-            masked=masked, has_initial=own is not None, has_not_codeable=bool(artifacts.vaerrexists)
-        )
-        options = other_conditions_choices(case.active_version.payload_data if case.active_version else None)
-        # The web's active coding panel shows neither before Step 2: another
-        # coder's authoritative final would unblind a masked Step 1, and a
-        # not-codeable review counts only as the caller's own.
-        if step == "final":
-            assessments["final"] = _coder_final_json(coder_final)
-        if artifacts.va_coder_review is not None and artifacts.va_coder_review.va_creview_by == uid:
-            assessments["not_codeable"] = _not_codeable_json(artifacts.va_coder_review)
-    elif view:
-        # Read-only reference once coding is finished: the authoritative
-        # final's coder row, the latest reviewer final of any reviewer.
-        if show_reference:
-            assessments["final"] = _coder_final_json(coder_final)
-            assessments["not_codeable"] = _not_codeable_json(artifacts.va_coder_review)
-            assessments["coder_initial"] = _initial_json(artifacts.va_initial_assess)
-            assessments["reviewer_final"] = _reviewer_final_json(
-                get_latest_active_reviewer_final_assessment(va_sid, None)
-            )
-        if redacted:
-            # Staff free text can name people; a redacted viewer gets the codes only.
-            for key, field in (("final", "remark"), ("reviewer_final", "remark"), ("not_codeable", "other")):
-                if assessments[key] is not None:
-                    assessments[key][field] = None
-        step = "view"
-    else:
-        # The reviewer sees the coder's Step 1, final and not-codeable review
-        # as read-only reference; the reviewer rows are their own.
-        assessments["final"] = _coder_final_json(coder_final)
-        if assessments["final"] is not None and case.project_mode == "unmasked_doris":
-            # As the legacy reviewer panel: the coder's DORIS status and computed code, no reports.
-            assessments["final"].update(_doris_summary_json(coder_final.doris_result))
-        assessments["not_codeable"] = _not_codeable_json(artifacts.va_coder_review)
-        assessments["coder_initial"] = _initial_json(artifacts.va_initial_assess)
-        assessments["reviewer_initial"] = _reviewer_initial_json(artifacts.va_reviewer_initial_assess)
-        assessments["reviewer_final"] = _reviewer_final_json(artifacts.va_reviewer_final_assess)
-        step = reviewing_step(
-            masked=masked,
-            has_initial=artifacts.va_reviewer_initial_assess is not None,
-            has_final=artifacts.va_reviewer_final_assess is not None,
-        )
-    timeline_initial = own if case.mode == "coding" else artifacts.va_initial_assess
-    timeline_final = coder_final
-    if case.mode == "coding" and timeline_final is not None and timeline_final.va_finassess_by != uid:
-        timeline_final = None
+    mode = _MODE_STRATEGIES.get(case.mode, _reviewing_mode)(
+        case, va_sid, uid, artifacts, coder_final,
+        masked=masked, redacted=redacted, show_reference=show_reference,
+    )
+    assessments, step, options, prefill = mode.assessments, mode.step, mode.options, mode.prefill
     coding_timeline = (
         []
         if case.intake_only or (view and not show_reference)
         else _coding_timeline(
             va_sid,
             uid,
-            timeline_initial,
-            timeline_final,
+            mode.timeline_initial,
+            mode.timeline_final,
             active_allocation=case.mode == "coding",
         )
     )
+    has_initial = mode.has_initial
     # SmartVA completes asynchronously, so it is read live, and a masked
     # project keeps it from Step 1 as the web does: shown once the caller
     # has their own Step 1.
-    has_initial = (
-        assessments["initial"] is not None
-        if case.mode == "coding"
-        else artifacts.va_reviewer_initial_assess is not None
-    )
     smartva = None
     if show_reference or (not view and (not masked or has_initial)):
         smartva = smartva_summary(get_active_smartva(va_sid))

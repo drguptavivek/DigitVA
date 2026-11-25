@@ -1,0 +1,6 @@
+project_id,site_id,va_form_id,va_uniqueid_masked,workflow_state,Id10019,Id10023,Id10120,Id10147,Id10476,sid
+GLD001,GD1A,GLD001GD1A01,GLD-1,coder_finalized,female,,=cmd|' /C calc'!A0,,"Narrative, ""नरेटिव""
+line two",uuid:gld-1
+GLD001,GD1A,GLD001GD1A01,GLD-4,coder_finalized,,,,,,uuid:gld-4
+GLD002,GD2A,GLD002GD2A01,GLD-2,coder_finalized,male,,,7,,uuid:gld-2
+GLD001,GD1B,GLD001GD1B01,GLD-3,coder_finalized,,,,-1,,uuid:gld-3

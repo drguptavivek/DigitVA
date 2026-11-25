@@ -1,0 +1,5 @@
+va_sid,project_id,site_id,va_form_id,va_uniqueid_masked,workflow_state,output_source_name,output_resultfor,output_row_index,cause_a,cause_b,neg,workflow_state,zeta,मान
+uuid:gld-1,GLD001,GD1A,GLD001GD1A01,GLD-1,collides,"likelihoods, ""adult"".csv",adult,0,0.5,,'-1,collides,,"x, ""y""
+z"
+uuid:gld-1,GLD001,GD1A,GLD001GD1A01,GLD-1,,"likelihoods, ""adult"".csv",adult,1,,"[0.1, ""\u0926\u094b""]",,,,
+uuid:gld-2,GLD002,GD2A,GLD002GD2A01,GLD-2,,"likelihoods, ""adult"".csv",,0,,"{""k"": 1}",,,,

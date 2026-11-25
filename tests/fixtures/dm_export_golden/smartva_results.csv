@@ -1,0 +1,5 @@
+va_sid,project_id,site_id,va_form_id,va_uniqueid_masked,workflow_state,va_smartva_resultfor,va_smartva_age,va_smartva_gender,va_smartva_cause1,va_smartva_likelihood1,va_smartva_keysymptom1,va_smartva_cause1icd,va_smartva_cause2,va_smartva_likelihood2,va_smartva_keysymptom2,va_smartva_cause2icd,va_smartva_cause3,va_smartva_likelihood3,va_smartva_keysymptom3,va_smartva_cause3icd,va_smartva_allsymptoms,va_smartva_outcome,va_smartva_failure_stage,va_smartva_failure_detail,va_smartva_addedat,va_smartva_updatedat
+uuid:gld-1,GLD001,GD1A,GLD001GD1A01,GLD-1,coder_finalized,for_adult,42,female,"'=HYPERLINK(""x"")",0.78,"मृत्यु का कारण, ""हृदय""
+दूसरी पंक्ति",I21,"Stroke, ""ischemic""",,,,,,,,"fever, cough",success,,,2031-03-10 20:00:00,2031-03-11 06:15:30.123456
+uuid:gld-2,GLD002,GD2A,GLD002GD2A01,GLD-2,coder_finalized,,,,,,,,,,,,,,,,,failed,prep,"bad value -1
+second line",2031-03-09 18:29:59,2031-03-09 18:29:59

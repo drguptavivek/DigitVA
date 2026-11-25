@@ -3,3 +3,4 @@ docs/icd-causegrp-mappings/migration-artifacts/icd11-*/*.txt -text
 
 # DM export goldens are byte-for-byte csv module output (CRLF): no EOL conversion.
 tests/fixtures/dm_export_streaming/*.csv -text
+tests/fixtures/dm_export_golden/*.csv -text

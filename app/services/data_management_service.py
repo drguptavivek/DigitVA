@@ -1301,6 +1301,28 @@ def _raw_csv_cell(value):
     return str(value)
 
 
+def _mapping_columns(headers, cell=lambda value: value) -> list[tuple]:
+    """Column specs reading each header from a mapping record, through *cell*."""
+    return [(header, lambda record, header=header: cell(record.get(header))) for header in headers]
+
+
+def _write_csv(out, columns, records) -> None:
+    """Write *records* to the text handle *out* as CSV, the one writer of the DM exports.
+
+    *columns* is the export's column spec: ``(header, get)`` pairs in column
+    order, where ``get(record)`` returns the cell as the csv module takes it
+    (None is an empty cell, anything else is ``str()``-ed). A header listed
+    twice — a payload key that is also a base or org-unit header — writes the
+    value of its LAST column in both cells: each export used to fill one dict
+    per row and write it with ``csv.DictWriter``, and the files must not change.
+    *records* is consumed lazily, so a spool replays without being loaded.
+    """
+    writer = csv.DictWriter(out, fieldnames=[header for header, _ in columns], extrasaction="ignore")
+    writer.writeheader()
+    for record in records:
+        writer.writerow({header: get(record) for header, get in columns})
+
+
 CSV_EXPORT_OMIT_BASE_HEADERS = frozenset(
     {
         "va_uniqueid_real",
@@ -1885,21 +1907,27 @@ def write_dm_submissions_export_csv(
             header for header in base_headers if header not in CSV_EXPORT_OMIT_BASE_HEADERS
         ]
 
-        # Appended after every existing column (base and payload): downstream
-        # consumers depend on the existing column order and offsets.
-        org_unit_headers = ["org_unit_code", "org_unit_name", "org_unit_level_path"]
-        headers = base_headers + payload_headers + org_unit_headers
-
-        writer = csv.DictWriter(out, fieldnames=headers, extrasaction="ignore")
-        writer.writeheader()
-        for export_row, payload, org_unit_id in _read_spool(spool):
-            for key in payload_headers:
-                export_row[key] = _serialize_csv_cell(payload.get(key))
-            org_unit_label = org_unit_labels.get(org_unit_id) or {}
-            export_row["org_unit_code"] = org_unit_label.get("unit_code", "")
-            export_row["org_unit_name"] = org_unit_label.get("unit_name", "")
-            export_row["org_unit_level_path"] = org_unit_label.get("level_path", "")
-            writer.writerow(export_row)
+        # Spool records are (base cells, filtered payload, org unit id). Base
+        # cells go out as built (staff identity already redacted), payload
+        # cells through the formula guard. The org-unit columns are appended
+        # after every existing column (base and payload): downstream consumers
+        # depend on the existing column order and offsets.
+        columns = [
+            *((header, lambda record, header=header: record[0].get(header)) for header in base_headers),
+            *(
+                (key, lambda record, key=key: _serialize_csv_cell(record[1].get(key)))
+                for key in payload_headers
+            ),
+            *(
+                (header, lambda record, field=field: (org_unit_labels.get(record[2]) or {}).get(field, ""))
+                for header, field in (
+                    ("org_unit_code", "unit_code"),
+                    ("org_unit_name", "unit_name"),
+                    ("org_unit_level_path", "level_path"),
+                )
+            ),
+        ]
+        _write_csv(out, columns, _read_spool(spool))
 
 
 def dm_submissions_export_csv(user, **filters) -> str:
@@ -2183,25 +2211,31 @@ def dm_coded_cod_snapshot_export_csv(
 
     # Licence 1.2.2: an exported ICD-11 code travels with its linearization
     # URI, the URI of the primary stem the final buckets by (digitva-443q).
-    uri_headers = list(COD_SNAPSHOT_ICD11_URI_COLUMNS.values())
     uri_by_code = _icd11_stem_uris(
         {row.get(source) for row in rows for source in COD_SNAPSHOT_ICD11_URI_COLUMNS}
     )
 
-    handle = io.StringIO()
-    writer = csv.DictWriter(handle, fieldnames=[*headers, *uri_headers], extrasaction="ignore")
-    writer.writeheader()
-    for row in rows:
-        export_row = {key: _serialize_csv_cell(row.get(key)) for key in headers}
-        for source, target in COD_SNAPSHOT_ICD11_URI_COLUMNS.items():
-            code = extract_icd_code(row.get(source), "icd11")
-            export_row[target] = uri_by_code.get(code, "") if code else ""
-        _redact_staff_identity_export_row(
-            export_row,
-            redact=not pii.sees(row.get("project_id")),
-            headers=COD_SNAPSHOT_STAFF_IDENTITY_HEADERS,
+    def staff_cell(header):
+        # Staff names are blanked per row by project (pii_scope), not dropped.
+        return lambda row: (
+            _serialize_csv_cell(row.get(header)) if pii.sees(row.get("project_id")) else ""
         )
-        writer.writerow(export_row)
+
+    def uri_cell(source):
+        def cell(row):
+            code = extract_icd_code(row.get(source), "icd11")
+            return uri_by_code.get(code, "") if code else ""
+        return cell
+
+    columns = [
+        (header, staff_cell(header))
+        if header in COD_SNAPSHOT_STAFF_IDENTITY_HEADERS
+        else (header, lambda row, header=header: _serialize_csv_cell(row.get(header)))
+        for header in headers
+    ]
+    columns += [(target, uri_cell(source)) for source, target in COD_SNAPSHOT_ICD11_URI_COLUMNS.items()]
+    handle = io.StringIO()
+    _write_csv(handle, columns, rows)
     # Licence 2.6: WHO citation as a final "#" row (a CSV has no header block).
     csv.writer(handle).writerow([f"# {ICD11_CITATION}"])
     return handle.getvalue()
@@ -2326,12 +2360,8 @@ def write_dm_smartva_input_export_csv(
 
         # Sorted like the submissions export: row order must not decide the header (digitva-783d).
         headers = preferred_front + sorted(payload_headers) + ["sid"]
-        writer = csv.DictWriter(out, fieldnames=headers, extrasaction="ignore")
-        writer.writeheader()
-        for prepared in _read_spool(spool):
-            writer.writerow(
-                {key: _raw_csv_cell(value) if raw else _serialize_csv_cell(value) for key, value in prepared.items()}
-            )
+        cell = _raw_csv_cell if raw else _serialize_csv_cell
+        _write_csv(out, _mapping_columns(headers, cell), _read_spool(spool))
 
 
 def dm_smartva_input_export_csv(user, **filters) -> str:
@@ -2459,10 +2489,7 @@ def dm_smartva_results_export_csv(
         "va_smartva_updatedat",
     ]
     handle = io.StringIO()
-    writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")
-    writer.writeheader()
-    for row in rows:
-        writer.writerow({key: _serialize_csv_cell(row.get(key)) for key in headers})
+    _write_csv(handle, _mapping_columns(headers, _serialize_csv_cell), rows)
     return handle.getvalue()
 
 
@@ -2551,7 +2578,8 @@ def dm_smartva_likelihoods_export_csv(
         for key in (row.get("output_payload") or {}).keys()
         if key != "sid"
     })
-    headers = [
+    # Base cells go out raw; payload cells through the formula guard.
+    columns = _mapping_columns([
         "va_sid",
         "project_id",
         "site_id",
@@ -2561,26 +2589,12 @@ def dm_smartva_likelihoods_export_csv(
         "output_source_name",
         "output_resultfor",
         "output_row_index",
-    ] + payload_headers
-
+    ]) + [
+        (key, lambda row, key=key: _serialize_csv_cell((row.get("output_payload") or {}).get(key)))
+        for key in payload_headers
+    ]
     handle = io.StringIO()
-    writer = csv.DictWriter(handle, fieldnames=headers, extrasaction="ignore")
-    writer.writeheader()
-    for row in rows:
-        export_row = {
-            "va_sid": row.get("va_sid"),
-            "project_id": row.get("project_id"),
-            "site_id": row.get("site_id"),
-            "va_form_id": row.get("va_form_id"),
-            "va_uniqueid_masked": row.get("va_uniqueid_masked"),
-            "workflow_state": row.get("workflow_state"),
-            "output_source_name": row.get("output_source_name"),
-            "output_resultfor": row.get("output_resultfor"),
-            "output_row_index": row.get("output_row_index"),
-        }
-        for key in payload_headers:
-            export_row[key] = _serialize_csv_cell((row.get("output_payload") or {}).get(key))
-        writer.writerow(export_row)
+    _write_csv(handle, columns, rows)
     return handle.getvalue()
 
 

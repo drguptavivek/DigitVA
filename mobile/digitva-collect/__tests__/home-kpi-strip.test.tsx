@@ -30,6 +30,13 @@ function textOf(tree: ReactTestRenderer): string {
   return walk(tree.toJSON());
 }
 
+/** Each project row's spoken sentence: the table's cells read as one line. */
+function rowLabels(tree: ReactTestRenderer): string[] {
+  return tree.root
+    .findAll((node) => (node.type as unknown) === "View" && typeof node.props.accessibilityLabel === "string")
+    .map((node) => node.props.accessibilityLabel as string);
+}
+
 async function settle(): Promise<void> {
   await act(async () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -50,17 +57,18 @@ describe("KpiStrip", () => {
     mockRequest.mockReset();
   });
 
-  it("fetches the KPIs once and shows counts and percentages for one project without its name", async () => {
+  it("fetches the KPIs once and shows a named table row with counts and percentages", async () => {
     mockRequest.mockResolvedValue({ projects: [project()] });
     const tree = await render();
 
     expect(mockRequest).toHaveBeenCalledTimes(1);
     expect(mockRequest).toHaveBeenCalledWith("/api/v1/me/kpis");
+    expect(rowLabels(tree)).toEqual(["Project One: Deaths reported 12 · Interviews done 6 (50%) · Coded 3 (25%)"]);
     const text = textOf(tree);
-    expect(text).toContain("Deaths reported 12 · Interviews done 6 (50%) · Coded 3 (25%)");
-    expect(text).not.toContain("Project One");
-    // Each percentage is its own secondary Text beside the count, never part of the count text.
-    expect(tree.root.findAll((node) => (node.type as unknown) === "Text" && node.props.children === " (50%)")).toHaveLength(1);
+    for (const header of ["Deaths reported", "Interviews done", "Coded"]) expect(text).toContain(header);
+    // Each count is its own cell and each percentage a separate muted Text below it.
+    const texts = tree.root.findAll((node) => (node.type as unknown) === "Text").map((node) => node.props.children);
+    expect(texts).toEqual(expect.arrayContaining(["Project One", 12, 6, "50%", 3, "25%"]));
   });
 
   it("shows the count alone for a null percentage", async () => {
@@ -69,7 +77,7 @@ describe("KpiStrip", () => {
     });
     const tree = await render();
 
-    expect(textOf(tree)).toContain("Deaths reported 0 · Interviews done 0 · Coded 0");
+    expect(rowLabels(tree)).toEqual(["Project One: Deaths reported 0 · Interviews done 0 · Coded 0"]);
     expect(textOf(tree)).not.toContain("%");
   });
 
@@ -84,11 +92,12 @@ describe("KpiStrip", () => {
     });
     const tree = await render();
 
-    const text = textOf(tree);
-    expect(text).toContain("Project Four");
-    expect(text).toContain("Deaths reported 40 · Interviews done 20 (50%) · Coded 10 (25%)");
-    expect(text).not.toContain("Deaths reported 43");
-    expect(text).not.toContain("All projects");
+    const labels = rowLabels(tree);
+    expect(labels).toHaveLength(4);
+    expect(labels).toContain("Project Four: Deaths reported 1 · Interviews done 1 · Coded 0");
+    expect(labels).toContain("Project Two: Deaths reported 40 · Interviews done 20 (50%) · Coded 10 (25%)");
+    expect(labels.join()).not.toContain("Deaths reported 43");
+    expect(textOf(tree)).not.toContain("All projects");
   });
 
   it("names each project when there are two", async () => {
@@ -100,7 +109,7 @@ describe("KpiStrip", () => {
     const text = textOf(tree);
     expect(text).toContain("Project One");
     expect(text).toContain("Project Two");
-    expect(text).toContain("Deaths reported 4");
+    expect(rowLabels(tree)[1]).toContain("Deaths reported 4");
   });
 
   it("holds a reserved height while the call is pending, then shows the counts", async () => {
@@ -117,7 +126,7 @@ describe("KpiStrip", () => {
       resolve({ projects: [project()] });
     });
     await settle();
-    expect(textOf(tree)).toContain("Deaths reported 12");
+    expect(rowLabels(tree)[0]).toContain("Deaths reported 12");
   });
 
   it("releases the reserved height when the call fails", async () => {

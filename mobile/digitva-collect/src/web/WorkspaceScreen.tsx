@@ -374,7 +374,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   if (
     !roles.includes("data_manager") &&
     dataAccess(activeBootstrap).allowed &&
-    (roles.includes("project_pi") || roles.includes("collaborator") || roles.includes("collaborator_pii"))
+    // Admins too: the More menu no longer lists Data management, so this button is their way in.
+    (isAdmin || roles.includes("admin") || roles.includes("project_pi") || roles.includes("collaborator") || roles.includes("collaborator_pii"))
   ) {
     quickActionItems.push({
       key: "dataManagement",
@@ -520,8 +521,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
               onPress={() => setProgressOpen((open) => !open)}
               style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: controls.minTouchTarget }}
             >
-              <Text style={styles.text}>{t("homeBlockProgress")}</Text>
-              <Text style={[styles.muted, { flex: 1 }]} numberOfLines={1}>{projectSubline(projects, BLOCK_GRANT_ROLES.progress)}</Text>
+              {/* No project count here: the table below names every project in the user's area, which for an admin is more than their progress grants. */}
+              <Text style={[styles.text, { flex: 1 }]}>{t("homeBlockProgress")}</Text>
               <Chevron expanded={progressOpen} size={18} color={ui.mutedForeground} />
             </FoldButton>
             {progressOpen ? (

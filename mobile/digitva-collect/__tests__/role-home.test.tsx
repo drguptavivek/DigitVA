@@ -313,6 +313,8 @@ describe("role home dashboard", () => {
   test("admin, collaborator and viewer homes carry their Flask-page entries", async () => {
     for (const [roles, label, path] of [
       [["admin"], "homeAdminConsole", "/admin/"],
+      // The More menu no longer lists Data management, so an admin's way in is this Home button.
+      [["admin"], "navDataManagement", "/data"],
       [["collaborator"], "navDataManagement", "/data"],
       [["collaborator_pii"], "navDataManagement", "/data"],
     ] as const) {

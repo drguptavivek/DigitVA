@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Web Home: Project progress reads as a table, and admins get a Data
+  management button (owner 2026-11-25, `digitva-pnaz`). Each project's name
+  sits on its own line over Deaths reported, Interviews done and Coded in
+  aligned columns, with percentages muted below; it fits a phone. The fold's
+  header no longer counts projects: it counted progress grants while the
+  table lists every project in the area, so an admin saw "5 projects" over
+  ten. With Data management gone from the More menu (`digitva-t8oa`), an
+  admin without a data role gets the Home button as the way in. Web only.
 - Grant forms: the cadre dropdown starts at "none" again for every role
   except coder, interview supervisor and death reporter (owner 2026-11-25,
   `digitva-oqa1`). Since `digitva-4650` listed "none (mentoring-institute

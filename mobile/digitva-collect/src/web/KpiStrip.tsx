@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Text, View, type TextStyle } from "react-native";
+import { StyleSheet, Text, View, type TextStyle } from "react-native";
 
 import type { ClientCsrf } from "../api";
 import { getHomeKpis, type ProjectKpi } from "../kpis/api";
 import { t } from "../i18n";
+import { useTheme } from "../theme";
 import { useUiStyles } from "../ui";
 import { createWebWorkspaceTransport } from "../workspace/transport.web";
 
@@ -21,29 +22,44 @@ function percent(value: number | null): string {
   return value === null ? "" : ` (${value}%)`;
 }
 
-/** One project's counts in *countStyle*, each percentage beside its count as muted secondary text (omitted when null). */
-function KpiLine({ counts, countStyle, mutedStyle }: { counts: ProjectKpi; countStyle: TextStyle; mutedStyle: TextStyle }) {
-  const interviewsPct = percent(counts.interviews_pct);
-  const codedPct = percent(counts.coded_pct);
+/** The row read aloud as one sentence, the same words the old one-line layout showed. */
+function rowLabel(counts: ProjectKpi): string {
+  const line = [
+    t("kpiDeathsCount", { count: counts.deaths_reported }),
+    t("kpiInterviewsCount", { count: counts.interviews_done }) + percent(counts.interviews_pct),
+    t("kpiCodedCount", { count: counts.coded }) + percent(counts.coded_pct),
+  ].join(" · ");
+  return `${counts.project_name}: ${line}`;
+}
+
+/** A right-aligned count with its percentage (when the server sent one) as muted text below. */
+function Count({
+  value,
+  pct,
+  countStyle,
+  mutedStyle,
+}: {
+  value: number;
+  pct: number | null;
+  countStyle: TextStyle;
+  mutedStyle: TextStyle;
+}) {
   return (
-    <Text style={countStyle}>
-      {t("kpiDeathsCount", { count: counts.deaths_reported })}
-      {" · "}
-      {t("kpiInterviewsCount", { count: counts.interviews_done })}
-      {interviewsPct ? <Text style={mutedStyle}>{interviewsPct}</Text> : null}
-      {" · "}
-      {t("kpiCodedCount", { count: counts.coded })}
-      {codedPct ? <Text style={mutedStyle}>{codedPct}</Text> : null}
-    </Text>
+    <View style={{ flex: 1, alignItems: "flex-end" }}>
+      <Text style={[countStyle, { fontVariant: ["tabular-nums"] }]}>{value}</Text>
+      {pct === null ? null : <Text style={mutedStyle}>{`${pct}%`}</Text>}
+    </View>
   );
 }
 
 /**
- * Project progress, one line per project in the user's area (named when there are several). Never summed across
- * projects. Hidden when the list is empty or the call fails: the page never waits on it.
+ * Project progress as a table: per project in the user's area, its name on its own line (long names stay readable on
+ * a phone) over Deaths reported, Interviews done and Coded in three aligned columns. Never summed across projects. Hidden when the
+ * list is empty or the call fails: the page never waits on it.
  */
 export function KpiStrip({ csrf }: { csrf: ClientCsrf }) {
   const styles = useUiStyles();
+  const { ui } = useTheme();
   const [projects, setProjects] = useState<ProjectKpi[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,13 +81,41 @@ export function KpiStrip({ csrf }: { csrf: ClientCsrf }) {
   if (loading) return <View style={{ minHeight: LOADING_MIN_HEIGHT }} />;
   if (!projects.length) return null;
 
-  const showName = projects.length > 1;
+  const columns = { flexDirection: "row" as const, gap: 8 };
+  const divider = {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: ui.border,
+    paddingVertical: 8,
+    gap: 2,
+  };
   return (
-    <View style={{ gap: 4 }}>
+    <View>
+      <View
+        style={[columns, { paddingBottom: 6 }]}
+        importantForAccessibility="no-hide-descendants"
+        accessibilityElementsHidden
+      >
+        {(["kpiColDeaths", "kpiColInterviews", "kpiColCoded"] as const).map((key) => (
+          <Text key={key} style={[styles.muted, { flex: 1, textAlign: "right" }]}>
+            {t(key)}
+          </Text>
+        ))}
+      </View>
       {projects.map((project) => (
-        <View key={project.project_id}>
-          {showName ? <Text style={styles.text}>{project.project_name}</Text> : null}
-          <KpiLine counts={project} countStyle={styles.text} mutedStyle={styles.muted} />
+        <View key={project.project_id} accessible accessibilityLabel={rowLabel(project)} style={divider}>
+          <Text style={[styles.text, { fontWeight: "600" }]} numberOfLines={2}>
+            {project.project_name}
+          </Text>
+          <View style={columns}>
+            <Count value={project.deaths_reported} pct={null} countStyle={styles.text} mutedStyle={styles.muted} />
+            <Count
+              value={project.interviews_done}
+              pct={project.interviews_pct}
+              countStyle={styles.text}
+              mutedStyle={styles.muted}
+            />
+            <Count value={project.coded} pct={project.coded_pct} countStyle={styles.text} mutedStyle={styles.muted} />
+          </View>
         </View>
       ))}
     </View>

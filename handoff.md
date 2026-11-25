@@ -65,13 +65,17 @@ and maps stay in the browser).
    `bx43`, `7amd.27` (due 2027-10), `9cll.18`, `1b50`, `p8uj`, `oux5`.
 5. Code audit refactors (epic `digitva-r8nh`). Waves 1-3 landed
    2026-11-24, wave 4 (Collect `.22`, `.23`, `.24`, `.26`) and wave 5
-   (backend `.9`, `.13`, `.15`, slices of `.11`, `.14`, `.17`) 2026-11-25:
+   (backend `.9`, `.13`, `.15`, slices of `.11`, `.14`, `.17`) and wave 6
+   (leftover slices of `.9`, `.13`, `.14`, `.15`) 2026-11-25:
    `.25`, `.12`, `.16` closed (owner holds their behaviour changes `.33`,
    `.34`); `.5`, `.8`, `.9`, `.11`, `.13`, `.14`, `.15`, `.17`, `.20` have
    slices in, next slice in each bead's notes (`.5` api_v1 errorhandler:
    read-only pass first, owner if uncaught-exception replies change; then
    `.20` transport/authed retry). Pre-existing DM API bugs pinned, not
-   fixed: `.37` (owner). Not started: `.6`, `.7`, `.10`, `.18`, `.19`,
+   fixed: `.37`, CSV header collisions and snapshot `unique_id` `.38` (owner).
+   `.13` leftover (`_build_repair_map_for_form`,
+   `_refresh_batch_plan_after_enrichment`) needs test patch-target edits:
+   owner. Not started: `.6`, `.7`, `.10`, `.18`, `.19`,
    `.21`, `.27`-`.29`; ask the owner before starting. Every one follows the epic's
    behaviour-preservation protocol (bd memory
    `refactor-behaviour-preservation`): characterization tests first,

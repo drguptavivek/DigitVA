@@ -5,6 +5,16 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-25
 
+- Code audit refactors, wave 6, backend leftovers (owner go 2026-11-25; same
+  protocol, no reply, status, error-code or CSV byte change; URL map
+  identical): intake browser save/submit pre-steps in the service and public
+  names for its helpers, submit's resubmit branch untouched for `r8nh.34`
+  (`r8nh.9`); services queue sync tasks through `task_dispatch`, three repair
+  helpers out of `sync_tasks`, Celery task names identical (`r8nh.13`);
+  admin and DM update-user share the email and language checks, and the five
+  DM CSV exporters are column specs with one writer, pinned by golden files
+  from the old code (`r8nh.15`; quirks in `r8nh.38`); users-grid read in
+  `org_grid_read.py` (`r8nh.14`).
 - Code audit refactors, wave 5, backend (owner go 2026-11-25; same
   protocol, no reply body, status or error-code change; URL map of the app
   identical, 710 rules): `routes/api/intake.py` split into the

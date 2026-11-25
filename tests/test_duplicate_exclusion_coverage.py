@@ -182,7 +182,7 @@ EXEMPT = {
     "services/web_intake/worklist.py::_worklist_select": (
         "worklist rows are register rows; ready_for_coding excludes VaDeathRegister.status duplicate directly"
     ),
-    "routes/api/intake.py::reopen_for_revision": (
+    "routes/api/intake/supervision.py::reopen_for_revision": (
         "thin route over reopen_for_revision, which refuses a confirmed duplicate (409 case_closed)"
     ),
     "services/interview_send_back_service.py::_open_for_revision": (
@@ -193,7 +193,7 @@ EXEMPT = {
         "one named submission's latest workflow event, to decide whether its interviewer may "
         "revise or a data manager may cancel; not a coding list or count"
     ),
-    "routes/api/intake.py::revise_submission": (
+    "routes/api/intake/uploads.py::revise_submission": (
         "reads the caller's own one submission's state to decide the revision lock, not a "
         "coding list; a confirmed duplicate case is refused (409 case_closed)"
     ),

@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-24
+last_updated: 2026-11-25
 ---
 
 # API v1 Reference
@@ -217,7 +217,7 @@ Users panel; `POST /admin/api/deletion-requests/<id>/handled` sets
 (`{request_id}`), 404 when no such request is pending. Neither deletes
 anything.
 
-## Intake (`/api/v1/intake`, `app/routes/api/intake.py`)
+## Intake (`/api/v1/intake`, `app/routes/api/intake/`)
 
 Paths are under `/api/v1`. Either credential; the caller needs the
 interviewer role (supervision: `interview_supervisor` or `data_manager`). The

@@ -3,7 +3,7 @@ title: PII Slice 2 - Sealed Death Register
 doc_type: kb
 status: active
 owner: engineering
-last_updated: 2026-10-21
+last_updated: 2026-11-25
 ---
 
 # PII Slice 2
@@ -165,7 +165,7 @@ opened once with `current_values` (one row) or `open_register_pii` (a page,
 | `worklist_page` | names opened once per page; the fix opened only for rows with `has_location` that the viewer may see. |
 | `_prefill_from_death`, `_case_address`, `build_web_payload` (ABHA), `revise_submission` identity check | one `current_values` per case. |
 | `case_list_service.list_cases` | the page SELECT carries `pii_sealed` / `pii_dek_wrapped` under the `can_name` `CASE` (the fix rides in the same blob; `via_field` implies `can_name`) and `has_location`; latitude/longitude are `CASE`d on `via_field`. `_open_page` opens a row once (name plus fix where the fix is shown). `with_names=False` leaves the blob out of the SELECT and opens nothing; `case_export_service` passes it (no name or GPS column). |
-| `routes/api/intake.py` | the register list and supervision list open their page and pass `register=`; no response shape changed. |
+| `routes/api/intake/` | the register list and supervision list open their page and pass `register=`; no response shape changed. |
 
 Other readers searched and found clean: `case_transition_service`
 (`identity_complete` only), dashboards (`area_dashboard_service`,

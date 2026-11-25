@@ -3,7 +3,7 @@ title: Runtime And Operations
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-24
+last_updated: 2026-11-25
 ---
 
 # Runtime And Operations
@@ -482,7 +482,7 @@ the data key wrapped by a hybrid ML-KEM-768 + X25519 KEM. Policy and format:
 
 - **Request size.** There is no global `MAX_CONTENT_LENGTH` (ODK attachment and
   interview uploads need megabytes). The intake blueprint caps each route's body
-  itself (`app/routes/api/intake.py`, `_body_limit`): 16 KB for every call that
+  itself (`app/routes/api/intake/_common.py`, `_body_limit`): 16 KB for every call that
   carries registration numbers (413 `payload_too_large`, checked from
   `Content-Length` and again while reading). Every other body is capped by
   `Config.MAX_CONTENT_LENGTH` (env `MAX_CONTENT_LENGTH`, default 2 MiB), which

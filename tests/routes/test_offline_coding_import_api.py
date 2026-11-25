@@ -336,6 +336,32 @@ class StandalonePushTests(BaseTestCase):
         held = db.session.get(VaBundlePendingCoding, draft_id)
         self.assertEqual((held.result["enrolled_context"], held.result["profile_snapshot"]), (True, {}))
 
+    def test_char_coding_refused_on_the_case_the_upload_landed_on(self):
+        """Characterization (digitva-r8nh.9): the upload route's last refusal
+        check, after the interview is stored: a case refused by then (a
+        refusal hold appearing under the case lock) takes no coding."""
+        client_uuid, headers = self._device(self.coder)
+        from app.services import web_intake_service
+
+        real_submit = web_intake_service.submit_device_interview
+        landed = []
+
+        def submit_then_hold(*args, **kwargs):
+            result = real_submit(*args, **kwargs)
+            landed.append(result[0].draft_id)
+            return result
+
+        with mock.patch.object(web_intake_service, "submit_device_interview", side_effect=submit_then_hold), \
+                mock.patch.object(consent_service, "case_refusal_hold", side_effect=lambda death: bool(landed)):
+            response, client_draft_id = self._push_enrolled(headers, client_uuid)
+        self.assertEqual(len(landed), 1)  # the interview was stored before the check
+        self.assertEqual(response.status_code, 422, response.get_json())
+        self.assertEqual(response.get_json(), {"error": "Consent was refused; coding cannot be sent.",
+                                               "code": "consent_refused"})
+        self.assertIsNone(db.session.get(VaBundlePendingCoding, landed[0]))
+        self.assertIsNone(db.session.scalar(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.client_draft_id == client_draft_id)))
+
     def test_enrolled_coding_device_mismatch_is_refused_before_the_interview(self):
         _client_uuid, headers = self._device(self.coder)
         answers_json, answers_sha = self._answers_json()

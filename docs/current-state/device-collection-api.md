@@ -3,7 +3,7 @@ title: Device Collection API (Path B server side)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-24
+last_updated: 2026-11-25
 ---
 
 # Device Collection API (Path B server side)
@@ -36,7 +36,7 @@ and the API contract the app is built against:
 - `app/routes/api/auth.py`: `/api/v1/auth/*` (enrolment, sessions, refresh,
   sign-out), CSRF-exempt; sign-in and refresh replies carry `access`, the
   `GET /api/v1/me/access` body (`app/routes/api/me.py`).
-- `app/routes/api/intake.py`: `/api/v1/intake/*`, the one intake route set
+- `app/routes/api/intake/`: `/api/v1/intake/*`, the one intake route set (a package by section: `register`, `cases`, `drafts`, `uploads`, `supervision`; hooks in `_common`)
   (cases, death register, drafts, offline uploads, supervision), either
   credential: the browser cookie (CSRF on a state change) or a device
   bearer token (no CSRF). `app/routes/api/request_helpers.py`: the request

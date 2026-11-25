@@ -2,7 +2,7 @@
 
 Thin layer over ``app.services.web_intake_service``. Pages render Jinja
 templates that load the vendored questionnaire bundle; their scripts call the
-JSON API at ``/api/v1/intake`` (app/routes/api/intake.py), sending
+JSON API at ``/api/v1/intake`` (app/routes/api/intake/), sending
 ``X-CSRFToken`` from the page's ``csrf_token()``.
 Policy: docs/policy/web-intake.md
 """

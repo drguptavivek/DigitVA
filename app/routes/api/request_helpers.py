@@ -6,8 +6,9 @@ request, never taken from the device's enrolment.
 
 from flask import current_app, jsonify, request
 from flask_login import current_user
+from sqlalchemy.exc import IntegrityError
 
-from app import _rate_limit_key, limiter
+from app import _rate_limit_key, db, limiter
 from app.models import VaAccessRoles
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
@@ -145,6 +146,22 @@ def intake_error(exc: intake_svc.WebIntakeError):
     only when the error names the questions to fix."""
     extra = {"fields": exc.fields} if exc.fields else {}
     return error(str(exc), exc.code or INTAKE_CODES.get(exc.status_code, "invalid_request"), exc.status_code, **extra)
+
+
+def idempotent_create(create, refind):
+    """``(row, True)`` from *create()*, which writes and commits; when a
+    concurrent resend of the same client id won the unique index instead
+    (``IntegrityError``), rolls back and returns ``(refind(), False)``. A
+    refind that finds nothing (None) re-raises the IntegrityError: the
+    conflict was not that resend."""
+    try:
+        return create(), True
+    except IntegrityError:
+        db.session.rollback()
+        existing = refind()
+        if existing is None:
+            raise
+        return existing, False
 
 
 def parse_body() -> dict:

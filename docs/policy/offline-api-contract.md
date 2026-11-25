@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-20
+last_updated: 2026-11-25
 ---
 
 # Offline API Contract v1
@@ -91,7 +91,7 @@ Common to every row: base `/api/v1`; JSON bodies; errors are
 `{"error": <text>, "code": <code>}` plus `fields` when the refusal names the
 inputs to fix (`app/routes/api/request_helpers.py:50-53`, `:134-138`), and
 **no `reason` key**; every `/intake/*` reply carries `Cache-Control: no-store`
-(`app/routes/api/intake.py:93-97`); a device bearer needs no CSRF token and
+(`app/routes/api/intake/`); a device bearer needs no CSRF token and
 gets the **device projection** of its grants only: `interviewer`,
 `death_reporter`, `coder`, `coding_tester`, `reviewer`; admin, data manager,
 PI and supervisor powers are excluded (`app/services/authz/grants.py:59-65`,

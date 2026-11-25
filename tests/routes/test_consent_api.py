@@ -1453,3 +1453,206 @@ class ConsentApiTests(BaseTestCase):
         self.assertEqual(self.client.get(f"{INTAKE}/drafts/{draft_id}/consent").status_code, 404)
         self.assertEqual(self._draft_consent(draft_id, self._consent()).status_code, 404)
         self.assertEqual(self._records(), [])
+
+    # ── characterization (digitva-r8nh.9): every refusal site's exact reply ──
+    # Pinned on the code before routes/api/intake.py became a package: status,
+    # the whole body (message text, code, no ``fields``) and the rows left.
+
+    def _exact(self, response, status, message, code="consent_refused", **extra):
+        self.assertEqual(response.status_code, status, response.get_json())
+        self.assertEqual(response.get_json(), {"error": message, "code": code, **extra})
+
+    def _upload_row(self, attempt):
+        row = db.session.scalars(sa.select(VaWebIntakeDraft).where(VaWebIntakeDraft.client_draft_id == attempt)).one()
+        db.session.refresh(row)
+        return row
+
+    def _death_count(self):
+        return db.session.scalar(sa.select(sa.func.count()).select_from(VaDeathRegister))
+
+    def test_char_register_with_a_refused_consent(self):
+        before = self._death_count()
+        self._exact(self._register(consent=self._consent(decision="refused")), 422,
+                    "Consent was refused; record the refusal through an interview draft.")
+        self.assertEqual(self._death_count(), before)
+
+    def test_char_save_draft_held_by_a_teammates_refusal(self):
+        death_id = self._register(self.PLAIN).get_json()["case"]["death_id"]
+        self._login(str(self.outsider.user_id))
+        other_id = self._case_draft(self.PLAIN, death_id)
+        self.assertEqual(self._save_draft(other_id, {"Id10013": "yes", "Id10017": "Other"}).status_code, 200)
+        self._login(self.interviewer_id)
+        self.assertEqual(self._sync_draft(death_id, {"Id10013": "no"}, project_id=self.PLAIN).status_code, 200)
+        self._login(str(self.outsider.user_id))
+        self._exact(self._save_draft(other_id, {"Id10013": "yes"}), 409,
+                    "Another interview holds this case after a refusal.")
+        self.assertEqual(self._saved_answers(other_id), {"Id10013": "yes"})
+
+    def test_char_save_draft_stale_yes_after_a_refusal(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "no"}).status_code, 200)
+        self._exact(self._save_draft(draft_id, {"Id10013": "yes", "Id10017": "Bina"}), 409,
+                    "Reload the cleared draft before continuing.", "refusal_stale", draft_id=draft_id)
+        self.assertEqual(self._saved_answers(draft_id), {"Id10013": "no"})
+
+    def test_char_submit_draft_refusal_with_interview_answers(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        self._exact(self._submit(draft_id, {"Id10013": "no", "Id10017": "Bina"}), 422,
+                    "Consent was refused; remove interview answers and files before sending.")
+        draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
+        db.session.refresh(draft)
+        self.assertEqual((draft.status, draft.va_sid), ("draft", None))
+
+    def test_char_submit_draft_of_a_submitted_refusal(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        self.assertEqual(self._submit(draft_id, {"Id10013": "no"}).status_code, 201)
+        self._exact(self._submit(draft_id, {"Id10013": "no"}), 422, "A submitted refusal cannot be changed here.")
+
+    def test_char_submit_draft_resuming_a_refusal(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        self.assertEqual(self._save_draft(draft_id, {"Id10013": "no"}).status_code, 200)
+        self._exact(self._submit(draft_id, {"Id10013": "yes", "Id10017": "Bina"}), 409,
+                    "Reload the cleared draft before continuing.", "refusal_stale", draft_id=draft_id)
+        version = self.client.get(f"{INTAKE}/drafts/{draft_id}").get_json()["draft"]["updated_at"]
+        response = self.client.post(f"{INTAKE}/drafts/{draft_id}/submit", headers=self._csrf_headers(), json={
+            "completion": {"valid": True, "issues": [], "data": {"Id10013": "yes", "Id10017": "Bina"}},
+            "resume_refused": True, "if_updated_at": version})
+        self._exact(response, 422, "Record the new consent decision before resuming the interview.")
+        self.assertEqual(self._saved_answers(draft_id), {"Id10013": "no"})
+
+    def test_char_upload_refused_with_covered_answers(self):
+        death_id = self._register(informant_name="Ram", consent=self._consent()).get_json()["case"]["death_id"]
+        attempt = uuid.uuid4()
+        self._exact(self._upload(death_id, _answers(Id10007="Sita"), client_draft_id=attempt,
+                                 consent=self._consent(decision="refused", client_draft_id=attempt)), 422,
+                    "Consent was refused; remove interview answers, files and coding before sending.")
+        self.assertIsNone(db.session.scalar(sa.select(VaWebIntakeDraft).where(
+            VaWebIntakeDraft.client_draft_id == attempt)))
+
+    def test_char_resend_of_a_submitted_interview_as_a_refusal(self):
+        death_id = self._register(self.PLAIN).get_json()["case"]["death_id"]
+        attempt = uuid.uuid4()
+        first = self._upload(death_id, _answers(), project_id=self.PLAIN, client_draft_id=attempt)
+        self.assertEqual(first.status_code, 201, first.get_json())
+        sha = self._upload_row(attempt).answers_sha256
+        self._exact(self._upload(death_id, {"Id10013": "no"}, project_id=self.PLAIN, client_draft_id=attempt), 422,
+                    "A submitted interview cannot be changed to a refusal here.")
+        self.assertEqual(self._upload_row(attempt).answers_sha256, sha)
+
+    def test_char_resend_changing_a_submitted_refusal(self):
+        death_id = self._register(self.PLAIN).get_json()["case"]["death_id"]
+        attempt = uuid.uuid4()
+        first = self._upload(death_id, {"Id10013": "no"}, project_id=self.PLAIN, client_draft_id=attempt,
+                             draft={"instrumentVersion": "2023072701", "interviewOutcome": "refused"})
+        self.assertEqual(first.status_code, 201, first.get_json())
+        sha = self._upload_row(attempt).answers_sha256
+        self._exact(self._upload(death_id, _answers(), project_id=self.PLAIN, client_draft_id=attempt), 422,
+                    "A submitted refusal cannot be changed here.")
+        self.assertEqual(self._upload_row(attempt).answers_sha256, sha)
+
+    def test_char_resend_over_an_open_draft_refused_under_the_case_lock(self):
+        death_id = self._register(informant_name="Ram", consent=self._consent()).get_json()["case"]["death_id"]
+        attempt = uuid.uuid4()
+        self.assertEqual(self._upload(death_id, _answers(), client_draft_id=attempt).status_code, 201)
+        # The third resend check is reached only on an uploaded row that is
+        # still a draft; no client flow leaves one, so the row is set so here.
+        row = self._upload_row(attempt)
+        row.status = "draft"
+        db.session.commit()
+        sha = row.answers_sha256
+        from app.services import case_transition_service as cases
+        original = cases.lock_case
+        injected = False
+
+        def lock_with_refusal(death):
+            nonlocal injected
+            if not injected:
+                injected = True
+                consent_service.record_consent(self.interviewer, project_id=self.REQUIRED, death=death,
+                    consent=self._consent(client_draft_id=attempt, decision="refused"),
+                    client_draft_id=attempt, channel="web")
+            return original(death)
+
+        with patch.object(cases, "lock_case", side_effect=lock_with_refusal):
+            response = self._upload(death_id, _answers(Id10017="Other"), client_draft_id=attempt)
+        self.assertTrue(injected)
+        self._exact(response, 422, "Consent was refused; remove interview answers, files and coding before sending.")
+        self.assertEqual(self._upload_row(attempt).answers_sha256, sha)
+
+    def test_char_revision_to_a_refusal(self):
+        death_id = self._register(informant_name="Ram", consent=self._consent()).get_json()["case"]["death_id"]
+        attempt = uuid.uuid4()
+        uploaded = self._upload(death_id, _answers(Id10007="Sita"), client_draft_id=attempt,
+                                consent=self._consent(client_draft_id=attempt))
+        va_sid = uploaded.get_json()["va_sid"]
+        sha = self._upload_row(attempt).answers_sha256
+        refusal = self._consent(decision="refused", client_draft_id=attempt)
+        self._exact(self._revise(va_sid, {}, consent=refusal), 422,
+                    "A submitted interview cannot be changed to a refusal here.")
+        self.assertEqual(self._upload_row(attempt).answers_sha256, sha)
+        self.assertNotIn("refused", {r.event for r in self._records(death_id)})
+
+    def test_char_revision_of_a_submitted_refusal(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        submitted = self._submit(draft_id, {"Id10013": "no"})
+        self.assertEqual(submitted.status_code, 201, submitted.get_json())
+        va_sid = submitted.get_json()["va_sid"]
+        self.assertIsNotNone(va_sid)
+        self._exact(self._revise(va_sid, _answers()), 422, "A submitted refusal cannot be changed here.")
+
+    # ── characterization: idempotent creates and draft write replies ──
+
+    def test_char_attempt_resend_racing_the_unique_index(self):
+        death_id = self._register(self.PLAIN).get_json()["case"]["death_id"]
+        url = f"{INTAKE}/cases/{death_id}/attempts"
+        body = {"outcome": "no_answer", "client_attempt_id": str(uuid.uuid4())}
+        first = self.client.post(url, json=body, headers=self._csrf_headers())
+        self.assertEqual(first.status_code, 201, first.get_json())
+        real = web_intake_service.find_device_attempt
+        calls = []
+
+        def miss_once(*args):
+            calls.append(args)
+            return None if len(calls) == 1 else real(*args)
+
+        with patch.object(web_intake_service, "find_device_attempt", side_effect=miss_once):
+            again = self.client.post(url, json=body, headers=self._csrf_headers())
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(again.status_code, 200, again.get_json())
+        self.assertEqual(set(again.get_json()), {"case"})
+        self.assertEqual(again.get_json()["case"]["death_id"], death_id)
+
+    def test_char_registration_resend_racing_the_unique_index(self):
+        client_death_id = str(uuid.uuid4())
+        first = self._register(self.PLAIN, client_death_id=client_death_id)
+        self.assertEqual(first.status_code, 201, first.get_json())
+        before = self._death_count()
+        real = web_intake_service.find_device_registration
+        calls = []
+
+        def miss_once(*args):
+            calls.append(args)
+            return None if len(calls) == 1 else real(*args)
+
+        with patch.object(web_intake_service, "find_device_registration", side_effect=miss_once):
+            again = self._register(self.PLAIN, client_death_id=client_death_id)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(again.status_code, 200, again.get_json())
+        self.assertEqual(set(again.get_json()), {"case"})
+        self.assertEqual(again.get_json()["case"]["death_id"], first.get_json()["case"]["death_id"])
+        self.assertEqual(self._death_count(), before)
+
+    def test_char_draft_save_and_submit_reply_keys(self):
+        draft_id = self._direct_draft(self.PLAIN)
+        saved = self._save_draft(draft_id, _answers())
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        self.assertEqual(set(saved.get_json()), {"saved_sections", "draft"})
+        submitted = self._submit(draft_id, _answers())
+        self.assertEqual(submitted.status_code, 201, submitted.get_json())
+        self.assertEqual(set(submitted.get_json()), {"va_sid", "draft", "superseded", "validation_err", "can_code_now"})
+        self.assertIs(submitted.get_json()["superseded"], False)
+        corrected = self._submit(draft_id, _answers(Id10017="Binita"))
+        self.assertEqual(corrected.status_code, 200, corrected.get_json())
+        self.assertEqual(set(corrected.get_json()),
+                         {"va_sid", "draft", "superseded", "validation_err", "kept", "locked", "can_code_now"})
+        self.assertEqual(corrected.get_json()["va_sid"], submitted.get_json()["va_sid"])

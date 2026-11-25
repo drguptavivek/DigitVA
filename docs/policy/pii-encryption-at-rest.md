@@ -3,7 +3,7 @@ title: Personal Data Encryption at Rest Policy
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-10-21
+last_updated: 2026-11-25
 ---
 
 # Personal Data Encryption at Rest Policy
@@ -477,7 +477,7 @@ sealed key is ever stored in `payload_data`.
 (`serialize_death` ~4495, `serialize_worklist_row` ~4553, case detail
 ~4606), duplicate matching (`:4091-4255`), prefill (~1410, 1502, 2097),
 identity sync (~1800, 2688); `case_list_service.py:585, 673`;
-`case_transition_service.py`; `routes/api/intake.py`; `odk_case_service.py`;
+`case_transition_service.py`; `routes/api/intake/`; `odk_case_service.py`;
 `synthetic_demo_service.py`; `va_frontpages/va_intake_death.html`,
 `static/js/intake/duplicates.js`, `intake_supervision.js`,
 `intake_worklist.js`, `summary.js`; the Expo client. No server code messages
@@ -499,7 +499,7 @@ browser reduces too, and the server reduces again as the authority:
   form the server stores (last 3 and a "present" flag; no hash). The form accepts the
   redacted value on reopen.
 - Upload hash: `answers_json` + `answers_sha256` verified at
-  `routes/api/intake.py:833-844`; `sync_device_draft`
+  `routes/api/intake/uploads.py` (`_parse_upload_answers`); `sync_device_draft`
   (`web_intake_service.py:3444`) compares the stored hash (`:3480-3481`) and
   keeps it in history. The client hashes the reduced text, so the server's
   reduction is a no-op and the stored draft matches the hash.

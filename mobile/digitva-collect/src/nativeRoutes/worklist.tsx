@@ -66,7 +66,7 @@ import { Button, Card, DetailsChip, errorText, ListRow, Screen, Separator } from
 import { buildInterviewItems, interviewCounts, type InterviewAction, type InterviewItem, type ListedDraft } from "../ui/interviewRows";
 import { homeSummary } from "../ui/homeSummary";
 import { readRecentTarget, writeRecentTarget, type RecentTarget } from "../recentTarget";
-import type { PickerTarget } from "../ui/sitePicker";
+import { chainLookup, type PickerTarget } from "../ui/sitePicker";
 import RegisteredDeaths from "./RegisteredDeaths";
 import { SupervisionEntry } from "./supervisionEntry";
 import { TrainingCodingEntry, TrainingOnboarding } from "./trainingOnboarding";
@@ -648,6 +648,10 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
       : [],
     [selectedProject],
   );
+  const chainOf = useMemo(
+    () => chainLookup((referenceData?.projects ?? []).map(({ project, units }) => ({ projectId: project.project_id, units: units?.units }))),
+    [referenceData],
+  );
   const projects = useMemo(() => referenceData?.projects.map(({ project }) => project) ?? [], [referenceData]);
   const items = useMemo(() => {
     const authorized = new Set(projects.map(({ project_id }) => project_id));
@@ -1077,7 +1081,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           onCancel={() => setReopening(undefined)}
         />
       ) : null}
-      <SitePickerSheet visible={picking} targets={targets} recent={recent} onPick={startInterview} onClose={() => setPicking(false)} />
+      <SitePickerSheet visible={picking} targets={targets} recent={recent} chainOf={chainOf} onPick={startInterview} onClose={() => setPicking(false)} />
       <ProjectSheet
         visible={choosingProject}
         projects={projects}

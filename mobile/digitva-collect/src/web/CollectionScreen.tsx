@@ -399,6 +399,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
             {directOpen && directTargets.length > 0 ? (
               <DirectInterviewPanel
                 targets={directTargets}
+                context={intake?.context}
                 projectFixed={Boolean(projectFilter)}
                 onStart={(target) => router.push({ pathname: interviewFormPath as never, params: { projectId: target.projectId, siteId: target.siteId, ...(target.orgUnitId ? { orgUnitId: target.orgUnitId } : {}) } })}
               />
@@ -440,7 +441,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
                   allStatus="all"
                   onStatus={setInterviewStatus}
                   units={unitOptions}
-                  unitBreadcrumb={(name) => orgLookup.byName.get(name)?.breadcrumb ?? name}
+                  unitTrail={(name) => orgLookup.byName.get(name)?.trail}
                   unit={unitFilter}
                   onUnit={setUnitFilter}
                   advanced={advanced}

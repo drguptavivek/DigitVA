@@ -480,6 +480,17 @@ describe("Site picker sheet", () => {
     expect(shown(tree)).toContain("No unit matches your search.");
   });
 
+  it("shows a unit's ancestors as a second line, named in the row's accessibility label, and searches them", async () => {
+    const chainOf = (t: { unitName?: string }) => (t.unitName === "CHC Nadaun" ? "Hamirpur" : undefined);
+    await render(<SitePickerSheet visible targets={targets} chainOf={chainOf} onPick={noop} onClose={noop} />);
+    expect(shown(tree)).toContain("Hamirpur");
+    expect(pressable(tree, "CHC Nadaun, Hamirpur")).toBeDefined();
+    expect(pressable(tree, "CHC Bhoranj")).toBeDefined();
+    await act(async () => tree.root.findByProps({ accessibilityLabel: "Search units" }).props.onChangeText("hamirpur"));
+    expect(shown(tree)).toContain("CHC Nadaun");
+    expect(shown(tree)).not.toContain("CHC Bhoranj");
+  });
+
   it("falls back to the raw label when every unit is an internal placeholder", async () => {
     await render(<SitePickerSheet visible targets={[target("S1", "Site A", "sites_in_project_P1")]} onPick={noop} onClose={noop} />);
     expect(pressable(tree, "Site A · sites_in_project_P1")).toBeDefined();

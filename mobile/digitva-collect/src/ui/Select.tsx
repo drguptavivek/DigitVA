@@ -6,7 +6,10 @@ import { controls, radius, spacing, useTheme } from "../theme";
 import { Chevron } from "../web/Chevron";
 import { CheckMark, useSelectStyles } from "./ProjectSelect";
 
-export type SelectOption = { value: string; label: string };
+/** *detail* is an optional muted second line (e.g. a unit's ancestors); search matches it too. */
+export type SelectOption = { value: string; label: string; detail?: string };
+
+const named = (option: SelectOption) => (option.detail ? `${option.label}, ${option.detail}` : option.label);
 
 /** Width at which the menu drops below the field instead of rising as a bottom sheet (ProjectSelect's breakpoint). */
 const WIDE = 768;
@@ -16,7 +19,7 @@ const LIST_MAX_HEIGHT = 320;
 /**
  * A compact single-choice dropdown: a field-like button (current label or *placeholder*) opening a menu anchored
  * below it on a wide window, a bottom sheet on a narrow one. The option list scrolls at a capped height. *searchable*
- * adds a box filtering options by a case-insensitive substring of the label. Closes on a choice, the backdrop or back;
+ * adds a box filtering options by a case-insensitive substring of the label or detail. Closes on a choice, the backdrop or back;
  * focus returns to the field. *label* is the field's accessibility label.
  */
 export function Select({ label, placeholder, options, value, onChange, searchable = false, searchLabel, testID }: {
@@ -49,12 +52,13 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
       backgroundColor: colors.surface, paddingHorizontal: spacing.sm, color: colors.text, ...typography.subhead, fontFamily: controls.fontFamily,
     },
     none: { padding: spacing.sm, ...typography.subhead, color: colors.textMuted, fontFamily: controls.fontFamily },
+    detail: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
     menu: { width: Math.min(MENU_WIDTH, Math.max(0, width - 2 * spacing.xs)) },
   }), [colors, typography, width]);
 
   const selected = options.find((option) => option.value === value);
   const needle = query.trim().toLowerCase();
-  const shown = needle ? options.filter((option) => option.label.toLowerCase().includes(needle)) : options;
+  const shown = needle ? options.filter((option) => `${option.label} ${option.detail ?? ""}`.toLowerCase().includes(needle)) : options;
 
   const show = () => {
     setAnchor(null);
@@ -73,12 +77,22 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
         ref={button}
         testID={testID}
         accessibilityRole="button"
-        accessibilityLabel={selected ? `${label}: ${selected.label}` : label}
+        accessibilityLabel={selected ? `${label}: ${named(selected)}` : label}
         accessibilityState={{ expanded: open }}
         onPress={show}
         style={[s.field, { maxWidth: "100%", alignSelf: "stretch" }]}
       >
-        <Text numberOfLines={1} ellipsizeMode="tail" style={[s.fieldText, !selected && { color: colors.textMuted }]}>{selected ? selected.label : placeholder}</Text>
+        {selected?.detail ? (
+          // The chosen name, its detail (a unit's lineage) on a muted line underneath.
+          <View style={{ flex: 1, flexShrink: 1 }}>
+            <Text numberOfLines={1} ellipsizeMode="tail" style={s.fieldText}>{selected.label}</Text>
+            <Text numberOfLines={1} ellipsizeMode="tail" style={extra.detail}>{selected.detail}</Text>
+          </View>
+        ) : (
+          <Text numberOfLines={1} ellipsizeMode="tail" style={[s.fieldText, !selected && { color: colors.textMuted }]}>
+            {selected ? selected.label : placeholder}
+          </Text>
+        )}
         <Chevron expanded />
       </Pressable>
       <Modal visible={open} transparent animationType={wide ? "none" : "slide"} onRequestClose={() => setOpen(false)}>
@@ -104,12 +118,17 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
                   <Pressable
                     key={option.value}
                     accessibilityRole="radio"
-                    accessibilityLabel={option.label}
+                    accessibilityLabel={named(option)}
                     accessibilityState={{ checked }}
                     onPress={() => pick(option.value)}
                     style={[s.option, checked && s.optionOn]}
                   >
-                    <Text style={s.optionText}>{option.label}</Text>
+                    {option.detail ? (
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={[s.optionText, { flex: 0 }]}>{option.label}</Text>
+                        <Text style={extra.detail}>{option.detail}</Text>
+                      </View>
+                    ) : <Text style={s.optionText}>{option.label}</Text>}
                     {checked ? <CheckMark color={colors.accent} /> : <View style={{ width: 16 }} />}
                   </Pressable>
                 );

@@ -94,7 +94,7 @@ import {
 import { announce, Button, Card, ChoiceRow, errorText, FieldHint, FieldLabel, Notice, Row, Screen, SectionLabel, SegmentedControl, Separator, TextLink, useUiStyles } from "../ui";
 import { radius, spacing, useTheme } from "../theme";
 import { useWhoFormTheme } from "../whoWebTheme";
-import { rowLabel } from "../ui/sitePicker";
+import { chainLookup, rowLabel, type ChainOf } from "../ui/sitePicker";
 import { Icon, icons } from "../Icon";
 import { SitePickerSheet } from "./worklistParts";
 import { ConfirmDialog } from "../ConfirmDialog";
@@ -446,6 +446,8 @@ export default function Register() {
   const [db, setDb] = useState<Db | undefined>();
   const [targets, setTargets] = useState<Target[]>([]);
   const [allTargets, setAllTargets] = useState<Target[]>([]);
+  // Chain labels come from whichever source supplied the targets (online access, else the offline reference data).
+  const [chainOf, setChainOf] = useState<ChainOf>();
   const [registerProjects, setRegisterProjects] = useState<Array<{ project_id: string; project_name: string }>>([]);
   const [registrationAccess, setRegistrationAccess] = useState<AccessSummary>();
   const [referenceData, setReferenceData] = useState<ReferenceData>();
@@ -671,6 +673,9 @@ export default function Register() {
           : (referenceData?.projects ?? []).flatMap(({ project, units }) =>
               targetsFrom(project, units).filter((choice) => registersDeaths(project, choice.siteId)));
         setAllTargets(choices);
+        setChainOf(() => chainLookup(access
+          ? access.projects.map((p) => ({ projectId: p.project_id, units: p.units }))
+          : (referenceData?.projects ?? []).map(({ project, units }) => ({ projectId: project.project_id, units: units?.units }))));
         const serverFields = serverExisting ? registrationFieldsFromCase(serverExisting) : undefined;
         if (serverFields) {
           const serverSource = serverExisting as unknown as Record<string, unknown>;
@@ -1383,12 +1388,16 @@ export default function Register() {
             targets.length > 0 ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${t("chooseSite")}: ${target ? rowLabel(target) : t("siteUnitNotChosen")}`}
+                accessibilityLabel={`${t("chooseSite")}: ${target ? [rowLabel(target), chainOf?.(target)].filter(Boolean).join(", ") : t("siteUnitNotChosen")}`}
                 onPress={() => setPickingSite(true)}
                 // A field like the others in the card: the fill and its faint edge, a trailing chevron (opens a picker).
                 style={[styles.input, styles.inputHairline, { flexDirection: "row", alignItems: "center", gap: spacing.xs }]}
               >
-                <Text numberOfLines={1} style={{ ...typography.body, flex: 1, color: target ? tokens.foreground : tokens.mutedForeground }}>{target ? rowLabel(target) : t("siteUnitNotChosen")}</Text>
+                {/* The chosen unit, its lineage on a muted line underneath. */}
+                <View style={{ flex: 1 }}>
+                  <Text numberOfLines={1} style={{ ...typography.body, color: target ? tokens.foreground : tokens.mutedForeground }}>{target ? rowLabel(target) : t("siteUnitNotChosen")}</Text>
+                  {target && chainOf?.(target) ? <Text numberOfLines={1} style={{ ...typography.caption, color: tokens.mutedForeground }}>{chainOf(target)}</Text> : null}
+                </View>
                 <Icon name={icons.chevronRight} color={tokens.mutedForeground} size={16} />
               </Pressable>
             ) : null
@@ -1402,6 +1411,7 @@ export default function Register() {
         targets={targets}
         selectedKey={target?.key}
         siteNote
+        chainOf={chainOf}
         onPick={(choice) => {
           setTarget(choice);
           setPickingSite(false);

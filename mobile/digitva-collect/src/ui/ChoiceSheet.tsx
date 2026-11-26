@@ -11,7 +11,8 @@ import { BottomSheet } from "../nativeShell/BottomSheet";
 import { CheckMark } from "./controls";
 import { controls, radius, spacing, useTheme } from "../theme";
 
-export interface ChoiceRow { key: string; label: string; selected?: boolean; onPick(): void }
+/** `detail`: a muted second line under the label (a unit's ancestors). */
+export interface ChoiceRow { key: string; label: string; detail?: string; selected?: boolean; onPick(): void }
 export interface ChoiceSection { key: string; title?: string; rows: ChoiceRow[] }
 /** `note`: one muted line under the rows (the register picker names the one shared site there). */
 export interface ChoiceList { recent?: ChoiceRow; sections: ChoiceSection[]; note?: string }
@@ -65,13 +66,18 @@ function OpenChoiceSheet({ visible, title, searchLabel, searchable = true, onClo
           ) : (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={item.row.label}
+              accessibilityLabel={item.row.detail ? `${item.row.label}, ${item.row.detail}` : item.row.label}
               accessibilityState={{ selected: Boolean(item.row.selected) }}
               onPress={item.row.onPick}
               style={{ height: 52, justifyContent: "center", borderBottomWidth: 1, borderBottomColor: ui.border, minWidth: controls.minTouchTarget }}
             >
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                <Text numberOfLines={1} style={{ ...typography.body, color: ui.popoverForeground, flex: 1 }}>{item.row.label}</Text>
+                {item.row.detail ? (
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={1} style={{ ...typography.body, color: ui.popoverForeground }}>{item.row.label}</Text>
+                    <Text numberOfLines={1} style={{ ...typography.caption, color: ui.mutedForeground }}>{item.row.detail}</Text>
+                  </View>
+                ) : <Text numberOfLines={1} style={{ ...typography.body, color: ui.popoverForeground, flex: 1 }}>{item.row.label}</Text>}
                 {item.row.selected ? <CheckMark color={ui.primary} size={18} /> : null}
               </View>
             </Pressable>

@@ -23,7 +23,7 @@ import {
 } from "../ui/interviewRows";
 import type { HomeSummary } from "../ui/homeSummary";
 import { isInternalPlaceholderUnit } from "../ui/placeholderUnit";
-import { pickerModel, recentTarget, type PickerTarget } from "../ui/sitePicker";
+import { pickerModel, recentTarget, type ChainOf, type PickerTarget } from "../ui/sitePicker";
 import { OfflineNotice, SkeletonCards, StateView } from "../ui/StateView";
 import type { RecentTarget } from "../recentTarget";
 import { chipStyle, chipTextStyle, foregroundBody, mutedCaption, mutedSubhead } from "./worklistStyles";
@@ -71,20 +71,20 @@ export function ProjectSheet({ visible, projects, selectedId, onPick, onClose }:
  * Opt-in for Register a death: `selectedKey` ticks the chosen row, and `siteNote` names the one shared site once
  * under the list (the worklist interview picker passes neither).
  */
-export function SitePickerSheet({ visible, targets, recent, selectedKey, siteNote = false, onPick, onClose }: {
-  visible: boolean; targets: PickerTarget[]; recent?: RecentTarget; selectedKey?: string; siteNote?: boolean; onPick(target: PickerTarget): void; onClose(): void;
+export function SitePickerSheet({ visible, targets, recent, selectedKey, siteNote = false, chainOf, onPick, onClose }: {
+  visible: boolean; targets: PickerTarget[]; recent?: RecentTarget; selectedKey?: string; siteNote?: boolean; chainOf?: ChainOf; onPick(target: PickerTarget): void; onClose(): void;
 }) {
   const build = useCallback((query: string): ChoiceList => {
-    const model = pickerModel(targets, query);
+    const model = pickerModel(targets, query, chainOf);
     const last = recentTarget(targets, recent);
-    const row = (target: PickerTarget, label: string) => ({ key: target.key, label, selected: target.key === selectedKey, onPick: () => onPick(target) });
+    const row = (target: PickerTarget, label: string, detail?: string) => ({ key: target.key, label, detail, selected: target.key === selectedKey, onPick: () => onPick(target) });
     const shared = siteNote && !model.headers ? targets.find((target) => target.unitName !== undefined && target.siteName)?.siteName : undefined;
     return {
-      recent: last ? row(last, pickerModel([last]).groups[0]?.rows[0]?.label ?? last.label) : undefined,
-      sections: model.groups.map((group) => ({ key: group.siteId, title: group.title, rows: group.rows.map((item) => row(item.target, item.label)) })),
+      recent: last ? (({ label, detail }) => row(last, label, detail))(pickerModel([last], "", chainOf).groups[0]?.rows[0] ?? { label: last.label }) : undefined,
+      sections: model.groups.map((group) => ({ key: group.siteId, title: group.title, rows: group.rows.map((item) => row(item.target, item.label, item.detail)) })),
       note: shared && !isInternalPlaceholderUnit(shared) ? shared : undefined,
     };
-  }, [targets, recent, selectedKey, siteNote, onPick]);
+  }, [targets, recent, selectedKey, siteNote, chainOf, onPick]);
   return <ChoiceSheet visible={visible} title={t("chooseSite")} searchLabel={t("pickerSearch")} onClose={onClose} build={build} />;
 }
 

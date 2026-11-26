@@ -1,5 +1,5 @@
 import { matchesSearch, normaliseSearch } from "../src/ui/caseSearch";
-import { pickerModel, recentTarget, rowLabel, type PickerTarget } from "../src/ui/sitePicker";
+import { chainLookup, pickerModel, recentTarget, rowLabel, type PickerTarget } from "../src/ui/sitePicker";
 import { isInternalPlaceholderUnit as fromCaseFilters } from "../src/web/caseFilters";
 import { isInternalPlaceholderUnit } from "../src/ui/placeholderUnit";
 import {
@@ -217,5 +217,41 @@ describe("interview items", () => {
     const summary = homeSummary(items, interviewCounts(items));
     expect(summary.inProgress).toHaveLength(1);
     expect(summary.needVisit).toBe(2);
+  });
+});
+
+describe("site/unit picker ancestor trails", () => {
+  const tree = (name: string) => [
+    { org_unit_id: "d", unit_name: "Agra", level_code: "D", path: "1" },
+    { org_unit_id: "p", unit_name: name, level_code: "P", path: "1.2" },
+  ];
+  const target = (projectId: string, unitName = "Rampur", orgUnitId = "p"): PickerTarget =>
+    ({ key: `${projectId}:${orgUnitId}`, label: `Site · ${unitName}`, projectId, siteId: "S", siteName: "Site", orgUnitId, unitName });
+
+  it("keeps the plain name, adds the trail as detail and finds descendants by an ancestor name", () => {
+    const chainOf = chainLookup([{ projectId: "P1", units: tree("Rampur") }]);
+    const rows = pickerModel([target("P1")], "agra", chainOf).groups[0].rows;
+    expect(rows.map((r) => [r.label, r.detail])).toEqual([["Rampur", "Agra"]]);
+    expect(pickerModel([target("P1")], "agra").groups).toEqual([]);
+  });
+
+  it("resolves ancestors within the target's own project only", () => {
+    const chainOf = chainLookup([
+      { projectId: "P1", units: tree("Rampur") },
+      { projectId: "P2", units: [{ ...tree("Rampur")[0], unit_name: "Delhi" }, tree("Rampur")[1]] },
+    ]);
+    expect(chainOf(target("P1"))).toBe("Agra");
+    expect(chainOf(target("P2"))).toBe("Delhi");
+    expect(chainOf(target("P3"))).toBeUndefined();
+  });
+
+  it("leaves placeholder, no-tree, root and lookup-less rows without detail", () => {
+    const chainOf = chainLookup([{ projectId: "P1", units: tree("Rampur") }]);
+    const placeholder = target("P1", "sites_in_project_P1");
+    expect(rowLabel(placeholder)).toBe(placeholder.label);
+    const noTree: PickerTarget = { key: "k", label: "Site 1", projectId: "P1", siteId: "S1", siteName: "Site 1" };
+    expect(pickerModel([noTree], "", chainOf).groups[0].rows[0]).toMatchObject({ label: "Site 1", detail: undefined });
+    expect(pickerModel([target("P1", "Agra", "d")], "", chainOf).groups[0].rows[0].detail).toBeUndefined();
+    expect(rowLabel(target("P1"))).toBe("Rampur");
   });
 });

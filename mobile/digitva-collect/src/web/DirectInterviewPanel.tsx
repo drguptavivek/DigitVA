@@ -6,6 +6,7 @@ import type { IntakeBootstrap } from "../client/api";
 import { t } from "../i18n";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
 import { Button } from "../ui";
+import { OrgUnitSelect } from "../ui/OrgUnitSelect";
 
 /** One place a direct interview can start: a project site, narrowed to one unit when the site has several. */
 export type DirectInterviewTarget = {
@@ -13,6 +14,7 @@ export type DirectInterviewTarget = {
   projectId: string;
   projectName: string;
   siteId: string;
+  siteName: string;
   orgUnitId?: string;
   label: string;
 };
@@ -27,7 +29,7 @@ export function directInterviewTargets(context: IntakeBootstrap["context"]): Dir
     .filter((entry) => entry.web_intake_mode === "direct" || entry.web_intake_mode === "both")
     .flatMap((entry) => {
       const units = (entry.org_units ?? []).filter((unit) => unit.selectable !== false);
-      const base = { projectId: entry.project_id, projectName: entry.project_name ?? entry.project_id, siteId: entry.site_id };
+      const base = { projectId: entry.project_id, projectName: entry.project_name ?? entry.project_id, siteId: entry.site_id, siteName: entry.site_name ?? entry.site_id };
       if (units.length > 1) {
         return units.map((unit) => ({
           ...base,
@@ -125,7 +127,13 @@ function SelectField({ label, placeholder, options, value, onSelect }: {
  * it. A single choice is picked automatically; Start stays disabled until both
  * are known.
  */
-export function DirectInterviewPanel({ targets, onStart, projectFixed = false }: { targets: DirectInterviewTarget[]; onStart: (target: DirectInterviewTarget) => void; projectFixed?: boolean }) {
+export function DirectInterviewPanel({ targets, context = [], onStart, projectFixed = false }: {
+  targets: DirectInterviewTarget[];
+  /** The intake context the targets came from: its org_units feed the unit names and ancestor lines. */
+  context?: IntakeBootstrap["context"];
+  onStart: (target: DirectInterviewTarget) => void;
+  projectFixed?: boolean;
+}) {
   const s = usePickerStyles();
   const [chosenProject, setChosenProject] = useState<string>();
   const [chosenTarget, setChosenTarget] = useState<string>();
@@ -139,6 +147,24 @@ export function DirectInterviewPanel({ targets, onStart, projectFixed = false }:
     : projects.length === 1 ? projects[0].value : undefined;
   const places = targets.filter((target) => target.projectId === projectId);
   const target = places.find((place) => place.key === chosenTarget) ?? (places.length === 1 ? places[0] : undefined);
+  // One project's known units (ancestors included, for the chain), once per project.
+  const units = useMemo(() => {
+    const byId = new Map<string, NonNullable<IntakeBootstrap["context"][number]["org_units"]>[number]>();
+    for (const entry of context) {
+      if (entry.project_id !== projectId) continue;
+      for (const unit of entry.org_units ?? []) byId.set(unit.org_unit_id, unit);
+    }
+    return Array.from(byId.values());
+  }, [context, projectId]);
+  const choices = useMemo(() => {
+    const sites = new Map<string, Set<string>>();
+    for (const place of places) if (place.orgUnitId) sites.set(place.orgUnitId, new Set(sites.get(place.orgUnitId)).add(place.siteId));
+    return places.flatMap((place) => place.orgUnitId
+      ? [{ value: place.key, org_unit_id: place.orgUnitId, suffix: (sites.get(place.orgUnitId)?.size ?? 0) > 1 ? place.siteName : undefined }]
+      : []);
+  }, [places]);
+  // A site without a unit (no tree) is picked by its name, as before.
+  const unitPicker = places.length > 0 && places.every((place) => place.orgUnitId);
   return (
     <View style={s.panel}>
       {/* The page's Project filter already chose and names the project: no second picker. */}
@@ -151,7 +177,16 @@ export function DirectInterviewPanel({ targets, onStart, projectFixed = false }:
           onSelect={(next) => { setChosenProject(next); setChosenTarget(undefined); }}
         />
       ) : null}
-      {projectId ? (
+      {projectId && unitPicker ? (
+        <OrgUnitSelect
+          label={t("interviewPlace")}
+          placeholder={t("choosePlace")}
+          units={units}
+          choices={choices}
+          value={target?.key ?? ""}
+          onChange={setChosenTarget}
+        />
+      ) : projectId ? (
         <SelectField
           label={t("interviewPlace")}
           placeholder={t("choosePlace")}

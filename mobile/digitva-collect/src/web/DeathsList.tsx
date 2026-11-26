@@ -305,7 +305,7 @@ export function DeathsList({ list, headerAction, showProject = true }: { list: D
           project={list.project}
           onProject={(next) => void list.changeProject(next)}
           units={unitOptions}
-          unitBreadcrumb={(name) => orgLookup.byName.get(name)?.breadcrumb ?? name}
+          unitTrail={(name) => orgLookup.byName.get(name)?.trail}
           unit={unit}
           onUnit={setUnit}
           advanced={advanced}

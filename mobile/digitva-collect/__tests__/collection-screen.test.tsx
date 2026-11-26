@@ -93,7 +93,7 @@ async function chooseInSheet(tree: ReturnType<typeof create>, label: string): Pr
   await act(async () => tree.root.findAll((node) => node.props["data-label"] === "applyFilters")[0].props.onClick());
 }
 
-/** One unit: the scope toggle shows the unit dropdown (rows labelled "Parent › Unit"), then the unit's row. */
+/** One unit: the scope toggle shows the unit dropdown (rows named by unit, ancestors on a second line), then the unit's row. */
 async function chooseUnitInSheet(tree: ReturnType<typeof create>, unit: string): Promise<void> {
   const open = tree.root.findAll((node) => String(node.props.accessibilityLabel).startsWith("advancedFilters") && typeof node.props.onPress === "function")[0];
   await act(async () => open.props.onPress());
@@ -103,7 +103,7 @@ async function chooseUnitInSheet(tree: ReturnType<typeof create>, unit: string):
   // The units are a searchable dropdown: open it, then press the unit's row.
   await act(async () => tree.root.findAll((node) => node.props.accessibilityLabel === "filterOneUnit" && node.props.accessibilityRole === "button")[0].props.onPress());
   const row = tree.root.findAll((node) => node.props.accessibilityRole === "radio" && typeof node.props.onPress === "function"
-    && String(node.props.accessibilityLabel).split(" › ").pop() === unit)[0];
+    && String(node.props.accessibilityLabel).split(", ")[0] === unit)[0];
   expect(row).toBeDefined();
   await act(async () => row.props.onPress());
   await act(async () => tree.root.findAll((node) => node.props["data-label"] === "applyFilters")[0].props.onClick());
@@ -248,7 +248,7 @@ describe("CollectionScreen refresh", () => {
       await act(async () => pressable(tree, "Alpha").props.onPress());
       expect(byLabel(tree, "startInterview")[0].props.disabled).toBe(true);
 
-      await act(async () => pressable(tree, "interviewPlace: choosePlace").props.onPress());
+      await act(async () => pressable(tree, "interviewPlace").props.onPress());
       expect(pressable(tree, "CHC 01")).toBeDefined();
       expect(pressable(tree, "PHC 1")).toBeDefined();
       expect(pressable(tree, "Closed unit")).toBeUndefined();
@@ -662,6 +662,17 @@ describe("CollectionScreen refresh", () => {
     rendered = JSON.stringify(tree!.toJSON());
     expect(rendered).toContain("Kamla Bai");
     expect(rendered).not.toContain("Mohan Lal");
+
+    // The One unit options carry the ancestors on a second line, while the applied value (chip, filter) stays the unit name.
+    await act(async () => tree!.root.findAll((node) => String(node.props.accessibilityLabel).startsWith("advancedFilters") && typeof node.props.onPress === "function")[0].props.onPress());
+    await act(async () => tree!.root.findAll((node) => String(node.props.accessibilityLabel).startsWith("filterOneUnit:") && node.props.accessibilityRole === "button")[0].props.onPress());
+    const optionLabels = tree!.root.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel);
+    expect(optionLabels).toContain("PHC-AAM 1, Community Health Centre < District Hospital");
+    expect(optionLabels).toContain("SC-AAM 1, PHC-AAM 1 < Community Health Centre < District Hospital");
+    expect(optionLabels.some((l) => String(l).includes("("))).toBe(false);
+    // Pick the already-applied unit again to close the list, then Apply.
+    await act(async () => tree!.root.findAll((node) => node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === "PHC-AAM 1, Community Health Centre < District Hospital" && typeof node.props.onPress === "function")[0].props.onPress());
+    await act(async () => tree!.root.findAll((node) => node.props["data-label"] === "applyFilters")[0].props.onClick());
 
     // Reopened on a unit, the sheet shows the unit list; Clear all returns the area to "All areas" and hides the list.
     const reopen = tree!.root.findAll((node) => String(node.props.accessibilityLabel).startsWith("advancedFilters") && typeof node.props.onPress === "function")[0];

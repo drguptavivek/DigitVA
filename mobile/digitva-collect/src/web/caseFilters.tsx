@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useMemo, useState, type ReactNode }
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import type { AccessProject, IntakeContextEntry } from "../api";
+import { orgUnitChains } from "../ui/orgUnitLabel";
 import { t } from "../i18n";
 import { controls, fontSize, radius, spacing, typography, useTheme } from "../theme";
 import { RemovableChip } from "../ui/controls";
@@ -348,13 +349,13 @@ export function AppliedChips({ chips, onClearAll }: { chips: { key: string; labe
  * (iOS HIG grouped sections). Project and Area come first, then Dates, Sex,
  * Age. Edits stay local until Apply; Clear all empties the form without applying.
  */
-function AdvancedFiltersSheet({ open, value, place, projects, units, unitBreadcrumb, reportedLabel, onApply, onClose }: {
+function AdvancedFiltersSheet({ open, value, place, projects, units, unitTrail, reportedLabel, onApply, onClose }: {
   open: boolean;
   value: AdvancedFilters;
   place: PlaceFilters;
   projects?: ProjectOption[];
   units: string[];
-  unitBreadcrumb?: (unit: string) => string;
+  unitTrail?: (unit: string) => string | undefined;
   reportedLabel: string;
   onApply: (next: AdvancedFilters, place: PlaceFilters) => void;
   onClose: () => void;
@@ -374,8 +375,8 @@ function AdvancedFiltersSheet({ open, value, place, projects, units, unitBreadcr
   const areaMode = pickingUnit || (draftPlace.unit && draftPlace.unit !== WITHIN_AREA) ? "unit" : draftPlace.unit === WITHIN_AREA ? "mine" : "all";
   // An applied unit missing from today's options (an old link, another project) stays listed so the sheet shows it.
   const unitRows = (place.unit && place.unit !== WITHIN_AREA && !units.includes(place.unit) ? [...units, place.unit] : units)
-    .map((unit) => ({ unit, label: unitBreadcrumb?.(unit) ?? unit }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .map((unit) => ({ unit, trail: unitTrail?.(unit) || undefined }))
+    .sort((a, b) => `${a.unit}\u0001${a.trail ?? ""}`.localeCompare(`${b.unit}\u0001${b.trail ?? ""}`));
   const set = (patch: Partial<AdvancedFilters>) => setDraft((previous) => ({ ...previous, ...patch }));
   return (
     <FilterPanel open={open} title={t("advancedFilters")} onClose={onClose} footer={(
@@ -421,7 +422,7 @@ function AdvancedFiltersSheet({ open, value, place, projects, units, unitBreadcr
                         placeholder={t("filterUnitPick")}
                         searchable
                         searchLabel={t("filterUnitSearch")}
-                        options={unitRows.map((row) => ({ value: row.unit, label: row.label }))}
+                        options={unitRows.map((row) => ({ value: row.unit, label: row.unit, detail: row.trail }))}
                         value={draftPlace.unit && draftPlace.unit !== WITHIN_AREA ? draftPlace.unit : ""}
                         onChange={(unit) => setDraftPlace((previous) => ({ ...previous, unit }))}
                       />
@@ -534,8 +535,8 @@ export function CaseFilterBar<K extends string>(props: {
   project?: string;
   onProject?: (value: string | undefined) => void;
   units: string[];
-  /** "Parent › Unit" for the unit list; the plain name when absent. */
-  unitBreadcrumb?: (unit: string) => string;
+  /** The unit dropdown's muted second line for a unit name: its ancestors, nearest first. */
+  unitTrail?: (unit: string) => string | undefined;
   unit?: string;
   onUnit: (value: string | undefined) => void;
   advanced: AdvancedFilters;
@@ -590,7 +591,7 @@ export function CaseFilterBar<K extends string>(props: {
         place={{ project: props.project, unit: props.unit }}
         projects={props.projects}
         units={props.units}
-        unitBreadcrumb={props.unitBreadcrumb}
+        unitTrail={props.unitTrail}
         reportedLabel={props.reportedLabel}
         onApply={(next, place) => {
           setSheetOpen(false);
@@ -612,7 +613,8 @@ export function withinLastDays(value: string | null | undefined, days: number, n
 
 export { isInternalPlaceholderUnit };
 
-type UnitInfo = { code: string; name: string; path: string; breadcrumb: string };
+/** *breadcrumb* feeds row search; *trail* ("Parent < Grandparent", "" for a root) is the unit dropdown's second line. */
+type UnitInfo = { code: string; name: string; path: string; breadcrumb: string; trail: string };
 export type OrgLookup = { byId: Map<string, UnitInfo>; byName: Map<string, UnitInfo> };
 /** One row's unit for the area filter: its id and the name the row carries. */
 export type RowUnit = { id?: string | null; name?: string | null };
@@ -641,19 +643,27 @@ export function useAreaFilter(projects: AccessProject[] | undefined, context: In
       // The unit's own name ends the trail: codeToName spans projects, so a code repeated elsewhere could mislabel it.
       return parts.length <= 1 ? name : [...parts.slice(0, -1).map((code) => codeToName.get(code) ?? code), name].join(" › ");
     };
-    const add = (id: string, info: Omit<UnitInfo, "breadcrumb">) => {
-      const full = { ...info, breadcrumb: breadcrumb(info.path, info.name) };
+    const add = (id: string, info: Omit<UnitInfo, "breadcrumb" | "trail">, trail?: string) => {
+      const full = { ...info, breadcrumb: breadcrumb(info.path, info.name), trail: trail ?? "" };
       byId.set(id, full);
       byName.set(info.name, full);
     };
     for (const proj of projects ?? []) {
-      for (const u of proj.units ?? []) add(u.org_unit_id, { code: u.unit_code, name: u.unit_name, path: u.path });
+      const chains = orgUnitChains(proj.units ?? []);
+      for (const u of proj.units ?? []) add(u.org_unit_id, { code: u.unit_code, name: u.unit_name, path: u.path }, chains.get(u.org_unit_id)?.trail);
     }
+    // Units only the intake context knows get a trail from their own project's context units.
+    const contextChains = new Map<string, ReturnType<typeof orgUnitChains>>();
     for (const entry of context ?? []) {
+      if (!contextChains.has(entry.project_id)) {
+        const own = new Map<string, NonNullable<IntakeContextEntry["org_units"]>[number]>();
+        for (const e of context ?? []) if (e.project_id === entry.project_id) for (const u of e.org_units ?? []) own.set(u.org_unit_id, u);
+        contextChains.set(entry.project_id, orgUnitChains(Array.from(own.values())));
+      }
       for (const u of entry.org_units ?? []) {
         if (byId.has(u.org_unit_id)) continue;
         const name = u.unit_name ?? u.unit_code ?? u.org_unit_id;
-        add(u.org_unit_id, { code: u.unit_code ?? name, name, path: u.path ?? u.unit_code ?? name });
+        add(u.org_unit_id, { code: u.unit_code ?? name, name, path: u.path ?? u.unit_code ?? name }, contextChains.get(entry.project_id)?.get(u.org_unit_id)?.trail);
       }
     }
     return { byId, byName };

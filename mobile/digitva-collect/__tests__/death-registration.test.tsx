@@ -172,9 +172,9 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => field.props.onPress());
     const rows = tree!.root.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel);
     // Only the selectable unit is an option; its label walks the ancestors by name.
-    expect([...new Set(rows)]).toEqual(["CMO Office › Hamirpur CHC 1 › AAM01"]);
+    expect([...new Set(rows)]).toEqual(["AAM01, Hamirpur CHC 1 < CMO Office"]);
     await act(async () => tree!.root.findAll((node) => node.props.accessibilityRole === "radio")[0].props.onPress());
-    expect(tree!.root.findAll((node) => node.props.accessibilityLabel === "chooseUnit: CMO Office › Hamirpur CHC 1 › AAM01")[0]).toBeDefined();
+    expect(tree!.root.findAll((node) => node.props.accessibilityLabel === "chooseUnit: AAM01, Hamirpur CHC 1 < CMO Office")[0]).toBeDefined();
     await act(async () => tree!.unmount());
   });
 
@@ -193,7 +193,7 @@ describe("DeathRegistrationScreen", () => {
     const field = tree!.root.findAll((node) => node.props.accessibilityLabel === "chooseUnit" && node.props.accessibilityRole === "button")[0];
     await act(async () => field.props.onPress());
     const rows = [...new Set(tree!.root.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel as string))];
-    expect(rows).toContain("Root Office › Alpha Unit");
+    expect(rows).toContain("Alpha Unit, Root Office");
     await act(async () => tree!.unmount());
   });
 

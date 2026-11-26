@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-25
+last_updated: 2026-11-26
 ---
 
 # Expo Client Hosting And Access
@@ -173,9 +173,19 @@ when the export is present (`VaUsers.landing_url()`, policy
   account menu.
 - Single-choice pickers share `src/ui/Select.tsx` (field button, menu below on
   a wide window or a bottom sheet on a narrow one, capped scrolling list,
-  optional search). The unit choice of Add a death and of Advanced filters
-  (One unit) use it, labelled with the unit's ancestor names joined by " › "
-  from `useAreaFilter`'s `orgLookup`.
+  optional search).
+- Org units show on two lines, never with level names: the unit name, then
+  its ancestors (nearest parent first, joined " < ") in smaller muted text;
+  roots have no second line. `src/ui/orgUnitLabel.ts` (`orgUnitChains`)
+  derives name and trail by path within one project, skipping placeholders and
+  unknown ancestors. `Select` options take an optional `detail` line (searched
+  too, so a district finds its units; the closed field shows "Name · detail").
+  `src/ui/OrgUnitSelect.tsx` wraps `Select` with it (value an `org_unit_id`,
+  or a caller's key via `choices`) for Add a death and the Direct interview
+  place. Advanced filters (One unit) keep unit-name values and show the trail
+  as the detail. On the phone the site/unit sheets (worklist, Register a
+  death) keep `ChoiceSheet` (rows take a `detail`) and get the trail through
+  `sitePicker`'s `chainLookup`; the Register field shows it muted after the name.
 - For a user with roles or project grants, it fetches `GET /api/v1/me/activity`
   and displays:
   1. Overall personal activity counts (forms filled / submitted interviews,

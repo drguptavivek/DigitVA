@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- Phones are offered 0.3.31 (owner go 2026-11-26): Collect and Collect Plus
+  copied from the `634711950` image into staging's `private/android-hosted`,
+  checksums verified before the rename; both `latest` endpoints report
+  0.3.31. No device check yet. Docs:
+  `docs/current-state/android-release-builds.md`.
 - Staging and the public demo run `634711950` (owner go 2026-11-26): the
   0.3.31 pins and the public DORIS cache fix (`digitva-a3xk`). Before: EBS
   snapshots snap-058311dfbe00eea56, snap-0e48830a4786b790a (app),

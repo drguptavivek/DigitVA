@@ -30,9 +30,11 @@ about 2026-12-10; the Play upload is the owner's) were all built on CI from
 certificate `6d94718a…6d361767`, versionCode 3312 (arm64), staging API
 origin, checked with `scripts/verify-android-release.sh`; checksums verified
 after download against each release's `.sha256`. Staging runs the image
-that carries them (`634711950`, deployed 2026-11-26), but they are not yet
-copied into `private/android-hosted`: phones are offered 0.3.29 until the
-owner's go. To offer them, on the staging host (SSM session):
+that carries them (`634711950`, deployed 2026-11-26). Copied into
+`private/android-hosted` on the owner's go (2026-11-26, both checksums OK):
+`/api/v1/app/android/latest` and the `plus` variant report 0.3.31 and both
+download links serve the new files. The commands used, on the staging host
+(SSM session):
 
 ```bash
 cd /data/DigitVA/private/android-hosted

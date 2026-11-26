@@ -223,7 +223,12 @@ class WebSignUpTests(PublicDemoBase):
             self.assertEqual(self.client.get("/vaauth/signup").status_code, 404)
             self.assertEqual(self._post_signup(username="demo.off").status_code, 404)
             self.assertNotIn(b"/vaauth/signup", self.client.get("/vaauth/valogin").data)
-            self.assertNotIn(b"/vaauth/signup", self.client.get("/").data)
+            main_home = self.client.get("/").data
+            self.assertNotIn(b"/vaauth/signup", main_home)
+            # The main portal points visitors at the public demo instead.
+            self.assertIn(b'href="https://digitvademo.causeofdeathindia.com"', main_home)
+            with mock.patch.dict(self.app.config, PUBLIC_DEMO_URL=""):
+                self.assertNotIn(b"Try the public demo", self.client.get("/").data)
         self.assertIn(b"/vaauth/signup", self.client.get("/vaauth/valogin").data)
         # The home page offers sign-up twice: the hero button and the nav link.
         home = self.client.get("/")

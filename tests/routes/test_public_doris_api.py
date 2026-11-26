@@ -103,6 +103,19 @@ class TestPublicDorisApi:
         ):
             assert cluster_title("NC32.Y&XK9J", "Fracture") == "Fracture + Bilateral"
 
+    def test_public_cache_is_small_and_never_the_shared_redis(self):
+        # Anonymous traffic must not fill or evict the signed-in app's Redis.
+        from cachelib import SimpleCache
+
+        from app import cache
+
+        # The cache must be present: without it every cluster title 500s.
+        assert cache in self.app.extensions.get("cache", {}), "public DORIS app has no cache"
+        backend = self.app.extensions["cache"][cache]
+        assert isinstance(backend, SimpleCache)
+        assert backend._threshold == 500
+        assert backend.default_timeout == 300
+
     def test_codeinfo_and_selection_check_return_normalized_items(self):
         token = self._csrf()
         item = {

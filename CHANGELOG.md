@@ -10,8 +10,14 @@ What landed, newest first. Details live in the commits and the linked docs;
   returned an invalid response." (`digitva-a3xk`). The standalone public app
   never initialised the shared cache that cluster titles use, so codeinfo,
   selection-check and process raised `KeyError: 'cache'` as an HTML 500. It
-  now keeps a per-process in-memory cache. The main app was unaffected. Not
-  yet deployed to staging.
+  now keeps its own small in-process cache (at most 500 entries, 5 minutes
+  each), never the signed-in app's Redis, so anonymous traffic cannot fill or
+  evict what logged-in users rely on; a test fails if the cache is missing.
+  The main app was unaffected. Both staging DORIS services had the bug (main
+  `doris_public_service` and the demo stack's `demo_doris_public_service`);
+  not yet deployed to either. A cache audit filed `digitva-248z` (a Redis
+  outage 500s every request), `digitva-2c6m` (7-day ICD search and title
+  caches with no invalidation) and `digitva-nleu` (Redis `KEYS` busts).
 - Staging deploy of main (owner go 2026-11-26): staging runs `cb5c903c1`
   (from `a4b9fd083`), web `expo-web-v2026.11.26.1` (CI run 45766821548,
   sha256 `fc2d4a5d...b5d0`), image run 45768720745, APK pins unchanged at

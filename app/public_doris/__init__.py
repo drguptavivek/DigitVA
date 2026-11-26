@@ -55,11 +55,17 @@ def create_public_doris_app(config: dict | None = None) -> Flask:
 
     csrf.init_app(app)
     limiter.init_app(app)
-    # Cluster titles (icd11_titles.cluster_title) use the shared cache; this
-    # service has no Redis, so it keeps a per-process in-memory one.
+    # Cluster titles (icd11_titles.cluster_title) use the shared cache. Public
+    # visitors get their own small in-process cache, never the signed-in app's
+    # Redis, so anonymous traffic cannot evict or fill what logged-in users
+    # rely on. Bounded: at most 500 entries, 5 minutes each.
     from app import cache
 
-    cache.init_app(app, config={"CACHE_TYPE": "SimpleCache"})
+    cache.init_app(app, config={
+        "CACHE_TYPE": "SimpleCache",
+        "CACHE_THRESHOLD": 500,
+        "CACHE_DEFAULT_TIMEOUT": 300,
+    })
     from app.public_doris.routes import bp
 
     app.register_blueprint(bp)

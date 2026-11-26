@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- The public demo runs `5a3f994b3` (owner go 2026-11-26), ahead of main
+  staging, which stays on `634711950`. Image from CI run 45830367976,
+  revision label checked. Before: demo dump
+  `pg_dump_minerva_demo_20261126T133432Z`, env saved at
+  `/data/digitva-demo.env.pre-5a3f994b3`. No migrations. Verified: version
+  endpoint, home page sign-up buttons, sign-up, sign-in, DORIS page and a
+  cluster-code lookup (200), no log errors, memory within limits.
 - The public demo's home page and nav bar offer "Create a demo account"
   (owner request 2026-11-26); before, only the sign-in page linked to
   `/vaauth/signup`. Shown only with `PUBLIC_DEMO_ENABLED`; staging and dev

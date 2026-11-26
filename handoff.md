@@ -6,8 +6,9 @@ Staging runs `634711950` (deployed 2026-11-26 on the owner's go; web
 `expo-web-v2026.11.26.2`; migrations at `b5e2c8d4a9f7`; rollback, no
 migration downgrade needed:
 `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh cb5c903c1dcfe535b63537882deee1c017347762`;
-the demo stack runs the same image as `digitva-demo-app:634711950`, its
-previous env saved at `/data/digitva-demo.env.pre-634711950`;
+the demo stack runs `digitva-demo-app:5a3f994b3` (ahead of staging: the
+demo sign-up buttons), its previous env saved at
+`/data/digitva-demo.env.pre-5a3f994b3`;
 EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-26). The image carries 0.3.31
 (`android-v0.3.31`, `collect-plus-v0.3.31-plus.1`; supersedes 0.3.30, which
 never reached phones); phones are offered 0.3.31 since 2026-11-26. Play AAB

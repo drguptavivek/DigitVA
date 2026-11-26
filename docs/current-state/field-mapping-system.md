@@ -3,7 +3,7 @@ title: Field Mapping System
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-11-26
 ---
 
 # Field Mapping System
@@ -14,6 +14,44 @@ handling. All configuration is stored in the database under the `mas_*` table fa
 and managed through the admin UI at `/admin/?panel=/admin/panels/field-mapping`.
 
 ---
+
+## One mapping for every layer (2026-11-26, `digitva-l2dg`)
+
+`WHO_2022_VA` and `WHO_2022_VA_SOCIAL` carry the same field rows: the WHO
+questions, the 29 `sa*` rows (category `social_autopsy`), 79 uncategorised ODK
+helper rows, the 11 `equity` rows (`vademographicdetails` / `equity`) and the
+19 `doris_support_whova_2022` rows placed next to their WHO anchor questions.
+The layer switches decide which questions a form asks
+(`docs/policy/va-form-project-configuration.md`, "One field mapping for every
+layer"). Rows are compared on every column except `config_id`, the
+timestamps and `odk_label` (ODK sync provenance: `WHO_2022_VA_SOCIAL`'s rows
+carry it, the seeded `WHO_2022_VA` rows do not). `Id10073` keeps its
+`is_custom` value per form type.
+
+Source: `resource/mapping/mapping_labels.xlsx`. Rows added for the layers
+are appended at the end of the sheet and carry an explicit `display_order`
+column (and, for the equity answers that are personal data, `is_pii` /
+`pii_type`), which `Who2022VaMigrator` honours when set (the row position stays the
+order otherwise, so the existing rows keep their orders). The seed also adds
+the `social_autopsy` category to `WHO_2022_VA`. Migration `f3c9d1a7b5e2`
+brings an existing database to the same rows: it inserts what is missing for
+each form type, sets only the columns the owner decided for `Id10023`,
+`Id10010c`, `Id10073`, `Id10186` and `Id10233`-`Id10236`, and snapshots both
+form types' rows first into `_mig_bak_field_display_config_f3c9d1a7b5e2`,
+which its downgrade restores from.
+
+Choice labels: the 36 select fields of those layers (17 `sa*`, 11 equity,
+8 DORIS-support; 168 labels) carry the DigitVA engine's own English labels
+(`app/data/who-va-2022.composed.json`, the `india` equity set the server
+serves), the values the web and Collect forms store. They are appended to
+`resource/mapping/mapping_choices.xlsx`, whose labels the seeder reads
+verbatim (pandas would otherwise read the engine's `None` label as empty).
+Migration `f3c9d1a7b5e2` inserts the missing ones on both form types and
+never changes an existing row, so `WHO_2022_VA_SOCIAL`'s ODK-synced `sa*`
+labels stay (its `sa01` `6` reads "Others" where the engine says "None");
+it backs up those fields' existing choice rows to
+`_mig_bak_choice_mappings_f3c9d1a7b5e2` and lists the inserted rows in
+`_mig_f3c9d1a7b5e2_inserted`, which its downgrade restores from.
 
 ## Data Model
 
@@ -363,6 +401,7 @@ from whatever happens to be in the target DB at runtime. As of March 12, 2026:
 - `WHO_2022_VA` seeds 14 category display rows
 - `WHO_2022_VA_SOCIAL` seeds 15 category display rows
 - `social_autopsy` is seeded at display order `15` for `WHO_2022_VA_SOCIAL`
+- migration `f3c9d1a7b5e2` adds `social_autopsy` at `15` to `WHO_2022_VA` when missing
 - `vahealthhistorydetails` seeds `render_mode = health_history_summary`
 - `vanarrationanddocuments` seeds `render_mode = attachments` and `always_include = true`
 

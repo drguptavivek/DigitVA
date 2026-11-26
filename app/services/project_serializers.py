@@ -31,23 +31,34 @@ def _form_type_codes_by_id(form_type_ids):
 
 
 def _serialize_projects(projects):
-    """Serialize a list of projects, resolving every web form type code once."""
+    """Serialize a list of projects, resolving every web form type once."""
+    from app.services.project_config_service import resolved_web_form_types
+
     projects = list(projects)
     codes = _form_type_codes_by_id(
         [project.web_intake_form_type_id for project in projects]
     )
-    return [_serialize_project(project, form_type_codes=codes) for project in projects]
+    resolved = resolved_web_form_types(projects)
+    return [
+        _serialize_project(project, form_type_codes=codes, resolved_form_types=resolved)
+        for project in projects
+    ]
 
 
-def _serialize_project(project, form_type_codes=None):
+def _serialize_project(project, form_type_codes=None, resolved_form_types=None):
     """One project as the admin API serves it.
 
-    ``form_type_codes`` is the prefetched ``{form_type_id: code}`` map
-    ``_serialize_projects`` builds; a single-project caller may omit it and
-    pay one lookup.
+    ``form_type_codes`` and ``resolved_form_types`` are the prefetched maps
+    ``_serialize_projects`` builds; a single-project caller may omit them and
+    pay the lookups.
     """
+    from app.services.project_config_service import resolved_web_form_types
+
     if form_type_codes is None:
         form_type_codes = _form_type_codes_by_id([project.web_intake_form_type_id])
+    if resolved_form_types is None:
+        resolved_form_types = resolved_web_form_types([project])
+    resolved = resolved_form_types.get(project.project_id)
     return {
         "project_id": project.project_id,
         "project_code": project.project_code,
@@ -92,6 +103,11 @@ def _serialize_project(project, form_type_codes=None):
         "web_intake_form_type_code": form_type_codes.get(
             project.web_intake_form_type_id
         ),
+        # The questionnaire the project actually runs: the stored one, else its
+        # existing web form's, else the default (digitva-l2dg). The Projects
+        # panel shows this rather than guessing what a NULL means.
+        "web_intake_resolved_form_type_id": str(resolved.form_type_id) if resolved else None,
+        "web_intake_resolved_form_type_code": resolved.form_type_code if resolved else None,
         "web_intake_intake_note": project.web_intake_intake_note,
         "web_intake_death_summary_enabled": project.web_intake_death_summary_enabled,
         "web_intake_medical_records_enabled": project.web_intake_medical_records_enabled,

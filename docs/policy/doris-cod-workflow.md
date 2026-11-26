@@ -3,7 +3,7 @@ title: DORIS COD Workflow Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-20
+last_updated: 2026-11-26
 ---
 
 # DORIS COD Workflow Policy
@@ -336,8 +336,10 @@ attachments, then SmartVA, the DORIS certificate and the private note.
   ([Offline API Contract](offline-api-contract.md) section 17); the refused
   coding stays on the phone until the coder completes it. Social Autopsy is
   enforced by the import the same way, but the phone does not ask it yet: the
-  bundled display pack has no `social_autopsy` category to show it in, so the
-  phone sends no Social Autopsy and the import treats it as an older APK.
+  bundled display pack's `social_autopsy` category shows the social autopsy
+  answers read-only, while the coder's Social Autopsy analysis is still not
+  asked offline, so the phone sends no Social Autopsy and the import treats it
+  as an older APK.
   An older APK sends neither key and is imported as before.
 - **Private note** is kept in the encrypted account store with the case and
   is never synced.

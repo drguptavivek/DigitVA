@@ -1205,8 +1205,9 @@ the device while unenrolled.
   `src/sync.ts` sends it as `offline_coding.narrative_qa`, and a 422
   `narrative_qa_required` / `social_autopsy_required` keeps the coding like
   `offline_coding_invalid` until an NQA save clears the hold (`digitva-p8uj`).
-  Social Autopsy is not asked offline (no `social_autopsy` category in the
-  display pack);
+  The display pack's `social_autopsy` category shows the social autopsy
+  answers read-only offline, but the coder's Social Autopsy analysis is still
+  not asked offline;
   SmartVA shows the local result. Every server-only call refuses. The COD
   section holds the unmasked `DorisPanel` driven by the offline engine
   (`src/workspace/offlineDoris.ts`), which saves to the per-interviewer store's

@@ -1048,6 +1048,56 @@ to the generated form are diffed this way first.
 **Validation.** `pyxform` (a dev dependency) converts a generated form in the
 tests and fails them on any error.
 
+## One field mapping for every layer (decided 2026-11-26, `digitva-l2dg`)
+
+**Layer switches decide the questions; the field mapping already covers them.**
+A web or DigitVA Collect project gets the social autopsy, equity or DORIS
+support questions by switching the layer on (`enabled_extensions`: Collect
+Social Autopsy, Equity; the DORIS support questions are always on), never by choosing a different form
+type. So the `mas_field_display_config` rows of `WHO_2022_VA` map every
+DigitVA layer's fields, and `WHO_2022_VA_SOCIAL` carries the same rows.
+
+1. **What the mapping holds.** The WHO questions; the 29 `sa*` questions in
+   category `social_autopsy`; the 79 ODK helper rows (age-unit, duration-unit,
+   trigger and metadata fields) with no category; the 11 `equity` questions;
+   the 19 `doris_support_whova_2022` questions. The source is
+   `resource/mapping/mapping_labels.xlsx`; the migration that brings an
+   existing database to it is `f3c9d1a7b5e2`.
+2. **Where the layer fields sit.** Equity: category `vademographicdetails`,
+   subcategory `equity` (after `general` and `risk_factors`). DORIS support:
+   next to the WHO question the engine places each after, in that question's
+   category and subcategory (`dob_*` after `Id10021`; `Id10366_confirm` after
+   `Id10366`; `doris_hours_survived` after `Id10114`; `doris_mother_age` after
+   `Id10354` and `doris_pregnancy_weeks` after `Id10367`, both in neonatal
+   period; the injury questions after `Id10077_a`; the autopsy questions after
+   `Id10473` in narration and documents, medical certificates), except
+   surgery, which sits under health service use, `treatment` (the engine asks
+   it after the health-service group closes, so it does not belong to the
+   mother-related subsection that `Id10446` closes).
+3. **Personal data.** `social_group` and every `vulnerable_group*` field are
+   personal data: flagged `is_pii` (type `identifier`) on both form types, by
+   the workbook's `is_pii` column on a fresh install and by the migration on
+   an existing database, so they are redacted for a viewer without PII access
+   and sealed at rest like any flagged field (OD9). They are deliberately not
+   in the global `PII_FIELDS`, which is also the offline app's
+   `PII_FIELDS_FLOOR`. `residence_type`, `health_coverage` and the `refusal_*`
+   profile are not. The date of death `Id10023` is **not** personal data on
+   any form type: DORIS needs it for every coder, and it is never sealed
+   (`NEVER_SEALED_FIELDS`). `Id10010c` (interviewer ID) is typed `staff_id`.
+   The `dob_*` parts follow `Id10021`: not flagged, hidden from the coder
+   mapping (`permission = pm` in the source).
+4. **`WHO_2022_VA_SOCIAL` stays for existing forms only.** The Projects panel
+   and the project API do not offer it as a new web questionnaire; a project
+   that already stores it or resolves to it (through its existing web form)
+   keeps it and the panel shows it truthfully. Existing `va_forms` are not
+   migrated to another form type.
+5. **Answer labels (owner 2026-11-26).** The select fields of the `sa*`,
+   equity and DORIS-support layers carry answer labels on both form types,
+   taken from the DigitVA engine's own choice lists (English, the values the
+   web and Collect forms store), never copied from `WHO_2022_VA_SOCIAL`'s
+   ODK-synced labels. An existing label is never overwritten, so a
+   `WHO_2022_VA_SOCIAL` ODK label in use stays.
+
 ## Sign-off on a configuration change (P2, decided 2026-09-19)
 
 **The admin who saves the setting is the sign-off.** There is no pending

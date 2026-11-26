@@ -188,7 +188,9 @@
           Which questionnaire the browser VA form renders for this project, and
           its optional sections. A form type whose PII set is unconfirmed
           cannot collect real interviews
-          (docs/policy/new-form-type-onboarding.md).
+          (docs/policy/new-form-type-onboarding.md). WHO_2022_VA maps every
+          DigitVA layer: switch Collect Social Autopsy or Equity on below
+          rather than choosing a layer form type.
         </div>
         <div id="project-web-intake-form-types-error" class="text-danger small mb-2 d-none">
           Could not load form types.
@@ -909,17 +911,34 @@
 
   // ── questionnaire, welcome note and death summary ─────────────────────────
 
-  // A stored NULL form type means WHO_2022_VA, so the blank option *is* that
-  // form type; its own row is left out rather than offered twice.
-  var DEFAULT_FORM_TYPE_CODE = 'WHO_2022_VA';
+  // What a stored NULL means for a project with no web form yet, served by
+  // /admin/api/web-form-types. Null until that fetch succeeds.
+  var _defaultFormTypeCode = null;
 
-  function renderFormTypeInputs() {
-    var who = _formTypes.find(function (ft) { return ft.form_type_code === DEFAULT_FORM_TYPE_CODE; });
-    var html = '<option value="">' + esc(DEFAULT_FORM_TYPE_CODE)
-      + (who ? ' — ' + esc(who.form_type_name) : '') + ' (default)</option>';
+  // The questionnaire select. Creating (no project): the blank option is the
+  // served default, whose own row is left out rather than offered twice.
+  // Editing: every option is a real form type and the select shows the one
+  // the project actually runs (web_intake_resolved_form_type_id, resolved by
+  // the server: a NULL setting falls back to the project's existing web form
+  // first, so it need not be the default). A form type not offered for new
+  // choices (WHO_2022_VA_SOCIAL, digitva-l2dg) is listed only for a project
+  // that stores or resolves to it.
+  function renderFormTypeInputs(project) {
+    var inUse = project
+      ? [project.web_intake_form_type_code, project.web_intake_resolved_form_type_code]
+      : [];
+    var html = '';
+    if (!project) {
+      var def = _formTypes.find(function (ft) { return ft.form_type_code === _defaultFormTypeCode; });
+      html = '<option value="">' + esc(_defaultFormTypeCode || '')
+        + (def ? ' — ' + esc(def.form_type_name) : '') + ' (default)</option>';
+    } else if (!project.web_intake_resolved_form_type_id) {
+      html = '<option value="">No questionnaire resolves</option>';
+    }
     for (var i = 0; i < _formTypes.length; i++) {
       var ft = _formTypes[i];
-      if (ft.form_type_code === DEFAULT_FORM_TYPE_CODE) continue;
+      if (!project && ft.form_type_code === _defaultFormTypeCode) continue;
+      if (ft.offered_for_new === false && inUse.indexOf(ft.form_type_code) === -1) continue;
       // A form type with no bundled instrument has no questionnaire to
       // render, and one whose PII set is unconfirmed may not collect real
       // interviews (docs/policy/new-form-type-onboarding.md). The server
@@ -928,6 +947,7 @@
       var suffix = ft.pii_confirmed
         ? (ft.base_instrument_code ? '' : ' (no bundled questionnaire)')
         : ' (PII set unconfirmed)';
+      if (ft.offered_for_new === false) suffix += ' (kept for existing web forms)';
       html += '<option value="' + esc(ft.form_type_id) + '"'
         + (usable ? '' : ' disabled')
         + '>' + esc(ft.form_type_code) + ' — ' + esc(ft.form_type_name)
@@ -1060,7 +1080,7 @@
       // The default note is served, never rendered into the page: the panel
       // is a JSON client of /admin/api/web-form-types.
       intakeNoteInput.placeholder = res.data.default_intake_note || '';
-      renderFormTypeInputs();
+      _defaultFormTypeCode = res.data.default_form_type_code || null;
       refillOpenWebIntakeForm();
     }).catch(function () {
       formTypesErrEl.classList.remove('d-none');
@@ -1072,6 +1092,7 @@
     setTicked(availableLocalesList, AVAILABLE_LOCALE_CLASS, []);
     setTicked(narrationLanguagesList, NARRATION_LANGUAGE_CLASS, []);
     showGuidanceInput.checked = false;
+    if (_formTypes) renderFormTypeInputs(null);
     formTypeInput.value = '';
     deathSummaryInput.checked = true;
     medicalRecordsInput.checked = true;
@@ -1092,9 +1113,8 @@
       project.web_intake_narration_languages || []
     );
     showGuidanceInput.checked = !!project.web_intake_show_guidance;
-    // An explicit WHO_2022_VA id shows as the default option it is.
-    formTypeInput.value = project.web_intake_form_type_code === DEFAULT_FORM_TYPE_CODE
-      ? '' : (project.web_intake_form_type_id || '');
+    if (_formTypes) renderFormTypeInputs(project);
+    formTypeInput.value = project.web_intake_resolved_form_type_id || '';
     deathSummaryInput.checked = project.web_intake_death_summary_enabled !== false;
     medicalRecordsInput.checked = project.web_intake_medical_records_enabled !== false;
     equityInput.checked = project.web_intake_equity_enabled === true;
@@ -1263,8 +1283,9 @@
       }
     }
 
-    // The select shows an explicit WHO_2022_VA id as the blank default, so an
-    // untouched select on edit must not rewrite that id to null.
+    // On edit the select shows the questionnaire the project resolves to, not
+    // what it stores, so an untouched select must not write that id over a
+    // stored NULL (or anything else).
     if (_editingId && !_touched.web_intake_form_type_id) {
       delete data.web_intake_form_type_id;
     }

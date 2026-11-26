@@ -240,6 +240,14 @@ WEB_FORM_ODK_FORM_ID = "WEB_WHOVA2022"
 #: behaviour every web form had before ``web_intake_form_type_id`` existed.
 WEB_FORM_DEFAULT_FORM_TYPE_CODE = "WHO_2022_VA"
 
+#: Form types a project may keep but not newly choose for its web
+#: questionnaire. WHO_2022_VA's mapping covers every DigitVA layer and the
+#: layer switches decide the questions, so a layer form type is only kept for
+#: the projects whose web forms already carry it (digitva-l2dg,
+#: docs/policy/va-form-project-configuration.md, "One field mapping for every
+#: layer").
+WEB_FORM_RETIRED_FORM_TYPE_CODES = frozenset({"WHO_2022_VA_SOCIAL"})
+
 
 def resolve_web_form_type(project_id: str):
     """The active form type a *new* web form for this project must carry.

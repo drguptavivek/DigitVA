@@ -624,7 +624,8 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
         icd_classification: "icd11",
         workflow_state: "coding",
         // Standalone coding asks neither. Enrolled, the project's NQA is added by the workspace API (getWorkspace);
-        // Social Autopsy is not asked offline: the bundled display pack has no social_autopsy category (digitva-p8uj).
+        // The display pack shows the social autopsy answers read-only; the coder's Social Autopsy analysis is still
+        // not asked offline (digitva-p8uj).
         narrative_qa_enabled: false,
         social_autopsy_enabled: false,
       },

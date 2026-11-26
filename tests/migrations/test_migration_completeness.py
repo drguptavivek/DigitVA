@@ -33,7 +33,8 @@ from tests.base import BaseTestCase
 # redaction-only row for each (NULL category/subcategory, never rendered).
 # Kept in step with tests/migrations/test_migrate_who_2022_va.py, which asserts
 # the same invariant from the other side.
-PII_REGISTRY_FIELDS_NOT_IN_EXCEL = {"Id10073", "abha_number", "abha_address", "visit_address", "visit_remarks"}
+# Id10073 has its own workbook row since digitva-l2dg.
+PII_REGISTRY_FIELDS_NOT_IN_EXCEL = {"abha_number", "abha_address", "visit_address", "visit_remarks"}
 
 
 LABELS_PATH = Path("resource/mapping/mapping_labels.xlsx")
@@ -137,13 +138,13 @@ class TestMigrationCompleteness(BaseTestCase):
     # ------------------------------------------------------------------ #
 
     def test_04_category_order_exact(self):
-        """14 categories match WHO_2022_CATEGORIES in exact order."""
+        """15 categories match WHO_2022_CATEGORIES in exact order."""
         cats = db.session.scalars(
             db.select(MasCategoryOrder)
             .where(MasCategoryOrder.form_type_id == self.form_type.form_type_id)
             .order_by(MasCategoryOrder.display_order)
         ).all()
-        self.assertEqual(len(cats), 14)
+        self.assertEqual(len(cats), 15)
         for i, cat in enumerate(cats):
             self.assertEqual(cat.category_code, WHO_2022_CATEGORIES[i])
             self.assertEqual(cat.display_order, i + 1)
@@ -159,7 +160,9 @@ class TestMigrationCompleteness(BaseTestCase):
         mismatches = []
         for _, row in valid.iterrows():
             field_id = str(row["name"])
-            expected_cat = str(row.get("category", "") or "").strip() or None
+            category = row.get("category")
+            # Helper rows (digitva-l2dg) carry no category: NaN in the sheet, NULL in the DB.
+            expected_cat = None if pd.isna(category) else (str(category).strip() or None)
 
             config = db.session.scalar(
                 db.select(MasFieldDisplayConfig).where(
@@ -255,8 +258,8 @@ class TestMigrationCompleteness(BaseTestCase):
         mismatches = []
         for _, row in valid.iterrows():
             field_id = str(row["name"])
-            expected_type = str(row.get("type", "") or "").strip() or None
-            expected_age = str(row.get("agegroup", "") or "").strip() or None
+            expected_type = None if pd.isna(row.get("type")) else (str(row["type"]).strip() or None)
+            expected_age = None if pd.isna(row.get("agegroup")) else (str(row["agegroup"]).strip() or None)
 
             config = db.session.scalar(
                 db.select(MasFieldDisplayConfig).where(

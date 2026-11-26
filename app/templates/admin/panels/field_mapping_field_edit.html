@@ -261,7 +261,7 @@
         </label>
         <select class="form-select form-select-sm" name="pii_type">
           <option value="">Select…</option>
-          {% for t in ['name','location','identifier','date','contact','other'] %}
+          {% for t in ['name','location','identifier','staff_id','date','contact','other'] %}
           <option value="{{ t }}" {% if field.pii_type == t %}selected{% endif %}>{{ t|capitalize }}</option>
           {% endfor %}
         </select>

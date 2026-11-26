@@ -49,6 +49,16 @@ questionnaire. So the intake page keys `INSTRUMENTS` on `instrument_code`, and
 O1's "pre-built variants" means pre-built **per standard instrument**, never
 per layer.
 
+**One field mapping covers every layer (decided 2026-11-26, `digitva-l2dg`).**
+The `mas_field_display_config` rows of `WHO_2022_VA` map the fields of every
+DigitVA layer: the WHO questions, the `social_autopsy` questions (`sa*`), the
+`equity` questions and the `doris_support_whova_2022` questions, plus the ODK
+helper rows. So a web or Collect project gets the social autopsy, equity or
+DORIS questions by switching the layer on (`enabled_extensions`), never by
+choosing another form type. `WHO_2022_VA_SOCIAL` carries the same rows and is
+kept only for the forms that already carry it: it is not offered as a new web
+questionnaire, and existing `va_forms` keep their form type.
+
 **Landed 2026-09-19:** `mas_form_types.base_instrument_code` (String(32),
 nullable) records which standard instrument a form type layers on, backfilled
 from the naming convention that stood in for it. `instrument_code_for()`
@@ -70,7 +80,7 @@ list and `flask form-types list` show it, and the form-type PATCH sets it.
 | `geography` | level + unit codes | Partly — via the units API | Feeds `survey_state`/`survey_district`/`survey_block` and `org_<level_code>_code` routing. Comes from the project's organization hierarchy. |
 | `show-guidance` | boolean (attribute) | **Yes** — served and passed when true (2026-09-19) | Whether source guidance notes render. An interviewer-training setting. |
 | `attachment_policy` | image/audio/PDF limits | **No** — engine defaults | Size and dimension ceilings. |
-| `web_intake_form_type_id` | uuid | **Yes — project setting** (2026-09-19) | Which form type the project's browser questionnaire carries. Must be an active form type with a `base_instrument_code` and a confirmed PII set; NULL means `WHO_2022_VA`. |
+| `web_intake_form_type_id` | uuid | **Yes — project setting** (2026-09-19) | Which form type the project's browser questionnaire carries. Must be an active form type with a `base_instrument_code` and a confirmed PII set; NULL resolves to the type of the project's existing web form, then `WHO_2022_VA`. The Projects panel shows the type the project resolves to, served as `web_intake_resolved_form_type_code` (2026-11-26). `WHO_2022_VA_SOCIAL` may be chosen only by a project that already stores or resolves to it (`digitva-l2dg`). |
 | `intake_screen` | note text | **Yes — project setting** (2026-09-19) | A welcome note shown before the questionnaire, `web_intake_intake_note`. NULL is the system default text (`DEFAULT_INTAKE_NOTE`), `""` is no welcome screen. In `enabled_extensions` exactly when the resolved note is non-empty; the text is served as `intake_note`. |
 | `translation_versions` | `{locale: int}` | **Yes** — served (2026-09-19) | The version of every locale this project's instrument currently serves, `en` at 0. A page caches a locale's strings and re-fetches only when its version moves. |
 | `death_summary` | boolean | **Yes — project setting** (2026-09-19) | Optional upload of death summary documents, `web_intake_death_summary_enabled`, on for every project. Never a mandatory response; rendered with the other attachment controls (see [Web Intake Policy](web-intake.md), "Attachments"). |

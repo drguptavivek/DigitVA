@@ -3,7 +3,7 @@ title: Access Control Model
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-25
+last_updated: 2026-11-26
 ---
 
 # Access Control Model
@@ -345,6 +345,16 @@ If that trade proves wrong in practice, the split is a third role
 (`collaborator_staff`), which is exactly the cost of using roles as the
 mechanism. Recorded here so the choice is revisited deliberately rather than
 rediscovered.
+
+#### Equity answers and the date of death (2026-11-26, `digitva-l2dg`)
+
+`social_group` and every `vulnerable_group*` answer are flagged `is_pii` on
+`WHO_2022_VA` and `WHO_2022_VA_SOCIAL` (the mapping workbook's `is_pii`
+column, migration `f3c9d1a7b5e2`): a viewer without PII access sees them
+redacted, exports omit them, and they are sealed at rest. `residence_type`,
+`health_coverage` and the `refusal_*` profile are not personal data. The date
+of death `Id10023` is not flagged on any form type, so a coder without PII
+access sees it (DORIS needs it).
 
 #### The PII set must be confirmed per form type
 

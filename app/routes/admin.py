@@ -370,7 +370,7 @@ _WEB_INTAKE_BOOL_FIELDS = (
 )
 
 
-def _web_intake_form_option_updates(payload):
+def _web_intake_form_option_updates(payload, project=None):
     """Validated tier-2 web form options from a project create/update payload.
 
     Policy: docs/policy/va-web-form-options.md. The two *display* language
@@ -383,6 +383,10 @@ def _web_intake_form_option_updates(payload):
     the two lists -- "every instrument locale" and "none offered" respectively
     -- so an explicit null is accepted and is not the same as omitting the
     field.
+
+    ``project`` is the project being updated, ``None`` on create: a retired
+    web form type (``WEB_FORM_RETIRED_FORM_TYPE_CODES``) is accepted only for
+    a project that already stores or resolves to it.
 
     Returns ``(updates, error_message)``. ``updates`` holds only the keys the
     payload supplied, so a caller may pass it straight to a model constructor
@@ -445,6 +449,8 @@ def _web_intake_form_option_updates(payload):
             payload["web_intake_form_type_id"]
         )
         if error:
+            return {}, error
+        if error := _retired_web_form_type_error(form_type_id, project):
             return {}, error
         updates["web_intake_form_type_id"] = form_type_id
 
@@ -627,6 +633,37 @@ def _with_web_project_defaults(payload):
             dropped,
         )
     return merged
+
+
+def _retired_web_form_type_error(form_type_id, project) -> str | None:
+    """Error text when ``form_type_id`` is a retired web form type this
+    project does not already use, else None.
+
+    ``WHO_2022_VA_SOCIAL`` stays for the projects whose web forms carry it;
+    any other project gets the social autopsy questions from WHO_2022_VA with
+    Collect Social Autopsy on (digitva-l2dg).
+    """
+    from app.models import MasFormTypes
+    from app.services.project_config_service import resolved_web_form_types
+    from app.services.runtime_form_sync_service import WEB_FORM_RETIRED_FORM_TYPE_CODES
+
+    if form_type_id is None:
+        return None
+    form_type = db.session.get(MasFormTypes, form_type_id)
+    if form_type is None or form_type.form_type_code not in WEB_FORM_RETIRED_FORM_TYPE_CODES:
+        return None
+    if project is not None:
+        in_use = {project.web_intake_form_type_id}
+        resolved = resolved_web_form_types([project]).get(project.project_id)
+        if resolved is not None:
+            in_use.add(resolved.form_type_id)
+        if form_type_id in in_use:
+            return None
+    return (
+        f"Form type {form_type.form_type_code} is kept only for projects already "
+        "using it. Choose WHO_2022_VA and switch Collect Social Autopsy on for the "
+        "social autopsy questions."
+    )
 
 
 def _validated_web_form_type_id(raw):
@@ -1573,7 +1610,7 @@ def admin_update_project(project_id):
     ):
         return _json_error(error, 400)
 
-    form_option_updates, form_option_error = _web_intake_form_option_updates(payload)
+    form_option_updates, form_option_error = _web_intake_form_option_updates(payload, project=project)
     if form_option_error:
         return _json_error(form_option_error, 400)
     updates.update(form_option_updates)
@@ -7934,11 +7971,17 @@ def admin_web_form_types_list():
     and whether its PII set has been confirmed. The Projects panel builds its
     "Web form questionnaire" select from here and disables the unconfirmed
     ones, which the project PUT/POST refuse anyway
-    (docs/policy/new-form-type-onboarding.md). Distinct from
+    (docs/policy/new-form-type-onboarding.md). A form type with
+    ``offered_for_new`` false (``WHO_2022_VA_SOCIAL``) is listed only for a
+    project that already stores or resolves to it. Distinct from
     ``/admin/api/form-types``, which is the field-mapping panel's list.
     """
     from app.models import MasFormTypes
     from app.services.field_mapping_service import get_mapping_service
+    from app.services.runtime_form_sync_service import (
+        WEB_FORM_DEFAULT_FORM_TYPE_CODE,
+        WEB_FORM_RETIRED_FORM_TYPE_CODES,
+    )
     from app.services.web_intake_service import DEFAULT_INTAKE_NOTE
 
     mapping_svc = get_mapping_service()
@@ -7952,6 +7995,9 @@ def admin_web_form_types_list():
         # not a stored value, so it is served here rather than rendered into
         # the panel: the panel is a JSON client like any other.
         "default_intake_note": DEFAULT_INTAKE_NOTE,
+        # What a stored NULL questionnaire means for a project with no web
+        # form yet; served so the panel never hardcodes it.
+        "default_form_type_code": WEB_FORM_DEFAULT_FORM_TYPE_CODE,
         "form_types": [
             {
                 "form_type_id": str(ft.form_type_id),
@@ -7960,6 +8006,9 @@ def admin_web_form_types_list():
                 "base_instrument_code": ft.base_instrument_code,
                 "pii_confirmed": mapping_svc.is_pii_set_confirmed(ft.form_type_code),
                 "is_active": ft.is_active,
+                # False for a form type kept only for the projects already on
+                # it; the panel lists it for those projects alone.
+                "offered_for_new": ft.form_type_code not in WEB_FORM_RETIRED_FORM_TYPE_CODES,
             }
             for ft in form_types
         ]

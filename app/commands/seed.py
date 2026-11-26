@@ -222,8 +222,9 @@ def _seed_missing_translation_sources():
 def _seed_pii_flags():
     """Flag payload fields that carry personal data.
 
-    Always runs: the Excel source has no is_pii column, so a mapping reseed
-    resets the flag to its default. Idempotent — see
+    Always runs: the Excel source flags only the equity layer's fields
+    (its is_pii column), so a mapping reseed would otherwise leave the
+    registry's fields at their default. Idempotent — see
     app/services/pii_field_registry.py.
     """
     from app.services.pii_field_registry import apply_pii_field_registry

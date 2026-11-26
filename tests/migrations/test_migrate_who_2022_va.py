@@ -36,7 +36,8 @@ CHOICES_PATH = Path("resource/mapping/mapping_choices.xlsx")
 # app/services/pii_field_registry.py) that mapping_labels.xlsx does not carry
 # at all. run() applies the registry, so these are expected extras, not
 # migration data loss.
-PII_REGISTRY_FIELDS_NOT_IN_EXCEL = {"Id10073", "abha_number", "abha_address", "visit_address", "visit_remarks"}
+# Id10073 has its own workbook row since digitva-l2dg.
+PII_REGISTRY_FIELDS_NOT_IN_EXCEL = {"abha_number", "abha_address", "visit_address", "visit_remarks"}
 
 
 class TestWho2022VaMigration(BaseTestCase):
@@ -91,8 +92,8 @@ class TestWho2022VaMigration(BaseTestCase):
         self.assertEqual(form_type.form_type_name, "WHO 2022 VA Form")
         self.assertTrue(form_type.is_active)
 
-    def test_04_all_14_categories_migrated(self):
-        """All 14 categories are migrated with correct count."""
+    def test_04_all_15_categories_migrated(self):
+        """All 15 categories (social_autopsy included, digitva-l2dg) are migrated."""
         form_type = self._run_migration()
 
         count = db.session.scalar(
@@ -100,7 +101,7 @@ class TestWho2022VaMigration(BaseTestCase):
             .select_from(MasCategoryOrder)
             .where(MasCategoryOrder.form_type_id == form_type.form_type_id)
         )
-        self.assertEqual(count, 14, f"Expected 14 categories, got {count}")
+        self.assertEqual(count, 15, f"Expected 15 categories, got {count}")
 
     def test_05_category_order_matches_source(self):
         """Categories are stored in exact order from va_preprocess_03."""
@@ -129,7 +130,7 @@ class TestWho2022VaMigration(BaseTestCase):
             .select_from(MasCategoryDisplayConfig)
             .where(MasCategoryDisplayConfig.form_type_id == form_type.form_type_id)
         )
-        self.assertEqual(count, 14)
+        self.assertEqual(count, 15)
 
     def test_05c_category_display_config_preserves_special_modes(self):
         """Seeded category display metadata captures current special behaviors."""
@@ -170,8 +171,7 @@ class TestWho2022VaMigration(BaseTestCase):
 
         run() also applies the PII field registry (see PII_FIELDS in
         pii_field_registry.py), which creates redaction-only rows for
-        registered fields the Excel does not carry at all — Id10073,
-        abha_number, abha_address, visit_address, visit_remarks. Those are added on top of the Excel-derived
+        registered fields the Excel does not carry at all — abha_number, abha_address, visit_address, visit_remarks. Those are added on top of the Excel-derived
         count, not part of it.
         """
         labels_df = pd.read_excel(LABELS_PATH)
@@ -196,7 +196,7 @@ class TestWho2022VaMigration(BaseTestCase):
                          f"got {db_count}")
 
     def test_07_all_choices_migrated(self):
-        """All 1199 choice mappings from Excel are migrated."""
+        """Every choice mapping row of the Excel workbook is migrated."""
         choices_df = pd.read_excel(CHOICES_PATH)
         expected_count = len(choices_df[
             choices_df["category"].notna() & choices_df["name"].notna()
@@ -393,7 +393,7 @@ class TestWho2022VaMigration(BaseTestCase):
         )
         self.assertIsNotNone(
             national_id,
-            "expected the migrator to create a redaction-only row for Id10073",
+            "expected the migrator to create a row for Id10073",
         )
         self.assertTrue(
             national_id.is_pii,

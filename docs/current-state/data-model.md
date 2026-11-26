@@ -2000,7 +2000,9 @@ Other important tables:
   questionnaire and its two extension settings:
   `web_intake_form_type_id` (UUID, nullable, FK
   `fk_va_project_master_web_intake_form_type` -> `mas_form_types.form_type_id`
-  — NULL means `WHO_2022_VA`), `web_intake_intake_note` (Text, nullable —
+  — NULL resolves to the type of the project's existing web form, then
+  `WHO_2022_VA`; `WHO_2022_VA_SOCIAL` is kept only for projects already on it,
+  `digitva-l2dg`), `web_intake_intake_note` (Text, nullable —
   NULL means the system default welcome note, `''` means no welcome screen)
   and `web_intake_death_summary_enabled` (Boolean, NOT NULL, default true).
   Migration `e1b6c9a3d7f4` adds `web_intake_medical_records_enabled`
@@ -2225,6 +2227,8 @@ Current seeded behavior:
 - the schema is added by Alembic revision `c7f1d2e3a4b5`
 - the migration seeds deterministic rows for `WHO_2022_VA` and `WHO_2022_VA_SOCIAL`
 - the current seed count is 14 rows for `WHO_2022_VA` and 15 rows for `WHO_2022_VA_SOCIAL`
+- migration `f3c9d1a7b5e2` (`digitva-l2dg`) adds the `social_autopsy` row to
+  `WHO_2022_VA` when missing, so both form types now carry 15
 
 ### `mas_subcategory_order`
 

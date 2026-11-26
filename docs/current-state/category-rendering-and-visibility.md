@@ -211,6 +211,8 @@ rules above.
 - Partial sections:
   - `general`
   - `risk_factors`
+  - `equity` (the equity layer's answers, `digitva-l2dg`; `social_group` and
+    `vulnerable_group*` are personal data and not in the coder mapping)
 - Important mapped fields:
   - `general`: `Site`, `unique_id`, `site_individual_id`, `Id10017`, `Id10018`,
     `Id10021`, `Id10023`, `isNeonatal`, `isChild`, `isAdult`, `Id10019`,
@@ -305,6 +307,10 @@ rules above.
   - app-owned `Social Autopsy Analysis` form appended after the mapped sections
 - Important mapped fields:
   - all fields assigned to category `social_autopsy` for the active form type
+  - both `WHO_2022_VA` and `WHO_2022_VA_SOCIAL` map the 29 `sa*` fields and
+    carry the `social_autopsy` category (migration `f3c9d1a7b5e2`,
+    `digitva-l2dg`), so a `WHO_2022_VA` form with Collect Social Autopsy on
+    renders it the same way
 - Conditions to appear in left nav:
   - `social_autopsy` must be visible for the current role and have surviving mapped
     field data
@@ -380,8 +386,8 @@ rules above.
   - `mass_abdomen`
   - `urine_issues`
 - Important mapped fields:
-  - `diarrhoea`: `Id10181`, `Id10182`, `Id10183`, `Id10185`
-  - `bleeding`: `Id10186`
+  - `diarrhoea`: `Id10181`, `Id10182`, `Id10183`, `Id10185`, `Id10186`
+    (moved from `bleeding` on 2026-11-26, `digitva-l2dg`)
   - `vomit`: `Id10188`, `Id10190_a`, `Id10189`, `Id10191`
   - `abdominal_pain`: `Id10194`, `Id10195`, `Id10196`, `Id10199`
   - `protuding_abdomen`: `Id10200`, `Id10201`, `Id10202`, `Id10203`
@@ -391,10 +397,6 @@ rules above.
   - `vaabdominalsymptoms` must be present in `va_category_list`
 - Effective trigger rule:
   - any surviving field in any abdominal subcategory
-- Important partial nuance:
-  - the mapping includes `bleeding`, but the current partial has no dedicated
-    `bleeding` section, so that field group can influence category presence without
-    being visibly rendered as its own table
 
 ### `vaneurologicalsymptoms`
 

@@ -13,8 +13,13 @@ def va_mapping_fieldcoder():
                 current_app.config["APP_RESOURCE"], "mapping", "mapping_labels.xlsx"
             )
         )
+        # social_autopsy stays out of the static coder mapping: the coder
+        # view bridges it in from the database (va_get_render_datalevel), so
+        # an admin's label edits apply and the category follows its role
+        # visibility (digitva-l2dg).
         filtered_df = df[
             (df["category"].notna())
+            & (df["category"] != "social_autopsy")
             & ((df.get("permission") != "pm") | (df.get("permission").isna()))
         ]
         categories = filtered_df["category"].unique()

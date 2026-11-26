@@ -3,7 +3,7 @@ title: Personal Data Encryption at Rest Policy
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-25
+last_updated: 2026-11-26
 ---
 
 # Personal Data Encryption at Rest Policy
@@ -183,7 +183,11 @@ the duplicate window and indexes; they are quasi-identifiers under decision
 `Id10010b`, `Id10010c`, `Id10017`, `Id10018`, `Id10055`, `Id10057`,
 `Id10061`, `Id10062`, `Id10070`, `Id10071`, `Id10072`, `Id10073`,
 `visit_address`, `visit_remarks`, `abha_number`, `abha_address`, plus the
-form's admin-flagged fields, minus the never-sealed fields (OD9). Read at run
+form's admin-flagged fields, minus the never-sealed fields (OD9). Since
+2026-11-26 (`digitva-l2dg`) the `WHO_2022_VA` and `WHO_2022_VA_SOCIAL`
+mappings flag the equity answers `social_group` and `vulnerable_group*`, so
+they are sealed on new writes, and on stored versions when the payload
+backfill is rerun for those forms. Read at run
 time, never copied.
 
 **Aadhaar class is `Id10073`** ("National identification number of

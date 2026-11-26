@@ -1159,9 +1159,9 @@ class WebProjectDefaultsOnCreateTests(BaseTestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.default_type = cls._ensure_form_type("WHO_2022_VA", "WHO 2022 VA Form")
-        cls.other_type = cls._ensure_form_type(
-            "WHO_2022_VA_SOCIAL", "WHO 2022 VA with social autopsy"
-        )
+        # Not WHO_2022_VA_SOCIAL: that one is kept only for projects already
+        # on it and a new project may not choose it (digitva-l2dg).
+        cls.other_type = cls._ensure_form_type("FDEF_OTHER_TYPE", "Another usable form type")
         for code, name in (("english", "English"), ("hindi", "Hindi")):
             existing = db.session.get(MasLanguages, code)
             if existing is None:

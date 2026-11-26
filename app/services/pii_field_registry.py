@@ -7,7 +7,8 @@ tables were added, and ``FieldMappingService.get_pii_field_ids()`` reads it to
 redact the data-manager CSV export
 (``data_management_service._filter_export_payload``). Nothing ever set the flag
 to ``True``: the WHO_2022_VA rows are seeded from
-``resource/mapping/mapping_labels.xlsx``, which has no ``is_pii`` column, so the
+``resource/mapping/mapping_labels.xlsx``, which had no ``is_pii`` column (it
+has one since digitva-l2dg, for the equity layer's fields only), so the
 redaction set was always empty and the export relied entirely on the hardcoded
 ``CSV_EXPORT_OMIT_PAYLOAD_FIELDS`` list.
 
@@ -117,6 +118,9 @@ PII_TYPE_NAME = "name"
 PII_TYPE_LOCATION = "location"
 PII_TYPE_IDENTIFIER = "identifier"
 PII_TYPE_DATE = "date"
+# The interviewer's staff ID (Id10010c): the type WHO_2022_VA carried by hand
+# before it was recorded here (digitva-l2dg).
+PII_TYPE_STAFF_ID = "staff_id"
 
 
 # field_id -> pii_type. Applied to every active form type unconditionally
@@ -148,7 +152,7 @@ PII_FIELDS: dict[str, str] = {
     "Id10071": PII_TYPE_DATE,  # date of death registration
     "Id10072": PII_TYPE_IDENTIFIER,  # place of registration (an office plus a date narrows a death)
     # --- Missing until now ---
-    "Id10010c": PII_TYPE_IDENTIFIER,  # ID of VA interviewer
+    "Id10010c": PII_TYPE_STAFF_ID,  # ID of VA interviewer
     "Id10073": PII_TYPE_IDENTIFIER,  # national identification number of deceased
     # Interviewer age and sex: web intake fills them from the user profile
     # (digitva-vzk.3), so with Id10010 they describe a named staff member.
@@ -159,6 +163,12 @@ PII_FIELDS: dict[str, str] = {
     "visit_remarks": PII_TYPE_LOCATION,  # visit note remarks, free text
     "abha_number": PII_TYPE_IDENTIFIER,
     "abha_address": PII_TYPE_IDENTIFIER,
+    # The equity layer's social_group and vulnerable_group* answers are
+    # personal data too (digitva-l2dg), but they are flagged per form type in
+    # the mapping (the workbook's is_pii column, migration f3c9d1a7b5e2), not
+    # here: this list is also the offline app's PII_FIELDS_FLOOR
+    # (tests/fixtures/pii_fields_floor.json), and a flagged mapping row joins
+    # the sealed set all the same (sealed_field_ids, OD9).
 }
 
 

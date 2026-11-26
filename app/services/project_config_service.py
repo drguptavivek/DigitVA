@@ -107,58 +107,99 @@ def instrument_code_for(form_type: "MasFormTypes | str | None") -> str | None:
     return base or None
 
 
-def _web_form_type_row(project: VaProjectMaster) -> MasFormTypes | None:
-    """The active form type this project's web questionnaire carries.
+def resolved_web_form_types(projects) -> dict[str, MasFormTypes | None]:
+    """``{project_id: form type}`` each project's web questionnaire carries.
 
     The project's own setting decides it; a project that has not chosen one
-    falls back to the form type its existing web ``va_forms`` row carries,
-    and then to ``WHO_2022_VA`` -- the same order
-    ``runtime_form_sync_service.resolve_web_form_type`` materializes a new web
-    form with, so what the form-options endpoint serves and what the web form
-    row carries cannot disagree.
+    falls back to the form type its existing web ``va_forms`` row carries
+    (the lowest ``form_type_code`` when there are several), and then to
+    ``WHO_2022_VA``. A configured form type that has been deactivated is
+    skipped like an unset one. ``None`` only when not even the default is
+    registered and active.
 
-    A configured form type that has been deactivated is skipped rather than
-    raised on: this endpoint is what the interviewer's page loads, and
-    degrading to the fallback questionnaire beats a page that will not open.
-    The readiness check (WP2) is where that misconfiguration is reported.
+    Batched so the admin project list costs three queries, not three per
+    project (digitva-l2dg).
     """
     from app.models import VaForms
     from app.services.runtime_form_sync_service import (
         WEB_FORM_DEFAULT_FORM_TYPE_CODE,
     )
 
-    if project.web_intake_form_type_id is not None:
-        configured = db.session.get(MasFormTypes, project.web_intake_form_type_id)
-        if configured is not None and configured.is_active:
-            return configured
-        current_app.logger.warning(
-            "Project %s web_intake_form_type_id %s is not an active form type; "
-            "serving the fallback questionnaire.",
-            project.project_id,
-            project.web_intake_form_type_id,
-        )
+    projects = list(projects)
+    configured_ids = {p.web_intake_form_type_id for p in projects if p.web_intake_form_type_id}
+    configured = {}
+    if configured_ids:
+        configured = {
+            form_type.form_type_id: form_type
+            for form_type in db.session.scalars(
+                sa.select(MasFormTypes).where(
+                    MasFormTypes.form_type_id.in_(configured_ids),
+                    MasFormTypes.is_active.is_(True),
+                )
+            )
+        }
 
-    from_web_form = db.session.scalar(
-        sa.select(MasFormTypes)
-        .join(VaForms, VaForms.form_type_id == MasFormTypes.form_type_id)
+    resolved: dict[str, MasFormTypes | None] = {}
+    unresolved = []
+    for project in projects:
+        form_type = configured.get(project.web_intake_form_type_id)
+        if form_type is not None:
+            resolved[project.project_id] = form_type
+        else:
+            unresolved.append(project.project_id)
+    if not unresolved:
+        return resolved
+
+    for project_id, form_type in db.session.execute(
+        sa.select(VaForms.project_id, MasFormTypes)
+        .distinct(VaForms.project_id)
+        .join(MasFormTypes, VaForms.form_type_id == MasFormTypes.form_type_id)
         .where(
-            VaForms.project_id == project.project_id,
+            VaForms.project_id.in_(unresolved),
             VaForms.form_source == "web",
             VaForms.form_status == VaStatuses.active,
             MasFormTypes.is_active.is_(True),
         )
-        .order_by(MasFormTypes.form_type_code)
-        .limit(1)
-    )
-    if from_web_form is not None:
-        return from_web_form
+        .order_by(VaForms.project_id, MasFormTypes.form_type_code)
+    ):
+        resolved.setdefault(project_id, form_type)
 
-    return db.session.scalar(
-        sa.select(MasFormTypes).where(
-            MasFormTypes.form_type_code == WEB_FORM_DEFAULT_FORM_TYPE_CODE,
-            MasFormTypes.is_active.is_(True),
+    if any(project_id not in resolved for project_id in unresolved):
+        default = db.session.scalar(
+            sa.select(MasFormTypes).where(
+                MasFormTypes.form_type_code == WEB_FORM_DEFAULT_FORM_TYPE_CODE,
+                MasFormTypes.is_active.is_(True),
+            )
         )
-    )
+        for project_id in unresolved:
+            resolved.setdefault(project_id, default)
+    return resolved
+
+
+def _web_form_type_row(project: VaProjectMaster) -> MasFormTypes | None:
+    """The active form type this project's web questionnaire carries.
+
+    ``resolved_web_form_types`` for one project. A project with a setting
+    serves the type ``runtime_form_sync_service.resolve_web_form_type`` gives
+    a new web form; with none, its existing web form's type comes first, so
+    the questionnaire served is the one its forms carry (a *new* web form of
+    such a project still gets ``WHO_2022_VA``).
+
+    A configured form type that has been deactivated is skipped rather than
+    raised on: this endpoint is what the interviewer's page loads, and
+    degrading to the fallback questionnaire beats a page that will not open.
+    The readiness check (WP2) is where that misconfiguration is reported.
+    """
+    form_type = resolved_web_form_types([project])[project.project_id]
+    configured_id = project.web_intake_form_type_id
+    if configured_id is not None and (form_type is None or form_type.form_type_id != configured_id):
+        current_app.logger.warning(
+            "Project %s web_intake_form_type_id %s is not an active form type; "
+            "serving the fallback questionnaire.",
+            project.project_id,
+            configured_id,
+        )
+    return form_type
 
 
 def _project_form_types(project: VaProjectMaster) -> list[dict]:

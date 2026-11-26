@@ -3,7 +3,7 @@ title: New Form Type Onboarding
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-09-19
+last_updated: 2026-11-26
 ---
 
 # New Form Type Onboarding
@@ -11,7 +11,7 @@ last_updated: 2026-09-19
 ## Purpose
 
 DigitVA runs one questionnaire today (`WHO_2022_VA`, with its
-`WHO_2022_VA_SOCIAL` variant). Every mechanism that protects personal data
+`WHO_2022_VA_SOCIAL` variant kept for existing forms). Every mechanism that protects personal data
 and feeds SmartVA was built against that instrument's field ids. This policy
 sets what must be true before a second form type (PHMRC, Ballabgarh, or any
 other) is used with real submissions, so the checks happen because the
@@ -26,7 +26,12 @@ be confirmed per form type") for the redaction rule this relies on and
 
 A DigitVA form type is usually a *layer* on a standard instrument, not a
 questionnaire of its own. `WHO_2022_VA_SOCIAL` adds the social autopsy
-sections to the one standard WHO 2022 VA instrument; which layers apply is
+sections to the one standard WHO 2022 VA instrument. Since 2026-11-26
+(`digitva-l2dg`) the `WHO_2022_VA` field mapping itself covers every DigitVA
+layer (social autopsy, equity, DORIS support), so a new web project needs no
+layer form type at all and `WHO_2022_VA_SOCIAL` is kept only for the forms
+that already carry it (`docs/policy/va-form-project-configuration.md`, "One
+field mapping for every layer"). Which layers apply is
 `enabled_extensions` from `/form-options`, and the instrument itself is
 selected by the form type's `instrument_code`
 (`docs/policy/va-web-form-options.md`). So a new `WHO_2022_VA_*` code renders

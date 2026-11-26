@@ -257,6 +257,15 @@ Current project master data now includes:
   Autopsy (in the Web form questionnaire section: whether web and DigitVA
   Collect forms ask the social autopsy questions; coder and reviewer switches
   show disabled while it is off, `docs/policy/social-autopsy-analysis.md`)
+- the web form questionnaire (`web_intake_form_type_id`): the Projects panel
+  selects the form type the project actually resolves to, served by the
+  project API as `web_intake_resolved_form_type_id` /
+  `web_intake_resolved_form_type_code` (a stored NULL resolves to the
+  project's existing web form's type, then `WHO_2022_VA`).
+  `/admin/api/web-form-types` serves `default_form_type_code` and, per form
+  type, `offered_for_new`; `WHO_2022_VA_SOCIAL` is false and is listed only
+  for a project that stores or resolves to it. The project POST/PUT refuse it
+  for any other project (`digitva-l2dg`)
 - coding intake mode (`random_form_allocation` or `pick_and_choose`)
 - self-coding (`self_coding_enabled`, off by default): a coder also interviews
   and may code their own case. `POST /api/projects` and `PUT /api/projects/<id>`

@@ -1,5 +1,5 @@
 {
- "pack_sha256": "357bf832f24561ee65d85b884bafaa60d9210203fc510a52d2318f197a69829c",
+ "pack_sha256": "ac5cfc7c18c3e93e08d7aa4df1ba9908f757f7cd09438408fc0587d587d7328b",
  "cases": [
   {
    "name": "neonate_flip_fields_and_stripped_answer",
@@ -422,9 +422,9 @@
    ],
    "default_category": "vademographicdetails",
    "summary_items": [
+    "Skin rash",
     "Abdominal pain",
-    "Abdominal pain severe",
-    "Skin rash"
+    "Abdominal pain severe"
    ],
    "category_payloads": [
     {
@@ -432,9 +432,9 @@
      "label": "Demographic / Risk Factors",
      "render_mode": "table_sections",
      "summary_items": [
+      "Skin rash",
       "Abdominal pain",
-      "Abdominal pain severe",
-      "Skin rash"
+      "Abdominal pain severe"
      ],
      "subcategories": [
       {
@@ -471,9 +471,9 @@
      "label": "Respiratory / Cardiac",
      "render_mode": "table_sections",
      "summary_items": [
+      "Skin rash",
       "Abdominal pain",
-      "Abdominal pain severe",
-      "Skin rash"
+      "Abdominal pain severe"
      ],
      "subcategories": [
       {
@@ -498,9 +498,9 @@
      "label": "Abdominal",
      "render_mode": "table_sections",
      "summary_items": [
+      "Skin rash",
       "Abdominal pain",
-      "Abdominal pain severe",
-      "Skin rash"
+      "Abdominal pain severe"
      ],
      "subcategories": [
       {
@@ -537,9 +537,9 @@
      "label": "Skin / Mucosal / Others",
      "render_mode": "table_sections",
      "summary_items": [
+      "Skin rash",
       "Abdominal pain",
-      "Abdominal pain severe",
-      "Skin rash"
+      "Abdominal pain severe"
      ],
      "subcategories": [
       {
@@ -570,9 +570,9 @@
      "label": "Narration / Documents / COD",
      "render_mode": "attachments",
      "summary_items": [
+      "Skin rash",
       "Abdominal pain",
-      "Abdominal pain severe",
-      "Skin rash"
+      "Abdominal pain severe"
      ],
      "subcategories": [
       {
@@ -597,9 +597,9 @@
      "label": "VA COD Assessment",
      "render_mode": "workflow_panel",
      "summary_items": [
+      "Skin rash",
       "Abdominal pain",
-      "Abdominal pain severe",
-      "Skin rash"
+      "Abdominal pain severe"
      ],
      "subcategories": [
       {

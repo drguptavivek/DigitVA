@@ -27,7 +27,11 @@ from app.models import (
     VaSubmissions,
 )
 from app.models.va_submission_attachments import VaSubmissionAttachments
-from app.services.migrations.migrate_who_2022_va import Who2022VaMigrator, WHO_2022_CATEGORIES
+from app.services.migrations.migrate_who_2022_va import (
+    Who2022VaMigrator,
+    WHO_2022_CATEGORIES,
+    read_choices_workbook,
+)
 from app.services.field_mapping_service import FieldMappingService
 from tests.base import BaseTestCase
 
@@ -162,8 +166,8 @@ class TestFieldMappingServiceStructure(BaseTestCase):
                 self.assertIsInstance(label, str)
 
     def test_09_choices_matches_excel(self):
-        """All Excel choice rows appear in choices dict."""
-        choices_df = pd.read_excel(CHOICES_PATH)
+        """All Excel choice rows appear in choices dict, labels as written."""
+        choices_df = read_choices_workbook(CHOICES_PATH)
         valid = choices_df[
             choices_df["category"].notna() & choices_df["name"].notna()
         ]
@@ -324,6 +328,45 @@ class TestFieldMappingServiceStructure(BaseTestCase):
                 "18.1. Time of Death": "10:08",
             },
         )
+
+    def test_14d_layer_select_answers_render_the_engine_label(self):
+        """A WHO_2022_VA case's sa*, equity and DORIS-support select answers
+        show the engine's label, not the stored code (digitva-l2dg)."""
+        from app.utils.va_render.va_render_06_processcategorydata import (
+            va_render_processcategorydata,
+        )
+
+        fieldsitepi = self.service.get_fieldsitepi(self.form_type_code)
+        choices = self.service.get_choices(self.form_type_code)
+        # Web and Collect store a select_multiple as an array.
+        answers = {
+            "sa01": "3", "sa03": ["2", "3"], "residence_type": "urban_slum",
+            "vulnerable_group": ["homeless", "migrant"], "doris_injury_place": "4",
+        }
+
+        def rendered(category):
+            result = va_render_processcategorydata(
+                va_data=answers,
+                va_form_id="TEST001",
+                va_datalevel=fieldsitepi,
+                va_mapping_choice=choices,
+                va_partial=category,
+            )
+            return {value for sub in result.values() for value in sub.values()}
+
+        self.assertIn("sa01", fieldsitepi["social_autopsy"]["social-autopsy"])
+        self.assertIn("residence_type", fieldsitepi["vademographicdetails"]["equity"])
+        social = rendered("social_autopsy")
+        self.assertIn("Ayushman Bharat", social)
+        self.assertNotIn("3", social)
+        self.assertIn("Financial barrier, Lack of transport", social)
+        demographics = rendered("vademographicdetails")
+        self.assertIn("Urban slum or informal settlement", demographics)
+        self.assertNotIn("urban_slum", demographics)
+        self.assertIn(
+            "Homeless or destitute, Migrant worker, seasonal or from another region", demographics
+        )
+        self.assertIn("Street and highway", rendered("vainjuriesdetails"))
 
     def test_15_fieldsitepi_category_order_matches_source(self):
         """Categories in fieldsitepi are in the correct display order."""

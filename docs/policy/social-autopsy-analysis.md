@@ -173,6 +173,14 @@ Current baseline:
   be blocked until the coder has saved a complete analysis
 - when reviewer Social Autopsy is enabled and present, reviewer final COD
   submission must be blocked until the reviewer has saved a complete analysis
+- "present" means the case shows the `social_autopsy` category, which follows
+  the form type's field mapping and the case's answers. Since `digitva-l2dg`
+  maps the `sa*` questions on `WHO_2022_VA` too, a `WHO_2022_VA` case that
+  holds `sa*` answers in a project with Collect and Coder Social Autopsy on
+  now requires the analysis before final COD (and the reviewer's, where
+  Reviewer Social Autopsy is on). This applies to in-flight cases as well:
+  a case already in coding when the mapping lands is gated from its next
+  final COD save (owner accepted 2026-11-26)
 
 ## Change Control
 

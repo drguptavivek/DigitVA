@@ -30,11 +30,19 @@ va_mapping_fieldcoder = {
             "Id10414_b": "(Id10414_b) Chew and/or sniff tobacco daily",
             "Id10487": "(Id10487) In the two weeks before death, live with, visit, or care for someone who had any COVID-19 symptoms or a positive COVID-19 test",
         },
+        "equity": {
+            "residence_type": "(residence_type) Was the place where the deceased usually lived rural, urban or an urban slum?",
+            "health_coverage": "(health_coverage) What health insurance did the deceased have? Tick all that apply.",
+            "refusal_age_group": "(refusal_age_group) Age group of the deceased",
+            "refusal_sex": "(refusal_sex) Sex of the deceased",
+        },
     },
     "vaneonatalperioddetails": {
         "general": {
             "Id10354": "(Id10354) Child part of a multiple birth",
             "Id10367": "(Id10367) Duration of pregnancy before the child was born (in months)",
+            "doris_mother_age": "(doris_mother_age) How old was the baby's mother, in completed years, when the baby was born?",
+            "doris_pregnancy_weeks": "(doris_pregnancy_weeks) How many completed weeks long was the pregnancy? (only if known, e.g. from an antenatal card)",
         },
         "delivery": {
             "Id10387": "(Id10387) Delivery: normal vaginal, without forceps or vacuum",
@@ -64,12 +72,14 @@ va_mapping_fieldcoder = {
             "Id10114": "(Id10114) Baby born dead",
             "Id10115": "(Id10115) Bruises / Injury on baby's body after the birth",
             "Id10116": "(Id10116) Baby's body was soft, discoloured and the skin peeling away",
+            "doris_hours_survived": "(doris_hours_survived) For how many hours did the baby live?",
         },
         "birth_weight": {
             "Id10366_check": "(Id10366_check) Child health card available",
             "Id10366": "(Id10366) Weight (in grammes) of the deceased at birth",
             "Id10363": "(Id10363) Baby weighing under 2.5 kg at birth",
             "Id10365": "(Id10365) Baby weighing over 4.5 kg at birth",
+            "Id10366_confirm": "(Id10366_confirm) A birth weight of ${Id10366} g is unusual. Check the card and confirm the weight is in grammes.",
         },
         "symptoms": {
             "Id10406": "(Id10406) Baby blue in colour at birth",
@@ -121,6 +131,11 @@ va_mapping_fieldcoder = {
             "Id10098": "(Id10098) Injury accidental",
             "Id10099": "(Id10099) Injury self-inflicted",
             "Id10100": "(Id10100) Injury intentionally inflicted by someone else",
+            "doris_injury_date_known": "(doris_injury_date_known) Is the date of the injury known?",
+            "doris_injury_date": "(doris_injury_date) On what date was (s)he injured?",
+            "doris_injury_month_year": "(doris_injury_month_year) In which month and year was (s)he injured?",
+            "doris_injury_place": "(doris_injury_place) Where did the injury happen?",
+            "doris_injury_legal_war": "(doris_injury_legal_war) Was the injury from police or legal action, or from war?",
         },
     },
     "vahealthhistorydetails": {
@@ -249,8 +264,6 @@ va_mapping_fieldcoder = {
             "Id10184_b": "(Id10184_b) Days before death diarrhoea started",
             "Id10184_c": "(Id10184_c) Months before death the diarrhoea started",
             "Id10185": "(Id10185) Diarrhoea continued until death",
-        },
-        "bleeding": {
             "Id10186": "(Id10186) Blood in the stools during the final illness",
         },
         "vomit": {
@@ -440,6 +453,11 @@ va_mapping_fieldcoder = {
             "Id10424": "(Id10424) Received (or need) antiretroviral therapy (ART)",
             "Id10425": "(Id10425) Have (or need) an operation for the illness",
             "Id10426": "(Id10426) Operation within 1 month before death",
+            "doris_surgery_performed": "(doris_surgery_performed) Did (s)he have an operation before death?",
+            "doris_surgery_when": "(doris_surgery_when) How long before death was the operation? (number)",
+            "doris_surgery_when_unit": "(doris_surgery_when_unit) Unit",
+            "doris_surgery_type": "(doris_surgery_type) What operation was done?",
+            "doris_surgery_reason": "(doris_surgery_reason) For what illness or condition was it done?",
         },
         "hcw_cod": {
             "Id10435": "(Id10435) Health care worker tell you the cause of death",
@@ -472,6 +490,8 @@ va_mapping_fieldcoder = {
             "Id10471": "(Id10471) Duration of third antecedent cause of death",
             "Id10472": "(Id10472) Contributing cause(s) of death from the cause of death certificate",
             "Id10473": "(Id10473) Duration of the contributing cause(s) of death",
+            "doris_autopsy_requested": "(doris_autopsy_requested) Was an autopsy (post-mortem examination) requested?",
+            "doris_autopsy_findings": "(doris_autopsy_findings) Were the autopsy findings made available?",
         },
         "medical_documents": {
             "md_im1": "(md_im1) Medical Document Image 01",

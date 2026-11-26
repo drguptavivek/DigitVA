@@ -3,7 +3,7 @@ WHO_2022_VA Data Migration Script
 
 Migrates data from:
 - resource/mapping/mapping_labels.xlsx (428 rows)
-- resource/mapping/mapping_choices.xlsx (1199 rows)
+- resource/mapping/mapping_choices.xlsx (1367 rows)
 - Hardcoded category order from va_preprocess_03_categoriestodisplay.py
 
 To database tables:
@@ -16,6 +16,8 @@ To database tables:
 This script is IDEMPOTENT - safe to run multiple times.
 """
 import uuid
+from decimal import Decimal
+
 import pandas as pd
 from pathlib import Path
 from datetime import datetime, timezone
@@ -47,6 +49,10 @@ WHO_2022_CATEGORIES = [
     "vamaternalsymptoms",
     "vahealthserviceutilisation",
     "vanarrationanddocuments",
+    # The social autopsy layer's questions (sa*) are mapped on WHO_2022_VA too:
+    # the project's Collect Social Autopsy switch decides whether a form asks
+    # them (digitva-l2dg, docs/policy/va-form-project-configuration.md).
+    "social_autopsy",
 ]
 
 def _str_or_none(val) -> str | None:
@@ -55,6 +61,19 @@ def _str_or_none(val) -> str | None:
         return None
     s = str(val).strip()
     return s if s else None
+
+
+def read_choices_workbook(path) -> pd.DataFrame:
+    """mapping_choices.xlsx with each label read as written.
+
+    pandas reads a cell holding ``None`` (an engine label, e.g. ``sa01`` ``6``)
+    as missing by default, which would seed an empty label. Only the label
+    column is re-read verbatim; ``category`` / ``name`` keep pandas' default
+    parsing, so the set of seeded rows does not change.
+    """
+    df = pd.read_excel(path)
+    df["short_label"] = pd.read_excel(path, usecols=["short_label"], keep_default_na=False)["short_label"]
+    return df
 
 
 CATEGORY_NAMES = {
@@ -72,6 +91,7 @@ CATEGORY_NAMES = {
     "vamaternalsymptoms": "Maternal Symptoms",
     "vahealthserviceutilisation": "Health Service Utilisation",
     "vanarrationanddocuments": "Narration and Documents",
+    "social_autopsy": "Social Autopsy",
 }
 
 
@@ -208,7 +228,16 @@ class Who2022VaMigrator:
         Excel columns:
           category, sub_category, sub-parts, permission, flip_color, is_info,
           summary_include, name (field_id), agegroup, short_label, summary_label,
-          coder_value, coder_positive, coder_negative, label (full_label), type, relevant
+          coder_value, coder_positive, coder_negative, label (full_label), type, relevant,
+          display_order, is_pii, pii_type
+
+        ``display_order`` is optional: blank means the row's position in the
+        sheet, the order every original row still uses. Rows added later are
+        appended at the end with an explicit order, so they sit next to the
+        question they belong with without renumbering every row after it.
+        ``is_pii`` / ``pii_type`` are optional too: they flag the layer fields
+        that are personal data on this form type without adding them to the
+        global ``PII_FIELDS`` (digitva-l2dg).
         """
         labels_path = self.resource_path / "mapping_labels.xlsx"
 
@@ -240,6 +269,14 @@ class Who2022VaMigrator:
             flip_color = bool(row.get("flip_color")) if pd.notna(row.get("flip_color")) else False
             is_info = bool(row.get("is_info")) if pd.notna(row.get("is_info")) else False
             summary_include = bool(row.get("summary_include")) if pd.notna(row.get("summary_include")) else False
+            explicit_order = row.get("display_order")
+            if explicit_order is not None and pd.notna(explicit_order):
+                display_order = Decimal(str(explicit_order))
+            # Optional: flags a field personal data for this form type. It only
+            # ever sets the flag; clearing one stays an admin decision, and the
+            # registry (step 6) still adds its own.
+            is_pii = pd.notna(row.get("is_pii")) and bool(row.get("is_pii"))
+            pii_type = _str_or_none(row.get("pii_type")) if is_pii else None
 
             # Create sub-category if needed
             if category_code and subcategory_code:
@@ -270,6 +307,9 @@ class Who2022VaMigrator:
                 existing.is_info = is_info
                 existing.summary_include = summary_include
                 existing.display_order = display_order
+                if is_pii:
+                    existing.is_pii = True
+                    existing.pii_type = existing.pii_type or pii_type
                 existing.updated_at = datetime.now(timezone.utc)
             else:
                 config = MasFieldDisplayConfig(
@@ -287,6 +327,8 @@ class Who2022VaMigrator:
                     is_info=is_info,
                     summary_include=summary_include,
                     display_order=display_order,
+                    is_pii=is_pii,
+                    pii_type=pii_type,
                     is_active=True,
                     is_custom=False,
                 )
@@ -387,7 +429,7 @@ class Who2022VaMigrator:
         if not choices_path.exists():
             raise FileNotFoundError(f"Choices file not found: {choices_path}")
 
-        df = pd.read_excel(choices_path)
+        df = read_choices_workbook(choices_path)
 
         field_order: dict[str, int] = {}
 

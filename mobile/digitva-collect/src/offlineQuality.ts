@@ -2,8 +2,8 @@
  * Narrative Quality Assessment for enrolled offline coding (digitva-p8uj): the project asks it of the offline final
  * as the web and online coding do (docs/policy/doris-cod-workflow.md, "Offline coding workspace"). Saved in the
  * account's encrypted store beside the draft, bound to the answers it was assessed on, and sent inside the final's
- * `offline_coding` object (contract 17). Social Autopsy is not asked offline yet: the bundled display pack has no
- * social_autopsy category to show it in.
+ * `offline_coding` object (contract 17). The bundled display pack shows the social autopsy answers read-only offline;
+ * the coder's Social Autopsy analysis is still not asked offline.
  */
 import type { Db } from "./drafts";
 import { getMeta, setMeta } from "./drafts";

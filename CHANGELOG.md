@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- KB: `docs/kb/icd11-postcoordination-axes.md`, all 41 postcoordination
+  axes of the 2026-01 MMS (crawled from the local ICD API) with the WHO
+  Reference Guide notes, as input for the DORIS builder redesign. Beads
+  filed: chapter accepted as an axis value; ICD-11 picker leaves the
+  Android keyboard open (`digitva-6k5g`).
 - The VA cause definitions help page works signed out (owner request
   2026-11-26): it loads from the new public `GET /help/va-definitions.json`
   (active rows; code, title, sanitized definition) instead of the

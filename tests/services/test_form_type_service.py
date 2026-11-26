@@ -57,7 +57,7 @@ class TestFormTypeService(BaseTestCase):
         stats = svc.get_form_type_stats("WHO_2022_VA")
         self.assertIsNotNone(stats)
         self.assertEqual(stats["form_type_code"], "WHO_2022_VA")
-        self.assertEqual(stats["category_count"], 14)
+        self.assertEqual(stats["category_count"], 15)  # 14 instrument categories + social_autopsy (f3c9d1a7b5e2)
         # 410 unique fields (deduplicated from Excel)
         self.assertGreater(stats["field_count"], 0)
 
@@ -118,7 +118,7 @@ class TestFormTypeService(BaseTestCase):
             .select_from(MasCategoryDisplayConfig)
             .where(MasCategoryDisplayConfig.form_type_id == duplicated.form_type_id)
         )
-        self.assertEqual(count, 14)
+        self.assertEqual(count, 15)
 
     def test_12_export_includes_category_display_configs(self):
         """export_form_type serializes category display metadata."""
@@ -126,7 +126,7 @@ class TestFormTypeService(BaseTestCase):
         exported = svc.export_form_type("WHO_2022_VA")
 
         configs = exported.get("category_display_configs", [])
-        self.assertEqual(len(configs), 14)
+        self.assertEqual(len(configs), 15)
         self.assertIn(
             "vanarrationanddocuments",
             {cfg["category_code"] for cfg in configs},

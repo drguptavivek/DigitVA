@@ -5,6 +5,19 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- ICD-10 VA cause definitions follow WHO_2022_VA_2026 (owner 2026-11-26,
+  `digitva-31ac`). `VA_DEFINITION_SCHEMES` maps ICD-10 to WHO_2022_VA_2026,
+  as ICD-11 already was, so the VA code and definition shown for an ICD-10
+  code come from the 2026 revision's mappings (and its R-code withdrawals
+  and DigitVA overrides). On dev that changes the all-ages VA code of 153
+  ICD-10 codes and gives 84 more codes one. Server lookup only: no stored
+  value, no migration, no APK change (the offline pack is ICD-11 and was
+  already on WHO_2022_VA_2026). Staging check before deploy (staging runs
+  a4b9fd083): an ICD-10 code that WHO_2022_VA_2026 does not map, or a missing
+  or inactive WHO_2022_VA_2026 scheme, gives an empty result, not an error.
+  `GET /api/v1/va-definitions/for-icd` answers 404 "No VA cause is mapped"
+  and the coding panel shows nothing for ICD-10, as for any unmapped code; it
+  never gates selection or submit.
 - The data manager's project-site list (`GET /data-management/api/project-sites`,
   user management's site pickers) answered 500 for every data manager with an
   active site since the collection gate (`87fff09cd`, 2026-11-06): its query

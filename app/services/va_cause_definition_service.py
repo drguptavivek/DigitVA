@@ -48,7 +48,7 @@ DEFINITION_MAX_LEN = 20000
 
 # ponytail: one fixed COD bucket scheme per classification links an ICD code
 # to its VA cause; make it per project if projects ever differ in scheme.
-VA_DEFINITION_SCHEMES = {"icd10": "WHO_2022_VA", "icd11": "WHO_2022_VA_2026"}
+VA_DEFINITION_SCHEMES = {"icd10": "WHO_2022_VA_2026", "icd11": "WHO_2022_VA_2026"}
 
 
 @dataclass
@@ -319,7 +319,7 @@ def find_va_definition_for_icd(
     and ICD-11 code shapes do not overlap).
 
     ICD-10: the code, then its three-character category, looked up among the
-    nodes of WHO_2022_VA whose effective VA code (``effective_va_code``: the
+    nodes of WHO_2022_VA_2026 whose effective VA code (``effective_va_code``: the
     node's ``va_code``, else ``vas_01_02`` -> ``VAs-01.02``) has a definition.
 
     ICD-11 (WHO_2022_VA_2026): the bucket the COD snapshot gives the code's

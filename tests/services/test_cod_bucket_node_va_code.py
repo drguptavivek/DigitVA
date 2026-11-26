@@ -83,7 +83,8 @@ class NodeVaCodeTests(BaseTestCase):
         self.assertIsNone(svc.find_va_definition_for_icd("Z99"))
         found = svc.find_va_definition_for_icd("1A00.3", "icd11")
         self.assertEqual(found["va_code"], "other_gastrointestinal_diseases")
-        for scheme_code in ("WHO_2022_VA", "WHO_2022_VA_2026"):
+        # One WHO_2022_VA_2026 node drives both lookups (VA_DEFINITION_SCHEMES).
+        for scheme_code in ("WHO_2022_VA_2026",):
             node = self._node(scheme_code, "other_gastrointestinal_diseases")
             before = self._mappings(node)
             version = node.scheme.mapping_version
@@ -107,7 +108,7 @@ class NodeVaCodeTests(BaseTestCase):
         self.assertFalse(set_cod_bucket_node_va_code(node, "VAs-06.02"))
 
     def test_clearing_falls_back_to_the_derived_code(self):
-        node = self._node("WHO_2022_VA", "vas_01_04")
+        node = self._node("WHO_2022_VA_2026", "vas_01_04")
         set_cod_bucket_node_va_code(node, "VAs-06.02")
         db.session.flush()
         self.assertEqual(svc.find_va_definition_for_icd("A04")["va_code"], "VAs-06.02")

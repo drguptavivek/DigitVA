@@ -42,8 +42,22 @@ describe("DORIS warning reader parity with the web", () => {
 
 describe("VA definition shown in the cause details sheet", () => {
   it("is plain text: tags are dropped, common entities decoded, never HTML", () => {
-    expect(definitionPlainText("<p>Death <em>from</em> a fall &amp; &quot;injury&quot;.</p>\n<p>Second&nbsp;line</p>")).toBe('Death from a fall & "injury". Second line');
+    expect(definitionPlainText("<p>Death <em>from</em> a fall &amp; &quot;injury&quot;.</p>\n<p>Second&nbsp;line</p>")).toBe('Death from a fall & "injury".\nSecond line');
     expect(definitionPlainText("<script>alert(1)</script>Text")).toBe("alert(1) Text");
     expect(definitionPlainText("")).toBe("");
+  });
+
+  it("keeps the definition's numbered criteria, bullets and OR lines on their own lines", () => {
+    // Shape of the stored VAs-04.01 definition.
+    const html = "1. Severe chest pain AND any 2 of the following:\n<ul><li>Breathlessness</li><li>Nausea/vomiting</li></ul>\n"
+      + "<p>OR</p>\n2. Sudden death.<br>\n<p><em>NOTE: See Section 4.1.1.1.</em></p>";
+    expect(definitionPlainText(html)).toBe([
+      "1. Severe chest pain AND any 2 of the following:",
+      "• Breathlessness",
+      "• Nausea/vomiting",
+      "OR",
+      "2. Sudden death.",
+      "NOTE: See Section 4.1.1.1.",
+    ].join("\n"));
   });
 });

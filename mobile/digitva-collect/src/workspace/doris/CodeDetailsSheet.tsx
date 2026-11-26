@@ -26,9 +26,20 @@ function getVaDefinition(api: WorkspaceApi, code: string): Promise<VaLookup> {
   return request;
 }
 
-/** Plain text of a stored definition: tags dropped, the common entities decoded, whitespace collapsed. Never HTML. */
+/**
+ * Plain text of a stored definition, never HTML: list items become "• " lines; paragraphs, line breaks and the
+ * stored newlines stay line breaks; other tags are dropped, the common entities decoded and spaces collapsed per line.
+ */
 export function definitionPlainText(html: string): string {
-  return html.replace(/<[^>]*>/g, " ").replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (entity) => ENTITIES[entity] ?? entity).replace(/\s+/g, " ").trim();
+  return html
+    .replace(/<li\b[^>]*>/gi, "\n• ")
+    .replace(/<\/?(?:p|ul|ol|li|div)\b[^>]*>|<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (entity) => ENTITIES[entity] ?? entity)
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 /**

@@ -5,6 +5,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- VA cause case definitions on the phone and web workspace keep their line
+  breaks: numbered criteria, "•" bullets and OR lines each on their own
+  line instead of one run-on paragraph (owner report 2026-11-26). Reaches
+  staging with the next web release and APK.
 - Staging runs `5a3f994b3` (owner go 2026-11-26): the main home page links
   to the public demo. Templates and config only, no migrations. Before: EBS
   snapshots snap-033059e12a220afef, snap-0fad09bb2f889abdd (app),

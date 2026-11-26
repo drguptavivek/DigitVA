@@ -16,6 +16,11 @@ never reached phones); phones are offered 0.3.31 since 2026-11-26. Play AAB
 No device check of 0.3.30 or 0.3.31.
 
 Owner decisions:
+- Next web release and APK: main carries the case-definition line-break fix
+  (the web workspace on staging still shows one run-on paragraph).
+- Homepage "DigitVA in use" counts only HMR001 (10 interviews): tick
+  "Included in homepage KPIs" in Admin → Projects for the projects that are
+  programme data (candidates by size: ICMR01, UNSW01, KEM001, TELE01).
 - Redis outage 500s every request through the IP-ban check (`digitva-248z`):
   fail open or closed is the owner's call.
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer

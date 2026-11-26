@@ -63,6 +63,10 @@ and maps stay in the browser).
   on 2026-11-25 (flow 70 runs 36-61 min; `run-suite.sh` needs per-flow caps
   over an hour, `digitva-flkc`). Dev test DB
   `minerva_test_sup` kept for this.
+- Org-unit pickers show each unit's lineage underneath (on main, not on
+  staging; checked on a 0.3.20 debug build only, include it in the next CI
+  APK check). The Users filter still lists bare names until the server
+  sends unit paths (`digitva-p6fs.36`).
 0. Consent withdrawal landed (`digitva-4gu7`); erasure of a withdrawn case
    is not built (owner to decide). Migrations since staging:
    `e3b7c9d1f5a2`, `f4c2a8e6b1d9`. Follow-ups: phone SA panel

@@ -5,6 +5,16 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- Org-unit pickers name each unit with its lineage on a muted line
+  underneath, nearest ancestor first ("PHC-AAM 2 < Community Health Centre <
+  District Hospital"), on the closed field and in the list, and search
+  matches the lineage (`digitva-p6fs.35`). Web: Register a death, Direct
+  interview, the case filters' "One unit". APK: Start an interview and
+  Register a death sheets. Shared `src/ui/OrgUnitSelect.tsx` and
+  `src/ui/orgUnitLabel.ts`; levels are not shown. Filter values stay unit
+  names, so old links keep working. Client only: no API, migration or stored
+  value change. Users filter still bare names (`digitva-p6fs.36`).
+  `docs/current-state/expo-client.md`.
 - ICD-10 VA cause definitions follow WHO_2022_VA_2026 (owner 2026-11-26,
   `digitva-31ac`). `VA_DEFINITION_SCHEMES` maps ICD-10 to WHO_2022_VA_2026,
   as ICD-11 already was, so the VA code and definition shown for an ICD-10

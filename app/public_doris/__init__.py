@@ -55,6 +55,11 @@ def create_public_doris_app(config: dict | None = None) -> Flask:
 
     csrf.init_app(app)
     limiter.init_app(app)
+    # Cluster titles (icd11_titles.cluster_title) use the shared cache; this
+    # service has no Redis, so it keeps a per-process in-memory one.
+    from app import cache
+
+    cache.init_app(app, config={"CACHE_TYPE": "SimpleCache"})
     from app.public_doris.routes import bp
 
     app.register_blueprint(bp)

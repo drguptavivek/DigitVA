@@ -90,6 +90,19 @@ class TestPublicDorisApi:
             ):
                 assert _codeinfo_item(code)["title"] == expected
 
+    def test_cluster_title_runs_on_the_public_app_cache(self):
+        # Staging: a "&" cluster 500'd with KeyError 'cache' (no cache on this app).
+        # conftest stubs the title cache everywhere; put the real one back.
+        from app import cache
+        from app.services.icd11_titles import cluster_title
+
+        with (
+            self.app.test_request_context(),
+            patch("app.services.icd11_titles.cache", cache),
+            patch("app.services.icd11_titles._token_title", side_effect=["Fracture", "Bilateral"]),
+        ):
+            assert cluster_title("NC32.Y&XK9J", "Fracture") == "Fracture + Bilateral"
+
     def test_codeinfo_and_selection_check_return_normalized_items(self):
         token = self._csrf()
         item = {

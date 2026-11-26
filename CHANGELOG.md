@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- Public DORIS demo: "Use complete expression" on a `&` or `/` cluster
+  (staging, `NC32.Y&XK9J&XJ36W&XA3WG1`) no longer fails with "The server
+  returned an invalid response." (`digitva-a3xk`). The standalone public app
+  never initialised the shared cache that cluster titles use, so codeinfo,
+  selection-check and process raised `KeyError: 'cache'` as an HTML 500. It
+  now keeps a per-process in-memory cache. The main app was unaffected. Not
+  yet deployed to staging.
 - Staging deploy of main (owner go 2026-11-26): staging runs `cb5c903c1`
   (from `a4b9fd083`), web `expo-web-v2026.11.26.1` (CI run 45766821548,
   sha256 `fc2d4a5d...b5d0`), image run 45768720745, APK pins unchanged at

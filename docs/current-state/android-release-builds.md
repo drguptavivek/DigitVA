@@ -29,10 +29,10 @@ about 2026-12-10; the Play upload is the owner's) were all built on CI from
 `8afd83fac`. Pinned in `docker-compose.yml` by `4f258002e`. Release
 certificate `6d94718a…6d361767`, versionCode 3312 (arm64), staging API
 origin, checked with `scripts/verify-android-release.sh`; checksums verified
-after download against each release's `.sha256`. Not yet on staging: the
-image that carries them (built from `634711950`, which adds the public DORIS
-cache fix) needs the owner's go to deploy. After that deploy, to offer them
-to phones on the staging host (SSM session):
+after download against each release's `.sha256`. Staging runs the image
+that carries them (`634711950`, deployed 2026-11-26), but they are not yet
+copied into `private/android-hosted`: phones are offered 0.3.29 until the
+owner's go. To offer them, on the staging host (SSM session):
 
 ```bash
 cd /data/DigitVA/private/android-hosted

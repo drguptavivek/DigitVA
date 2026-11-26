@@ -5,6 +5,24 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- Staging and the public demo run `634711950` (owner go 2026-11-26): the
+  0.3.31 pins and the public DORIS cache fix (`digitva-a3xk`). Before: EBS
+  snapshots snap-058311dfbe00eea56, snap-0e48830a4786b790a (app),
+  snap-0086f9f0ed99e634e, snap-033cb27e7d4ad2654 (DB), tag
+  `release=634711950`; staging pg_dump `pg_dump_minerva_20261126T082730Z`;
+  demo pg_dump `pg_dump_minerva_demo_20261126T083034Z` and env copy
+  `/data/digitva-demo.env.pre-634711950`. The demo moved from `ad9603e0e`
+  (six migrations, applied on boot; head `b5e2c8d4a9f7`). After, on both
+  hosts: `/api/v1/app/version` reports `634711950`, public pages 200, the
+  DORIS cluster code `NC32.Y&XK9J&XJ36W&XA3WG1` answers 200 with its full
+  title (it was 500 on both before), no errors in the app logs, the demo's
+  memory limits hold and the shared ICD container answers 200. Phones are
+  still offered 0.3.29. Not checked: the demo's sign-up, coding and review
+  flow (runbook section 6 steps 1-9 need a throwaway account) and the signed-in
+  staging pages. The full suite before the push: 8365 passed outside
+  `tests/migrations` and 155 passed inside, run alone. 16 migration tests had
+  failed while a second full suite ran at the same time: they use fixed
+  scratch database names.
 - Public DORIS demo: "Use complete expression" on a `&` or `/` cluster
   (staging, `NC32.Y&XK9J&XJ36W&XA3WG1`) no longer fails with "The server
   returned an invalid response." (`digitva-a3xk`). The standalone public app

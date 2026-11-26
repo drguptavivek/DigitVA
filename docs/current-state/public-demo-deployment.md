@@ -3,7 +3,7 @@ title: Public Demo Deployment Runbook
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-11
+last_updated: 2026-11-26
 ---
 
 # Public Demo Deployment Runbook
@@ -365,7 +365,7 @@ team; the 30-day rule applies). Each is a pass or fail.
    task: the worker consumes only queue `demo`.
 4. **Code.** The coding editor finds ICD-11 codes and DORIS runs, so the shared
    ICD container is reachable. Direct check:
-   `$DD exec demo_app_service python -c "import os,urllib.request as u; print(u.urlopen(u.Request(os.environ['ICD11_API_BASE_URL']+'/icd/release/11/2026-01/mms', headers={'API-Version':'v2','Accept-Language':'en'}), timeout=10).status)"` prints 200.
+   `$DD exec demo_app_service python -c "import os,urllib.request as u; print(u.urlopen(u.Request(os.environ['ICD11_API_BASE_URL']+'/icd/release/11/2026-01/mms', headers={'API-Version':'v2','Accept-Language':'en','Accept':'application/json'}), timeout=10).status)"` prints 200 (without the `Accept` header the ICD container answers 412).
 5. **Review.** Five minutes after coding (recode window) plus the 5-minute
    sweep, the same account can review its own case.
 6. **Report and download.** The report page shows the SmartVA cause, the coder's

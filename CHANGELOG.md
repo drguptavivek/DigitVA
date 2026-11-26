@@ -5,6 +5,21 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- Staging: the 153 cadre-less interviewer grants kept their access with the
+  ANM cadre (owner 2026-11-26, `digitva-hofh`). All 153 were DEMOHP
+  (Hamirpur Demo) interviewer grants at DH01 CMO Office (District), created
+  2026-11-23 by one admin, with no worker record; 152 of the people held no
+  other grant. `scripts/demohp_cadreless_to_anm.py` placed ANM at the
+  District level (interviewer allowed and default, as SN), enrolled each
+  person as an ANM worker at DH01 (no invitation, no new grant) and set ANM
+  on their grant, one commit, one `grant_cadre_assigned` grants.log line
+  each, actor testadmin. It refuses unless the cadre-less list is exactly
+  that set. After a verified backup (`pg_dump_minerva_20261126T044818Z`):
+  `flask org cadreless-grants` lists 0; `/me/access` (cookie and bearer)
+  is unchanged for all 662 users; `/organization/me` changed for 259 only
+  as a placement does (the 153 see ANM on their unit, DH01 colleagues see
+  the 153 by name, cadre and role, 105 users above see the count). Revoking
+  them, the alternative, would have left 152 people with no access.
 - Org-unit pickers name each unit with its lineage on a muted line
   underneath, nearest ancestor first ("PHC-AAM 2 < Community Health Centre <
   District Hospital"), on the closed field and in the list, and search

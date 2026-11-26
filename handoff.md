@@ -15,12 +15,6 @@ Owner decisions left from the 0.3.30 deploy:
 - Offer 0.3.30 to phones: copy the APKs into the hosted override with the
   commands in `docs/current-state/android-release-builds.md` (0.3.30
   section). 0.3.30 has had no device check yet.
-- Revoke or keep 153 interviewer unit grants without a cadre
-  (`digitva-hofh`): `flask org cadreless-grants --apply --actor <admin email>`
-  REVOKES them (assign cadres first to keep them). They still work today; the
-  new rule refuses to re-activate one once revoked. See the list with
-  `docker exec minerva_app flask org cadreless-grants` on the host (dry run;
-  prints emails).
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer
   trainee at a sub-centre may get `grant_not_allowed`.
 - Not verified after the deploy: the signed-in pages (coding, training

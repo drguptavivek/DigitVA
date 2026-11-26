@@ -19,9 +19,11 @@ Owner decisions:
 - Homepage "DigitVA in use" counts only HMR001 (10 interviews): the owner
   will tick "Included in homepage KPIs" (Admin → Projects) for ICMR01,
   UNSW01, KEM001 and TELE01 themselves.
-- Staging deploy of `585b08cb3` (`digitva-rglh`, migration `e7a4c2f9b1d3`,
-  backfilled, no response-shape change) needs the owner's go; it can ride
-  with `digitva-l2dg`.
+- Staging deploy of `digitva-rglh` and `digitva-l2dg` (main `158e523a5`,
+  migrations `e7a4c2f9b1d3`, `f3c9d1a7b5e2`) needs the owner's go. Before
+  it: run `scripts/l2dg_inflight_social_autopsy.sql` on staging and tell
+  coders about cases that now need the Social Autopsy analysis; after it:
+  restart app, worker and beat (mapping caches are per process).
 - Redis outage 500s every request through the IP-ban check (`digitva-248z`):
   fail open or closed is the owner's call.
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer
@@ -46,8 +48,9 @@ and maps stay in the browser).
 
 ## Ranked next steps
 
-- Approved (owner 2026-11-26): once `digitva-l2dg` lands (full suite by the
-  coordinator), build the next APK (0.3.32): version bump, web release,
+- Approved (owner 2026-11-26): `digitva-l2dg` has landed; once its
+  session confirms the emulator offline-coding test, build the next APK
+  (0.3.32): version bump, web release,
   Collect, Plus and Play bundle, gates, verification, pin commit; report
   version and CI links to the l2dg session. It also carries the
   case-definition line-break fix (`6070c5c65`). Staging and the phone

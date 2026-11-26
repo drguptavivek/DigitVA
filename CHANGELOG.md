@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- WHO_2022_VA maps every DigitVA layer (`a2ceee4a9`, `158e523a5`,
+  `digitva-l2dg`, owner decision 2026-11-26): the sa*, equity and
+  DORIS-support fields join the standard mapping, so the layer switches
+  alone decide the questionnaire. Migration `f3c9d1a7b5e2` backs up both
+  form types' rows in `_mig_bak_*` tables and restores them exactly on
+  downgrade (rehearsed, md5 identical); drop them later (`digitva-k7o6`).
+  Offline display pack regenerated (content sha256 ac5cfc7c…). Full suite
+  8401 passed after the three category-count tests were updated. Dev
+  upgraded; not on staging.
 - Token refresh and password sign-in build their reply before committing
   (`digitva-4pii`): a reply that failed after the rotation was committed
   left the phone with a retired token, its retry was revoked as

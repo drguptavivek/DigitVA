@@ -15,6 +15,8 @@ never reached phones); phones are offered 0.3.31 since 2026-11-26. Play AAB
 No device check of 0.3.30 or 0.3.31.
 
 Owner decisions:
+- Deploy to the demo (runbook section 9) when convenient: main now adds a
+  "Create a demo account" button to the demo's home page and nav bar.
 - Redis outage 500s every request through the IP-ban check (`digitva-248z`):
   fail open or closed is the owner's call.
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer

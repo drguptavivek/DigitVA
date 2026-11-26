@@ -34,6 +34,12 @@
           <p class="lead text-secondary">
             Empowering health systems to use digital solutions for conduct of verbal autopsy and cause of death ascertainment.
           </p>
+          {% if config.PUBLIC_DEMO_ENABLED %}
+          <div class="d-flex flex-wrap justify-content-center gap-2 mt-3">
+            <a class="btn btn-primary" href="{{ url_for('va_auth.va_signup') }}"><i class="fas fa-user-plus me-1" aria-hidden="true"></i>Create a demo account</a>
+            <a class="btn btn-outline-primary" href="{{ url_for('va_auth.va_login') }}"><i class="fas fa-right-to-bracket me-1" aria-hidden="true"></i>I already have a demo account</a>
+          </div>
+          {% endif %}
         </div>
         <div class="col-md-2 text-center">
           <div class="logo-container">

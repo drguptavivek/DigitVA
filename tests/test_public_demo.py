@@ -223,7 +223,12 @@ class WebSignUpTests(PublicDemoBase):
             self.assertEqual(self.client.get("/vaauth/signup").status_code, 404)
             self.assertEqual(self._post_signup(username="demo.off").status_code, 404)
             self.assertNotIn(b"/vaauth/signup", self.client.get("/vaauth/valogin").data)
+            self.assertNotIn(b"/vaauth/signup", self.client.get("/").data)
         self.assertIn(b"/vaauth/signup", self.client.get("/vaauth/valogin").data)
+        # The home page offers sign-up twice: the hero button and the nav link.
+        home = self.client.get("/")
+        self.assertEqual(home.status_code, 200)
+        self.assertEqual(home.data.count(b'href="/vaauth/signup"'), 2)
         self.assertIsNone(self._user("demo.off"))
 
     def test_each_refusal_creates_nothing(self):

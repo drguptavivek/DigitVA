@@ -5,6 +5,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- The public demo's home page and nav bar offer "Create a demo account"
+  (owner request 2026-11-26); before, only the sign-in page linked to
+  `/vaauth/signup`. Shown only with `PUBLIC_DEMO_ENABLED`; staging and dev
+  are unchanged. Not on the demo until its next upgrade.
 - Phones are offered 0.3.31 (owner go 2026-11-26): Collect and Collect Plus
   copied from the `634711950` image into staging's `private/android-hosted`,
   checksums verified before the rename; both `latest` endpoints report

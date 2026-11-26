@@ -2,12 +2,12 @@
 
 ## Start here
 
-Staging runs `634711950` (deployed 2026-11-26 on the owner's go; web
+Staging runs `5a3f994b3` (deployed 2026-11-26 on the owner's go; web
 `expo-web-v2026.11.26.2`; migrations at `b5e2c8d4a9f7`; rollback, no
 migration downgrade needed:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh cb5c903c1dcfe535b63537882deee1c017347762`;
-the demo stack runs `digitva-demo-app:5a3f994b3` (ahead of staging: the
-demo sign-up buttons), its previous env saved at
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 634711950599b575b20387a9e805bc29adefc96c`;
+the demo stack runs the same commit as `digitva-demo-app:5a3f994b3`, its
+previous env saved at
 `/data/digitva-demo.env.pre-5a3f994b3`;
 EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-26). The image carries 0.3.31
 (`android-v0.3.31`, `collect-plus-v0.3.31-plus.1`; supersedes 0.3.30, which
@@ -16,8 +16,6 @@ never reached phones); phones are offered 0.3.31 since 2026-11-26. Play AAB
 No device check of 0.3.30 or 0.3.31.
 
 Owner decisions:
-- Deploy main staging: its home page gains a "Try the public demo" link
-  (the demo itself already runs that commit).
 - Redis outage 500s every request through the IP-ban check (`digitva-248z`):
   fail open or closed is the owner's call.
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer
@@ -30,8 +28,8 @@ Owner decisions:
 - Never re-run the ICD-10 CSV or policy import on staging: it re-enables the
   withdrawn R00-R94 codes (`1f037b4717e4`; R50 and R54 stay selectable by
   design).
-- The twelve pre-deploy EBS snapshots (tags `release=0.3.30`,
-  `release=cb5c903c1` and `release=634711950`) never expire; delete them when no longer needed.
+- The sixteen pre-deploy EBS snapshots (tags `release=0.3.30`,
+  `release=cb5c903c1`, `release=634711950` and `release=5a3f994b3`) never expire; delete them when no longer needed.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect

@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- Staging runs `5a3f994b3` (owner go 2026-11-26): the main home page links
+  to the public demo. Templates and config only, no migrations. Before: EBS
+  snapshots snap-033059e12a220afef, snap-0fad09bb2f889abdd (app),
+  snap-04dd7006d82e08e49, snap-0e6618a90b9166cbe (DB), tag
+  `release=5a3f994b3`; pg_dump `pg_dump_minerva_20261126T141004Z`. Hosted
+  APK checksums unchanged; version endpoint, home page link, sign-in, web
+  app and DORIS page checked; no log errors.
 - The public demo runs `5a3f994b3` (owner go 2026-11-26), ahead of main
   staging, which stays on `634711950`. Image from CI run 45830367976,
   revision label checked. Before: demo dump

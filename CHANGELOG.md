@@ -5,6 +5,12 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- "Collect Social Autopsy" is its own project switch (`585b08cb3`,
+  `digitva-rglh`, owner decision 2026-11-26): it alone adds the
+  `social_autopsy` form layer; Coder SA needs it on, Reviewer SA needs both.
+  Migration `e7a4c2f9b1d3` backfills it from `social_autopsy_enabled`, so
+  no project changes on deploy. Full suite 8390 passed. Dev upgraded; not
+  on staging. Policy: `docs/policy/social-autopsy-analysis.md`.
 - VA cause case definitions on the phone and web workspace keep their line
   breaks: numbered criteria, "•" bullets and OR lines each on their own
   line instead of one run-on paragraph (owner report 2026-11-26). Reaches

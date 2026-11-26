@@ -16,11 +16,12 @@ never reached phones); phones are offered 0.3.31 since 2026-11-26. Play AAB
 No device check of 0.3.30 or 0.3.31.
 
 Owner decisions:
-- Next web release and APK: main carries the case-definition line-break fix
-  (the web workspace on staging still shows one run-on paragraph).
-- Homepage "DigitVA in use" counts only HMR001 (10 interviews): tick
-  "Included in homepage KPIs" in Admin → Projects for the projects that are
-  programme data (candidates by size: ICMR01, UNSW01, KEM001, TELE01).
+- Homepage "DigitVA in use" counts only HMR001 (10 interviews): the owner
+  will tick "Included in homepage KPIs" (Admin → Projects) for ICMR01,
+  UNSW01, KEM001 and TELE01 themselves.
+- Staging deploy of `585b08cb3` (`digitva-rglh`, migration `e7a4c2f9b1d3`,
+  backfilled, no response-shape change) needs the owner's go; it can ride
+  with `digitva-l2dg`.
 - Redis outage 500s every request through the IP-ban check (`digitva-248z`):
   fail open or closed is the owner's call.
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer
@@ -45,6 +46,12 @@ and maps stay in the browser).
 
 ## Ranked next steps
 
+- Approved (owner 2026-11-26): once `digitva-l2dg` lands (full suite by the
+  coordinator), build the next APK (0.3.32): version bump, web release,
+  Collect, Plus and Play bundle, gates, verification, pin commit; report
+  version and CI links to the l2dg session. It also carries the
+  case-definition line-break fix (`6070c5c65`). Staging and the phone
+  offer need separate goes.
 - Device-check 0.3.31 (now offered to phones; adds the org-unit lineage
   pickers): re-enrol from Sign in again (`digitva-dbcw`), DORIS
   interview/report death dates, case summary, Reset DORIS dialog, COD form

@@ -101,8 +101,8 @@ GOLDEN = Path(__file__).parent / "fixtures" / "route_auth_matrix.json"
 REGEN = "REGEN_ROUTE_AUTH_MATRIX"
 #: Development check: sweep in reverse order; the matrix must not change.
 REVERSED = "ROUTE_AUTH_MATRIX_REVERSED"
-EXPECTED_RULE_COUNT = 712
-EXPECTED_KEY_COUNT = 727
+EXPECTED_RULE_COUNT = 713
+EXPECTED_KEY_COUNT = 728
 
 SKIPPED_METHODS = {"HEAD", "OPTIONS"}
 STATE_CHANGING = {"POST", "PUT", "PATCH", "DELETE"}

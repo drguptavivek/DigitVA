@@ -89,6 +89,28 @@ class VaDefinitionsRoutesTests(BaseTestCase):
         self._login(str(self.base_project_pi_id))
         self.assertEqual(self.client.get("/help/va-definitions").status_code, 200)
 
+    def test_public_json_is_open_and_lists_active_rows(self):
+        response = self.client.get("/help/va-definitions.json")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        codes = [d["va_code"] for d in payload["definitions"]]
+        self.assertIn("VAs-01.01", codes)
+        self.assertEqual(payload["total"], len(codes))
+
+    def test_public_json_excludes_inactive_rows(self):
+        row = db.session.get(MasVaCauseDefinition, self._id("VAs-01.05"))
+        self.assertIsNotNone(row)
+        row.is_active = False
+        db.session.flush()
+        codes = [d["va_code"] for d in self.client.get("/help/va-definitions.json").get_json()["definitions"]]
+        self.assertIn("VAs-01.01", codes)
+        self.assertNotIn("VAs-01.05", codes)
+
+    def test_public_help_page_points_the_viewer_at_the_public_json(self):
+        response = self.client.get("/help/va-definitions")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('data-api-url="/help/va-definitions.json"', response.get_data(as_text=True))
+
     # ── admin panel and API ──────────────────────────────────────────────
     def test_shell_links_the_panel_and_panel_renders_for_admin(self):
         self._login(str(self.base_admin_id))

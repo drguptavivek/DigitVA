@@ -1,5 +1,6 @@
-{# Rendered from mas_va_cause_definitions through GET /api/v1/va-definitions,
-   the same source and script as the coder "VA Definitions" modal. #}
+{# Rendered from mas_va_cause_definitions through the public
+   GET /help/va-definitions.json, with the same script as the coder
+   "VA Definitions" modal (which uses the role-gated /api/v1/va-definitions). #}
 <h2>VA Cause Definitions</h2>
 
 <p>
@@ -18,7 +19,7 @@
   and it stays closed until you pick another code.
 </p>
 
-<div class="va-def-root">
+<div class="va-def-root" data-api-url="{{ url_for('help.va_definitions_json') }}">
   <div class="d-flex align-items-center gap-2 mb-3">
     <input type="search" class="form-control va-def-filter" placeholder="Filter by VA cause name, code or definition" aria-label="Filter VA definitions" autocomplete="off">
     <span class="small text-muted text-nowrap va-def-status" aria-live="polite"></span>

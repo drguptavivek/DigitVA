@@ -34,10 +34,11 @@ coders and reviewers consult while assigning causes of death.
 
 ## Who may read and edit
 
-- Read: any user with a coder, coding tester, reviewer or admin role, through
-  `GET /api/v1/va-definitions?q=` (active rows only, flat, in code order), the
-  "VA Definitions" modal beside the cause selects, and the help page
-  `/help/va-definitions`. `q` matches code, title and definition text,
+- Read: public through the help page `/help/va-definitions` and
+  `GET /help/va-definitions.json` (active rows only, flat, code order, no
+  `q`). `GET /api/v1/va-definitions?q=` stays limited to coder, coding
+  tester, reviewer or admin roles and serves the "VA Definitions" modal
+  beside the cause selects. `q` matches code, title and definition text,
   case-insensitively.
 - Edit: global admins only, in the admin panel "VA Definitions"
   (`/admin/panels/va-definitions`): edit title and definition, activate or

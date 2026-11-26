@@ -1,8 +1,10 @@
 /*
  * WHO VA cause definitions viewer: a filter box over the list from
- * GET /api/v1/va-definitions. Used by the coder/reviewer "VA Definitions"
- * modal (app/templates/va_form_partials/_va_definitions_modal.html) and the
- * help page (app/templates/help/pages/va-definitions.html).
+ * GET /api/v1/va-definitions (role-gated; the coder/reviewer "VA Definitions"
+ * modal, app/templates/va_form_partials/_va_definitions_modal.html) or, when
+ * the root has data-api-url, from that URL (the help page,
+ * app/templates/help/pages/va-definitions.html, passes the public
+ * /help/va-definitions.json).
  *
  * Markup: a root element holding input.va-def-filter, .va-def-status and
  * .va-def-list. DigitVADefinitions.mount(root) loads the flat, code-ordered
@@ -16,18 +18,18 @@
   if (window.DigitVADefinitions) return;
 
   var API_URL = '/api/v1/va-definitions';
-  var _load = null;
+  var _loads = {};
 
-  function load() {
-    if (!_load) {
-      _load = fetch(API_URL, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+  function load(url) {
+    if (!_loads[url]) {
+      _loads[url] = fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
         .then(function (r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();
         })
-        .catch(function (err) { _load = null; throw err; });
+        .catch(function (err) { delete _loads[url]; throw err; });
     }
-    return _load;
+    return _loads[url];
   }
 
   function el(tag, cls, text) {
@@ -82,7 +84,7 @@
     var list = root.querySelector('.va-def-list');
     var status = root.querySelector('.va-def-status');
     list.textContent = 'Loading VA definitions…';
-    load().then(function (data) {
+    load(root.dataset.apiUrl || API_URL).then(function (data) {
       var entries = render(list, data);
       if (!entries.length) list.textContent = 'No VA definitions are available.';
       input.addEventListener('input', function () { applyFilter(entries, input.value, status); });

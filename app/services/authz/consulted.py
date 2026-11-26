@@ -117,6 +117,7 @@ PUBLIC_ENDPOINTS = {
     "help.va_code_mappings_compare": "Published ICD-10 vs ICD-11 reference data.",
     "help.va_code_mappings_unmapped": "Published ICD-11 catalogue reference data.",
     "help.va_code_mappings_unmapped_csv": "Published ICD-11 catalogue reference data (CSV).",
+    "help.va_definitions_json": "Published WHO VA cause definitions reference data.",
     "help.cod_bucket_schemes": "Published COD bucket scheme reference page.",
     "help.cod_bucket_scheme_json": "Published COD bucket scheme reference data; public fields only.",
     "help.cod_bucket_scheme_csv": "Published COD bucket scheme reference data (CSV); public fields only.",

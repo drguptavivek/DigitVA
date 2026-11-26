@@ -5,6 +5,13 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- The VA cause definitions help page works signed out (owner request
+  2026-11-26): it loads from the new public `GET /help/va-definitions.json`
+  (active rows; code, title, sanitized definition) instead of the
+  role-gated `/api/v1/va-definitions`, which still serves the coding modal.
+  Before, signed-out visitors got the "Session Expired" popup. Route auth
+  golden matrix gains that one public route. Full suite 8406 passed plus the
+  matrix rerun. Not on staging. Policy: `docs/policy/va-cause-definitions.md`.
 - WHO_2022_VA maps every DigitVA layer (`a2ceee4a9`, `158e523a5`,
   `digitva-l2dg`, owner decision 2026-11-26): the sa*, equity and
   DORIS-support fields join the standard mapping, so the layer switches

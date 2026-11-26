@@ -40,6 +40,7 @@ from app.services.icd11_mms_service import (
     get_icd11_mms_node_details,
     list_icd11_mms_children,
 )
+from app.services.va_cause_definition_service import list_coder_va_definitions
 from app.services.va_code_mapping_public_service import (
     ANNEX_FILE_NAME,
     CLASSIFICATION_LABELS,
@@ -1143,6 +1144,13 @@ def digitva_overrides():
         overrides=build_digitva_overrides(),
         **_base_ctx(),
     )
+
+
+@help_bp.route("/help/va-definitions.json")
+@limiter.limit("60 per minute")
+def va_definitions_json():
+    """Published WHO VA cause definitions: active rows in code order."""
+    return jsonify(list_coder_va_definitions(""))
 
 
 @help_bp.route("/help/cod-bucket-schemes/<scheme_code>.json")

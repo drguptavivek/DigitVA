@@ -4738,6 +4738,17 @@
   "interview_supervisor_cookie": "200 text/csv",
   "none": "200 text/csv"
  },
+ "GET /help/va-definitions.json": {
+  "bearer": "200 application/json keys=definitions,total",
+  "coder_bearer": "200 application/json keys=definitions,total",
+  "coder_cookie": "200 application/json keys=definitions,total",
+  "cookie": "200 application/json keys=definitions,total",
+  "data_manager_cookie": "200 application/json keys=definitions,total",
+  "endpoint": "help.va_definitions_json",
+  "interview_supervisor_bearer": "200 application/json keys=definitions,total",
+  "interview_supervisor_cookie": "200 application/json keys=definitions,total",
+  "none": "200 application/json keys=definitions,total"
+ },
  "GET /index": {
   "bearer": "200 text/html title=DigitVA",
   "coder_bearer": "200 text/html title=DigitVA",

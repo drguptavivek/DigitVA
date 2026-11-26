@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- Token refresh and password sign-in build their reply before committing
+  (`digitva-4pii`): a reply that failed after the rotation was committed
+  left the phone with a retired token, its retry was revoked as
+  `refresh_retry_race`, and the interviewer had to sign in again before
+  sending (seen on dev while a model ran ahead of its migration). Same
+  order the enrolment routes already used; status codes and shapes
+  unchanged. The engine's microphone-denied message now says "in settings",
+  not "in the browser", in English, Hindi and French (`digitva-puhr`);
+  the phone shows it after the next `npm run vendor:build`.
 - "Collect Social Autopsy" is its own project switch (`585b08cb3`,
   `digitva-rglh`, owner decision 2026-11-26): it alone adds the
   `social_autopsy` form layer; Coder SA needs it on, Reviewer SA needs both.

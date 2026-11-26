@@ -423,7 +423,7 @@ export const ENGLISH_UI_MESSAGE_TEMPLATES: WhoVaUiMessageTemplates = {
   replaceAudio: "Replace audio",
   recordAudio: "Record audio",
   microphonePermissionDenied:
-    "Microphone permission was denied. Allow microphone access in the browser and try again.",
+    "Microphone permission was denied. Allow microphone access in settings and try again.",
   audioRecordingFailed: "Audio recording failed. Please try again.",
   loadingAudio: "Loading recording…",
   savedAudioLoadFailed: "The saved recording could not be loaded. If it keeps failing, choose Replace audio to record it again.",

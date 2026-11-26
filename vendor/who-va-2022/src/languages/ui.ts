@@ -73,7 +73,7 @@ export const hindiUiMessages: Partial<WhoVaUiMessageTemplates> = {
   replaceAudio: "ऑडियो बदलें",
   recordAudio: "ऑडियो रिकॉर्ड करें",
   microphonePermissionDenied:
-    "माइक्रोफ़ोन की अनुमति नहीं दी गई। ब्राउज़र में माइक्रोफ़ोन की अनुमति दें और फिर प्रयास करें।",
+    "माइक्रोफ़ोन की अनुमति नहीं दी गई। सेटिंग्स में माइक्रोफ़ोन की अनुमति दें और फिर प्रयास करें।",
   audioRecordingFailed: "ऑडियो रिकॉर्ड नहीं हो सका। फिर से प्रयास करें।",
   selectedImage: "चुना गया चित्र",
   savedImageLoadFailed: "सेव किया गया चित्र इस डिवाइस से लोड नहीं हो सका।",
@@ -220,7 +220,7 @@ export const frenchUiMessages: Partial<WhoVaUiMessageTemplates> = {
   replaceAudio: "Remplacer l’audio",
   recordAudio: "Enregistrer un audio",
   microphonePermissionDenied:
-    "L’accès au microphone a été refusé. Autorisez-le dans le navigateur et réessayez.",
+    "L’accès au microphone a été refusé. Autorisez-le dans les paramètres et réessayez.",
   audioRecordingFailed: "L’enregistrement audio a échoué. Veuillez réessayer.",
   selectedImage: "Image sélectionnée",
   savedImageLoadFailed: "L’image enregistrée n’a pas pu être chargée depuis cet appareil.",

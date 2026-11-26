@@ -236,8 +236,11 @@ def open_session():
         email=p.get("email"), password=p.get("password"), replace_device_id=p.get("replace_device_id"),
     )
     devices.record_app_version(issued.session, p.get("app_version"))
+    # Build the reply before committing: a failure here must not leave a session
+    # the phone never received.
+    body = _session_body(issued, user)
     db.session.commit()
-    return jsonify(_session_body(issued, user)), 201
+    return jsonify(body), 201
 
 
 def _refused(response) -> bool:
@@ -515,8 +518,11 @@ def refresh_session():
         devices.record_outstanding(
             issued.session, p.get("count"), p.get("unique_ids"), p.get("client_draft_ids"), p.get("client_death_ids")
         )
+    # Build the reply before committing: a failure here must not commit a
+    # rotation the phone never received (its retry would hit refresh_retry_race).
+    body = _session_body(issued, user)
     db.session.commit()
-    return jsonify(_session_body(issued, user)), 200
+    return jsonify(body), 200
 
 
 # ---------------------------------------------------------------------------

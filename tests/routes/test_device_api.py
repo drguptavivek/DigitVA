@@ -759,6 +759,42 @@ class DeviceApiTests(BaseTestCase):
             AuthDeviceSession.user_id == self.interviewer.user_id))
         self.assertEqual(row.revoked_reason, "refresh_retry_race")
 
+    def _fail_body_once(self):
+        """Make the first reply-body build fail through the real 500 handler."""
+        failing = mock.patch("app.routes.api.auth.build_access_summary", side_effect=[RuntimeError("boom"), {}])
+        propagate = mock.patch.dict(self.app.config, {"PROPAGATE_EXCEPTIONS": False})
+        return failing, propagate
+
+    def test_a_failed_refresh_reply_does_not_commit_the_rotation(self):
+        device, tokens = self._session()
+        failing, propagate = self._fail_body_once()
+        with failing, propagate:
+            failed = self._refresh(tokens["refresh_token"], device)
+            self.assertEqual((failed.status_code, failed.get_json()["code"]), (500, "server_error"))
+            # The phone never saw the new pair, so its retry must still work.
+            retry = self._refresh(tokens["refresh_token"], device)
+        self.assertEqual(retry.status_code, 200, retry.get_json())
+        db.session.expire_all()
+        row = db.session.scalar(sa.select(AuthDeviceSession).where(
+            AuthDeviceSession.user_id == self.interviewer.user_id))
+        self.assertIsNotNone(row)
+        self.assertIsNone(row.revoked_at)
+
+    def test_a_failed_sign_in_reply_does_not_commit_the_session(self):
+        device = self._enrol()
+        failing, propagate = self._fail_body_once()
+        with failing, propagate:
+            failed = self._sign_in(device)
+            self.assertEqual((failed.status_code, failed.get_json()["code"]), (500, "server_error"))
+            db.session.expire_all()
+            count = lambda: db.session.scalar(sa.select(sa.func.count()).select_from(AuthDeviceSession).where(
+                AuthDeviceSession.user_id == self.interviewer.user_id))
+            self.assertEqual(count(), 0)
+            retry = self._sign_in(device)
+        self.assertEqual(retry.status_code, 201, retry.get_json())
+        db.session.expire_all()
+        self.assertEqual(count(), 1)
+
     def test_refresh_needs_the_session_device_credentials(self):
         device, tokens = self._session()
         other = self._enrol()

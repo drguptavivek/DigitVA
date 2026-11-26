@@ -158,6 +158,10 @@ and maps stay in the browser).
 
 ## Boundaries still true
 
+- Only the COORDINATOR session commits to main, pushes, runs the full
+  suite, builds and deploys (owner 2026-11-26, bd memory
+  `coordinator-owns-landing`). Other sessions hand over a branch or file
+  list with tests, review and what is unverified.
 - Staging deploys only via `scripts/deploy-staging.sh <full sha>` on the
   owner's go. Release builds only on CI; publishing is the owner's command.
 - Golden corpora are owner-approved and frozen.

@@ -17,6 +17,44 @@ session. The normal package remains the default download.
 Version 0.3.13 introduces the manual Settings server compatibility/build check
 (`digitva-hs7e.18`); the server contract and deployed commit are distinct values.
 
+## Public 0.3.31 APKs and Play bundle (2026-11-26)
+
+Supersedes 0.3.30, which never reached phones. Adds the org-unit lineage
+pickers on the phone (death registration, worklist and its filters). Collect
+(run 45770406038), Collect Plus (run 45770410012), web release
+`expo-web-v2026.11.26.2`
+(`c32d4abb76f78392b508844ad9740b70525b90fd5a5f258c1542ded11419541a`, run
+45770401749) and the Play bundle (run 45770414218, artifact only, expires
+about 2026-12-10; the Play upload is the owner's) were all built on CI from
+`8afd83fac`. Pinned in `docker-compose.yml` by `4f258002e`. Release
+certificate `6d94718a…6d361767`, versionCode 3312 (arm64), staging API
+origin, checked with `scripts/verify-android-release.sh`; checksums verified
+after download against each release's `.sha256`. Not yet on staging: the
+image that carries them (built from `634711950`, which adds the public DORIS
+cache fix) needs the owner's go to deploy. After that deploy, to offer them
+to phones on the staging host (SSM session):
+
+```bash
+cd /data/DigitVA/private/android-hosted
+for f in digitva-collect-0.3.31-arm64-v8a.apk digitva-collect-plus-0.3.31-arm64-v8a.apk; do
+  sudo -Hu ubuntu docker cp "minerva_app:/opt/digitva/android/$f" ".$f.tmp"
+done
+printf '%s  %s\n' \
+  ce1de1c9b004f4672ec194b9feb801249918325aa18295f2fbce8755944a3bd3 .digitva-collect-0.3.31-arm64-v8a.apk.tmp \
+  27abbad5ddb0423be32efe89659088ce977b3cd00a92934f06db8347eee6db0a .digitva-collect-plus-0.3.31-arm64-v8a.apk.tmp \
+  | sha256sum -c
+sudo -Hu ubuntu mv .digitva-collect-0.3.31-arm64-v8a.apk.tmp digitva-collect-0.3.31-arm64-v8a.apk
+sudo -Hu ubuntu mv .digitva-collect-plus-0.3.31-arm64-v8a.apk.tmp digitva-collect-plus-0.3.31-arm64-v8a.apk
+curl -s https://digitvav3.causeofdeathindia.com/api/v1/app/android/latest   # expect 0.3.31
+```
+
+Run the two `mv` lines only after `sha256sum -c` prints OK for both.
+
+| Variant | Public release | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| Collect | `android-v0.3.31` | 70,011,612 | `ce1de1c9b004f4672ec194b9feb801249918325aa18295f2fbce8755944a3bd3` |
+| Collect Plus | `collect-plus-v0.3.31-plus.1` (prerelease) | 150,950,748 | `27abbad5ddb0423be32efe89659088ce977b3cd00a92934f06db8347eee6db0a` |
+
 ## Public 0.3.30 APKs and Play bundle (2026-11-26)
 
 Collect built on CI from `577739af6` (run 45673942075); Collect Plus (run

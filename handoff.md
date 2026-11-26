@@ -6,15 +6,24 @@ Staging runs `cb5c903c1` (deployed 2026-11-26 on the owner's go; web
 `expo-web-v2026.11.26.1`; migrations at `b5e2c8d4a9f7`, none new since
 0.3.30; rollback, no migration downgrade needed:
 `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh a4b9fd083838dd284eebe13ceb60e4c5e4264697`;
-EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-26). Published and pinned
-`android-v0.3.30` and `collect-plus-v0.3.30-plus.1`, NOT yet copied into
-staging's `private/android-hosted`: phones are still offered 0.3.29. Play AAB
-0.3.30 (run 45673955783) awaits the owner's upload. No device check of 0.3.30.
+EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-26). Main is ahead of staging by
+`634711950`: 0.3.31 pinned (`android-v0.3.31`, `collect-plus-v0.3.31-plus.1`,
+web `expo-web-v2026.11.26.2`; supersedes 0.3.30, which never reached phones)
+and the public DORIS cache fix (`digitva-a3xk`). Its server image is built;
+deploying it needs the owner's go. Phones are still offered 0.3.29. Play AAB
+0.3.31 (run 45770414218, expires about 2026-12-10) awaits the owner's upload.
+No device check of 0.3.30 or 0.3.31.
 
-Owner decisions left from the 0.3.30 deploy:
-- Offer 0.3.30 to phones: copy the APKs into the hosted override with the
-  commands in `docs/current-state/android-release-builds.md` (0.3.30
-  section). 0.3.30 has had no device check yet.
+Owner decisions:
+- Deploy `634711950` to staging (`scripts/deploy-staging.sh`). Then upgrade
+  the demo stack too (`docs/current-state/public-demo-deployment.md` section
+  9): its `demo_doris_public_service` runs `ad9603e0e` and has the same
+  cluster-code 500 (checked live 2026-11-26 on both hosts).
+- Offer 0.3.31 to phones after that deploy: copy the APKs into the hosted
+  override with the commands in `docs/current-state/android-release-builds.md`
+  (0.3.31 section). No device check yet.
+- Redis outage 500s every request through the IP-ban check (`digitva-248z`):
+  fail open or closed is the owner's call.
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer
   trainee at a sub-centre may get `grant_not_allowed`.
 - Not verified after the deploys: the signed-in pages (coding, training

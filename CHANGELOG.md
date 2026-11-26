@@ -5,6 +5,20 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-26
 
+- Staging deploy of main (owner go 2026-11-26): staging runs `cb5c903c1`
+  (from `a4b9fd083`), web `expo-web-v2026.11.26.1` (CI run 45766821548,
+  sha256 `fc2d4a5d...b5d0`), image run 45768720745, APK pins unchanged at
+  0.3.30, no migration. It carries the project-sites 500 fix
+  (`digitva-b94q`), ICD-10 VA definitions on WHO_2022_VA_2026
+  (`digitva-31ac`) and the web org-unit lineage pickers. Before: full suite
+  8380 passed, 0 failed; EBS snapshots snap-0aed6d6df370de6dc,
+  snap-0e2000ce52104a046 (app), snap-06c70e17db448d318,
+  snap-05bd7de9771e34aba (DB), tag `release=cb5c903c1`; the deploy's
+  verified pg_dump `pg_dump_minerva_20261126T063410Z`. After: containers on
+  `cb5c903c1`, migrations at `b5e2c8d4a9f7`, no errors in the app log,
+  public pages 200, `/api/v1/me/access` 401 signed out, the served web entry
+  bundle matches the release. No grant or access code changed, so no `/me`
+  snapshot was taken. Signed-in pages are not verified.
 - Staging: the 153 cadre-less interviewer grants kept their access with the
   ANM cadre (owner 2026-11-26, `digitva-hofh`). All 153 were DEMOHP
   (Hamirpur Demo) interviewer grants at DH01 CMO Office (District), created

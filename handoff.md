@@ -2,10 +2,10 @@
 
 ## Start here
 
-Staging runs `a4b9fd083`, release 0.3.30 (deployed 2026-11-26 on the
-owner's go; web `expo-web-v2026.11.25.1`; migrations at `b5e2c8d4a9f7`;
-rollback, which also needs the migration downgrade first:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh b754a364b51f5038978e59bb8cfdfbe625e925f7`;
+Staging runs `cb5c903c1` (deployed 2026-11-26 on the owner's go; web
+`expo-web-v2026.11.26.1`; migrations at `b5e2c8d4a9f7`, none new since
+0.3.30; rollback, no migration downgrade needed:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh a4b9fd083838dd284eebe13ceb60e4c5e4264697`;
 EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-26). Published and pinned
 `android-v0.3.30` and `collect-plus-v0.3.30-plus.1`, NOT yet copied into
 staging's `private/android-hosted`: phones are still offered 0.3.29. Play AAB
@@ -17,16 +17,16 @@ Owner decisions left from the 0.3.30 deploy:
   section). 0.3.30 has had no device check yet.
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer
   trainee at a sub-centre may get `grant_not_allowed`.
-- Not verified after the deploy: the signed-in pages (coding, training
-  interview, ICD search, System health), which need the owner's sign-in.
-- `/data-management/api/project-sites` returns 500 on staging for data
-  managers since `87fff09cd` (not this release); fixed on main in
-  `35b0c026c` (`digitva-b94q`), reaches staging with the next deploy.
+- Not verified after the deploys: the signed-in pages (coding, training
+  interview, ICD search, System health, a data manager's user management
+  site list from `digitva-b94q`, ICD-10 VA definitions from `digitva-31ac`,
+  the web org-unit pickers, the save-burst check `digitva-3ko3`), which need
+  the owner's sign-in.
 - Never re-run the ICD-10 CSV or policy import on staging: it re-enables the
   withdrawn R00-R94 codes (`1f037b4717e4`; R50 and R54 stay selectable by
   design).
-- The four pre-deploy EBS snapshots (tag `release=0.3.30`) never expire;
-  delete them when no longer needed.
+- The eight pre-deploy EBS snapshots (tags `release=0.3.30` and
+  `release=cb5c903c1`) never expire; delete them when no longer needed.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect
@@ -57,8 +57,8 @@ and maps stay in the browser).
   on 2026-11-25 (flow 70 runs 36-61 min; `run-suite.sh` needs per-flow caps
   over an hour, `digitva-flkc`). Dev test DB
   `minerva_test_sup` kept for this.
-- Org-unit pickers show each unit's lineage underneath (on main, not on
-  staging; checked on a 0.3.20 debug build only, include it in the next CI
+- Org-unit pickers show each unit's lineage underneath (on staging's web
+  since `cb5c903c1`; not in any APK yet, checked on a 0.3.20 debug build only, include it in the next CI
   APK check). The Users filter still lists bare names until the server
   sends unit paths (`digitva-p6fs.36`).
 0. Consent withdrawal landed (`digitva-4gu7`); erasure of a withdrawn case

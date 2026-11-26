@@ -3,7 +3,7 @@ title: Test Project TST001 (Intake Test)
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-25
+last_updated: 2026-11-26
 ---
 
 # Test Project TST001 (Intake Test)
@@ -191,8 +191,9 @@ keeps hand-set values):
 | --- | --- | --- |
 | `masked_cod_required` | true (masked two-step coding) | false (single-step) |
 | `narrative_qa_enabled` | false | true |
-| `social_autopsy_enabled` | false | true (adds the `social_autopsy` form layer, so the questionnaire collects SA questions) |
-| `reviewer_social_autopsy_enabled` | false | true (effective only with the coder switch; see `docs/policy/social-autopsy-analysis.md`) |
+| `social_autopsy_collect_enabled` | false | true (adds the `social_autopsy` form layer, so the questionnaire collects SA questions) |
+| `social_autopsy_enabled` | false | true (coder analysis; effective only with Collect) |
+| `reviewer_social_autopsy_enabled` | false | true (effective only with Collect and the coder switch; see `docs/policy/social-autopsy-analysis.md`) |
 
 The command prints TST001's summary as before, then `TST002` and its summary.
 

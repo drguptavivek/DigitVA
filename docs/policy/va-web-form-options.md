@@ -3,7 +3,7 @@ title: VA Web Form Options Contract
 doc_type: policy
 status: active
 owner: DigitVA Data Collection
-last_updated: 2026-10-27
+last_updated: 2026-11-26
 ---
 
 # VA Web Form Options Contract
@@ -173,7 +173,9 @@ Notes on the shape:
   check reports the misconfiguration.
 - `enabled_extensions` is derived, never stored: `digitva_core` and
   `doris_support_whova_2022` always;
-  `social_autopsy` from `social_autopsy_enabled`; `geography` when the project
+  `social_autopsy` from `social_autopsy_collect_enabled` ("Collect Social
+  Autopsy", owner 2026-11-26, `digitva-rglh`; no longer the coder switch
+  `social_autopsy_enabled`, see social-autopsy-analysis.md); `geography` when the project
   has an organization hierarchy; `narration_language` when narration languages
   resolve to a non-empty list; `abha` when the default form type has an active
   `abha_number` field display config; `intake_screen` when the resolved

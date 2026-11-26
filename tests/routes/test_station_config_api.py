@@ -277,9 +277,9 @@ class StationConfigApiTests(BaseTestCase):
                 instrument_code="WHO_2022_VA", locale_code="hi", item_kind="choice", item_key="yes_no/yes",
                 field="label", text="हाँ", source="human", updated_at=datetime.now(UTC)))
         project = db.session.get(VaProjectMaster, PROJECT_ID)
-        saved = (project.web_intake_available_locales, project.social_autopsy_enabled)
+        saved = (project.web_intake_available_locales, project.social_autopsy_collect_enabled)
         project.web_intake_available_locales = ["en", "hi"]
-        project.social_autopsy_enabled = False
+        project.social_autopsy_collect_enabled = False
         db.session.commit()
         try:
             device = self._enrol()
@@ -305,7 +305,7 @@ class StationConfigApiTests(BaseTestCase):
             self.assertEqual(entry["translations"]["hi"]["choices"]["yes_no/yes"]["label"], "हाँ")
         finally:
             project = db.session.get(VaProjectMaster, PROJECT_ID)
-            project.web_intake_available_locales, project.social_autopsy_enabled = saved
+            project.web_intake_available_locales, project.social_autopsy_collect_enabled = saved
             db.session.commit()
 
     def test_device_bearer_gets_the_same_bytes_with_etag_and_304(self):

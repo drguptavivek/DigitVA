@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-25
+last_updated: 2026-11-26
 ---
 
 # Current Data Model
@@ -58,6 +58,7 @@ Key fields:
 - `project_nickname`
 - `project_status`
 - `narrative_qa_enabled`
+- `social_autopsy_collect_enabled`
 - `social_autopsy_enabled`
 - `reviewer_social_autopsy_enabled`
 - `coding_intake_mode`
@@ -84,7 +85,9 @@ Current role:
 
 - top-level project master, but effectively used in a one-project deployment model
 - also stores project-level workflow toggles such as Narrative QA enablement,
-  coder/reviewer Social Autopsy analysis enablement, and coder intake mode
+  Collect Social Autopsy (the `social_autopsy` form layer; coder and
+  reviewer analysis are effective only while it is on), coder/reviewer Social
+  Autopsy analysis enablement, and coder intake mode
 - now also stores demo/training project behavior:
   - whether the project is an open training pool
   - how many minutes demo-created coding artifacts should remain active before

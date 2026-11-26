@@ -197,15 +197,17 @@ class SeedTestProjectTests(BaseTestCase):
         t2 = db.session.get(VaProjectMaster, TEST_PROJECT_2_ID)
         self.assertEqual(
             (t2.project_name, t2.masked_cod_required, t2.narrative_qa_enabled,
-             t2.social_autopsy_enabled, t2.reviewer_social_autopsy_enabled,
+             t2.social_autopsy_collect_enabled, t2.social_autopsy_enabled,
+             t2.reviewer_social_autopsy_enabled,
              t2.icd_classification, t2.cod_entry_mode, t2.project_structure_mode),
-            ("Intake Test (single-step)", False, True, True, True, "icd11", "doris", "organization"),
+            ("Intake Test (single-step)", False, True, True, True, True, "icd11", "doris", "organization"),
         )
         # TST001 is unchanged: masked two-step, NQA and social autopsy off.
         self.assertEqual(
             (t1.project_name, t1.masked_cod_required, t1.narrative_qa_enabled,
-             t1.social_autopsy_enabled, t1.reviewer_social_autopsy_enabled),
-            ("Intake Test", True, False, False, False),
+             t1.social_autopsy_collect_enabled, t1.social_autopsy_enabled,
+             t1.reviewer_social_autopsy_enabled),
+            ("Intake Test", True, False, False, False, False),
         )
         self.assertTrue(get_consent_config(TEST_PROJECT_2_ID)["consent_required"])
         readiness = assess_web_intake_readiness(TEST_PROJECT_2_ID)

@@ -697,6 +697,52 @@ class AdminApiTests(BaseTestCase):
         self.assertEqual(toggle_resp.status_code, 200)
         self.assertEqual(toggle_resp.get_json()["status"], "active")
 
+    def test_collect_social_autopsy_saves_without_touching_coder_or_reviewer(self):
+        """digitva-rglh: Collect is its own switch; on create it follows the
+        coder switch unless sent; coder and reviewer saves are accepted while
+        it is off."""
+        self._login(self.admin_user_id)
+        headers = self._csrf_headers()
+
+        def create(project_id, **settings):
+            resp = self.client.post("/admin/api/projects", json={
+                "project_id": project_id, "project_name": project_id,
+                "project_nickname": project_id, **settings,
+            }, headers=headers)
+            self.assertEqual(resp.status_code, 201, resp.get_json())
+            return resp.get_json()["project"]
+
+        # Not sent: follows the coder switch, as the layer did before the split.
+        self.assertFalse(create("PRJSA1", social_autopsy_enabled=False)["social_autopsy_collect_enabled"])
+        self.assertTrue(create("PRJSA2", social_autopsy_enabled=True)["social_autopsy_collect_enabled"])
+        self.assertTrue(create("PRJSA3", web_intake_mode="off")["social_autopsy_collect_enabled"])
+        # Sent: wins.
+        self.assertTrue(create(
+            "PRJSA4", social_autopsy_enabled=False, social_autopsy_collect_enabled=True,
+        )["social_autopsy_collect_enabled"])
+
+        resp = self.client.put("/admin/api/projects/PRJSA2", json={
+            "social_autopsy_collect_enabled": False,
+            "social_autopsy_enabled": True,
+            "reviewer_social_autopsy_enabled": True,
+        }, headers=headers)
+        self.assertEqual(resp.status_code, 200, resp.get_json())
+        db.session.expire_all()
+        project = db.session.get(VaProjectMaster, "PRJSA2")
+        self.assertEqual(
+            (project.social_autopsy_collect_enabled, project.social_autopsy_enabled,
+             project.reviewer_social_autopsy_enabled),
+            (False, True, True),
+        )
+
+        # Strict boolean, as the other form switches.
+        resp = self.client.put("/admin/api/projects/PRJSA2", json={
+            "social_autopsy_collect_enabled": "true",
+        }, headers=headers)
+        self.assertEqual(resp.status_code, 400)
+        db.session.expire_all()
+        self.assertFalse(db.session.get(VaProjectMaster, "PRJSA2").social_autopsy_collect_enabled)
+
     def test_home_kpis_included_saves_and_is_refused_for_training_projects(self):
         self._login(self.admin_user_id)
         headers = self._csrf_headers()

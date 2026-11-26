@@ -52,6 +52,7 @@ class SetupAndSessionTests(TrainingDemoTestBase):
         self.assertEqual(project.cod_entry_mode, "doris")
         self.assertFalse(project.masked_cod_required)
         self.assertFalse(project.narrative_qa_enabled)
+        self.assertFalse(project.social_autopsy_collect_enabled)
         self.assertFalse(project.social_autopsy_enabled)
         self.assertFalse(project.reviewer_social_autopsy_enabled)
         self.assertFalse(project.demo_training_enabled)

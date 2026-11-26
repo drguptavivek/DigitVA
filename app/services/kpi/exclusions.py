@@ -410,9 +410,17 @@ def compute_c23(scope, period=None, by: str | None = None) -> dict:
 def compute_nqa_sa_rates(scope: DmScope):
     result = {}
 
-    for feature_flag, table_name, label in [
-        ("narrative_qa_enabled", "va_narrative_assessments", "nqa"),
-        ("social_autopsy_enabled", "va_social_autopsy_analyses", "social_autopsy"),
+    # Hardcoded predicates, never caller input. Social Autopsy is expected
+    # only where effective coder Social Autopsy is on: raw SQL cannot call
+    # case_content_service.social_autopsy_enabled, so this repeats its coder
+    # rule (docs/policy/social-autopsy-analysis.md).
+    for enabled_sql, table_name, label in [
+        ("pm.narrative_qa_enabled = true", "va_narrative_assessments", "nqa"),
+        (
+            "pm.social_autopsy_collect_enabled = true AND pm.social_autopsy_enabled = true",
+            "va_social_autopsy_analyses",
+            "social_autopsy",
+        ),
     ]:
         # Check if the project has this feature enabled
         status_col = f"va_{'nqa' if label == 'nqa' else 'saa'}_status"
@@ -441,7 +449,7 @@ def compute_nqa_sa_rates(scope: DmScope):
                               'reviewer_coding_in_progress',
                               'reviewer_finalized', 'finalized_upstream_changed'
                           )
-                          AND pm.{feature_flag} = true
+                          AND {enabled_sql}
                     ),
                     with_assessment AS (
                         SELECT c.va_sid

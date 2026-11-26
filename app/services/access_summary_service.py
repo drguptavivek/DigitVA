@@ -40,6 +40,7 @@ from app.services import training_demo_service
 from app.services.authz import action_reach, resolve_grants, role_flags
 from app.services.authz.actions import ADMIN_BYPASS, DEMO_VIRTUAL_ROLES
 from app.services.authz.consulted import mark_consulted
+from app.services.case_content_service import social_autopsy_enabled
 from app.services.cod_entry_mode import project_mode
 from app.services.viewer_pii_service import sees_pii_in_any_project
 
@@ -97,6 +98,7 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
                     VaProjectMaster.icd_classification,
                     VaProjectMaster.timezone,
                     VaProjectMaster.narrative_qa_enabled,
+                    VaProjectMaster.social_autopsy_collect_enabled,
                     VaProjectMaster.social_autopsy_enabled,
                 ).where(VaProjectMaster.project_id.in_(project_ids))
             ).all()
@@ -329,7 +331,9 @@ def _project(project_id, grants, resolved, project, site_rows, unit_names, inter
         # Additive (digitva-p8uj): what the import requires with an offline
         # final, as the online final gate (coder_cod_service) asks it.
         "narrative_qa_enabled": bool(project is not None and project.narrative_qa_enabled),
-        "social_autopsy_enabled": bool(project is not None and project.social_autopsy_enabled),
+        # The effective coder value (Collect and Coder), so older APKs follow
+        # the split switches unchanged (digitva-rglh).
+        "social_autopsy_enabled": project is not None and social_autopsy_enabled(project),
     }
     actions = action_reach(resolved, project_id)
     actions["interview"] = [

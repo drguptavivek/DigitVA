@@ -324,6 +324,7 @@ def setup_training_project(actor: VaUsers | None = None) -> dict[str, int | bool
                 cod_entry_mode="doris",
                 masked_cod_required=False,
                 narrative_qa_enabled=False,
+                social_autopsy_collect_enabled=False,
                 social_autopsy_enabled=False,
                 reviewer_social_autopsy_enabled=False,
                 web_intake_default_locale="en",

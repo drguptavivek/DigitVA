@@ -3,7 +3,7 @@ title: Offline API Contract v1
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-25
+last_updated: 2026-11-26
 ---
 
 # Offline API Contract v1
@@ -1140,7 +1140,9 @@ all. The body is the 3.6 upload plus:
 
   Enrolled phones learn the project's switches from `/me/access`
   `self_coding.offline_coding.narrative_qa_enabled` and
-  `social_autopsy_enabled` (additive booleans). A key sent null where the
+  `social_autopsy_enabled` (additive booleans; `social_autopsy_enabled` is
+  the effective coder value, Collect and Coder Social Autopsy both on,
+  `docs/policy/social-autopsy-analysis.md`). A key sent null where the
   project asks it (Social Autopsy: the switch and, once the case has a
   payload, its category shown, as online) refuses the whole upload with 422
   `narrative_qa_required` or `social_autopsy_required` (the phone sends the

@@ -3,7 +3,7 @@ title: DORIS COD Workflow
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-20
+last_updated: 2026-11-26
 ---
 
 # DORIS COD Workflow
@@ -387,7 +387,8 @@ a fake engine that answers only the WHO requests the fixture recorded.
 
 **Offline NQA and Social Autopsy (2026-11-20, digitva-p8uj).** `/me/access`
 `self_coding.offline_coding` carries `narrative_qa_enabled` and
-`social_autopsy_enabled` (`access_summary_service._project`). The offline
+`social_autopsy_enabled` (`access_summary_service._project`; the effective
+coder value, Collect and Coder Social Autopsy both on, since 2026-11-26). The offline
 final may carry `narrative_qa` and `social_autopsy`
 (`offline_coding_import_service.parse_offline_coding`, the online saves'
 rules). `hold` refuses a key sent null where the project has it on (422

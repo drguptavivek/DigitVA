@@ -455,6 +455,14 @@ class MeAccessTests(AuthzFixtureMixin, BaseTestCase):
         offline = self._project(self._body("coder_tb"), TB)["self_coding"]["offline_coding"]
         self.assertEqual((offline["narrative_qa_enabled"], offline["social_autopsy_enabled"]), (True, False))
 
+        # The phone gets the effective value: coder on but Collect off is off,
+        # so an older APK does not ask it (digitva-rglh).
+        project_row.social_autopsy_enabled = True
+        project_row.social_autopsy_collect_enabled = False
+        db.session.commit()
+        offline = self._project(self._body("coder_tb"), TB)["self_coding"]["offline_coding"]
+        self.assertFalse(offline["social_autopsy_enabled"])
+
     def test_smartva_targets_are_exactly_authorized_and_inherit_each_area_preset(self):
         project_row = db.session.get(VaProjectMaster, TA)
         project_row.web_intake_mode = "both"

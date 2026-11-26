@@ -360,18 +360,19 @@ def get_display_initial_assessment(va_sid: str):
 def social_autopsy_enabled(project, va_action: str = "vacode") -> bool:
     """Return whether the app-owned Social Autopsy analysis form is enabled.
 
-    The project collects the ``social_autopsy`` layer only while
-    ``social_autopsy_enabled`` is on (``enabled_extensions``), so reviewer
-    Social Autopsy needs both switches; the stored reviewer value is kept
-    (docs/policy/social-autopsy-analysis.md).
+    The one place for the rule (docs/policy/social-autopsy-analysis.md):
+    coder Social Autopsy needs Collect (``social_autopsy_collect_enabled``,
+    which adds the ``social_autopsy`` layer) and the coder switch; reviewer
+    Social Autopsy needs both and ``reviewer_social_autopsy_enabled``. Stored
+    switches are never rewritten. ``project`` may be a model or a row with
+    those attributes; no project means on, as the saves allow.
     """
     if project is None:
         return True
+    coder_on = bool(project.social_autopsy_collect_enabled and project.social_autopsy_enabled)
     if va_action == "vareview":
-        return bool(
-            project.social_autopsy_enabled and project.reviewer_social_autopsy_enabled
-        )
-    return bool(project.social_autopsy_enabled)
+        return coder_on and bool(project.reviewer_social_autopsy_enabled)
+    return coder_on
 
 
 def social_autopsy_required(project, va_action, form_type_code, visible_category_codes) -> bool:

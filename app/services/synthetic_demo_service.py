@@ -472,6 +472,7 @@ def seed_organization_demo() -> dict:
             synthetic_demo_reset_enabled=True,
             masked_cod_required=False,
             narrative_qa_enabled=False,
+            social_autopsy_collect_enabled=False,
             social_autopsy_enabled=False,
             reviewer_social_autopsy_enabled=False,
         )

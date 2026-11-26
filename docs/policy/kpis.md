@@ -3,7 +3,7 @@ title: Data Manager KPI Framework
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-25
+last_updated: 2026-11-26
 ---
 
 # Data Manager KPI Framework
@@ -1178,7 +1178,7 @@ Queryable, with no fixed panel. Grouped by stage, then category.
 
 **Question:** What share of coded cases has a social autopsy?
 - **Classification:** Output / coverage / rate; tier registered; audience DM, admin; cadence weekly.
-- **Level, scope and peers:** Pj; scope CODED in projects with `social_autopsy_enabled`; peers: No.
+- **Level, scope and peers:** Pj; scope CODED in projects with effective coder Social Autopsy (`social_autopsy_collect_enabled` and `social_autopsy_enabled`); peers: No.
 - **Direction and threshold:** Higher is better; no fixed threshold.
 - **Views:** status.
 - **MCP:** full.
@@ -1186,10 +1186,10 @@ Queryable, with no fixed panel. Grouped by stage, then category.
 **Definition:**
 
 - Numerator: COUNT of submissions with at least one active `va_social_autopsy_analyses` row (where `va_saa_status = 'active'`)
-- Denominator: COUNT of CODED submissions WHERE the submission's own project has `social_autopsy_enabled = true` (joined on the form's project) (owner decision 2026-10-27, `digitva-0hul`)
+- Denominator: COUNT of CODED submissions WHERE the submission's own project has `social_autopsy_collect_enabled = true` AND `social_autopsy_enabled = true` (joined on the form's project) (owner decision 2026-10-27, `digitva-0hul`; Collect added 2026-11-26, `digitva-rglh`)
 - Rate: N/D × 100
-- Inclusions: Only projects where `social_autopsy_enabled = true`
-- Exclusions: Projects where `social_autopsy_enabled = false`
+- Inclusions: Only projects where `social_autopsy_collect_enabled = true` AND `social_autopsy_enabled = true`
+- Exclusions: Projects where either is false
 - Time Frame: Cumulative
 
 ### D-LC-01: Submission Language Distribution

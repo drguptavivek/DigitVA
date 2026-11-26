@@ -175,6 +175,7 @@ class AdminPanelRoutingTests(BaseTestCase):
             'id="project-web-intake-intake-note-input"',
             'id="project-web-intake-intake-note-default-btn"',
             'id="project-web-intake-death-summary-input"',
+            'id="project-social-autopsy-collect-enabled-input"',  # digitva-rglh
             "/admin/api/web-form-types",
         ):
             with self.subTest(marker=marker):

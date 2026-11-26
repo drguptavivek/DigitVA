@@ -55,6 +55,7 @@ def _serialize_project(project, form_type_codes=None):
         "project_nickname": project.project_nickname,
         "status": project.project_status.value,
         "narrative_qa_enabled": project.narrative_qa_enabled,
+        "social_autopsy_collect_enabled": project.social_autopsy_collect_enabled,
         "social_autopsy_enabled": project.social_autopsy_enabled,
         "reviewer_social_autopsy_enabled": project.reviewer_social_autopsy_enabled,
         "coding_intake_mode": project.coding_intake_mode,

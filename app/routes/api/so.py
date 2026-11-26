@@ -93,7 +93,7 @@ def save_social_autopsy(va_sid: str):
             return _error(
                 "Reviewer Social Autopsy is disabled for this project.", 403, "forbidden"
             )
-    elif project is not None and not project.social_autopsy_enabled:
+    elif project is not None and not social_autopsy_enabled(project):
         return _error("Coder Social Autopsy is disabled for this project.", 403, "forbidden")
 
     selected_options = data.get("selected_options") or []

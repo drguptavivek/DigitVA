@@ -391,9 +391,9 @@ _TST_USERS = (
 #: Projects the command builds, in order; the first is the one whose summary
 #: prints without a heading. masked_cod_required false is single-step coding.
 #: narrative_qa_enabled turns the narrative quality assessment on;
-#: social_autopsy_enabled also adds the social_autopsy form layer the
-#: questionnaire collects (enabled_extensions derives from it), and the
-#: reviewer switch follows it. classical_grants: the SADEMO grants below.
+#: social_autopsy_enabled sets all three Social Autopsy switches: Collect (the
+#: social_autopsy form layer the questionnaire collects), coder and reviewer.
+#: classical_grants: the SADEMO grants below.
 _TST_PROJECTS = (
     {"project_id": TEST_PROJECT_ID, "name": "Intake Test", "masked_cod_required": True,
      "narrative_qa_enabled": False, "social_autopsy_enabled": False, "classical_grants": True},
@@ -654,6 +654,7 @@ def _build_test_project(org, user_import, actor, spec: dict, *, staging: bool) -
             cod_entry_mode=_TST_COD_ENTRY_MODE,
             masked_cod_required=spec["masked_cod_required"],
             narrative_qa_enabled=spec["narrative_qa_enabled"],
+            social_autopsy_collect_enabled=spec["social_autopsy_enabled"],
             social_autopsy_enabled=spec["social_autopsy_enabled"],
             reviewer_social_autopsy_enabled=spec["social_autopsy_enabled"],
             **defaults,

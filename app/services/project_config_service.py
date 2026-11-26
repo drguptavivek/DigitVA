@@ -358,7 +358,9 @@ def _enabled_extensions(
 ) -> list[str]:
     """Which form sections this project's configuration turns on.
 
-    Derived, never stored. ``intake_screen`` follows the resolved welcome note
+    Derived, never stored. ``social_autopsy`` follows
+    ``social_autopsy_collect_enabled`` ("Collect Social Autopsy"), not the
+    coder's analysis switch (digitva-rglh). ``intake_screen`` follows the resolved welcome note
     -- a project that blanked the note wants no welcome screen -- and
     ``death_summary`` and ``medical_records`` each follow their own project
     switch, on unless an administrator turned it off (decided 2026-09-19,
@@ -371,7 +373,7 @@ def _enabled_extensions(
     against the contract rather than against a constant.
     """
     extensions = ["digitva_core", "doris_support_whova_2022"]
-    if project.social_autopsy_enabled:
+    if project.social_autopsy_collect_enabled:
         extensions.append("social_autopsy")
     if intake_note:
         extensions.append("intake_screen")

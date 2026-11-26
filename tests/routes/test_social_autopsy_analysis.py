@@ -1,4 +1,6 @@
+import unittest
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from app import db
 from app.models import (
@@ -18,6 +20,7 @@ from app.models import (
     VaSubmissionsAuditlog,
     VaUserAccessGrants,
 )
+from app.services.case_content_service import social_autopsy_enabled
 from app.services.submission_payload_version_service import ensure_active_payload_version
 from tests.base import BaseTestCase
 
@@ -245,6 +248,32 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
             resp.get_json()["error"],
             "Coder Social Autopsy is disabled for this project.",
         )
+
+    def test_coder_save_rejected_when_collect_is_off(self):
+        """Coder switch on, Collect off: refused, the stored coder value kept
+        (digitva-rglh)."""
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        self.assertTrue(project.social_autopsy_enabled)
+        project.social_autopsy_collect_enabled = False
+        db.session.commit()
+
+        self._login(self.base_admin_id)
+        resp = self.client.post(
+            f"/api/v1/va/{self.social_sid}/social-autopsy",
+            json={
+                "va_actiontype": "vademo_start_coding",
+                "selected_options": [
+                    {"delay_level": "delay_1_decision", "option_code": "recognition"},
+                    {"delay_level": "delay_2_reaching", "option_code": "financial_barrier"},
+                    {"delay_level": "delay_3_receiving", "option_code": "delay_in_referral"},
+                ],
+            },
+            headers=self._csrf_headers(),
+        )
+
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.get_json()["error"], "Coder Social Autopsy is disabled for this project.")
+        self.assertTrue(db.session.get(VaProjectMaster, self.BASE_PROJECT_ID).social_autopsy_enabled)
 
     def test_reviewer_save_rejected_when_the_layer_is_not_collected(self):
         """Reviewer switch on, coder switch (the layer) off: refused, and the
@@ -514,3 +543,33 @@ class TestSocialAutopsyAnalysisRoute(BaseTestCase):
                 )
             )
         )
+
+
+class SocialAutopsyEffectiveRuleTests(unittest.TestCase):
+    """case_content_service.social_autopsy_enabled, the one place for the
+    rule (docs/policy/social-autopsy-analysis.md, digitva-rglh)."""
+
+    @staticmethod
+    def _project(collect, coder, reviewer):
+        return SimpleNamespace(
+            social_autopsy_collect_enabled=collect,
+            social_autopsy_enabled=coder,
+            reviewer_social_autopsy_enabled=reviewer,
+        )
+
+    def test_collect_on_keeps_the_coder_and_reviewer_rules(self):
+        self.assertTrue(social_autopsy_enabled(self._project(True, True, True), "vacode"))
+        self.assertTrue(social_autopsy_enabled(self._project(True, True, True), "vareview"))
+        self.assertFalse(social_autopsy_enabled(self._project(True, False, True), "vacode"))
+        self.assertFalse(social_autopsy_enabled(self._project(True, False, True), "vareview"))
+        self.assertTrue(social_autopsy_enabled(self._project(True, True, False), "vacode"))
+        self.assertFalse(social_autopsy_enabled(self._project(True, True, False), "vareview"))
+
+    def test_collect_off_turns_coder_and_reviewer_off_whatever_their_switches(self):
+        project = self._project(False, True, True)
+        self.assertFalse(social_autopsy_enabled(project, "vacode"))
+        self.assertFalse(social_autopsy_enabled(project, "vareview"))
+
+    def test_no_project_is_on_as_the_saves_allow(self):
+        self.assertTrue(social_autopsy_enabled(None, "vacode"))
+        self.assertTrue(social_autopsy_enabled(None, "vareview"))

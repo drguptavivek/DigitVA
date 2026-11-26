@@ -702,7 +702,9 @@ def _masked_simple_step1_fields(
 
 def _social_autopsy_required(project, submission, payload_data) -> bool:
     """Whether the coder must save the Social Autopsy analysis before the final."""
-    if not project.social_autopsy_enabled:
+    from app.services.case_content_service import social_autopsy_enabled
+
+    if not social_autopsy_enabled(project):
         return False
     from app.services.category_rendering_service import (
         get_category_rendering_service,

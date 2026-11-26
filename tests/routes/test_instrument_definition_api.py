@@ -42,7 +42,7 @@ class InstrumentDefinitionApiTests(BaseTestCase):
                 project_status=VaStatuses.active,
                 project_registered_at=now,
                 project_updated_at=now,
-                social_autopsy_enabled=False,
+                social_autopsy_collect_enabled=False,
             )
         )
         db.session.flush()
@@ -67,7 +67,7 @@ class InstrumentDefinitionApiTests(BaseTestCase):
         self.addCleanup(svc._recorded.clear)
         svc._retry_at = 0.0
         project = db.session.get(VaProjectMaster, PROJECT)
-        project.social_autopsy_enabled = False
+        project.social_autopsy_collect_enabled = False
         db.session.commit()
 
     def _get(self, url=DEFINITION_URL, **kwargs):
@@ -125,7 +125,7 @@ class InstrumentDefinitionApiTests(BaseTestCase):
         self.assertNotIn(marker, names)
 
         project = db.session.get(VaProjectMaster, PROJECT)
-        project.social_autopsy_enabled = True
+        project.social_autopsy_collect_enabled = True
         db.session.commit()
         self.assertIn(marker, served_names())
 
@@ -180,9 +180,24 @@ class InstrumentDefinitionApiTests(BaseTestCase):
     def test_the_body_names_its_extensions(self):
         self.assertEqual(self._get().get_json()["extensions"], ["death_summary", "medical_records"])  # defaults
         project = db.session.get(VaProjectMaster, PROJECT)
-        project.social_autopsy_enabled = True
+        project.social_autopsy_collect_enabled = True
         db.session.commit()
         self.assertEqual(self._get().get_json()["extensions"], ["death_summary", "medical_records", "social_autopsy"])
+
+    def test_the_social_autopsy_layer_follows_collect_not_the_coder_switch(self):
+        """digitva-rglh: Collect decides the layer; the coder's analysis switch
+        does not."""
+        project = db.session.get(VaProjectMaster, PROJECT)
+        project.social_autopsy_collect_enabled = True
+        project.social_autopsy_enabled = False
+        db.session.commit()
+        self.assertIn("social_autopsy", self._get().get_json()["extensions"])
+
+        project = db.session.get(VaProjectMaster, PROJECT)
+        project.social_autopsy_collect_enabled = False
+        project.social_autopsy_enabled = True
+        db.session.commit()
+        self.assertNotIn("social_autopsy", self._get().get_json()["extensions"])
 
     def test_a_slice_re_served_from_its_stored_copy_hashes_exactly_as_first_served(self):
         # The JSONB copy does not keep key order; the bytes must not depend on it.

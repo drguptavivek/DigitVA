@@ -3,7 +3,7 @@ title: Category Rendering And Visibility
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-10-05
+last_updated: 2026-11-26
 ---
 
 # Category Rendering And Visibility
@@ -113,8 +113,10 @@ Additional render-time transforms:
   - `<` / `>` zoom out / zoom in
 - `social_autopsy` in `table_sections` mode appends an app-owned Social
   Autopsy analysis form for coder coding flows when the submission's project
-  has `social_autopsy_enabled = true`, and for reviewer flows when the project
-  has `reviewer_social_autopsy_enabled = true`
+  has effective coder Social Autopsy on, and for reviewer flows when it has
+  effective reviewer Social Autopsy on
+  (`case_content_service.social_autopsy_enabled`;
+  `docs/policy/social-autopsy-analysis.md`)
 - coder views now also append a synthetic final nav item `vacodassessment`, which
   renders the dedicated COD workflow panel outside `vanarrationanddocuments`
 - the `vacodassessment` workflow panel also reuses the shared attachments
@@ -128,8 +130,9 @@ Important nuance for `social_autopsy`:
 - mapped `social_autopsy` submission fields still render based on form/category
   mappings and submission data
 - the app-owned Social Autopsy analysis form is controlled separately at the
-  project level by `va_project_master.social_autopsy_enabled` for coders and
-  `va_project_master.reviewer_social_autopsy_enabled` for reviewers
+  project level: coders need `va_project_master.social_autopsy_collect_enabled`
+  and `social_autopsy_enabled`, reviewers need those two and
+  `reviewer_social_autopsy_enabled`
 - when the relevant project flag is `false`, the category can still appear in
   the left nav if mapped fields are present, but the app-owned analysis form is
   not shown and its completion is not enforced

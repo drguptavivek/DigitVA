@@ -49,7 +49,7 @@ class FormOptionsApiTests(BaseTestCase):
                 project_status=VaStatuses.active,
                 project_registered_at=now,
                 project_updated_at=now,
-                social_autopsy_enabled=False,
+                social_autopsy_collect_enabled=False,
             )
         )
         for site_id, name in ((cls.SITE_A, "Form Options Site A"), (cls.SITE_B, "Form Options Site B")):
@@ -1196,6 +1196,7 @@ class WebProjectDefaultsOnCreateTests(BaseTestCase):
         self.assertTrue(project.web_intake_death_summary_enabled)
         self.assertTrue(project.web_intake_medical_records_enabled)
         self.assertFalse(project.social_autopsy_enabled)
+        self.assertFalse(project.social_autopsy_collect_enabled)  # follows the coder default
         self.assertEqual(project.coding_intake_mode, "pick_and_choose")
         # The two language lists keep only the codes their validators accept:
         # "hi" is not an instrument locale yet, so it is dropped rather than
@@ -1242,6 +1243,7 @@ class WebProjectDefaultsOnCreateTests(BaseTestCase):
         self.assertIsNone(project.web_intake_available_locales)
         self.assertIsNone(project.web_intake_narration_languages)
         self.assertTrue(project.social_autopsy_enabled)
+        self.assertTrue(project.social_autopsy_collect_enabled)
         self.assertEqual(project.coding_intake_mode, "random_form_allocation")
 
     def test_an_explicit_value_wins_over_the_default(self):
@@ -1374,7 +1376,7 @@ class FormOptionsInstrumentLocaleTests(BaseTestCase):
                 project_status=VaStatuses.active,
                 project_registered_at=now,
                 project_updated_at=now,
-                social_autopsy_enabled=False,
+                social_autopsy_collect_enabled=False,
             )
         )
         db.session.add(

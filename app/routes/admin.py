@@ -366,6 +366,7 @@ _WEB_INTAKE_BOOL_FIELDS = (
     "web_intake_death_summary_enabled",
     "web_intake_medical_records_enabled",
     "web_intake_equity_enabled",
+    "social_autopsy_collect_enabled",
 )
 
 
@@ -470,6 +471,12 @@ def _web_intake_form_option_updates(payload):
 
     if "web_intake_equity_enabled" in payload:
         updates["web_intake_equity_enabled"] = payload["web_intake_equity_enabled"]
+
+    # "Collect Social Autopsy": adds the social_autopsy layer. Stored as sent;
+    # the coder and reviewer switches are never rewritten when it changes
+    # (docs/policy/social-autopsy-analysis.md).
+    if "social_autopsy_collect_enabled" in payload:
+        updates["social_autopsy_collect_enabled"] = payload["social_autopsy_collect_enabled"]
 
     # A string such as "false" must not coerce to True: the toggles take real booleans only.
     for field in _WEB_INTAKE_BOOL_FIELDS:
@@ -1306,6 +1313,10 @@ def admin_create_project():
     form_option_updates, form_option_error = _web_intake_form_option_updates(payload)
     if form_option_error:
         return _json_error(form_option_error, 400)
+    coder_social_autopsy = bool(payload.get("social_autopsy_enabled", True))
+    # Collect not sent: follow the coder switch, so a caller that predates the
+    # split gets the form it got before (digitva-rglh).
+    form_option_updates.setdefault("social_autopsy_collect_enabled", coder_social_autopsy)
 
     project = VaProjectMaster(
         project_id=project_id,
@@ -1313,12 +1324,9 @@ def admin_create_project():
         project_name=project_name,
         project_nickname=project_nickname,
         project_status=VaStatuses.active,
-        social_autopsy_enabled=bool(payload.get("social_autopsy_enabled", True)),
+        social_autopsy_enabled=coder_social_autopsy,
         reviewer_social_autopsy_enabled=bool(
-            payload.get(
-                "reviewer_social_autopsy_enabled",
-                payload.get("social_autopsy_enabled", True),
-            )
+            payload.get("reviewer_social_autopsy_enabled", coder_social_autopsy)
         ),
         coding_intake_mode=coding_intake_mode,
         icd_classification=icd_classification,

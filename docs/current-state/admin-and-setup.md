@@ -3,7 +3,7 @@ title: Admin And Setup Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-24
+last_updated: 2026-11-26
 ---
 
 # Admin And Setup Model
@@ -253,7 +253,10 @@ Current project master data now includes:
 - project identity fields
 - active/inactive status
 - Narrative Quality Assessment enablement
-- coder and reviewer Social Autopsy analysis enablement
+- coder and reviewer Social Autopsy analysis enablement, and Collect Social
+  Autopsy (in the Web form questionnaire section: whether web and DigitVA
+  Collect forms ask the social autopsy questions; coder and reviewer switches
+  show disabled while it is off, `docs/policy/social-autopsy-analysis.md`)
 - coding intake mode (`random_form_allocation` or `pick_and_choose`)
 - self-coding (`self_coding_enabled`, off by default): a coder also interviews
   and may code their own case. `POST /api/projects` and `PUT /api/projects/<id>`

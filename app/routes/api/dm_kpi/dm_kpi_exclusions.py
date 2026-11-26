@@ -146,8 +146,9 @@ def nqa_sa_rates():
       Time frame: Cumulative.
 
     D-QG-08 — Social Autopsy Completion Rate:
-      Same pattern as D-QG-07 but for va_social_autopsy_analyses and
-      social_autopsy_enabled flag.
+      Same pattern as D-QG-07 but for va_social_autopsy_analyses, in
+      projects with effective coder Social Autopsy
+      (social_autopsy_collect_enabled and social_autopsy_enabled).
     """
     scope = dm_scope()
     if not scope:

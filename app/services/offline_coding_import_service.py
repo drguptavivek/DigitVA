@@ -57,6 +57,7 @@ from app.services import coder_workflow_service as coder_workflow
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
 from app.services.authz import resolve_grants
+from app.services.case_content_service import social_autopsy_enabled
 from app.services.cod_entry_mode import cod_entry_mode_snapshot, project_mode
 from app.services.coder_dashboard_service import bust_coder_dashboard_cache
 from app.services.demo_project_service import (
@@ -507,7 +508,7 @@ def _require_quality(project: VaProjectMaster, coding: dict, va_sid: str | None)
     if project.narrative_qa_enabled and "narrative_qa" in coding and coding["narrative_qa"] is None:
         raise OfflineCodingError("Narrative Quality Assessment must be completed before the final COD.",
                                  NARRATIVE_QA_REQUIRED)
-    if not (project.social_autopsy_enabled and "social_autopsy" in coding and coding["social_autopsy"] is None):
+    if not (social_autopsy_enabled(project) and "social_autopsy" in coding and coding["social_autopsy"] is None):
         return
     payload = get_active_payload_version(va_sid) if va_sid else None
     submission = db.session.get(VaSubmissions, va_sid) if payload is not None else None
@@ -890,7 +891,7 @@ def _save_quality(actor: VaUsers, va_sid: str, project: VaProjectMaster, submiss
         db.session.flush()
         _audit(va_sid, actor.user_id, "narrative quality assessment imported from collect plus offline", row.va_nqa_id)
     answered = coding.get("social_autopsy")
-    if answered is not None and project.social_autopsy_enabled:
+    if answered is not None and social_autopsy_enabled(project):
         deactivate_other_active_social_autopsy_analyses(va_sid, actor.user_id, audit_by=actor.user_id)
         row = VaSocialAutopsyAnalysis(
             va_sid=va_sid, va_saa_by=actor.user_id, payload_version_id=payload.payload_version_id,

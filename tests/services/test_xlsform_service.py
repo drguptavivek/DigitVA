@@ -119,7 +119,7 @@ class XlsFormBase(BaseTestCase):
         )
         cls._project(
             cls.LEAN,
-            social_autopsy_enabled=False,
+            social_autopsy_collect_enabled=False,
             web_intake_death_summary_enabled=False,
             web_intake_intake_note="",
         )
@@ -518,7 +518,7 @@ class XlsFormRefusalTests(XlsFormBase):
 
     def test_a_select_with_no_choices_is_refused_naming_the_list(self):
         project = self._project(
-            "XLSF03", social_autopsy_enabled=False, web_intake_death_summary_enabled=False,
+            "XLSF03", social_autopsy_collect_enabled=False, web_intake_death_summary_enabled=False,
             web_intake_medical_records_enabled=False, web_intake_intake_note="",
         )  # no project site: the Site list would be empty
         with self.assertRaises(xf.XlsFormError) as caught:
@@ -547,7 +547,7 @@ class XlsFormOrgLevelTests(XlsFormBase):
         ``(code, name, depth, optional)``, ``units`` ``(code, level_code,
         parent_code)``, parents first."""
         project = self._project(
-            project_id, project_structure_mode="organization", social_autopsy_enabled=False,
+            project_id, project_structure_mode="organization", social_autopsy_collect_enabled=False,
             web_intake_death_summary_enabled=False, web_intake_medical_records_enabled=False,
             web_intake_intake_note="",
         )

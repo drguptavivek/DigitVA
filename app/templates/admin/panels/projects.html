@@ -180,13 +180,13 @@
           </div>
         </div>
 
-      {# Web questionnaire and its two extensions — WP1 of
+      {# Web questionnaire and its optional sections — WP1 of
          docs/planning/web-capture-project-configuration-plan.md #}
       <div class="border rounded p-2 mt-3 bg-body">
         <div class="fw-semibold small mb-1">Web form questionnaire</div>
         <div class="text-muted small mb-2">
           Which questionnaire the browser VA form renders for this project, and
-          the two optional sections. A form type whose PII set is unconfirmed
+          its optional sections. A form type whose PII set is unconfirmed
           cannot collect real interviews
           (docs/policy/new-form-type-onboarding.md).
         </div>
@@ -210,6 +210,15 @@
             <div class="form-check form-switch mb-0">
               <input class="form-check-input" type="checkbox" id="project-web-intake-equity-input" role="switch">
               <label class="form-check-label small" for="project-web-intake-equity-input">Equity: ask residence type, social group, vulnerable groups, health coverage and the refusal profile</label>
+            </div>
+            <div class="form-check form-switch mb-0">
+              <input class="form-check-input" type="checkbox" id="project-social-autopsy-collect-enabled-input" role="switch" checked aria-describedby="project-social-autopsy-collect-help">
+              <label class="form-check-label small" for="project-social-autopsy-collect-enabled-input">Collect Social Autopsy: ask the social autopsy questions</label>
+              <div class="form-text small" id="project-social-autopsy-collect-help">
+                Decides whether web and DigitVA Collect forms ask the social autopsy
+                questions. ODK forms are unaffected, but coder and reviewer Social
+                Autopsy analysis needs it on, even for ODK-collected projects.
+              </div>
             </div>
           </div>
           <div class="col-12">
@@ -420,6 +429,7 @@
         + '<i class="fa-solid ' + (isActive ? 'fa-toggle-on' : 'fa-toggle-off') + '"></i>'
         + '</button>';
       var nqaEnabled = !!p.narrative_qa_enabled;
+      var socialAutopsyCollectEnabled = p.social_autopsy_collect_enabled !== false;
       var socialAutopsyEnabled = p.social_autopsy_enabled !== false;
       var reviewerSocialAutopsyEnabled = p.reviewer_social_autopsy_enabled !== false;
       var demoEnabled = !!p.demo_training_enabled;
@@ -460,6 +470,7 @@
         + '<td class="align-middle py-2 small">' + esc(p.project_nickname) + '</td>'
         + '<td class="align-middle py-2 small">'
         +   esc(intakeLabel)
+        +   (socialAutopsyCollectEnabled ? '<div><span class="badge text-bg-secondary mt-1">Collect Social Autopsy On</span></div>' : '')
         +   (socialAutopsyEnabled ? '<div><span class="badge text-bg-info mt-1">Coder Social Autopsy On</span></div>' : '')
         +   (reviewerSocialAutopsyEnabled ? '<div><span class="badge text-bg-primary mt-1">Reviewer Social Autopsy On</span></div>' : '')
         +   (demoEnabled ? '<div><span class="badge text-bg-warning mt-1">Demo / Training</span></div>' : '')
@@ -661,6 +672,7 @@
   var maskedCodRequiredInput = document.getElementById('project-masked-cod-required-input');
   var webIntakeModeInput = document.getElementById('project-web-intake-mode-input');
   var structureModeInput = document.getElementById('project-structure-mode-input');
+  var socialAutopsyCollectEnabledInput = document.getElementById('project-social-autopsy-collect-enabled-input');
   var socialAutopsyEnabledInput = document.getElementById('project-social-autopsy-enabled-input');
   var reviewerSocialAutopsyEnabledInput = document.getElementById('project-reviewer-social-autopsy-enabled-input');
   var demoTrainingEnabledInput = document.getElementById('project-demo-training-enabled-input');
@@ -960,14 +972,20 @@
   markTouched(availableLocalesList, 'web_intake_available_locales');
   markTouched(narrationLanguagesList, 'web_intake_narration_languages');
   markTouched(codingIntakeModeInput, 'coding_intake_mode');
+  markTouched(socialAutopsyCollectEnabledInput, 'social_autopsy_collect_enabled');
   markTouched(socialAutopsyEnabledInput, 'social_autopsy_enabled');
   markTouched(reviewerSocialAutopsyEnabledInput, 'reviewer_social_autopsy_enabled');
 
-  // Reviewer Social Autopsy is effective only while the project collects the
-  // social_autopsy layer (the coder switch); the stored value is kept.
+  // Coder Social Autopsy is effective only while the project collects the
+  // social_autopsy layer (Collect), and reviewer Social Autopsy only while
+  // both are on. Disabled switches keep, and still send, their stored value
+  // (docs/policy/social-autopsy-analysis.md).
   function syncReviewerSocialAutopsy() {
-    reviewerSocialAutopsyEnabledInput.disabled = !socialAutopsyEnabledInput.checked;
+    var collect = socialAutopsyCollectEnabledInput.checked;
+    socialAutopsyEnabledInput.disabled = !collect;
+    reviewerSocialAutopsyEnabledInput.disabled = !(collect && socialAutopsyEnabledInput.checked);
   }
+  socialAutopsyCollectEnabledInput.addEventListener('change', syncReviewerSocialAutopsy);
   socialAutopsyEnabledInput.addEventListener('change', syncReviewerSocialAutopsy);
 
   function readWebIntakeOptions() {
@@ -1104,8 +1122,10 @@
     maskedCodRequiredInput.checked = true;
     webIntakeModeInput.value = 'direct';
     structureModeInput.value = 'sites';
+    socialAutopsyCollectEnabledInput.checked = true;
     socialAutopsyEnabledInput.checked = true;
     reviewerSocialAutopsyEnabledInput.checked = true;
+    syncReviewerSocialAutopsy();
     demoTrainingEnabledInput.checked = false;
     homeKpisIncludedInput.checked = false;
     selfCodingEnabledInput.checked = false;
@@ -1150,6 +1170,7 @@
     maskedCodRequiredInput.checked = project.masked_cod_required !== false;
     webIntakeModeInput.value = project.web_intake_mode || 'off';
     structureModeInput.value = project.project_structure_mode || 'sites';
+    socialAutopsyCollectEnabledInput.checked = project.social_autopsy_collect_enabled !== false;
     socialAutopsyEnabledInput.checked = project.social_autopsy_enabled !== false;
     reviewerSocialAutopsyEnabledInput.checked = project.reviewer_social_autopsy_enabled !== false;
     syncReviewerSocialAutopsy();
@@ -1195,6 +1216,7 @@
       masked_cod_required: maskedCodRequiredInput.checked,
       web_intake_mode: webIntakeModeInput.value,
       project_structure_mode: structureModeInput.value,
+      social_autopsy_collect_enabled: socialAutopsyCollectEnabledInput.checked,
       social_autopsy_enabled: socialAutopsyEnabledInput.checked,
       reviewer_social_autopsy_enabled: reviewerSocialAutopsyEnabledInput.checked,
       demo_training_enabled: demoTrainingEnabledInput.checked,
@@ -1266,6 +1288,7 @@
         'web_intake_available_locales',
         'web_intake_narration_languages',
         'coding_intake_mode',
+        'social_autopsy_collect_enabled',
         'social_autopsy_enabled',
         'reviewer_social_autopsy_enabled'
       ];

@@ -81,6 +81,15 @@ class VaProjectMaster(db.Model):
     narrative_qa_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=False, server_default="false"
     )
+    # "Collect Social Autopsy": whether web and DigitVA Collect forms ask the
+    # social autopsy questions (the ``social_autopsy`` layer). Coder and
+    # reviewer analysis are effective only while it is on; the rule is
+    # case_content_service.social_autopsy_enabled
+    # (docs/policy/social-autopsy-analysis.md).
+    social_autopsy_collect_enabled: so.Mapped[bool] = so.mapped_column(
+        sa.Boolean(), nullable=False, default=True, server_default="true"
+    )
+    # "Coder Social Autopsy": the coder's app-owned analysis form.
     social_autopsy_enabled: so.Mapped[bool] = so.mapped_column(
         sa.Boolean(), nullable=False, default=True, server_default="true"
     )

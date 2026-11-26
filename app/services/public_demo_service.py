@@ -451,6 +451,7 @@ def _project_defaults(project_id: str) -> dict:
         cod_entry_mode="doris",
         masked_cod_required=False,
         narrative_qa_enabled=False,
+        social_autopsy_collect_enabled=False,
         social_autopsy_enabled=False,
         reviewer_social_autopsy_enabled=False,
         web_intake_default_locale="en",
@@ -467,8 +468,8 @@ def _project_defaults(project_id: str) -> dict:
 #: Settings setup resets on an existing demo project (policy section 4).
 _ENFORCED = (
     "project_structure_mode", "web_intake_mode", "self_coding_enabled", "icd_classification",
-    "cod_entry_mode", "masked_cod_required", "narrative_qa_enabled", "social_autopsy_enabled",
-    "reviewer_social_autopsy_enabled", "web_intake_narration_languages",
+    "cod_entry_mode", "masked_cod_required", "narrative_qa_enabled", "social_autopsy_collect_enabled",
+    "social_autopsy_enabled", "reviewer_social_autopsy_enabled", "web_intake_narration_languages",
     "web_intake_death_summary_enabled", "web_intake_medical_records_enabled",
     "recode_window_minutes", "demo_training_enabled",
 )

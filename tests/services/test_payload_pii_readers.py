@@ -237,7 +237,8 @@ class ReaderSitesTests(SplitReaderBase):
         sub, _ = self._split_case("uuid:prd-reviewer")
         seen = []
         project = SimpleNamespace(
-            social_autopsy_enabled=True, reviewer_social_autopsy_enabled=True
+            social_autopsy_collect_enabled=True, social_autopsy_enabled=True,
+            reviewer_social_autopsy_enabled=True,
         )
         with (
             mock.patch("app.services.coding_service.get_project_for_submission", return_value=project),

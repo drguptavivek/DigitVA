@@ -3,7 +3,7 @@ title: Social Autopsy Analysis Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-12
+last_updated: 2026-11-26
 ---
 
 # Social Autopsy Analysis Policy
@@ -22,22 +22,45 @@ Current baseline:
 
 - it is rendered inside the `social_autopsy` category after the mapped Social
   Autopsy submission questions
-- coder Social Autopsy is controlled by the project-level
-  `social_autopsy_enabled` flag
-- reviewer Social Autopsy is controlled by the project-level
-  `reviewer_social_autopsy_enabled` flag
-- when `social_autopsy_enabled = false`, the mapped `social_autopsy` category
-  may still render its synced submission fields, but the app-owned Social
-  Autopsy analysis form must not be shown
-- Social Autopsy coding and reviewing are effectively off when the project
-  does not collect the `social_autopsy` form layer (owner 2026-11-12,
-  `digitva-sapb`). The layer is derived from `social_autopsy_enabled`
-  (`enabled_extensions`, see va-form-project-configuration.md section 1), so
-  reviewer Social Autopsy is effective only when both
-  `social_autopsy_enabled` and `reviewer_social_autopsy_enabled` are true.
-  The stored reviewer value is kept untouched; project settings show the
-  reviewer switch disabled while the coder switch is off, and saves that
-  still send it are accepted, never refused
+- three project switches govern Social Autopsy (owner 2026-11-26,
+  `digitva-rglh`; supersedes the part of `digitva-sapb` that derived the
+  form layer from the coder switch):
+  - `social_autopsy_collect_enabled` (admin label "Collect Social Autopsy")
+    decides whether web and DigitVA Collect forms ask the social autopsy
+    questions: the `social_autopsy` form layer (`enabled_extensions`, see
+    va-form-project-configuration.md section 1) is served exactly when it is
+    on. ODK forms are unaffected; their questions come from the deployed
+    XLSForm
+  - `social_autopsy_enabled` (admin label "Coder Social Autopsy") turns on
+    the coder's app-owned analysis form
+  - `reviewer_social_autopsy_enabled` (admin label "Reviewer Social
+    Autopsy") turns on the reviewer's analysis form
+- the effective rule lives in one place,
+  `case_content_service.social_autopsy_enabled(project, va_action)`:
+  - effective coder Social Autopsy = `social_autopsy_collect_enabled` AND
+    `social_autopsy_enabled`
+  - effective reviewer Social Autopsy = `social_autopsy_collect_enabled` AND
+    `social_autopsy_enabled` AND `reviewer_social_autopsy_enabled`
+  - so coder and reviewer analysis need Collect on even for a project that
+    collects only through ODK
+  - every coder or reviewer gate (online saves, final COD, offline import,
+    `/me/access` `self_coding.offline_coding.social_autopsy_enabled`, the
+    D-QG-08 KPI) uses the effective value, never a raw switch; the phone is
+    sent the effective value so older APKs behave correctly
+- stored values are never rewritten by the app. Project settings show the
+  coder and reviewer switches disabled while Collect is off, and the reviewer
+  switch disabled while the coder switch is off; saves that still send them
+  are accepted and stored, never refused
+- when effective coder Social Autopsy is off, the mapped `social_autopsy`
+  category may still render its synced submission fields, but the app-owned
+  Social Autopsy analysis form must not be shown
+- the migration that added `social_autopsy_collect_enabled` set it equal to
+  `social_autopsy_enabled` on every existing project, so no project's form or
+  coding changed on deploy; a project created without the Collect switch in
+  the request gets it equal to its Coder switch
+- the D-QG-08 KPI is raw SQL and cannot call the helper, so it repeats the
+  coder rule as a predicate (`app/services/kpi/exclusions.py`); it is the one
+  second copy and must change with the helper
 - it is available in coder-facing coding flows when coder Social Autopsy is
   enabled, and reviewer-facing review flows when reviewer Social Autopsy is
   enabled
@@ -127,13 +150,14 @@ Current baseline:
 
 Current baseline:
 
-- the form is shown in coder coding flows when `social_autopsy_enabled = true`:
+- the form is shown in coder coding flows when effective coder Social
+  Autopsy is on (Collect and Coder):
   - `vastartcoding`
   - `vapickcoding`
   - `varesumecoding`
   - `vademo_start_coding`
-- the form is shown in reviewer coding flows when
-  `reviewer_social_autopsy_enabled = true`:
+- the form is shown in reviewer coding flows when effective reviewer Social
+  Autopsy is on (Collect, Coder and Reviewer):
   - `vastartreviewing`
   - `varesumereviewing`
 - it is not currently a site-PI form

@@ -30,6 +30,7 @@ from app.models import (
     VaAllocations,
     VaFinalAssessments,
     VaForms,
+    VaProjectMaster,
     VaProjectSites,
     VaStatuses,
     VaSubmissions,
@@ -294,3 +295,24 @@ class DmKpiCharacterizationTests(BaseTestCase):
             _write_golden("cache_keys", norm)
             return
         self.assertEqual(norm, json.loads(GOLDEN.read_text())["cache_keys"])
+
+    def test_social_autopsy_rate_counts_only_projects_with_effective_coder_sa(self):
+        """D-QG-08 (digitva-rglh): Collect off excludes the project even with
+        the coder switch on."""
+        from app.services.kpi.exclusions import compute_nqa_sa_rates
+
+        scope = dm_kpi_scope.DmScope(pairs=[(self.BASE_PROJECT_ID, self.BASE_SITE_ID)], unit_ids=[])
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.social_autopsy_collect_enabled = True
+        project.social_autopsy_enabled = True
+        db.session.commit()
+        on = compute_nqa_sa_rates(scope)["social_autopsy"]
+        self.assertTrue(on["enabled"])
+        self.assertEqual(on["denominator"], 1)
+
+        project = db.session.get(VaProjectMaster, self.BASE_PROJECT_ID)
+        project.social_autopsy_collect_enabled = False
+        db.session.commit()
+        off = compute_nqa_sa_rates(scope)["social_autopsy"]
+        self.assertTrue(off["enabled"])
+        self.assertEqual(off["denominator"], 0)

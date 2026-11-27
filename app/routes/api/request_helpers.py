@@ -16,6 +16,7 @@ from app.models import VaAccessRoles, VaForms, VaSubmissions
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
 from app.services.authz import subtree_select
+from app.services.viewer_pii_service import pii_scope
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
 
 #: Interviewer reach alone, the default of every intake route; the register
@@ -143,6 +144,12 @@ def place_filter_arg() -> list:
     only narrows: a place outside the caller's reach answers nothing extra.
     Each statement must already join ``VaForms`` and ``VaSubmissions``.
     Raises ``BadQuery`` for a malformed value.
+
+    A place filter also limits the rows to projects where the caller sees
+    personal data (``pii_scope``): filtering by unit would otherwise tell a
+    non-PII caller which unit each listable case is in, which
+    docs/policy/case-list-views.md forbids. Such a caller gets no rows and
+    zero counts for a place; the client offers no place there (pii_visible).
     """
     conditions = []
     site_id = (request.args.get("site_id") or "").strip()
@@ -157,6 +164,8 @@ def place_filter_arg() -> list:
         except ValueError:
             raise BadQuery("org_unit_id is not a unit id.") from None
         conditions.append(VaSubmissions.org_unit_id.in_(subtree_select([unit])))
+    if conditions:
+        conditions.append(pii_scope(current_user).condition(VaForms.project_id))
     return conditions
 
 

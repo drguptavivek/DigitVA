@@ -467,10 +467,15 @@ above (no unit to a row reached by non-PII coding alone), per project:
   the card shows the case id title, dates, pills and buttons only.
 - The queues' "Site and unit" filter is hidden for such a project:
   `/me/access` sends `pii_visible` per project, and a project with
-  `pii_visible` false offers no place choice. The server's `site_id` /
-  `org_unit_id` list filter itself is unchanged (older clients still send it;
-  it only narrows what the caller may already list).
+  `pii_visible` false offers no place choice. The server enforces the same
+  rule: a `site_id` or `org_unit_id` filter on the queue lists and stats
+  (`request_helpers.place_filter_arg`) also limits the rows to projects where
+  the caller sees personal data, so such a caller gets no rows and zero
+  counts for a place, and cannot learn which unit a case is in by narrowing.
+  Both filters are new with these cards, so no older client sends them.
 - The deceased's name stays on its own gate (`coding_names`).
+
+## Non-goals
 
 
 - No change to who may start an interview, code, review or supervise; the

@@ -133,6 +133,21 @@ class _PlaceFilterBase(AuthzFixtureMixin, BaseTestCase):
         self.assertNotIn(dropped, narrowed)
         self.assertLessEqual(narrowed, everything)
 
+    def _assert_nonpii_place_answers_nothing(self, user_key):
+        """A caller without personal-data access in the project (a Tier 1
+        project-scope grant) gets no rows and zero counts for any place: a unit
+        filter would otherwise reveal which unit each listable case is in."""
+        self._author("ta-c1", user_key)
+        # Present first: without a place the caller lists their C1 case and counts it.
+        self.assertIn("ta-c1", self._sids(user_key, self.HISTORY))
+        self.assertGreater(self._stats(user_key)["completed"], 0)
+        for place in ({"org_unit_id": self._unit("C1")}, {"org_unit_id": self._unit("D1")},
+                      {"site_id": FORMS[SIDS["ta-c1"][0]][2]}):
+            with self.subTest(place=place):
+                self.assertEqual(self._sids(user_key, self.HISTORY, **place), set())
+                self.assertEqual(self._sids(user_key, self.AVAILABLE, **place), set())
+                self.assertEqual(self._stats(user_key, **place)["completed"], 0)
+
     def _assert_site_outside_reach_adds_nothing(self, user_key, outside_sid):
         everything = self._sids(user_key, self.AVAILABLE)
         self.assertIn("sp-1", everything)
@@ -341,6 +356,9 @@ class CodingPlaceFilterTests(_PlaceFilterBase):
     def test_items_carry_the_card_keys_and_names_only_with_pii(self):
         self._assert_card_keys("coder_p1", "coder_ta", add_active_final=False)
 
+    def test_a_place_answers_nothing_without_personal_data_access(self):
+        self._assert_nonpii_place_answers_nothing("coder_ta")
+
     def test_the_unpaged_lists_carry_the_card_keys(self):
         self._login(str(self.users["coder_p1"].user_id))
         for path, key in ((self.AVAILABLE, "forms"), (self.HISTORY, "history")):
@@ -464,6 +482,9 @@ class ReviewingPlaceFilterTests(_PlaceFilterBase):
 
     def test_items_carry_the_card_keys_and_names_only_with_pii(self):
         self._assert_card_keys("reviewer_p1", "reviewer_ta", add_active_final=True)
+
+    def test_a_place_answers_nothing_without_personal_data_access(self):
+        self._assert_nonpii_place_answers_nothing("reviewer_ta")
 
     def test_a_reviewer_saves_their_own_languages_and_a_user_with_neither_role_is_refused(self):
         url = "/api/v1/profile/languages"

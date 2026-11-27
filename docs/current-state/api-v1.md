@@ -613,6 +613,9 @@ functions). Gate `reviewer`; every reply is `private, no-store`. Optional
 `org_unit_id` with the coder routes' rules (a site; a unit and its subtree;
 narrowing only, 400 for a malformed value); since 2026-11-27 `/stats` takes
 them too and narrows every count. Without them every reply is unchanged.
+On both queues a place filter also keeps only projects where the caller sees
+personal data (`pii_scope`), so a caller without it gets no rows and zero
+counts for any place (docs/policy/case-list-views.md, queue cards section).
 
 | Route | Reply |
 | --- | --- |

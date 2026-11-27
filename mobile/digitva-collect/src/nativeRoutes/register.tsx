@@ -91,8 +91,9 @@ import {
   type ReferenceData,
   type Target,
 } from "../sync";
-import { announce, Button, Card, ChoiceRow, errorText, FieldHint, FieldLabel, Notice, Row, Screen, SectionLabel, SegmentedControl, Separator, TextLink, useUiStyles } from "../ui";
-import { radius, spacing, useTheme } from "../theme";
+import { announce, Button, Card, ChoiceRow, errorText, FieldHint, FieldLabel, Notice, Row, Screen, SectionLabel, Separator, TextLink, useUiStyles } from "../ui";
+import { spacing, useTheme } from "../theme";
+import { ChoiceList, DECEASED_FIELDS, IDENTIFIER_FIELDS, NOTE_FIELDS, PLACE_FIELDS, SEX_LABELS, TEXT_FIELDS, type Field } from "../registrationFormLayout";
 import { useWhoFormTheme } from "../whoWebTheme";
 import { registrationTargets } from "../registrationTargets";
 import { chainLookup, rowLabel, type ChainOf } from "../ui/sitePicker";
@@ -105,7 +106,8 @@ import { PhoneNumbers } from "../PhoneInput";
 import { NativeLocationCapture } from "../NativeLocationCapture";
 import type { GpsFix } from "../web/LocationCapture";
 
-export type Field = Exclude<keyof RegistrationFields, "identifiers">;
+// Shared with the web Add a Death form; re-exported for the screens and tests that import them from here.
+export { ChoiceList, DECEASED_FIELDS, IDENTIFIER_FIELDS, NOTE_FIELDS, PLACE_FIELDS, SEX_LABELS, TEXT_FIELDS, type Field };
 export type BirthMode = "exact" | "month-year" | "year" | "unknown";
 
 export const REGISTRATION_FIELDS: Field[] = [
@@ -177,39 +179,6 @@ function withFix(fields: RegistrationFields, fix: GpsFix | null): RegistrationFi
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
-
-/** Text fields in the web form's order, with their label and the helper line under the field (format, example). */
-export const TEXT_FIELDS: Array<{
-  name: Field;
-  label: StringKey;
-  help?: StringKey | ThemeStringKey;
-  required?: boolean;
-}> = [
-  { name: "deceased_name", label: "fieldDeceasedName", required: true },
-  { name: "date_of_death", label: "fieldDateOfDeath", required: true },
-  { name: "address", label: "fieldAddress" },
-  { name: "informant_name", label: "fieldInformantName" },
-  // Rendered with informant_phone_2 by PhoneNumbers.
-  { name: "informant_phone", label: "fieldPhoneNumber" },
-  { name: "abha_number", label: "fieldAbhaNumber", help: "abhaNumberHint" },
-  { name: "abha_address", label: "fieldAbhaAddress", help: "abhaAddressHint" },
-  { name: "place_of_death", label: "fieldPlaceOfDeath" },
-  { name: "address_house_street", label: "fieldHouseStreet" },
-  { name: "address_village_ward", label: "fieldVillageWard" },
-  { name: "address_landmark", label: "fieldLandmark" },
-  { name: "father_name", label: "fieldFatherName" },
-  { name: "mother_name", label: "fieldMotherName" },
-  { name: "remarks", label: "fieldRemarks", help: "remarksHelp" },
-];
-
-/**
- * The form's groups under their section labels (design sheet 01): who died, where, the identifiers, then notes.
- * Fields the consent notice covers are drawn in the Informant group instead, wherever they are listed here.
- */
-export const DECEASED_FIELDS: Field[] = ["father_name", "mother_name"];
-export const PLACE_FIELDS: Field[] = ["place_of_death", "address", "address_house_street", "address_village_ward", "address_landmark"];
-export const IDENTIFIER_FIELDS: Field[] = ["abha_number", "abha_address"];
-export const NOTE_FIELDS: Field[] = ["remarks"];
 
 /** Restore the DOB choice without inventing precision for age-only records. */
 export function birthModeFor(fields: RegistrationFields): BirthMode {
@@ -285,31 +254,6 @@ function nativeQuestion(
     sectionPath: [],
     ...(appearance ? { appearance } : {}),
   };
-}
-
-/**
- * A single choice: a SegmentedControl for up to three short options, else a ChoiceRow per option, so a long label
- * ("Undetermined") never wraps inside a segment. The rows sit inside the section card's padding, in line with the
- * fields, as one rounded group (the selected tint and the hairlines stop where the fields do; no card inside a card).
- */
-export function ChoiceList<T extends string>({ options, value, onChange, disabled, accessibilityLabel }: {
-  options: ReadonlyArray<{ value: T; label: string }>;
-  value: T | undefined;
-  onChange: (value: T) => void;
-  disabled: boolean;
-  accessibilityLabel: string;
-}) {
-  if (options.length <= 3) return <SegmentedControl options={options} value={value} onChange={onChange} disabled={disabled} accessibilityLabel={accessibilityLabel} />;
-  return (
-    <View accessibilityRole="radiogroup" accessibilityLabel={accessibilityLabel} style={{ borderRadius: radius.lg, overflow: "hidden" }}>
-      {options.map((option, index) => (
-        <View key={option.value}>
-          {index ? <Separator choice /> : null}
-          <ChoiceRow label={option.label} selected={option.value === value} disabled={disabled} onPress={() => onChange(option.value)} />
-        </View>
-      ))}
-    </View>
-  );
 }
 
 export function NativeRegistrationFieldControl({
@@ -397,13 +341,6 @@ export function NativeRegistrationFieldControl({
   }
   return <WhoVaQuestionControls.Text {...controlProps} />;
 }
-
-export const SEX_LABELS: Record<(typeof SEX_VALUES)[number], StringKey> = {
-  male: "sexMale",
-  female: "sexFemale",
-  undetermined: "sexUndetermined",
-  unknown: "sexUnknown",
-};
 
 function registrationTargetsFromAccess(access: AccessSummary): Target[] {
   return registrationTargets(intakeContextFromAccess(access, "register_death"), access.projects);

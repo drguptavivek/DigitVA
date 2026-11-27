@@ -10,14 +10,17 @@ import { ApiError, SUPERVISION_ROLES, getLocalStationLaunchToken, getCaseDetail,
 import { INTAKE_API, registerDeath, startDraft } from "../client/api";
 import { useAppState } from "../AppState";
 import { localToday, registrationAgeInfoIssue, registrationNeedsAgeConfirmation, validateRegistration, type RegistrationFields } from "../cases";
-import { t, uiLocale, type StringKey } from "../i18n";
+// From its own module: on web "../cases" resolves to cases.web.ts, which does not re-export SEX_VALUES.
+import { SEX_VALUES } from "../registrationRules";
+import { t, uiLocale, type StringKey, type ThemeStringKey } from "../i18n";
 import { calculateRegistrationAge } from "../registrationAgeDisplay";
 import { formatRegistrationAge } from "../registrationAgeText";
-import { Button, FieldLabel, useUiStyles } from "../ui";
+import { Button, Card, FieldHint, FieldLabel, Notice, Row, useUiStyles } from "../ui";
 import { Select } from "../ui/Select";
 import { registrationTargets } from "../registrationTargets";
 import { placeOptions } from "./placeOptions";
-import { spacing } from "../theme";
+import { controls, spacing } from "../theme";
+import { ChoiceList, DECEASED_FIELDS, IDENTIFIER_FIELDS, NOTE_FIELDS, PLACE_FIELDS, SEX_LABELS, TEXT_FIELDS, type Field } from "../registrationFormLayout";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { DeathsListPanel, DeathsProjectSelect, useDeathCases } from "./DeathsList";
@@ -37,14 +40,17 @@ import {
   isBadgeOnly, loadIdentifierTypes, type CaseIdentifier, type IdentifierType,
 } from "../identifiers";
 
-const FIELD_DEFINITIONS: Array<{ key: keyof RegistrationInput; label: StringKey; help?: StringKey }> = [
-  { key: "deceased_name", label: "fieldDeceasedName" },
-  { key: "date_of_death", label: "fieldDateOfDeath" },
-  { key: "address", label: "fieldAddress" },
-  { key: "informant_name", label: "fieldInformantName" },
-  { key: "informant_phone", label: "fieldInformantPhone" },
-  { key: "remarks", label: "fieldRemarks", help: "remarksHelp" }
-];
+// The web form's own text fields (fewer than the phone's), drawn in the phone's sections and order (TEXT_FIELDS).
+const WEB_FIELDS: Field[] = ["deceased_name", "date_of_death", "address", "informant_name", "informant_phone", "remarks"];
+const FIELD_DEFINITIONS = TEXT_FIELDS.filter((field) => WEB_FIELDS.includes(field.name));
+const fieldDefinition = (name: Field) => FIELD_DEFINITIONS.find((field) => field.name === name)!;
+const isInformantField = (name: Field) => (INFORMANT_PII_FIELDS as readonly string[]).includes(name);
+/** The web fields of one of the phone's groups; informant details are drawn in the Informant section instead, as on the phone. */
+const groupFields = (names: Field[]) => FIELD_DEFINITIONS.filter((field) => names.includes(field.name) && !isInformantField(field.name));
+const INFORMANT_FIELDS = FIELD_DEFINITIONS.filter((field) => isInformantField(field.name));
+// The selected precision row names the date field under it; the field's accessible name still says the precision.
+const BIRTH_LABELS: Record<BirthMode, StringKey> = { exact: "dobExact", "month-year": "dobMonthYear", year: "dobYear", unknown: "dobUnknown" };
+const BIRTH_FIELD_LABELS: Record<Exclude<BirthMode, "unknown">, StringKey | ThemeStringKey> = { exact: "dobExact", "month-year": "dobMonthYear", year: "dobYearField" };
 
 type DraftIssue = { code?: StringKey; message: string };
 
@@ -645,27 +651,29 @@ export default function DeathRegistrationScreen() {
     dirtyRef.current = false;
   }
 
-  const renderField = (field: (typeof FIELD_DEFINITIONS)[number]) => field.key === "informant_phone" ? (
+  const renderField = (field: (typeof FIELD_DEFINITIONS)[number]) => field.name === "informant_phone" ? (
     <PhoneNumbers
-      key={field.key}
+      key={field.name}
+      edge
       values={{ informant_phone: fields.informant_phone ?? "", informant_phone_2: fields.informant_phone_2 ?? "" }}
       errors={{ informant_phone: issueMessage("informant_phone"), informant_phone_2: issueMessage("informant_phone_2") }}
       onChange={updateField}
       onValidity={(key, valid) => updateFieldIssue(key, valid || phoneUnchanged(key) ? undefined : t("errPhone"))}
     />
   ) : (
-    <View key={field.key} style={{ gap: spacing.xxs }}>
-      {/* Required fields carry the grey "Required" word, never an asterisk. */}
-      <FieldLabel label={t(field.label)} required={field.key === "deceased_name" || field.key === "date_of_death"} />
+    <View key={field.name} style={{ gap: 4 }}>
+      {/* Required fields carry the grey "Required" word, never an asterisk, until the field's red message shows. */}
+      <FieldLabel label={t(field.label)} required={field.required && !issueMessage(field.name)} />
       <RegistrationFieldControl
-        field={field.key}
+        edge
+        field={field.name}
         label={t(field.label)}
-        value={String(fields[field.key] ?? "")}
-        onChange={(value) => updateField(field.key, value)}
-        issueMessage={issueMessage(field.key)}
-        onIssue={(issue) => updateFieldIssue(field.key, issue)}
+        value={String(fields[field.name] ?? "")}
+        onChange={(value) => updateField(field.name, value)}
+        issueMessage={issueMessage(field.name)}
+        onIssue={(issue) => updateFieldIssue(field.name, issue)}
       />
-      {field.help ? <Text style={styles.muted}>{t(field.help)}</Text> : null}
+      {field.help ? <FieldHint>{t(field.help)}</FieldHint> : null}
     </View>
   );
 
@@ -978,192 +986,203 @@ export default function DeathRegistrationScreen() {
           }} />
         </>
       ) : intake?.context.length || editingDeathId ? (
-        <>
-          {editingDeathId ? (
-            <Text style={styles.muted}>{/^sites_in_project_/i.test(siteId) ? projectId : `${projectId} · ${siteId}`}</Text>
-          ) : (
-            <View style={{ gap: spacing.xxs }}>
-              <FieldLabel label={t("chooseSite")} required />
-              {targets.length === 0 ? <Text style={styles.muted}>{t("noSites")}</Text> : null}
-              <Select
-                label={t("chooseSite")}
-                placeholder={t("siteUnitNotChosen")}
-                searchLabel={t("filterUnitSearch")}
-                searchable
-                options={placeChoices}
-                value={chosenPlace?.key ?? ""}
-                onChange={(key) => {
-                  const pick = targets.find((entry) => entry.key === key);
-                  if (!pick) return;
-                  setProjectId(pick.projectId);
-                  setSiteId(pick.siteId);
-                  setOrgUnitId(pick.orgUnitId ?? "");
-                  setPlaceIssue(false);
-                }}
-              />
-              {placeIssue ? <Text style={styles.error} accessibilityRole="alert">{t("errRequired")}</Text> : null}
-            </View>
-          )}
-          {renderField(FIELD_DEFINITIONS[0])}
-          {renderField(FIELD_DEFINITIONS[1])}
-          <View onBlur={birthBlur} style={{ gap: spacing.xs }}>
-          <FieldLabel label={t("fieldDateOfBirth")} required={birthMode !== "unknown"} />
-          <Text style={styles.muted}>{t("dobPrecision")}</Text>
-          <View style={styles.row} accessibilityRole="radiogroup">
-            {(
-              [
-                ["exact", "dobExact"],
-                ["month-year", "dobMonthYear"],
-                ["year", "dobYear"],
-                ["unknown", "dobUnknown"]
-              ] as const
-            ).map(([mode, label]) => (
-              <Button
-                key={mode}
-                kind={birthMode === mode ? "primary" : "secondary"}
-                label={t(label)}
-                onPress={() => chooseBirthMode(mode)}
-              />
-            ))}
-          </View>
-          {birthMode === "exact" ? (
-            <RegistrationFieldControl
-              field="date_of_birth"
-              label={t("fieldDateOfBirth")}
-              value={String(fields.date_of_birth ?? "")}
-              onChange={(value) => updateField("date_of_birth", value)}
-              issueMessage={issueMessage("date_of_birth")}
-              onIssue={(issue) => updateFieldIssue("date_of_birth", issue)}
-              dateAppearance="exact"
-            />
-          ) : null}
-          {birthMode === "month-year" || birthMode === "year" ? (
-            <RegistrationFieldControl
-              field="date_of_birth_partial"
-              label={t("fieldDateOfBirth")}
-              value={String(fields.date_of_birth_partial ?? "")}
-              onChange={(value) => updateField("date_of_birth_partial", value)}
-              issueMessage={issueMessage("date_of_birth_partial")}
-              onIssue={(issue) => updateFieldIssue("date_of_birth_partial", issue)}
-              dateAppearance={birthMode}
-            />
-          ) : null}
-          <View>
-            <FieldLabel label={t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldEstimatedAge")} required={birthMode === "unknown"} />
-            {birthMode === "unknown" ? (
-              <RegistrationFieldControl
-                field="age_years"
-                label={t("fieldEstimatedAgeRequired")}
-                value={String(fields.age_years ?? "")}
-                onChange={(value) => updateField("age_years", value)}
-                issueMessage={issueMessage("age_years")}
-                onIssue={(issue) => updateFieldIssue("age_years", issue)}
-              />
-            ) : ageDisplay ? (
-              <Text style={styles.muted}>{formatRegistrationAge(ageDisplay)}</Text>
-            ) : !fields.date_of_death?.trim() ? (
-              <Text style={styles.muted}>{t("ageNeedsDeathDate")}</Text>
-            ) : null}
-          </View>
-          </View>
-          <View style={{ gap: spacing.xxs }}>
-          <FieldLabel label={t("fieldSex")} required />
-          <View style={styles.row} accessibilityRole="radiogroup">
-            {(["male", "female", "undetermined", "unknown"] as const).map((value) => (
-              <Button
-                key={value}
-                kind={sex === value ? "primary" : "secondary"}
-                label={t(`sex${value[0].toUpperCase()}${value.slice(1)}` as "sexMale")}
-                onPress={() => {
+        // The phone's Register a death sections, in its order (src/nativeRoutes/register.tsx).
+        <View style={{ gap: spacing.md }}>
+          <Card label={t("registerSectionDeceased")} testID="register-deceased">
+            {renderField(fieldDefinition("deceased_name"))}
+            <View style={{ gap: spacing.xs }}>
+              <FieldLabel label={t("fieldSex")} required={!issueMessage("deceased_sex")} />
+              <ChoiceList
+                accessibilityLabel={t("fieldSex")}
+                options={SEX_VALUES.map((value) => ({ value, label: t(SEX_LABELS[value]) }))}
+                value={(sex || undefined) as (typeof SEX_VALUES)[number] | undefined}
+                disabled={false}
+                onChange={(value) => {
                   dirtyRef.current = true;
                   setSex(value);
                   setValidationIssues((previous) => ({ ...previous, deceased_sex: undefined }));
                   setAgeConfirmationPending(false);
                 }}
               />
-            ))}
-          </View>
-          {issueMessage("deceased_sex") ? (
-            <Text style={styles.error} accessibilityRole="alert">{issueMessage("deceased_sex")}</Text>
-          ) : null}
-          </View>
-          {webConsentNeeded && !webConsent ? (
-            <RespondentConsentPanel config={consentConfig} language={uiLocale()} clientDraftId={null} busy={busy} onDecision={recordWebConsent} />
-          ) : null}
-          {webConsentNeeded && webConsent ? (
-            <View style={styles.row} testID="respondent-consent-recorded">
-              <Text style={styles.muted}>{t(webConsent.decision === "granted" ? "consentRecordedGranted" : "consentRecordedRefused")}</Text>
-              <Button size="sm" kind="secondary" label={t("consentChange")} disabled={busy} onPress={() => setWebConsent(null)} />
+              {issueMessage("deceased_sex") ? (
+                <Text style={styles.error} accessibilityRole="alert">{issueMessage("deceased_sex")}</Text>
+              ) : null}
             </View>
-          ) : null}
-          {noPlace ? <Text style={styles.muted} testID="informant-place-first">{t("choosePlaceFirst")}</Text> : null}
-          {!noPlace && informantClosed && !webConsent ? <Text style={styles.muted} testID="informant-closed">{t("consentInformantClosed")}</Text> : null}
-          {FIELD_DEFINITIONS.slice(2).map((field) => {
-            const closed = informantClosed && (INFORMANT_PII_FIELDS as readonly string[]).includes(field.key);
-            if (field.key === "address") return (
-              <View key={field.key} style={{ gap: spacing.xs }}>
-                {closed ? null : renderField(field)}
-                <LocationCapture value={location} onChange={(fix) => { dirtyRef.current = true; setLocation(fix); }} />
+            {renderField(fieldDefinition("date_of_death"))}
+            {/* Date of birth and the estimated age are one block for the focus-leaving check (birthBlur). */}
+            <View onBlur={birthBlur} style={{ gap: controls.gap }}>
+              <View style={{ gap: spacing.xs }}>
+                <FieldLabel label={t("fieldDateOfBirth")} required={birthMode !== "unknown" && !issueMessage("date_of_birth") && !issueMessage("date_of_birth_partial")} />
+                <ChoiceList
+                  accessibilityLabel={`${t("fieldDateOfBirth")} ${t("dobPrecision")}`}
+                  options={(["exact", "month-year", "year", "unknown"] as const).map((mode) => ({ value: mode, label: t(BIRTH_LABELS[mode]) }))}
+                  value={birthMode}
+                  disabled={false}
+                  onChange={chooseBirthMode}
+                />
+                {birthMode === "exact" ? (
+                  <RegistrationFieldControl
+                    field="date_of_birth"
+                    label={`${t("fieldDateOfBirth")}, ${t(BIRTH_FIELD_LABELS.exact)}`}
+                    value={String(fields.date_of_birth ?? "")}
+                    onChange={(value) => updateField("date_of_birth", value)}
+                    issueMessage={issueMessage("date_of_birth")}
+                    onIssue={(issue) => updateFieldIssue("date_of_birth", issue)}
+                    dateAppearance="exact"
+                  />
+                ) : null}
+                {birthMode === "month-year" || birthMode === "year" ? (
+                  <RegistrationFieldControl
+                    field="date_of_birth_partial"
+                    label={`${t("fieldDateOfBirth")}, ${t(BIRTH_FIELD_LABELS[birthMode])}`}
+                    value={String(fields.date_of_birth_partial ?? "")}
+                    onChange={(value) => updateField("date_of_birth_partial", value)}
+                    issueMessage={issueMessage("date_of_birth_partial")}
+                    onIssue={(issue) => updateFieldIssue("date_of_birth_partial", issue)}
+                    dateAppearance={birthMode}
+                  />
+                ) : null}
               </View>
-            );
-            return closed ? null : renderField(field);
-          })}
-          {informantNeedsConsent && !noPlace && bootstrap ? (
-            <StationConsentPanel projectId={projectId} csrf={bootstrap.csrf} onChange={setConsent} />
-          ) : null}
-          {informantNeedsConsent && !consent ? <Text style={styles.error} accessibilityRole="alert" testID="station-consent-blocked">{t("stationConsentBlocked")}</Text> : null}
-          {idShown ? (
-            <IdentifierFields
-              types={idTypes}
-              values={idValues}
-              errors={idErrors}
-              warnings={idWarnings}
-              disabled={busy}
-              onChange={(code, value) => {
-                dirtyRef.current = true;
-                setIdValues((previous) => ({ ...previous, [code]: value }));
-                setIdErrors((previous) => (previous[code] ? { ...previous, [code]: "" } : previous));
-                setAgeConfirmationPending(false);
-              }}
-              onContinue={(code) => {
-                const rest = { ...idWarnings };
-                delete rest[code];
-                setIdWarnings(rest);
-                if (!Object.keys(rest).length) {
-                  const held = idHeld.current;
-                  idHeld.current = undefined;
-                  held?.onContinue();
-                }
-              }}
-              onEdit={() => {
-                const held = idHeld.current;
-                idHeld.current = undefined;
-                setIdWarnings({});
-                held?.onEdit();
-              }}
-            />
-          ) : null}
-          {idTypesFailed ? <Text style={styles.error} accessibilityRole="alert" testID="identifier-types-error">{t("idTypesLoadFailed")}</Text> : null}
-          {idInactive.length ? (
-            <View style={{ gap: 4 }} testID="identifier-inactive">
-              <IdentifierFacts identifiers={idInactive} variant="detail" />
-              <Text style={styles.muted}>{t("idInactiveNote")}</Text>
+              <View style={{ gap: 4 }}>
+                <FieldLabel label={t(birthMode === "unknown" ? "fieldEstimatedAgeRequired" : "fieldEstimatedAge")} required={birthMode === "unknown" && !issueMessage("age_years")} />
+                {birthMode === "unknown" ? (
+                  <RegistrationFieldControl
+                    edge
+                    field="age_years"
+                    label={t("fieldEstimatedAgeRequired")}
+                    value={String(fields.age_years ?? "")}
+                    onChange={(value) => updateField("age_years", value)}
+                    issueMessage={issueMessage("age_years")}
+                    onIssue={(issue) => updateFieldIssue("age_years", issue)}
+                  />
+                ) : ageDisplay ? (
+                  <Text style={styles.muted}>{formatRegistrationAge(ageDisplay)}</Text>
+                ) : !fields.date_of_death?.trim() ? (
+                  <Text style={styles.muted}>{t("ageNeedsDeathDate")}</Text>
+                ) : null}
+              </View>
             </View>
+            {groupFields(DECEASED_FIELDS).map(renderField)}
+          </Card>
+          <Card label={t("registerSectionPlace")} testID="register-place">
+            <View style={{ gap: 4 }}>
+              {/* Unlike the phone, Site and unit keeps its "Required" word on a new death (owner, 2026-11-27). */}
+              <FieldLabel label={t("chooseSite")} required={!editingDeathId} />
+              {editingDeathId ? (
+                <Text style={styles.muted}>{/^sites_in_project_/i.test(siteId) ? projectId : `${projectId} · ${siteId}`}</Text>
+              ) : (
+                <>
+                  {targets.length === 0 ? <Text style={styles.muted}>{t("noSites")}</Text> : null}
+                  <Select
+                    label={t("chooseSite")}
+                    placeholder={t("siteUnitNotChosen")}
+                    searchLabel={t("filterUnitSearch")}
+                    searchable
+                    options={placeChoices}
+                    value={chosenPlace?.key ?? ""}
+                    onChange={(key) => {
+                      const pick = targets.find((entry) => entry.key === key);
+                      if (!pick) return;
+                      setProjectId(pick.projectId);
+                      setSiteId(pick.siteId);
+                      setOrgUnitId(pick.orgUnitId ?? "");
+                      setPlaceIssue(false);
+                    }}
+                  />
+                  {placeIssue ? <Text style={styles.error} accessibilityRole="alert">{t("errRequired")}</Text> : null}
+                </>
+              )}
+            </View>
+            {groupFields(PLACE_FIELDS).map(renderField)}
+            <LocationCapture value={location} onChange={(fix) => { dirtyRef.current = true; setLocation(fix); }} />
+          </Card>
+          {idShown || idTypesFailed || idInactive.length ? (
+            <Card label={t("registerSectionIdentifiers")} testID="register-identifiers">
+              {groupFields(IDENTIFIER_FIELDS).map(renderField)}
+              {idShown ? (
+                <IdentifierFields
+                  title={false}
+                  edge
+                  types={idTypes}
+                  values={idValues}
+                  errors={idErrors}
+                  warnings={idWarnings}
+                  disabled={busy}
+                  onChange={(code, value) => {
+                    dirtyRef.current = true;
+                    setIdValues((previous) => ({ ...previous, [code]: value }));
+                    setIdErrors((previous) => (previous[code] ? { ...previous, [code]: "" } : previous));
+                    setAgeConfirmationPending(false);
+                  }}
+                  onContinue={(code) => {
+                    const rest = { ...idWarnings };
+                    delete rest[code];
+                    setIdWarnings(rest);
+                    if (!Object.keys(rest).length) {
+                      const held = idHeld.current;
+                      idHeld.current = undefined;
+                      held?.onContinue();
+                    }
+                  }}
+                  onEdit={() => {
+                    const held = idHeld.current;
+                    idHeld.current = undefined;
+                    setIdWarnings({});
+                    held?.onEdit();
+                  }}
+                />
+              ) : null}
+              {idTypesFailed ? <Text style={styles.error} accessibilityRole="alert" testID="identifier-types-error">{t("idTypesLoadFailed")}</Text> : null}
+              {idInactive.length ? (
+                <View style={{ gap: 4 }} testID="identifier-inactive">
+                  <IdentifierFacts identifiers={idInactive} variant="detail" />
+                  <Text style={styles.muted}>{t("idInactiveNote")}</Text>
+                </View>
+              ) : null}
+            </Card>
           ) : null}
-          {message ? <Text style={styles.error} accessibilityRole="alert">{message}</Text> : null}
+          <Card label={t("registerSectionInformant")} testID="register-informant">
+            {webConsentNeeded && !webConsent ? (
+              <RespondentConsentPanel config={consentConfig} language={uiLocale()} clientDraftId={null} busy={busy} onDecision={recordWebConsent} />
+            ) : null}
+            {webConsentNeeded && webConsent ? (
+              <Notice tone="info" action={<Row><Button size="sm" kind="secondary" label={t("consentChange")} disabled={busy} onPress={() => setWebConsent(null)} /></Row>}>
+                <Text style={styles.text} testID="respondent-consent-recorded">{t(webConsent.decision === "granted" ? "consentRecordedGranted" : "consentRecordedRefused")}</Text>
+              </Notice>
+            ) : null}
+            {noPlace ? <FieldHint testID="informant-place-first">{t("choosePlaceFirst")}</FieldHint> : null}
+            {!noPlace && informantClosed && !webConsent ? (
+              <Notice tone="info"><Text style={styles.text} testID="informant-closed">{t("consentInformantClosed")}</Text></Notice>
+            ) : null}
+            {informantClosed ? null : INFORMANT_FIELDS.map(renderField)}
+            {informantNeedsConsent && !noPlace && bootstrap ? (
+              <StationConsentPanel projectId={projectId} csrf={bootstrap.csrf} onChange={setConsent} />
+            ) : null}
+            {informantNeedsConsent && !consent ? <Text style={styles.error} accessibilityRole="alert" testID="station-consent-blocked">{t("stationConsentBlocked")}</Text> : null}
+          </Card>
+          <Card label={t("registerSectionNotes")} testID="register-notes">
+            {groupFields(NOTE_FIELDS).map(renderField)}
+          </Card>
+          {/* Messages sit at the end of the form, next to the actions they answer (as on the phone). */}
+          {message ? <Notice tone="error">{message}</Notice> : null}
           {ageConfirmationPending ? (
-            <View style={styles.card} accessibilityRole="alert">
-              <Text style={styles.text}>{t("ageReviewConfirm")}</Text>
-              <View style={styles.row}>
-                <Button kind="secondary" label={t("cancel")} onPress={() => setAgeConfirmationPending(false)} />
-                <Button loading={busy} disabled={busy} label={t("ageReviewSave")} onPress={() => void submit(true, pendingSaveOnly.current)} />
-              </View>
-            </View>
+            <Notice
+              tone="warning"
+              action={
+                <Row>
+                  <Button kind="secondary" label={t("cancel")} onPress={() => setAgeConfirmationPending(false)} />
+                  <Button loading={busy} disabled={busy} label={t("ageReviewSave")} onPress={() => void submit(true, pendingSaveOnly.current)} />
+                </Row>
+              }
+            >
+              {t("ageReviewConfirm")}
+            </Notice>
           ) : null}
-          <Button loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked || webConsentBlocked} label={t(editingDeathId ? "save" : "registerSaveStart")} onPress={() => void submit(false, false)} />
+          {/* The phone's order: Save, then Save and start interview; Cancel last. */}
           {!editingDeathId && bootstrap?.capabilities.intake ? (
-            <Button kind="secondary" loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked || webConsentBlocked} label={t("save")} onPress={() => void submit(false, true)} />
+            <Button loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked || webConsentBlocked} label={t("save")} onPress={() => void submit(false, true)} />
           ) : null}
+          <Button kind={!editingDeathId && bootstrap?.capabilities.intake ? "secondary" : "primary"} loading={busy} disabled={busy || ageConfirmationPending || idHold || consentBlocked || webConsentBlocked} label={t(editingDeathId ? "save" : "registerSaveStart")} onPress={() => void submit(false, false)} />
           <Button kind="secondary" label={t("cancel")} onPress={() => guardedNavigate(() => {
             if (editingDeathId && bootstrap?.capabilities.registeredDeaths) {
               setEditingDeathId(undefined);
@@ -1172,7 +1191,7 @@ export default function DeathRegistrationScreen() {
               showList(true);
             } else router.back();
           })} />
-        </>
+        </View>
       ) : (
         <Text style={styles.muted}>{message || t("noSites")}</Text>
       )}

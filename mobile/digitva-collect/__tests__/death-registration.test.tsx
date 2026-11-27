@@ -37,6 +37,16 @@ jest.mock("../src/AppState", () => ({ useAppState: () => ({ bootstrap: mockBoots
 jest.mock("../src/i18n", () => ({ ...require("../test-support/i18nMockExtras").i18nMockExtras, t: (key: string) => (mockLocale === "hi" ? `hi:${key}` : key), uiLocale: () => mockLocale }));
 jest.mock("../src/ui", () => require("../test-support/uiMockExtras").withUiExtras({
   Button: ({ label, onPress }: { label: string; onPress: () => void }) => <button data-label={label} onClick={onPress} />,
+  // The phone's section cards and choice rows (src/registrationFormLayout.tsx ChoiceList): a choice row clicks like a Button.
+  Card: ({ label, testID, children }: { label?: string; testID?: string; children: ReactNode }) => <section data-section={testID} data-section-label={label}>{children}</section>,
+  ChoiceRow: ({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) => <button data-label={label} data-choice="true" data-selected={selected} onClick={onPress} />,
+  Separator: () => null,
+  SegmentedControl: () => null,
+  Row: ({ children }: { children: ReactNode }) => <>{children}</>,
+  Notice: ({ tone, children, action }: { tone?: string; children: ReactNode; action?: ReactNode }) => {
+    const { View, Text } = jest.requireActual("react-native") as typeof import("react-native");
+    return <View accessibilityRole={tone === "error" || tone === "warning" ? "alert" : undefined}>{typeof children === "string" ? <Text>{children}</Text> : children}{action}</View>;
+  },
   stateLabel: (state: string) => `state:${state}`,
   useUiStyles: () => ({ error: {}, muted: {}, input: {}, card: {}, text: {}, row: {} })
 }));
@@ -1019,7 +1029,8 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.root.findByProps({ "data-field": "address" }).props.onClick("Keep this edit"));
     await act(async () => tree!.root.findByProps({ "data-label": "save" }).props.onClick());
     await settle();
-    const alert = () => tree!.root.findAll((node) => node.props.accessibilityRole === "alert" && node.props.children === "error");
+    // The message is an error Notice (an alert holding the text).
+    const alert = () => tree!.root.findAll((node) => node.props.accessibilityRole === "alert" && node.findAll((child) => child.props.children === "error").length > 0);
     expect(alert().length).toBeGreaterThan(0);
     // A tab resume re-reads /me/access; AppState keeps the same bootstrap object when nothing changed.
     await act(async () => { tree!.update(<DeathRegistrationScreen />); });
@@ -1736,6 +1747,77 @@ describe("DeathRegistrationScreen", () => {
       await act(async () => { tree = create(<DeathRegistrationScreen />); });
       await settle();
       expect(tree!.root.findAllByType(TextInput)).toHaveLength(0);
+      await act(async () => tree!.unmount());
+    });
+  });
+
+  describe("the phone's Register a death layout", () => {
+    type Node = ReturnType<typeof create>["root"];
+    // Host nodes only: a mocked composite and the host it renders carry the same props.
+    const hosts = (root: Node, match: (node: Node) => boolean) => root.findAll((node) => typeof node.type === "string" && match(node));
+    const section = (tree: ReturnType<typeof create>, id: string) => tree.root.findByProps({ "data-section": id });
+    // The questions of a card in render order: a field, the location capture, or a choice list.
+    const questions = (root: Node) => hosts(root, (node) => typeof node.props["data-field"] === "string" || "data-location" in node.props || node.props.accessibilityRole === "radiogroup")
+      .map((node) => node.props["data-field"] ?? (node.props.accessibilityRole === "radiogroup" ? node.props.accessibilityLabel : "location"));
+    const choiceList = (tree: ReturnType<typeof create>, label: string) => hosts(tree.root, (node) => node.props.accessibilityRole === "radiogroup" && node.props.accessibilityLabel === label)[0];
+    const choices = (list: Node) => list.findAll((node) => node.props["data-choice"] === "true").map((node) => node.props["data-label"]);
+    const selected = (list: Node) => list.findAll((node) => node.props["data-choice"] === "true" && node.props["data-selected"] === true).map((node) => node.props["data-label"]);
+
+    it("draws the sections and their fields in the phone's order", async () => {
+      jest.spyOn(identifiersApi, "loadIdentifierTypes").mockResolvedValue([
+        { code: "mccd", label: "MCCD number", min_length: 5, max_length: 20, char_type: "letters_digits_hyphen_slash", pattern: null, example: null, required_at_report: false, sort_order: 1 },
+      ] as never);
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      expect(hosts(tree!.root, (node) => typeof node.props["data-section"] === "string").map((node) => node.props["data-section"]))
+        .toEqual(["register-deceased", "register-place", "register-identifiers", "register-informant", "register-notes"]);
+      expect(hosts(tree!.root, (node) => typeof node.props["data-section-label"] === "string").map((node) => node.props["data-section-label"]))
+        .toEqual(["registerSectionDeceased", "registerSectionPlace", "registerSectionIdentifiers", "registerSectionInformant", "registerSectionNotes"]);
+      expect(questions(section(tree!, "register-deceased"))).toEqual(["deceased_name", "fieldSex", "date_of_death", "fieldDateOfBirth dobPrecision", "date_of_birth"]);
+      expect(questions(section(tree!, "register-place"))).toEqual(["location"]);
+      expect(section(tree!, "register-identifiers").findAllByProps({ testID: "identifier-input-mccd" }).length).toBeGreaterThan(0);
+      expect(questions(section(tree!, "register-informant"))).toEqual(["address", "informant_name", "informant_phone"]);
+      expect(questions(section(tree!, "register-notes"))).toEqual(["remarks"]);
+      // The messages and actions come after the last section, Save before Save and start interview.
+      const order = hosts(tree!.root, (node) => typeof node.props["data-section"] === "string" || typeof node.props["data-label"] === "string")
+        .map((node) => node.props["data-section"] ?? node.props["data-label"])
+        .filter((name) => ["register-notes", "save", "registerSaveStart", "cancel"].includes(name));
+      expect(order).toEqual(["register-notes", "save", "registerSaveStart", "cancel"]);
+      await act(async () => tree!.unmount());
+    });
+
+    it("leaves out the Identifiers section when the project has no identifier types", async () => {
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      expect(section(tree!, "register-deceased")).toBeDefined();
+      expect(tree!.root.findAllByProps({ "data-section": "register-identifiers" })).toHaveLength(0);
+      await act(async () => tree!.unmount());
+    });
+
+    it("sets Sex and the birth precision from stacked choice lists, and choosing a sex clears its error", async () => {
+      let tree: ReturnType<typeof create>;
+      await act(async () => { tree = create(<DeathRegistrationScreen />); });
+      await settle();
+      const sexList = () => choiceList(tree!, "fieldSex");
+      const precisionList = () => choiceList(tree!, "fieldDateOfBirth dobPrecision");
+      expect(choices(sexList())).toEqual(["sexMale", "sexFemale", "sexUndetermined", "sexUnknown"]);
+      expect(selected(sexList())).toEqual([]);
+      expect(choices(precisionList())).toEqual(["dobExact", "dobMonthYear", "dobYear", "dobUnknown"]);
+      expect(selected(precisionList())).toEqual(["dobExact"]);
+
+      const sexError = () => hosts(section(tree!, "register-deceased"), (node) => node.props.accessibilityRole === "alert" && node.props.children === "errRequired");
+      await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+      await settle();
+      expect(sexError().length).toBeGreaterThan(0);
+      await act(async () => tree!.root.findByProps({ "data-label": "sexFemale" }).props.onClick());
+      expect(selected(sexList())).toEqual(["sexFemale"]);
+      expect(sexError()).toHaveLength(0);
+
+      await act(async () => tree!.root.findByProps({ "data-label": "dobYear" }).props.onClick());
+      expect(selected(precisionList())).toEqual(["dobYear"]);
+      expect(tree!.root.findByProps({ "data-field": "date_of_birth_partial" }).props["data-appearance"]).toBe("year");
       await act(async () => tree!.unmount());
     });
   });

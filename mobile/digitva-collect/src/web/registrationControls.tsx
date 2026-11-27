@@ -62,7 +62,8 @@ function controlProps(
   value: LightweightAnswer,
   onAnswer: (next: LightweightAnswer) => void,
   locale: string,
-  issues: RegistrationIssue[]
+  issues: RegistrationIssue[],
+  edge: boolean
 ): WhoVaQuestionControlProps {
   return {
     question,
@@ -70,7 +71,8 @@ function controlProps(
     data: {},
     locale,
     issues,
-    onAnswer
+    onAnswer,
+    edge
   };
 }
 
@@ -81,7 +83,8 @@ export function RegistrationFieldControl({
   onChange,
   issueMessage,
   onIssue,
-  dateAppearance = "exact"
+  dateAppearance = "exact",
+  edge = false
 }: {
   field: RegistrationField;
   label: string;
@@ -90,6 +93,8 @@ export function RegistrationFieldControl({
   issueMessage?: string;
   onIssue?: (message?: string) => void;
   dateAppearance?: RegistrationDateAppearance;
+  /** Inside a white card: the faint hairline edge on the text, number, phone and multiline fields (the date control has its own). */
+  edge?: boolean;
 }) {
   const styles = useUiStyles();
   const locale = uiLocale();
@@ -150,7 +155,7 @@ export function RegistrationFieldControl({
   if (kind === "integer") {
     return (
       <View>
-        <WhoVaQuestionControls.Integer {...controlProps(question, value ? Number(value) : undefined, onAnswer, locale, issues)} />
+        <WhoVaQuestionControls.Integer {...controlProps(question, value ? Number(value) : undefined, onAnswer, locale, issues, edge)} />
         {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
       </View>
     );
@@ -164,6 +169,7 @@ export function RegistrationFieldControl({
           error={issueMessage}
           onChange={onChange}
           onValidity={(valid) => onIssue?.(valid ? undefined : t("errPhone"))}
+          edge={edge}
         />
       </View>
     );
@@ -171,14 +177,14 @@ export function RegistrationFieldControl({
   if (kind === "multiline") {
     return (
       <View>
-        <MultilineInput label={label} value={value} onChange={(next) => { onChange(next); onIssue?.(); }} />
+        <MultilineInput edge={edge} label={label} value={value} onChange={(next) => { onChange(next); onIssue?.(); }} />
         {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
       </View>
     );
   }
   return (
     <View>
-      <WhoVaQuestionControls.Text {...controlProps(question, value || undefined, onAnswer, locale, issues)} />
+      <WhoVaQuestionControls.Text {...controlProps(question, value || undefined, onAnswer, locale, issues, edge)} />
       {issueMessage ? <Text style={styles.error} accessibilityRole="alert">{issueMessage}</Text> : null}
     </View>
   );

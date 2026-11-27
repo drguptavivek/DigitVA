@@ -34,6 +34,8 @@ export type WhoVaQuestionControlProps = {
   onAnswer: (value: LightweightAnswer) => void;
   onDraftIssue?: (questionName: string, issue: unknown) => void;
   choiceColumns?: number;
+  /** Text and integer fields inside a white card: the faint hairline edge (styles.inputHairline). */
+  edge?: boolean;
 };
 
 function localeCandidates(locale: string): string[] {
@@ -89,7 +91,7 @@ function ChoiceIndicator({ multiple, selected }: { multiple: boolean; selected: 
   );
 }
 
-function TextControl({ question, value, locale, issues = [], onAnswer }: WhoVaQuestionControlProps) {
+function TextControl({ question, value, locale, issues = [], onAnswer, edge = false }: WhoVaQuestionControlProps) {
   const styles = useUiStyles();
   const theme = useTheme();
   const readOnly = Boolean(question.readOnly);
@@ -109,6 +111,7 @@ function TextControl({ question, value, locale, issues = [], onAnswer }: WhoVaQu
       onChangeText={(next) => onAnswer(next || undefined)}
       style={[
         styles.input,
+        edge && styles.inputHairline,
         multiline && { minHeight: 72, textAlignVertical: "top" },
         questionIssues(issues) && { borderColor: theme.ui.destructiveText },
         readOnly && { opacity: 0.6 }
@@ -117,7 +120,7 @@ function TextControl({ question, value, locale, issues = [], onAnswer }: WhoVaQu
   );
 }
 
-function IntegerControl({ question, value, locale, issues = [], onAnswer }: WhoVaQuestionControlProps) {
+function IntegerControl({ question, value, locale, issues = [], onAnswer, edge = false }: WhoVaQuestionControlProps) {
   const styles = useUiStyles();
   const theme = useTheme();
   const readOnly = Boolean(question.readOnly);
@@ -138,7 +141,7 @@ function IntegerControl({ question, value, locale, issues = [], onAnswer }: WhoV
         if (!raw) onAnswer(undefined);
         else if (/^-?\d+$/.test(raw)) onAnswer(Number(raw));
       }}
-      style={[styles.input, questionIssues(issues) && { borderColor: theme.ui.destructiveText }, readOnly && { opacity: 0.6 }]}
+      style={[styles.input, edge && styles.inputHairline, questionIssues(issues) && { borderColor: theme.ui.destructiveText }, readOnly && { opacity: 0.6 }]}
     />
   );
 }

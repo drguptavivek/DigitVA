@@ -195,6 +195,22 @@ when the export is present (`VaUsers.landing_url()`, policy
   A pick sets project, site and unit together; the detail adds the site when a
   unit sits under several sites and the project when choices span projects.
   The title-row Project still narrows the choices.
+- The web Add a Death form (new death and edit) follows the phone's Register
+  a death layout: section cards Deceased, Place, Identifiers (only with
+  identifier types, a load failure or inactive stored numbers), Informant and
+  Notes, in that order, with the phone's field order inside them. The text
+  fields, their groups and the `ChoiceList` live in
+  `src/registrationFormLayout.tsx` (web-safe, shared with the phone, which
+  re-exports them); the web draws only its own six text fields from them. As
+  on the phone, informant details (`INFORMANT_PII_FIELDS`, address included)
+  sit in Informant, so Place holds Site and unit and Capture location. Sex
+  and date-of-birth precision are stacked choice lists. Fields inside the
+  white cards take the phone's hairline edge (`edge` on
+  `RegistrationFieldControl`, passed to the web WHO Text and Integer controls,
+  `MultilineInput` and `PhoneField`). The "Required" word
+  hides once the field's error shows, except on Site and unit, which keeps
+  it. The error Notice, the age-confirmation warning and Save, Save and start
+  interview, Cancel follow the last card.
 - For a user with roles or project grants, it fetches `GET /api/v1/me/activity`
   and displays:
   1. Overall personal activity counts (forms filled / submitted interviews,

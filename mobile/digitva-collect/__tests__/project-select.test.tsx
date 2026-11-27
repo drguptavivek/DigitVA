@@ -13,7 +13,7 @@ jest.mock("../src/i18n", () => ({
   t: (key: string, values: Record<string, string | number> = {}) => [key, ...Object.values(values)].join(":"),
 }));
 
-import { ProjectSelect } from "../src/ui/ProjectSelect";
+import { anchorMenu, ProjectSelect } from "../src/ui/ProjectSelect";
 
 const projects = [{ id: "P1", name: "Alpha" }, { id: "P2", name: "Beta" }, { id: "P3", name: "Gamma" }];
 const focus = jest.fn();
@@ -92,18 +92,56 @@ test("Escape (onRequestClose) and a press outside close the menu without a choic
   await act(async () => tree.unmount());
 });
 
-test("wide screens anchor the menu below the button; narrow ones use a bottom sheet", async () => {
+test("the menu is attached to the button at every width", async () => {
   const wide = await render();
   await press(wide.tree, "filterProject: filterAllProjects");
   const menu = wide.tree.root.findAll((node) => node.props.accessibilityViewIsModal === true)[0];
-  expect(menu.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ top: 58, right: 124 })]));
+  expect(menu.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ top: 58, right: 124, width: 280, maxHeight: 400 })]));
   await act(async () => wide.tree.unmount());
 
   mockWidth = 400;
   const narrow = await render();
   await press(narrow.tree, "filterProject: filterAllProjects");
-  expect(narrow.tree.root.findByType(Modal).props.animationType).toBe("slide");
+  expect(narrow.tree.root.findByType(Modal).props.animationType).toBe("none");
+  const narrowMenu = narrow.tree.root.findAll((node) => node.props.accessibilityViewIsModal === true)[0];
+  expect(narrowMenu.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ top: 58, width: 280 })]));
   await act(async () => narrow.tree.unmount());
+});
+
+describe("anchorMenu", () => {
+  const win = { width: 1000, height: 800 };
+  const right = { side: "right", menuWidth: 280 } as const;
+
+  test("opens below the field when there is room", () => {
+    expect(anchorMenu({ x: 700, y: 10, w: 200, h: 44 }, win, right)).toEqual({ top: 58, right: 100, width: 280, maxHeight: 400 });
+  });
+
+  test("opens above a field near the bottom, capped by the space above", () => {
+    const menu = anchorMenu({ x: 100, y: 700, w: 200, h: 44 }, win, { side: "left", menuWidth: 360 });
+    expect(menu).toEqual({ bottom: 104, left: 100, width: 360, maxHeight: 400 });
+    expect(anchorMenu({ x: 100, y: 300, w: 200, h: 44 }, { width: 1000, height: 500 }, { side: "left", menuWidth: 360 }))
+      .toEqual({ bottom: 204, left: 100, width: 360, maxHeight: 288 });
+  });
+
+  test("a mid-screen field opens below while there is room for about five rows, even with more room above", () => {
+    // 375x812 phone, unit field at 390-434: 374 below, 386 above. Opening up would cover the fields just used.
+    const menu = anchorMenu({ x: 8, y: 390, w: 359, h: 44 }, { width: 375, height: 812 }, { side: "left", menuWidth: 360 });
+    expect(menu.top).toBe(438);
+    expect(menu.bottom).toBeUndefined();
+    expect(menu.maxHeight).toBe(366);
+  });
+
+  test("caps maxHeight by the space on the chosen side", () => {
+    expect(anchorMenu({ x: 0, y: 100, w: 200, h: 44 }, { width: 1000, height: 400 }, right).maxHeight).toBe(244);
+  });
+
+  test("is at least as wide as the field and clamped inside the window", () => {
+    expect(anchorMenu({ x: 8, y: 10, w: 500, h: 44 }, win, right).width).toBe(500);
+    const narrow = anchorMenu({ x: 8, y: 10, w: 310, h: 44 }, { width: 320, height: 800 }, right);
+    expect(narrow.width).toBe(304);
+    expect(narrow.right).toBe(8);
+    expect(anchorMenu({ x: 900, y: 10, w: 90, h: 44 }, win, { side: "left", menuWidth: 360 }).left).toBe(632);
+  });
 });
 
 test("on the phone one project stays plain text, with no button or menu", async () => {

@@ -87,11 +87,11 @@ test("caller-keyed choices: one unit under two sites gets two values, the site n
   expect(onChange).toHaveBeenCalledWith("proj:S2:p");
 });
 
-test("a narrow window opens the bottom sheet", async () => {
+test("a narrow window still opens the menu attached to the field", async () => {
   mockWidth = 375;
   try {
     const tree = await render();
-    expect(tree.root.findByType(Modal).props.animationType).toBe("slide");
+    expect(tree.root.findByType(Modal).props.animationType).toBe("none");
     expect(tree.root.findByType(Modal).props.visible).toBe(true);
   } finally { mockWidth = 1024; }
 });

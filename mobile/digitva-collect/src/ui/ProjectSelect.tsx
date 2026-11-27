@@ -9,9 +9,34 @@ import { toggleProject } from "../web/stats/view";
 
 export type ProjectChoice = { id: string; name: string };
 
-/** Width at which the menu drops below the button instead of rising as a bottom sheet (the filter panel's breakpoint). */
-const WIDE = 768;
 const MENU_WIDTH = 280;
+const MENU_MAX_HEIGHT = 400;
+// Room for about five rows: below a field this tall a menu still reads well, so it opens down rather than over the
+// fields above (a mid-screen field opened upward and hid the controls the user had just used).
+const MENU_MIN_BELOW = 240;
+
+/**
+ * Where a dropdown menu sits, attached to its field at every width: below it when there is room for about five rows
+ * (or more room than above), otherwise above it. *field* is its `measureInWindow` box; *side* is the field
+ * edge the menu lines up with. The menu is at least as wide as the field, never wider than the window, and kept on screen.
+ */
+export function anchorMenu(
+  field: { x: number; y: number; w: number; h: number },
+  win: { width: number; height: number },
+  { side, menuWidth, maxHeight = MENU_MAX_HEIGHT }: { side: "left" | "right"; menuWidth: number; maxHeight?: number },
+): { top?: number; bottom?: number; left?: number; right?: number; width: number; maxHeight: number } {
+  const below = win.height - (field.y + field.h) - spacing.xxs;
+  const above = field.y - spacing.xxs;
+  const down = below >= above || below >= Math.min(maxHeight, MENU_MIN_BELOW);
+  const width = Math.min(Math.max(menuWidth, field.w), win.width - 2 * spacing.xs);
+  const edge = side === "left" ? field.x : win.width - field.x - field.w;
+  return {
+    ...(down ? { top: field.y + field.h + spacing.xxs } : { bottom: win.height - field.y + spacing.xxs }),
+    [side]: Math.max(spacing.xs, Math.min(edge, win.width - width - spacing.xs)),
+    width,
+    maxHeight: Math.min(maxHeight, (down ? below : above) - spacing.xs),
+  };
+}
 
 export function useSelectStyles() {
   const { colors, typography } = useTheme();
@@ -22,14 +47,9 @@ export function useSelectStyles() {
     },
     fieldText: { flexShrink: 1, minWidth: 0, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
     plain: { ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily, minHeight: controls.minTouchTarget, textAlignVertical: "center", lineHeight: controls.minTouchTarget },
-    backdropSheet: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" },
     backdropMenu: { flex: 1 },
-    sheet: {
-      maxHeight: "80%", width: "100%", maxWidth: controls.contentMaxWidth, alignSelf: "center", padding: spacing.sm, gap: spacing.xs,
-      backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
-    },
     menu: {
-      position: "absolute", width: MENU_WIDTH, maxHeight: 400, padding: spacing.xxs,
+      position: "absolute", width: MENU_WIDTH, maxHeight: MENU_MAX_HEIGHT, padding: spacing.xxs,
       backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
     },
     option: { flexDirection: "row", alignItems: "center", gap: spacing.xs, minHeight: controls.minTouchTarget, paddingVertical: spacing.xs, paddingHorizontal: spacing.sm, borderRadius: radius.md },
@@ -52,7 +72,7 @@ export function projectSummary(projects: ProjectChoice[], value: string[]): stri
 
 /**
  * The project control every case screen shares on its top line (Collection, Coding, Reviewing, Statistics): a
- * field-like button "Project: …" opening a menu anchored below it on a wide screen, a bottom sheet on a narrow one.
+ * field-like button "Project: …" opening a menu attached to it (below, or above when there is no room below).
  * The menu lists All projects, then each project. *value* empty means All. Single choice (the default) closes on a
  * press and reports `[]` or `[id]`; *multiple* keeps the menu open and reports the next set (from All a press narrows
  * to that project; every project, or none, is All). One project still renders the field, its menu listing just that
@@ -69,10 +89,9 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
 }) {
   const s = useSelectStyles();
   const { colors, ui, typography } = useTheme();
-  const { width } = useWindowDimensions();
-  const wide = width >= WIDE;
+  const win = useWindowDimensions();
   const [open, setOpen] = useState(false);
-  const [anchor, setAnchor] = useState<{ top: number; right: number } | null>(null);
+  const [anchor, setAnchor] = useState<ReturnType<typeof anchorMenu> | null>(null);
   const button = useRef<View>(null);
   const wasOpen = useRef(false);
   // Focus returns to the button once the menu has closed (while it is open the modal holds focus).
@@ -90,7 +109,7 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
     setAnchor(null);
     setOpen(true);
     // Test renderers and some hosts have no layout; the menu then sits at the top right.
-    button.current?.measureInWindow?.((x, y, w, h) => setAnchor({ top: y + h + spacing.xxs, right: Math.max(spacing.xs, width - x - w) }));
+    button.current?.measureInWindow?.((x, y, w, h) => setAnchor(anchorMenu({ x, y, w, h }, win, { side: "right", menuWidth: MENU_WIDTH })));
   };
   const all = value.length === 0;
   const single = projects.length === 1;
@@ -164,12 +183,12 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
   return (
     <>
       {trigger}
-      <Modal visible={open} transparent animationType={wide ? "none" : "slide"} onRequestClose={() => setOpen(false)}>
-        <View style={wide ? s.backdropMenu : s.backdropSheet}>
+      <Modal visible={open} transparent animationType="none" onRequestClose={() => setOpen(false)}>
+        <View style={s.backdropMenu}>
           <Pressable accessibilityRole="button" accessibilityLabel={t("closeList")} onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />
           <View
             accessibilityViewIsModal
-            style={wide ? [s.menu, anchor ?? { top: spacing.xl, right: spacing.sm }] : s.sheet}
+            style={[s.menu, anchor ?? { top: spacing.xl, right: spacing.sm }]}
           >
             {list}
           </View>

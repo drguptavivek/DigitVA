@@ -4,21 +4,19 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDim
 import { t } from "../i18n";
 import { controls, radius, spacing, useTheme } from "../theme";
 import { Chevron } from "../web/Chevron";
-import { CheckMark, useSelectStyles } from "./ProjectSelect";
+import { anchorMenu, CheckMark, useSelectStyles } from "./ProjectSelect";
 
 /** *detail* is an optional muted second line (e.g. a unit's ancestors); search matches it too. */
 export type SelectOption = { value: string; label: string; detail?: string };
 
 const named = (option: SelectOption) => (option.detail ? `${option.label}, ${option.detail}` : option.label);
 
-/** Width at which the menu drops below the field instead of rising as a bottom sheet (ProjectSelect's breakpoint). */
-const WIDE = 768;
 const MENU_WIDTH = 360;
 const LIST_MAX_HEIGHT = 320;
 
 /**
- * A compact single-choice dropdown: a field-like button (current label or *placeholder*) opening a menu anchored
- * below it on a wide window, a bottom sheet on a narrow one. The option list scrolls at a capped height. *searchable*
+ * A compact single-choice dropdown: a field-like button (current label or *placeholder*) opening a menu attached
+ * to it (below, or above when there is no room below). The option list scrolls at a capped height. *searchable*
  * adds a box filtering options by a case-insensitive substring of the label or detail. Closes on a choice, the backdrop or back;
  * focus returns to the field. *label* is the field's accessibility label.
  */
@@ -34,11 +32,11 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
 }) {
   const s = useSelectStyles();
   const { colors, typography } = useTheme();
-  const { width } = useWindowDimensions();
-  const wide = width >= WIDE;
+  const win = useWindowDimensions();
+  const { width } = win;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
+  const [anchor, setAnchor] = useState<ReturnType<typeof anchorMenu> | null>(null);
   const button = useRef<View>(null);
   const wasOpen = useRef(false);
   useEffect(() => {
@@ -67,7 +65,7 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
     setQuery("");
     setOpen(true);
     // Test renderers and some hosts have no layout; the menu then sits at the top left.
-    button.current?.measureInWindow?.((x, y, w, h) => setAnchor({ top: y + h + spacing.xxs, left: Math.max(spacing.xs, Math.min(x, width - MENU_WIDTH - spacing.xs)) }));
+    button.current?.measureInWindow?.((x, y, w, h) => setAnchor(anchorMenu({ x, y, w, h }, win, { side: "left", menuWidth: MENU_WIDTH })));
   };
   const pick = (next: string) => {
     setOpen(false);
@@ -97,10 +95,10 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
         )}
         <Chevron expanded />
       </Pressable>
-      <Modal visible={open} transparent animationType={wide ? "none" : "slide"} onRequestClose={() => setOpen(false)}>
-        <View style={wide ? s.backdropMenu : s.backdropSheet}>
+      <Modal visible={open} transparent animationType="none" onRequestClose={() => setOpen(false)}>
+        <View style={s.backdropMenu}>
           <Pressable accessibilityRole="button" accessibilityLabel={t("closeList")} onPress={() => setOpen(false)} style={StyleSheet.absoluteFill} />
-          <View accessibilityViewIsModal style={wide ? [s.menu, extra.menu, anchor ?? { top: spacing.xl, left: spacing.sm }] : s.sheet}>
+          <View accessibilityViewIsModal style={[s.menu, extra.menu, anchor ?? { top: spacing.xl, left: spacing.sm }]}>
             {searchable ? (
               <TextInput
                 accessibilityLabel={searchLabel ?? label}
@@ -112,7 +110,7 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
                 style={extra.search}
               />
             ) : null}
-            <ScrollView style={{ maxHeight: LIST_MAX_HEIGHT }} keyboardShouldPersistTaps="handled" accessibilityRole="radiogroup" accessibilityLabel={label}>
+            <ScrollView style={{ maxHeight: LIST_MAX_HEIGHT, flexShrink: 1 }} keyboardShouldPersistTaps="handled" accessibilityRole="radiogroup" accessibilityLabel={label}>
               {shown.length === 0 ? <Text style={extra.none}>{t("pickerNoMatch")}</Text> : null}
               {shown.map((option) => {
                 const checked = option.value === value;

@@ -54,10 +54,11 @@ and maps stay in the browser).
 ## Ranked next steps
 
 - Land the ICD-11 API client tokens (`digitva-ddpf`, owner-requested):
-  reviewed LAND at `368aaf2f8` on `refs/heads/icd11-api-clients` (worktree
+  reviewed LAND at `368aaf2f8`, rebased onto `919fd101f` as `caeb70638`
+  (same patch-id) on `refs/heads/icd11-api-clients` (worktree
   `.claude/worktrees/icd11-api-clients`, session `Scoped ICD-11 API client
-  tokens`), migration `a4d7e2c9b1f6` on `a40477e55b72`. Needs a rebase onto
-  main (pin commits only since its base), the full backend suite including
+  tokens`), migration `a4d7e2c9b1f6` on `a40477e55b72`. Needs the reviewer's
+  patch-id confirmation, then on main: upgrade dev, the full backend suite including
   `test_schema_drift.py`, and a browser check of the admin "ICD-11 API
   Clients" page on dev. Deploy and live token issuance need the owner's go.
   Follow-up `digitva-zcmg` (dedupe codeinfo item builders).

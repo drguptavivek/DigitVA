@@ -373,7 +373,7 @@ describe("native case detail workflow", () => {
       jest.requireMock("../src/sync").fetchCaseDetail as jest.Mock,
     ).toHaveBeenCalledWith("u1", mockDb, "d1");
     expect(
-      tree!.root.findByProps({ children: "fieldInformantName: Sita Devi" }),
+      tree!.root.findByProps({ accessibilityLabel: "fieldInformantName: Sita Devi" }),
     ).toBeDefined();
     expect(tree!.root.findByProps({ children: "+919876543210" })).toBeDefined();
     expect(
@@ -395,7 +395,7 @@ describe("native case detail workflow", () => {
     await act(async () => { tree = create(<Case />); });
     await settle();
     await settle();
-    expect(tree!.root.findAllByProps({ children: "fieldInformantName: Sita Devi" })).not.toHaveLength(0);
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "fieldInformantName: Sita Devi" })).not.toHaveLength(0);
     const calls = fetchDetail.mock.calls.length;
 
     // Blur and focus again: the focus effect runs again (a new account object re-creates its callback).
@@ -406,10 +406,10 @@ describe("native case detail workflow", () => {
     await act(async () => { tree!.update(<Case />); });
     expect(fetchDetail.mock.calls.length).toBe(calls + 1);
     // The reload is still in flight and the detail is still there.
-    expect(tree!.root.findAllByProps({ children: "fieldInformantName: Sita Devi" })).not.toHaveLength(0);
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "fieldInformantName: Sita Devi" })).not.toHaveLength(0);
     await act(async () => { release(mockDetail); });
     await settle();
-    expect(tree!.root.findAllByProps({ children: "fieldInformantName: Sita Devi" })).not.toHaveLength(0);
+    expect(tree!.root.findAllByProps({ accessibilityLabel: "fieldInformantName: Sita Devi" })).not.toHaveLength(0);
     mockAccounts[0] = original;
     await act(async () => tree!.unmount());
   });

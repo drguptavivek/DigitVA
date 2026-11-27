@@ -51,13 +51,26 @@ function displayDate(value: string | null | undefined): string | undefined {
 }
 
 
-function detailLine(
-  label: string,
-  value: string | number | null | undefined,
-): string | undefined {
-  if (value === null || value === undefined || value === "") return undefined;
-  return `${label}: ${value}`;
+type Detail = [label: string, value: string | number | null | undefined];
+
+/** Label over value, one pair per line, empty values left out (the case card's facts and contacts). */
+function DetailList({ items }: { items: Detail[] }) {
+  const styles = useUiStyles();
+  return (
+    <>
+      {items
+        .filter(([, value]) => value !== null && value !== undefined && value !== "")
+        .map(([label, value]) => (
+          <View key={label} accessible accessibilityLabel={`${label}: ${value}`}>
+            <Text style={styles.muted}>{label}</Text>
+            <Text style={styles.text}>{String(value)}</Text>
+          </View>
+        ))}
+    </>
+  );
 }
+
+const plainLabel = (label: string) => label.replace(/\s*\*\s*$/, "");
 
 const TERMINAL_DEATH_STATES = new Set([
   "submitted",
@@ -363,10 +376,14 @@ export default function Case() {
 
   return (
     <Screen title={t("deathDetails")}>
-      {name ? <Text style={styles.headline}>{name}</Text> : null}
+      {name || found ? (
+        <View style={{ gap: 2 }}>
+          {name ? <Text style={styles.headline}>{name}</Text> : null}
+          {found ? <Text style={styles.muted}>{found.unique_id}</Text> : null}
+        </View>
+      ) : null}
       {found ? (
-        <View style={{ gap: 4 }}>
-          <Text style={styles.muted}>{found.unique_id}</Text>
+        <>
           {found.code_now === true ? (
             <Text style={styles.muted}>{t("readyForCodeOnWeb")}</Text>
           ) : null}
@@ -378,72 +395,51 @@ export default function Case() {
           {found.other_complete_interview === true ? (
             <Notice tone="warning">{t("otherCompleteInterviewNotice")}</Notice>
           ) : null}
-          {[
-            detailLine(
-              t("fieldAge").replace(/\s*\*\s*$/, ""),
-              found.deceased.age_years,
-            ),
-            detailLine(
-              t("fieldSex").replace(/\s*\*\s*$/, ""),
-              found.deceased.sex,
-            ),
-            detailLine(
-              t("fieldDateOfDeath").replace(/\s*\*\s*$/, ""),
-              displayDate(found.deceased.date_of_death),
-            ),
-            detailLine(t("fieldPlaceOfDeath"), found.deceased.place_of_death),
-            detailLine(t("chooseUnit"), found.unit_name),
-            detailLine(t("deathStatus"), refusedAndSent ? t("badgeSent") : stateLabel(found.state)),
-            found.last_contact_at
-              ? `${t("lastContact")}: ${displayDate(found.last_contact_at) ?? found.last_contact_at}`
-              : undefined,
-            found.next_visit_at
-              ? t("nextVisit", {
-                  date: displayDate(found.next_visit_at) ?? found.next_visit_at,
-                })
-              : undefined,
-          ]
-            .filter((value): value is string => Boolean(value))
-            .map((value) => (
-              <Text key={value} style={styles.muted}>
-                {value}
+          <Card label={t("registerSectionDeceased")}>
+            <DetailList
+              items={[
+                [t("deathStatus"), refusedAndSent ? t("badgeSent") : stateLabel(found.state)],
+                [plainLabel(t("fieldAge")), found.deceased.age_years],
+                [plainLabel(t("fieldSex")), found.deceased.sex],
+                [plainLabel(t("fieldDateOfDeath")), displayDate(found.deceased.date_of_death)],
+                [t("fieldPlaceOfDeath"), found.deceased.place_of_death],
+                [t("chooseUnit"), found.unit_name],
+                [t("lastContact"), found.last_contact_at ? (displayDate(found.last_contact_at) ?? found.last_contact_at) : undefined],
+              ]}
+            />
+            {found.next_visit_at ? (
+              <Text style={styles.text}>
+                {t("nextVisit", { date: displayDate(found.next_visit_at) ?? found.next_visit_at })}
               </Text>
+            ) : null}
+          </Card>
+          <Card label={t("contactDetailsHeading")}>
+            <DetailList
+              items={[
+                [t("fieldInformantName"), found.informant.name],
+                [t("fieldAddress"), found.household_address.address],
+                [t("fieldHouseStreet"), found.household_address.house_street],
+                [t("fieldVillageWard"), found.household_address.village_ward],
+                [t("fieldLandmark"), found.household_address.landmark],
+                [t("fieldRemarks"), found.remarks],
+              ]}
+            />
+            {foundPhones.map((phone) => (
+              <Row key={phone}>
+                <Text style={styles.text}>{phone}</Text>
+                {deathPhoneUrl(phone) ? (
+                  <Button
+                    kind="secondary"
+                    label={t("callInformant")}
+                    disabled={actionBusy}
+                    onPress={() => void callPhone(phone)}
+                  />
+                ) : null}
+              </Row>
             ))}
-          {[
-            detailLine(t("fieldInformantName"), found.informant.name),
-            detailLine(t("fieldAddress"), found.household_address.address),
-            detailLine(
-              t("fieldHouseStreet"),
-              found.household_address.house_street,
-            ),
-            detailLine(
-              t("fieldVillageWard"),
-              found.household_address.village_ward,
-            ),
-            detailLine(t("fieldLandmark"), found.household_address.landmark),
-            detailLine(t("fieldRemarks"), found.remarks),
-          ]
-            .filter((value): value is string => Boolean(value))
-            .map((value) => (
-              <Text key={value} style={styles.text}>
-                {value}
-              </Text>
-            ))}
-          {foundFix ? locationActions(foundFix) : null}
-          {foundPhones.map((phone) => (
-            <Row key={phone}>
-              <Text style={styles.text}>{phone}</Text>
-              {deathPhoneUrl(phone) ? (
-                <Button
-                  kind="secondary"
-                  label={t("callInformant")}
-                  disabled={actionBusy}
-                  onPress={() => void callPhone(phone)}
-                />
-              ) : null}
-            </Row>
-          ))}
-        </View>
+            {foundFix ? locationActions(foundFix) : null}
+          </Card>
+        </>
       ) : null}
       {registration ? (
         <View style={{ gap: 4 }}>
@@ -484,68 +480,40 @@ export default function Case() {
               />
             ) : null}
           </Row>
-          <Text style={styles.headline}>{t("contactDetailsHeading")}</Text>
-          {[
-            detailLine(
-              t("fieldAge").replace(/\s*\*\s*$/, ""),
-              registration.fields.age_years,
-            ),
-            detailLine(
-              t("fieldSex").replace(/\s*\*\s*$/, ""),
-              registration.fields.deceased_sex,
-            ),
-            detailLine(
-              t("fieldDateOfDeath").replace(/\s*\*\s*$/, ""),
-              displayDate(registration.fields.date_of_death),
-            ),
-            detailLine(
-              t("dobPrecision"),
-              registration.fields.date_of_birth ??
-                registration.fields.date_of_birth_partial,
-            ),
-            detailLine(t("fieldAddress"), registration.fields.address),
-            detailLine(
-              t("fieldHouseStreet"),
-              registration.fields.address_house_street,
-            ),
-            detailLine(
-              t("fieldVillageWard"),
-              registration.fields.address_village_ward,
-            ),
-            detailLine(
-              t("fieldLandmark"),
-              registration.fields.address_landmark,
-            ),
-            detailLine(
-              t("fieldInformantName"),
-              registration.fields.informant_name,
-            ),
-            detailLine(t("fieldRemarks"), registration.fields.remarks),
-          ]
-            .filter((value): value is string => Boolean(value))
-            .map((value) => (
-              <Text key={value} style={styles.text}>
-                {value}
-              </Text>
-            ))}
-          {localFix ? locationActions(localFix) : null}
-          {localPhones.length ? (
-            localPhones.map((phone) => (
-              <Row key={phone}>
-                <Text style={styles.text}>{phone}</Text>
-                {deathPhoneUrl(phone) ? (
-                  <Button
-                    kind="secondary"
-                    label={t("callInformant")}
-                    disabled={actionBusy}
-                    onPress={() => void callPhone(phone)}
-                  />
-                ) : null}
-              </Row>
-            ))
-          ) : (
-            <Notice tone="info">{t("contactDetailsUnavailable")}</Notice>
-          )}
+          <Card label={t("contactDetailsHeading")}>
+            <DetailList
+              items={[
+                [plainLabel(t("fieldAge")), registration.fields.age_years],
+                [plainLabel(t("fieldSex")), registration.fields.deceased_sex],
+                [plainLabel(t("fieldDateOfDeath")), displayDate(registration.fields.date_of_death)],
+                [t("dobPrecision"), registration.fields.date_of_birth ?? registration.fields.date_of_birth_partial],
+                [t("fieldAddress"), registration.fields.address],
+                [t("fieldHouseStreet"), registration.fields.address_house_street],
+                [t("fieldVillageWard"), registration.fields.address_village_ward],
+                [t("fieldLandmark"), registration.fields.address_landmark],
+                [t("fieldInformantName"), registration.fields.informant_name],
+                [t("fieldRemarks"), registration.fields.remarks],
+              ]}
+            />
+            {localPhones.length ? (
+              localPhones.map((phone) => (
+                <Row key={phone}>
+                  <Text style={styles.text}>{phone}</Text>
+                  {deathPhoneUrl(phone) ? (
+                    <Button
+                      kind="secondary"
+                      label={t("callInformant")}
+                      disabled={actionBusy}
+                      onPress={() => void callPhone(phone)}
+                    />
+                  ) : null}
+                </Row>
+              ))
+            ) : (
+              <Notice tone="info">{t("contactDetailsUnavailable")}</Notice>
+            )}
+            {localFix ? locationActions(localFix) : null}
+          </Card>
           {!followUpAllowed ? (
             <Notice tone="info">{t("caseActionsUnavailable")}</Notice>
           ) : null}
@@ -605,20 +573,22 @@ export default function Case() {
         </View>
       ) : followUpAllowed ? (
         // The server takes a contact attempt or visit only on a case waiting for a visit (409 otherwise), so none are offered elsewhere.
-        <Row>
+        <View style={{ flexDirection: "row", gap: 8 }}>
           <Button
             kind="secondary"
+            style={{ flex: 1 }}
             label={t("logAttempt")}
             disabled={!db || !followUpAllowed || actionBusy}
             onPress={() => openForm("attempt")}
           />
           <Button
             kind="secondary"
+            style={{ flex: 1 }}
             label={t("setVisit")}
             disabled={!db || !followUpAllowed || actionBusy}
             onPress={() => openForm("visit")}
           />
-        </Row>
+        </View>
       ) : null}
       {message ? <Text style={styles.text}>{message}</Text> : null}
       {actions.map((action) => (

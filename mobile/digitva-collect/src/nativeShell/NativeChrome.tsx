@@ -261,10 +261,11 @@ function TabBar() {
           >
             {/* The badge hangs off the icon's top-right corner with a ring in the bar tone; drawn over the middle of the
                 tab it covered the Sync arrows, which read as a clipped glyph. */}
-            <View>
+            {/* The selected tab sits on a primary-tint pill, so the current section reads at a glance, not only by ink. */}
+            <View style={{ width: 56, height: 30, borderRadius: radius.full, alignItems: "center", justifyContent: "center", backgroundColor: on ? tokens.primaryTint : "transparent" }}>
               <Icon name={icons[tab.key]} color={color} size={24} />
               {badge ? (
-                <View style={{ position: "absolute", top: -7, left: 14, minWidth: 20, height: 20, borderRadius: radius.full, paddingHorizontal: 4, borderWidth: 2, borderColor: tokens.page, backgroundColor: tokens.attention, alignItems: "center", justifyContent: "center" }}>
+                <View style={{ position: "absolute", top: -4, left: 30, minWidth: 20, height: 20, borderRadius: radius.full, paddingHorizontal: 4, borderWidth: 2, borderColor: tokens.page, backgroundColor: tokens.attention, alignItems: "center", justifyContent: "center" }}>
                   {/* Amber only as a filled badge with ink text; red is for errors. */}
                   <Text style={{ fontSize: typography.caption.fontSize, lineHeight: 14, fontWeight: "700", color: tokens.onAttention }}>{badge > 99 ? "99+" : badge}</Text>
                 </View>

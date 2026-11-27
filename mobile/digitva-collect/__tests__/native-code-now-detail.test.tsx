@@ -43,6 +43,7 @@ jest.mock("../src/ui", () => {
       accessibilityRole: "button", accessibilityLabel: label, disabled, onPress,
     }),
     Row: ({ children }: { children: React.ReactNode }) => ReactActual.createElement(View, null, children),
+    Card: ({ children }: { children: React.ReactNode }) => ReactActual.createElement(View, null, children),
     Screen: ({ children }: { children: React.ReactNode }) => ReactActual.createElement("screen", null, children),
     errorText: () => "error",
     stateLabel: (value: string) => value,

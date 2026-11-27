@@ -17,11 +17,12 @@ No device check of 0.3.30 or 0.3.31.
 
 Owner decisions:
 - No staging deploy until the sessions finish their in-flight work (owner
-  2026-11-27): from the Shared Unit selector session, owner go 2026-11-27,
-  one branch each: `digitva-gzmp` docs, `digitva-xmlw` year-only death
-  (migration), phone Interviews and Reported deaths cards, server-side
-  queue sort and filter (policy baseline first), then the sort-and-filter
-  flyout (pav3 has landed); and each piece reviewed by
+  2026-11-27): the queue and cards set from the Shared Unit selector
+  session, held together on local `hold/queue-cards` until every bead of
+  it is done (owner): 2b7d, xmlw (migration `a40477e55b72`), grf9, wqz7,
+  aunm, then the sort-and-filter panel `digitva-znbm`; the `Scoped ICD-11
+  API client tokens` session (owner-requested, new `auth_*` table and
+  migration, own worktree); and each piece reviewed by
   the INDEPENDENT CODE REVIEWER session before it lands. Main is ahead of
   staging `eeb8e4815` with uee4, zxw0, a2yf, vbr2, oo77, ctj2, lqmo,
   5cqm, gzmp, pav3.

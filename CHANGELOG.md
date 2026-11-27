@@ -6,8 +6,9 @@ What landed, newest first. Details live in the commits and the linked docs;
 ## 2026-11-27
 
 - Collect Plus coders have their Local cases row again, at the top of the
-  Code tab (`digitva-5cqm`); `d024b5ad0` had removed it, so 0.3.28-0.3.31
-  shipped with offline cases reachable only by deep link. Owner 2026-11-27:
+  Code tab (`digitva-5cqm`); `d024b5ad0` had removed it, so Plus builds
+  0.3.20-0.3.31 reached offline cases only from the coding fallback screen
+  or a deep link. Owner 2026-11-27:
   Code tab only, never on Home (docs/policy/field-data-collection.md keeps
   coder links off Home). The offline case screen says why a case is closed
   instead of showing the raw `offline_case_access_revoked`. Collect app and

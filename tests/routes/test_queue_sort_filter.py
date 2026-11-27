@@ -433,6 +433,50 @@ class CodingSortFilterTests(_SortFilterBase):
     def _bust_cache(self):
         bust_coder_dashboard_cache(self.users[self.PII].user_id)
 
+    # -- recodeable=1 ("Recodeable only") --------------------------------------
+
+    def _open_recode_window(self, sid):
+        """Move *sid*'s final of the PII coder to now: inside the project's recode window."""
+        final = db.session.scalars(
+            db.select(VaFinalAssessments).where(
+                VaFinalAssessments.va_sid == sid,
+                VaFinalAssessments.va_finassess_status == VaStatuses.active,
+            )
+        ).one()
+        final.va_finassess_createdat = datetime.utcnow()
+        db.session.commit()
+
+    def test_recodeable_returns_only_cases_inside_the_recode_window(self):
+        self.assertEqual(self._mine(self.PII, self.HISTORY, "qfh-", recodeable="1"), set())
+        self._open_recode_window("qfh-a")
+        # Present unfiltered first, so the absence of the others means something.
+        self.assertEqual(self._mine(self.PII, self.HISTORY, "qfh-"), {"a", "b", "c", "d"})
+        self.assertEqual(self._mine(self.PII, self.HISTORY, "qfh-", recodeable="1"), {"a"})
+
+    def test_recodeable_agrees_with_the_row_flag_and_total(self):
+        self._open_recode_window("qfh-a")
+        self._open_recode_window("qfh-d")
+        body = self._body(self.PII, self.HISTORY, recodeable="1")
+        mine = [row for row in body["history"] if row["va_sid"].startswith("qfh-")]
+        self.assertEqual({row["va_sid"] for row in mine}, {"qfh-a", "qfh-d"})
+        self.assertTrue(all(row["recodeable"] for row in body["history"]))
+        self.assertEqual(body["total"], len(body["history"]))
+        # The Not Codeable review (c) never matches, even though it is in the list unfiltered.
+        self.assertIn("c", self._mine(self.PII, self.HISTORY, "qfh-"))
+        self.assertNotIn("c", self._mine(self.PII, self.HISTORY, "qfh-", recodeable="1"))
+
+    def test_recodeable_combines_with_state(self):
+        self._open_recode_window("qfh-a")
+        self.assertEqual(self._mine(self.PII, self.HISTORY, "qfh-", recodeable="1", state="coded"), {"a"})
+        self.assertEqual(self._mine(self.PII, self.HISTORY, "qfh-", recodeable="1", state="recoded"), set())
+        self.assertEqual(self._mine(self.PII, self.HISTORY, "qfh-", recodeable="1", state="not_codeable"), set())
+
+    def test_recodeable_absent_changes_nothing_and_other_lists_refuse_it(self):
+        self.assertEqual(self._order(self.PII, self.HISTORY, "qfh-"), list(self.HISTORY_CASES))
+        for value in ("0", "yes"):
+            self.assertEqual(self._get(self.PII, self.HISTORY, recodeable=value).status_code, 400)
+        self.assertEqual(self._get(self.PII, self.AVAILABLE, recodeable="1").status_code, 400)
+
     def test_the_tiles_ignore_the_filters(self):
         self._assert_tiles_ignore_the_filters()
 

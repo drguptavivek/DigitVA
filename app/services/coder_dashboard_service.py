@@ -408,18 +408,24 @@ def get_coder_history_page(
     ``sort`` orders each part by itself (demo rows stay first). ``state`` is
     the card's pill: ``not_codeable`` the coder's Not Codeable rows,
     ``coded`` / ``recoded`` their finals by ``recoded_condition`` (the coder's
-    own finals, as ``add_card_keys`` with ``coder_id``).
+    own finals, as ``add_card_keys`` with ``coder_id``). ``recodeable`` keeps
+    only the finals ``recodeable_sids_select`` offers (no reviews, no demo rows).
     """
     user_id = user.user_id
     narrow = [*place, *filters.conditions]
     states = filters.states
     want_finals = not states or bool(states & {"coded", "recoded"})
-    want_reviews = not states or "not_codeable" in states
+    want_reviews = (not states or "not_codeable" in states) and not filters.recodeable
     final_condition = coded_state_condition(states, user_id)
     final_extra = [final_condition] if final_condition is not None else []
+    if filters.recodeable:
+        # Same rule as the row flag and the Recode button; demo rows never match.
+        final_extra.append(VaSubmissions.va_sid.in_(
+            recodeable_sids_select(user, accessible_form_ids).correlate(None)
+        ))
 
     demo_stmt = _demo_history_stmt(user_id, project_id, va_user_timezone_name(user), [*narrow, *final_extra])
-    if not want_finals:
+    if not want_finals or filters.recodeable:
         demo_stmt = demo_stmt.where(sa.false())
     demo_total = db.session.scalar(
         sa.select(sa.func.count()).select_from(demo_stmt.order_by(None).subquery())
@@ -571,28 +577,15 @@ def get_coder_demo_history(user_id, tz_name: str = "Asia/Kolkata") -> list[dict]
     return [_demo_history_row(row) for row in rows]
 
 
-def get_coder_recodeable_sids(
-    user, accessible_form_ids: Sequence[str], sids: Sequence[str] | None = None
-) -> list[str]:
-    """Return recently finalized SIDs that are eligible for recode.
+def recodeable_sids_select(user, accessible_form_ids: Sequence[str]):
+    """The SELECT of ``va_sid`` that *user* may recode right now.
 
-    The same rule ``recode_limit_error`` applies when the recode starts
-    (digitva-h67s), in SQL so the list stays one query: the user's own
-    active final, inside the project's recode window
-    (``recode_window_minutes``) counted from the user's first final or
-    review of the submission in the current coding round
-    (``first_coding_at_expr``), so recoding never
-    extends it and may repeat inside it. And the same scope:
-    only submissions *user* may RECODE (authz), so a case rerouted out of
-    their unit is not offered on a form they still hold.
-
-    *sids*, when given, narrows the answer to those submissions (a page's
-    rows), in the same one query.
+    The one rule behind a row's ``recodeable`` flag, the Recode button and the
+    history's "Recodeable only" filter (``get_coder_recodeable_sids`` and
+    ``get_coder_history_page`` both build on it), so they cannot disagree.
     """
     from app.services.authz import Action, scope_filter
 
-    if not accessible_form_ids or (sids is not None and not sids):
-        return []
     user_id = user.user_id
 
     from app.services.recode_window import first_coding_at_expr, recode_window_interval
@@ -637,6 +630,30 @@ def get_coder_recodeable_sids(
             window_open,
         )
     )
+    return stmt
+
+
+def get_coder_recodeable_sids(
+    user, accessible_form_ids: Sequence[str], sids: Sequence[str] | None = None
+) -> list[str]:
+    """Return recently finalized SIDs that are eligible for recode.
+
+    The same rule ``recode_limit_error`` applies when the recode starts
+    (digitva-h67s), in SQL so the list stays one query: the user's own
+    active final, inside the project's recode window
+    (``recode_window_minutes``) counted from the user's first final or
+    review of the submission in the current coding round
+    (``first_coding_at_expr``), so recoding never
+    extends it and may repeat inside it. And the same scope:
+    only submissions *user* may RECODE (authz), so a case rerouted out of
+    their unit is not offered on a form they still hold.
+
+    *sids*, when given, narrows the answer to those submissions (a page's
+    rows), in the same one query.
+    """
+    if not accessible_form_ids or (sids is not None and not sids):
+        return []
+    stmt = recodeable_sids_select(user, accessible_form_ids)
     if sids is not None:
         stmt = stmt.where(VaSubmissions.va_sid.in_(sids))
     return db.session.scalars(stmt).all()

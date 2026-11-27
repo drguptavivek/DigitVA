@@ -248,9 +248,14 @@ def queue_filter_args(list_kind: str) -> QueueFilters:
       (``REGISTER_PII_SPLIT_ENABLED``), so SQL cannot match it.
     - ``state`` (repeatable): the list's own pill words (``QUEUE_STATES``);
       the list's service turns them into SQL.
+    - ``recodeable=1`` (coding history only): just the cases the Recode button
+      is offered on; refused on other lists, absent means no filter.
     """
     sort = _one_of("sort", QUEUE_SORTS)
     states = frozenset(_many_of("state", QUEUE_STATES[list_kind]))
+    recodeable = _one_of("recodeable", ("1",)) == "1"
+    if recodeable and list_kind != "coding_history":
+        raise BadQuery("recodeable is not offered on this list.")
     sex = _one_of("sex", _SEXES)
     age_groups = _many_of("age_group", _AGE_GROUPS)
     languages = _many_of("language", pattern=_LANGUAGE)
@@ -293,7 +298,7 @@ def queue_filter_args(list_kind: str) -> QueueFilters:
                 VaSubmissions.va_uniqueid_masked.icontains(q, autoescape=True),
                 sa.and_(sees_staff, VaSubmissions.va_data_collector.icontains(q, autoescape=True)),
             ))
-    return QueueFilters(conditions=tuple(conditions), sort=sort, states=states)
+    return QueueFilters(conditions=tuple(conditions), sort=sort, states=states, recodeable=recodeable)
 
 
 def identifier_rate_limit(carries, *, search=False):

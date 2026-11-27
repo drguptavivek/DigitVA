@@ -89,6 +89,8 @@ export type QueueFilterParams = {
   interviewedFrom?: string;
   interviewedTo?: string;
   interviewer?: string;
+  /** "1": only the cases the Recode button is offered on (My coded cases only). */
+  recodeable?: "1";
   q?: string;
 };
 
@@ -177,6 +179,7 @@ function pagingQuery(options: QueuePageOptions = {}): string {
   if (options.interviewedFrom) params.set("interviewed_from", options.interviewedFrom);
   if (options.interviewedTo) params.set("interviewed_to", options.interviewedTo);
   if (options.interviewer) params.set("interviewer", options.interviewer);
+  if (options.recodeable) params.set("recodeable", options.recodeable);
   if (options.q) params.set("q", options.q);
   if (options.limit !== undefined) {
     if (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 200) throw new WorkspaceContractError("request.limit");

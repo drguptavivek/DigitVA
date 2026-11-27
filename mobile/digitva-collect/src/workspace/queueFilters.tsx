@@ -26,10 +26,12 @@ export type QueueFilters = {
   interviewedFrom: string;
   interviewedTo: string;
   interviewer: string;
+  /** My coded cases only: the cases the Recode button is offered on. */
+  recodeable: boolean;
 };
 
 const DATE_FIELD = { flexBasis: 200, flexGrow: 1 } as const;
-export const EMPTY_FILTERS: QueueFilters = { state: [], ageGroup: [], language: [], interviewedFrom: "", interviewedTo: "", interviewer: "" };
+export const EMPTY_FILTERS: QueueFilters = { state: [], ageGroup: [], language: [], interviewedFrom: "", interviewedTo: "", interviewer: "", recodeable: false };
 
 export const QUEUE_SORTS: QueueSort[] = ["interviewed_asc", "interviewed_desc", "age_asc", "age_desc"];
 export const AGE_GROUPS: QueueAgeGroup[] = ["neonate", "child", "adult"];
@@ -55,7 +57,7 @@ export function myLanguages(stats: { languages?: unknown } | undefined): string[
  * What the shown list accepts: its *states*, the user's *languages* (undefined: not known yet, the chosen ones are kept,
  * they came from the same user's list) and whether the Interviewer field is offered.
  */
-export type FilterReach = { states: string[]; languages?: string[]; interviewer: boolean };
+export type FilterReach = { states: string[]; languages?: string[]; interviewer: boolean; recodeable: boolean };
 
 /** *filters* without the values the shown list does not accept, so a tab or project change never sends one (a 400). */
 export function fitFilters(filters: QueueFilters, reach: FilterReach): QueueFilters {
@@ -65,6 +67,7 @@ export function fitFilters(filters: QueueFilters, reach: FilterReach): QueueFilt
     state: filters.state.filter((state) => reach.states.includes(state)),
     language: languages ? filters.language.filter((code) => languages.includes(code)) : filters.language,
     interviewer: reach.interviewer ? filters.interviewer : "",
+    recodeable: reach.recodeable && filters.recodeable,
   };
 }
 
@@ -80,6 +83,7 @@ export function filterParams(filters: QueueFilters, q = ""): QueueFilterParams {
     ...(filters.interviewedFrom ? { interviewedFrom: filters.interviewedFrom } : {}),
     ...(filters.interviewedTo ? { interviewedTo: filters.interviewedTo } : {}),
     ...(interviewer ? { interviewer } : {}),
+    ...(filters.recodeable ? { recodeable: "1" as const } : {}),
     ...(q ? { q } : {}),
   };
 }
@@ -102,6 +106,7 @@ export function filterChips(filters: QueueFilters, apply: (next: QueueFilters) =
     chips.push({ key: "interviewed", label, clear: () => apply({ ...filters, interviewedFrom: "", interviewedTo: "" }) });
   }
   if (filters.interviewer.trim()) chips.push({ key: "interviewer", label: t("queueInterviewer", { name: filters.interviewer.trim() }), clear: () => apply({ ...filters, interviewer: "" }) });
+  if (filters.recodeable) chips.push({ key: "recodeable", label: t("queueRecodeableOnly"), clear: () => apply({ ...filters, recodeable: false }) });
   return chips;
 }
 
@@ -163,7 +168,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  * list without *states*, Language while the user's *languages* are not known, Interviewer unless *interviewer*. A user
  * with no languages gets the No languages line and the editor (*onEditLanguages*) in Language instead of chips.
  */
-export function QueueFilterPanel({ open, onClose, value, place, projectId, projectControl, placeOptions, states, languages, onEditLanguages, interviewer, phone, countKey, countCases, onApply }: {
+export function QueueFilterPanel({ open, onClose, value, place, projectId, projectControl, placeOptions, states, languages, onEditLanguages, interviewer, recodeable, phone, countKey, countCases, onApply }: {
   open: boolean;
   onClose: () => void;
   value: QueueFilters;
@@ -175,6 +180,8 @@ export function QueueFilterPanel({ open, onClose, value, place, projectId, proje
   languages?: string[];
   onEditLanguages?: () => void;
   interviewer: boolean;
+  /** Offer the Recodeable only toggle (Coding, My coded cases). */
+  recodeable: boolean;
   phone: boolean;
   /** Changes when the list the count is for changes (mode, project, tab, search). */
   countKey: string;
@@ -246,6 +253,14 @@ export function QueueFilterPanel({ open, onClose, value, place, projectId, proje
         <Section title={t("queueSectionState")}>
           <MultiChips section={t("queueSectionState")} options={states.map((state) => ({ key: state, label: t(STATE_LABELS[state] ?? "queuePillCoded") }))}
             values={draft.state} onChange={(state) => set({ state })} />
+          {recodeable ? (
+            <View style={s.chipRow}>
+              <Pressable accessibilityRole="button" accessibilityLabel={t("queueRecodeableOnly")} accessibilityState={{ selected: draft.recodeable }}
+                hitSlop={spacing.xs} onPress={() => set({ recodeable: !draft.recodeable })} style={[s.chip, draft.recodeable && s.chipOn]}>
+                <Text style={[s.chipText, draft.recodeable && s.chipTextOn]}>{t("queueRecodeableOnly")}</Text>
+              </Pressable>
+            </View>
+          ) : null}
         </Section>
       ) : null}
       <Section title={t("filterSex")}>

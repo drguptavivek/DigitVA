@@ -2330,6 +2330,7 @@
   "queueFiltersButton": "Sort and filter, {n} active",
   "queuePanelTitle": "Sort and filter",
   "queueSectionSort": "Sort by",
+  "queueRecodeableOnly": "Recodeable only",
   "queueSectionState": "Workflow state",
   "queueSectionAge": "Age group",
   "queueSectionLanguage": "Language",

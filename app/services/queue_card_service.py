@@ -179,16 +179,18 @@ class QueueFilters:
     *conditions* are SQL on ``VaSubmissions`` / ``VaForms`` (correlated
     EXISTS for anything else) that only narrow the caller's authorized query;
     *sort* is a ``QUEUE_SORTS`` key or None (the list's own order); *states*
-    the asked pill states (empty: every row)."""
+    the asked pill states (empty: every row); *recodeable* only the coder
+    history's rows the Recode button is offered on."""
 
     conditions: tuple = ()
     sort: str | None = None
     states: frozenset = field(default_factory=frozenset)
+    recodeable: bool = False
 
     @property
     def any(self) -> bool:
         """Whether any choice was made (else the list answers as before)."""
-        return bool(self.conditions or self.sort or self.states)
+        return bool(self.conditions or self.sort or self.states or self.recodeable)
 
 
 NO_FILTERS = QueueFilters()

@@ -494,6 +494,7 @@ Language, Interviewed between, Interviewer.
 | --- | --- | --- |
 | `sort` | `interviewed_asc`, `interviewed_desc`, `age_asc`, `age_desc` | interview date (`va_submission_date`), or age by `va_deceased_age_normalized_days` (unknown age last); ties by `va_sid`. Absent, each list keeps its own order (as built: no list was in interview order; Available is project, site, interview date, case id; My coded cases is demo rows, then newest coding; Reviewed by me newest review) |
 | `state` | repeatable; per list, below | the card's own state pill words |
+| `recodeable` | `1` (My coded cases only; 400 elsewhere) | "Recodeable only": a server filter that uses the same rule as the Recode button and the row's `recodeable` flag (`recodeable_sids_select`). It ANDs with `state`, and drops Not codeable and demo rows. Absent: no filter |
 | `sex` | `female`, `male` | `va_deceased_gender` |
 | `age_group` | repeatable: `neonate` (under 28 days), `child` (28 days to 11 years), `adult` (12 years and over) | from the normalized age; unknown age matches none |
 | `language` | repeatable language codes | narration language, intersected with the caller's coding languages; one outside them matches nothing |
@@ -516,6 +517,10 @@ any `state` on it is 400:
 The server maps each value with the same rule that picks the card's pill
 (`queue_card_service`: the row's source for Not codeable, the `recoded` card
 key for Coded and Recoded), so a filter always matches what the cards say.
+
+The old client-side search by form, project and site is retired: project and
+site are in the panel, and search matches the case ID, plus the interviewer
+where personal data is visible.
 
 Personal-data rules (same class as the place filter above):
 

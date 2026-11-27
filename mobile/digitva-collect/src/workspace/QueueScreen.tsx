@@ -493,7 +493,7 @@ export function QueueScreen({
   const knownLanguages = useRef<string[] | undefined>(undefined);
   const languages = myLanguages(data?.api === api && data.mode === mode ? data.stats : undefined) ?? knownLanguages.current;
   knownLanguages.current = languages;
-  const fittedFilters = fitFilters(filters, { states: queueStates(mode, showHistory), languages, interviewer: interviewerOffered });
+  const fittedFilters = fitFilters(filters, { states: queueStates(mode, showHistory), languages, interviewer: interviewerOffered, recodeable: mode === "coding" && showHistory });
   const fittedJson = JSON.stringify(fittedFilters);
   const params = filterParams(fittedFilters, searchQuery);
   const filterKey = Object.keys(params).length ? JSON.stringify(params) : "";
@@ -1188,7 +1188,7 @@ export function QueueScreen({
     // Random-only Available (coding only) has no list (a place on All projects can show the panel there): nothing to count.
     if (mode === "coding" && !showList) return undefined;
     const chosen = placeChoices?.options.some((option) => option.value === draftPlace) ? placeChoices.places.get(draftPlace) : undefined;
-    const fitted = fitFilters(draft, { states: queueStates(mode, showHistory), languages, interviewer: interviewerOffered });
+    const fitted = fitFilters(draft, { states: queueStates(mode, showHistory), languages, interviewer: interviewerOffered, recodeable: mode === "coding" && showHistory });
     const page = await listPage(api, mode, showHistory, {
       projectId: projectId ?? chosen?.projectId, siteId: chosen?.siteId, orgUnitId: chosen?.orgUnitId,
       ...filterParams(fitted, searchQuery), limit: 1, offset: 0,
@@ -1332,6 +1332,7 @@ export function QueueScreen({
       languages={languages}
       onEditLanguages={onEditLanguages}
       interviewer={interviewerOffered}
+      recodeable={mode === "coding" && showHistory}
       phone={phone}
       countKey={JSON.stringify([mode, projectId, showHistory, searchQuery])}
       countCases={countCases}

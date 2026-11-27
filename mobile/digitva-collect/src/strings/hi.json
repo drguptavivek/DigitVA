@@ -2330,6 +2330,7 @@
   "queueFiltersButton": "क्रम और फ़िल्टर, {n} लागू",
   "queuePanelTitle": "क्रम और फ़िल्टर",
   "queueSectionSort": "क्रम",
+  "queueRecodeableOnly": "रीकोड योग्य ही",
   "queueSectionState": "कार्य की स्थिति",
   "queueSectionAge": "आयु वर्ग",
   "queueSectionLanguage": "भाषा",

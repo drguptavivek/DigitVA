@@ -141,6 +141,14 @@ describe("queue filter URL", () => {
     expect(reply.total).toBe(7);
   });
 
+  test("recodeable is sent as recodeable=1 only when set", async () => {
+    const { api, paths } = capture();
+    await api.getCodingHistory({ recodeable: "1", limit: 50, offset: 0 });
+    await api.getCodingHistory({ limit: 50, offset: 0 });
+    expect(new URL(paths[0], "http://x").searchParams.get("recodeable")).toBe("1");
+    expect(new URL(paths[1], "http://x").searchParams.has("recodeable")).toBe(false);
+  });
+
   test("absent or empty filters send nothing", async () => {
     const { api, paths } = capture();
     await api.getReviewerAvailable({ state: [], ageGroup: [], language: [], interviewer: "", q: "" });
@@ -394,6 +402,31 @@ describe("queue Sort and filter panel", () => {
     await settle();
     await settle();
     expect(lastCall(api.getCodingAvailable)).toEqual({ projectId: undefined, limit: 50, offset: 0 });
+    await act(async () => { renderer.unmount(); });
+  });
+});
+
+describe("Recodeable only", () => {
+  test("offered on My coded cases only; sent, removed by its chip, dropped on Available, part of the page key", async () => {
+    web();
+    const api = makeApi();
+    const renderer = await mount(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} cacheScope="user-1" />);
+    await press(renderer, "History");
+    await openPanel(renderer);
+    await press(renderer, "Recodeable only");
+    await show(renderer);
+    expect(lastCall(api.getCodingHistory)).toEqual({ projectId: undefined, recodeable: "1", limit: 50, offset: 0 });
+    const key = (filters: string) => screenKey("user-1", "page", "coding", undefined, 0, true, "", filters);
+    expect(readCached(key(JSON.stringify({ recodeable: "1" })))).toBeDefined();
+    await press(renderer, "Remove filter: Recodeable only");
+    expect(lastCall(api.getCodingHistory)).toEqual({ projectId: undefined, limit: 50, offset: 0 });
+    await openPanel(renderer);
+    await press(renderer, "Recodeable only");
+    await show(renderer);
+    await press(renderer, "Available");
+    expect(lastCall(api.getCodingAvailable)).toEqual({ projectId: undefined, limit: 50, offset: 0 });
+    await openPanel(renderer);
+    expect(pressable(renderer.root, "Recodeable only")).toBeUndefined();
     await act(async () => { renderer.unmount(); });
   });
 });

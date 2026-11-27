@@ -46,6 +46,7 @@ import {
   redeemSignInCode,
   redeemSignInQr,
   refreshAccessSummary,
+  accessSummaryForDisplay,
   rememberTrainingProject,
   setActiveSlot,
   setDeviceHomeProject,
@@ -353,6 +354,40 @@ it("single-flights access refresh and publishes the authoritative summary", asyn
   expect(calls.filter((call) => call.url.endsWith("/me/access"))).toHaveLength(1);
   expect(listener).toHaveBeenCalledWith(USER, ACCESS);
   unsubscribe();
+});
+
+it("a display read of access never publishes it, and a published summary is held for display", async () => {
+  seed({ access: "a", refresh: "r1" });
+  mockSecure.set("tokens.other", JSON.stringify({ access_token: "o", access_expires_at: "", refresh_token: "ro", refresh_expires_at: "" }));
+  const listener = jest.fn();
+  const unsubscribe = subscribeAccessChanges(listener);
+  const reach = { project: false, site_ids: ["S1"], org_unit_ids: [] };
+  const access = interviewAccess();
+  const withReach = { ...access, projects: [{ ...access.projects[0], actions: { ...access.projects[0].actions, code: reach } }] };
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, withReach) : json(200, {}));
+  const before = await loadAccounts();
+  const read = await accessSummaryForDisplay("other");
+  expect(read?.projects[0].actions.code).toEqual(reach);
+  expect(listener).not.toHaveBeenCalled();
+  expect(await loadAccounts()).toEqual(before);
+
+  await refreshAccessSummary(USER);
+  expect(listener).toHaveBeenCalledTimes(1);
+  mockServer(() => json(500, {}));
+  expect((await accessSummaryForDisplay(USER))?.projects[0].actions.code).toEqual(reach);
+  expect(calls).toHaveLength(0);
+  unsubscribe();
+});
+
+it("a malformed code or review reach is dropped, never thrown, and leaves every capability as it was", async () => {
+  seed({ access: "a", refresh: "r1" });
+  const access = interviewAccess();
+  const broken = { ...access, projects: [{ ...access.projects[0], actions: { ...access.projects[0].actions, code: "broken", review: { project: true } } }] };
+  mockServer((call) => call.url.endsWith("/me/access") ? json(200, broken) : json(200, {}));
+  const published = await refreshAccessSummary(USER);
+  expect(published?.projects[0].actions.code).toBeUndefined();
+  expect(published?.projects[0].actions.review).toBeUndefined();
+  expect((await loadAccounts()).find(({ user_id }) => user_id === USER)).toMatchObject({ collection_access: true, registration_access: true });
 });
 
 it("validates self-coding settings and persists only same-project offline access", async () => {

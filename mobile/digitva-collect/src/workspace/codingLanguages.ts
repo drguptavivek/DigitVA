@@ -1,6 +1,6 @@
 /**
- * "Your languages" and "Forms pending coding" on the coding home screen, and the training queues' "X of Y"
- * (docs/policy/training-session-types.md). Read from `/coding/stats`, whose keys are additive: an older server
+ * "Your languages" (Coding and Review queues) and "Forms pending coding" (Coding), and the training queues' "X of Y"
+ * (docs/policy/training-session-types.md). Read from `/coding/stats` (and `languages.mine` from `/reviewing/stats`), whose keys are additive: an older server
  * sends none of them and these helpers then answer nothing, so the screen looks as it did.
  */
 import { t } from "../i18n";
@@ -31,7 +31,7 @@ export function languageLabel(code: string): string {
  * The two lines, or undefined without a `languages` key. `mine` is "none set" for an empty list; `pending` is
  * undefined when no language has forms (only non-zero buckets are shown).
  */
-export function codingLanguageLines(stats: CodingStats | undefined): { mine: string; pending?: string } | undefined {
+export function codingLanguageLines(stats: CodingStats | { languages?: unknown } | undefined): { mine: string; pending?: string } | undefined {
   const languages = record(stats?.languages);
   if (!languages || !Array.isArray(languages.mine)) return undefined;
   const mine = languages.mine.filter((code): code is string => typeof code === "string");

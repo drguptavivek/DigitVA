@@ -15,11 +15,12 @@ import { Text } from "react-native";
 
 import { useAppState } from "../AppState";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
-import { loadActiveSlot, loadDevice } from "../auth";
+import { accessSummaryForDisplay, loadActiveSlot, loadDevice } from "../auth";
 import { t } from "../i18n";
 import { Button, Screen, useUiStyles } from "../ui";
 import { getBundledVaDefinition } from "../coding/bundledVaDefinitions";
 import { createWorkspaceApi, type TrainingQueue } from "../workspace/api";
+import type { AccessProject } from "../api";
 import { TRAINING_CODING_CASE_ROUTE, TRAINING_ROUTES } from "../training";
 import { TrainingOnboarding } from "./trainingOnboarding";
 import { CaseWorkspaceScreen } from "../workspace/CaseWorkspaceScreen";
@@ -145,6 +146,17 @@ function Workspace({ mode, vaSid, training = false }: { mode: WorkspaceMode; vaS
   }, [account?.access_blocked, account?.access_removed, account?.coding_access, account?.coding_history_access, account?.needs_sign_in, account?.server,
     account?.signed_out, account?.standalone, account?.terms_required, mode, training, userId]);
 
+  // The queue's "Site and unit" filter reads this account's code/review reach from the summary the app already holds
+  // (read without publishing when none is held); offline or refused, the queue has no filter.
+  const [accessProjects, setAccessProjects] = useState<AccessProject[]>();
+  useEffect(() => {
+    let active = true;
+    setAccessProjects(undefined);
+    if (!userId || training || vaSid || mode === "view") return () => { active = false; };
+    void accessSummaryForDisplay(userId).then((access) => { if (active) setAccessProjects(access?.projects); });
+    return () => { active = false; };
+  }, [mode, training, userId, vaSid]);
+
   if (!userId || !account || !request || !api) return <RedirectHome />;
   if (!isUnlocked(userId)) return <Redirect href={{ pathname: "/unlock", params: { userId } }} />;
   // The collection gate passes /training/* through: a training account that cannot reach the server goes home.
@@ -200,6 +212,7 @@ function Workspace({ mode, vaSid, training = false }: { mode: WorkspaceMode; vaS
     {...(training ? { trainingQueue, onTrainingQueue: setTrainingQueue } : {})}
     historyCache={historyContext?.cache}
     historyIdentity={historyContext?.identity}
+    accessProjects={accessProjects}
     // Coders set their own languages; a trainee's are set at graduation (the server refuses them: 403).
     onEditLanguages={training ? undefined : () => setLanguagesOpen(true)}
   />

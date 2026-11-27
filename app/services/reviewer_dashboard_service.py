@@ -25,6 +25,7 @@ from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
 from app.services.viewer_pii_service import pii_scope
 from app.services.workflow.definition import (
+    PENDING_STATES,
     WORKFLOW_REVIEWER_CODING_IN_PROGRESS,
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
@@ -45,14 +46,30 @@ def _active_project_site():
     )
 
 
-def count_in_scope(user, project_id: str | None = None) -> int:
+def count_in_scope(user, project_id: str | None = None, place=()) -> int:
     """Submissions the reviewer may see on the dashboard (any workflow state).
 
     The reviewing scope: the same predicate require(REVIEW) answers for one
     submission (form, pair and unit scope, the coding-scope rule on
     reviewer grants), so the list never offers what start refuses. It
-    lists every workflow state (F19, unchanged).
+    lists every workflow state (F19, unchanged). *place* only narrows it.
     """
+    return db.session.scalar(_in_scope_count(user, project_id, place))
+
+
+def count_pending_coding(user, project_id: str | None = None, place=()) -> int:
+    """The ``count_in_scope`` cases still before the coder's final COD:
+    workflow state in ``PENDING_STATES`` (waiting for coding -- screening,
+    attachment sync, SmartVA, ready -- or being coded: in progress, Step 1
+    saved). *place* only narrows it."""
+    stmt = _in_scope_count(user, project_id, place).join(
+        VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid
+    ).where(VaSubmissionWorkflow.workflow_state.in_(PENDING_STATES))
+    return db.session.scalar(stmt)
+
+
+def _in_scope_count(user, project_id: str | None, place) -> sa.Select:
+    """The ``count_in_scope`` statement, unexecuted."""
     review_scope = scope_filter(user, Action.REVIEW)
     stmt = (
         sa.select(sa.func.count())
@@ -69,8 +86,7 @@ def count_in_scope(user, project_id: str | None = None) -> int:
     )
     if project_id:
         stmt = stmt.where(VaForms.project_id == project_id)
-    stmt = stmt.where(*training_scope.conditions(VaForms.project_id))
-    return db.session.scalar(stmt)
+    return stmt.where(*training_scope.conditions(VaForms.project_id), *place)
 
 
 def get_project_options(user) -> list[dict[str, str]]:
@@ -103,7 +119,7 @@ def get_project_options(user) -> list[dict[str, str]]:
     ]
 
 
-def count_completed(user, project_id: str | None = None) -> int:
+def count_completed(user, project_id: str | None = None, place=()) -> int:
     # "Completed" = this reviewer has submitted a final COD
     # (reviewer_finalized state). NQA and Social Autopsy are supporting
     # artifacts filled during the session — they are not terminal actions
@@ -116,14 +132,14 @@ def count_completed(user, project_id: str | None = None) -> int:
             VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
         )
     )
-    if project_id or training_scope.conditions(VaForms.project_id):
+    if project_id or place or training_scope.conditions(VaForms.project_id):
         stmt = (
             stmt.join(
                 VaSubmissions,
                 VaSubmissions.va_sid == VaReviewerFinalAssessments.va_sid,
             )
             .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
-            .where(*training_scope.conditions(VaForms.project_id))
+            .where(*training_scope.conditions(VaForms.project_id), *place)
         )
         if project_id:
             stmt = stmt.where(VaForms.project_id == project_id)
@@ -259,7 +275,7 @@ def get_scoped_allocation(user) -> str | None:
     return va_has_allocation
 
 
-def _available_where(user, project_id: str | None) -> list:
+def _available_where(user, project_id: str | None, place=()) -> list:
     """What ``start_reviewer_coding`` accepts, as conditions.
 
     REVIEW scope, ``reviewer_eligible``, narration language in the reviewer's
@@ -267,6 +283,7 @@ def _available_where(user, project_id: str | None) -> list:
     reviewer final yet, and an active project-site (the join the callers add).
     An allocation the reviewer already holds does not narrow it: the held case
     is in session, not eligible, and the client reads ``allocation`` from stats.
+    *place* (conditions on ``VaForms`` / ``VaSubmissions``) only narrows it.
     """
     conditions = [
         scope_filter(user, Action.REVIEW),
@@ -282,22 +299,23 @@ def _available_where(user, project_id: str | None) -> list:
     if project_id:
         conditions.append(VaForms.project_id == project_id)
     conditions += training_scope.conditions(VaForms.project_id)
+    conditions += place
     return conditions
 
 
-def count_available(user, project_id: str | None = None) -> int:
+def count_available(user, project_id: str | None = None, place=()) -> int:
     return db.session.scalar(
         sa.select(sa.func.count())
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
         .join(VaProjectSites, _active_project_site())
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
-        .where(*_available_where(user, project_id))
+        .where(*_available_where(user, project_id, place))
     )
 
 
 def list_available(
-    user, *, limit: int, offset: int, project_id: str | None = None
+    user, *, limit: int, offset: int, project_id: str | None = None, place=()
 ) -> tuple[list[dict], bool]:
     """One page of the cases the reviewer may start, and whether more follow.
 
@@ -329,7 +347,7 @@ def list_available(
                 VaSubmissionWorkflow,
                 VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid,
             )
-            .where(*_available_where(user, project_id))
+            .where(*_available_where(user, project_id, place))
             .order_by(
                 VaForms.project_id,
                 VaForms.site_id,
@@ -352,13 +370,14 @@ def list_available(
 
 
 def list_history(
-    user, *, limit: int, offset: int, project_id: str | None = None
+    user, *, limit: int, offset: int, project_id: str | None = None, place=()
 ) -> tuple[list[dict], bool]:
     """One page of the reviewer's own active final CODs, newest first.
 
     Only submissions the reviewer may still VIEW (what the history's view link
     opens): authoring a final grants nothing once the case is rerouted out of
     the reviewer's unit. ``va_reviewed_at`` is the final's UTC timestamp, ISO with ``+00:00``.
+    *place* (conditions on ``VaForms`` / ``VaSubmissions``) only narrows it.
     """
     tz_name = va_user_timezone_name(user)
     stmt = (
@@ -392,7 +411,7 @@ def list_history(
     )
     if project_id:
         stmt = stmt.where(VaForms.project_id == project_id)
-    stmt = stmt.where(*training_scope.conditions(VaForms.project_id))
+    stmt = stmt.where(*training_scope.conditions(VaForms.project_id), *place)
     rows = db.session.execute(stmt).mappings().all()
     history = []
     for row in rows[:limit]:

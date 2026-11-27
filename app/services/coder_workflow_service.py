@@ -122,7 +122,7 @@ def _narration_language_filter(user):
     return sa.func.lower(VaSubmissions.va_narration_language).in_(normalized)
 
 
-def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
+def get_coder_ready_stats(user, project_id: str | None = None, place=()) -> dict:
     """Return ready-pool counts for the coder dashboard.
 
     Returns a dict with:
@@ -130,6 +130,9 @@ def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
       pick_ready     – submissions available for pick-mode (len of pick list)
       has_random_mode – bool
       has_pick_mode   – bool
+
+    *place* (conditions on ``VaForms`` / ``VaSubmissions``) narrows both
+    counts; the mode flags stay the forms' (a place never changes the mode).
     """
     va_form_access = training_scope.filter_form_ids(user.get_coder_va_forms() | user.get_coding_tester_va_forms())
     if not va_form_access:
@@ -151,15 +154,18 @@ def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
     def _count_ready(form_ids):
         # The gates too, so the count agrees with what allocation offers.
         filters = _available_submission_filters(form_ids, user=user) + _coding_gate_filters(form_ids, user)
-        return db.session.scalar(
+        stmt = (
             sa.select(sa.func.count())
             .select_from(VaSubmissions)
             .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
             .where(sa.and_(*filters))
-        ) or 0
+        )
+        if place:
+            stmt = stmt.join(VaForms, VaForms.form_id == VaSubmissions.va_form_id).where(*place)
+        return db.session.scalar(stmt) or 0
 
     random_ready = _count_ready(random_form_ids) if random_form_ids else 0
-    pick_ready = count_pick_available(user, pick_form_ids) if pick_form_ids else 0
+    pick_ready = count_pick_available(user, pick_form_ids, place) if pick_form_ids else 0
 
     return {
         "random_ready": random_ready,
@@ -172,7 +178,7 @@ def get_coder_ready_stats(user, project_id: str | None = None) -> dict:
 UNRECORDED_LANGUAGE = "unrecorded"
 
 
-def pending_by_language(user, project_id: str | None = None) -> list[dict]:
+def pending_by_language(user, project_id: str | None = None, place=()) -> list[dict]:
     """"Forms pending coding": ``[{language, count}]`` of the forms *user*
     could be allocated to code now -- random and pick forms of their coder
     reach, in *project_id* when given, within the current (training) scope --
@@ -181,7 +187,7 @@ def pending_by_language(user, project_id: str | None = None) -> list[dict]:
     predicate as allocation (``_available_submission_filters`` without its
     language filter, plus ``_coding_gate_filters``). One grouped count query;
     a blank or missing language is ``unrecorded``; only non-zero buckets,
-    largest first. Counts only."""
+    largest first. Counts only. *place* narrows it as it does the list."""
     form_ids = training_scope.filter_form_ids(user.get_coder_va_forms() | user.get_coding_tester_va_forms())
     if not form_ids:
         return []
@@ -190,7 +196,7 @@ def pending_by_language(user, project_id: str | None = None) -> list[dict]:
         sa.func.nullif(sa.func.lower(sa.func.trim(VaSubmissions.va_narration_language)), ""),
         UNRECORDED_LANGUAGE,
     ).label("language")
-    rows = db.session.execute(
+    stmt = (
         sa.select(language, sa.func.count().label("count"))
         .select_from(VaSubmissions)
         .join(VaSubmissionWorkflow, VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid)
@@ -200,7 +206,10 @@ def pending_by_language(user, project_id: str | None = None) -> list[dict]:
         ))
         .group_by(language)
         .order_by(sa.func.count().desc(), language)
-    ).all()
+    )
+    if place:
+        stmt = stmt.join(VaForms, VaForms.form_id == VaSubmissions.va_form_id).where(*place)
+    rows = db.session.execute(stmt).all()
     return [{"language": row.language, "count": row.count} for row in rows]
 
 
@@ -1608,9 +1617,11 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
     return AllocationResult(va_sid=va_new_sid, actiontype="vademo_start_coding")
 
 
-def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None = None):
+def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None = None, place=()):
     """The pick list's query: ordered for display, ``va_sid`` last so a page
-    boundary never falls between equal rows. Callers add the page's bounds."""
+    boundary never falls between equal rows. Callers add the page's bounds.
+    *place* is extra conditions on ``VaForms`` / ``VaSubmissions`` that only
+    narrow the list (``request_helpers.place_filter_arg``)."""
     return (
         sa.select(
             VaSubmissions.va_sid,
@@ -1624,6 +1635,7 @@ def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None 
             VaSubmissions.va_data_collector,
             VaSubmissions.va_deceased_age,
             VaSubmissions.va_deceased_gender,
+            VaSubmissions.va_narration_language,
         )
         .select_from(VaSubmissions)
         .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
@@ -1632,6 +1644,7 @@ def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None 
             *_available_submission_filters(pick_form_ids, project_id=project_id, user=user),
             # The gates allocate_pick_form enforces, so the list agrees (F16).
             *_coding_gate_filters(pick_form_ids, user),
+            *place,
         ))
         .order_by(
             VaForms.project_id,
@@ -1665,7 +1678,7 @@ def _with_names(user, forms: list[dict], *, names: bool = True) -> list[dict]:
 
 def get_pick_available_forms(
     user, pick_form_ids: list[str], project_id: str | None = None,
-    with_names: bool = True,
+    with_names: bool = True, place=(),
 ) -> list[dict]:
     """Return submissions available for pick-mode coding, ordered for display.
 
@@ -1680,18 +1693,18 @@ def get_pick_available_forms(
     forms = [
         va_render_serialisedates(row, ["va_submission_date"])
         for row in db.session.execute(
-            _pick_available_stmt(user, pick_form_ids, project_id)
+            _pick_available_stmt(user, pick_form_ids, project_id, place)
         ).mappings().all()
     ]
     return _with_names(user, forms, names=with_names)
 
 
-def count_pick_available(user, pick_form_ids: list[str]) -> int:
+def count_pick_available(user, pick_form_ids: list[str], place=()) -> int:
     """Size of the pick list, counted in SQL: the same rows as
     ``get_pick_available_forms``, none of them materialized."""
     if not pick_form_ids:
         return 0
-    stmt = _pick_available_stmt(user, pick_form_ids).order_by(None).subquery()
+    stmt = _pick_available_stmt(user, pick_form_ids, None, place).order_by(None).subquery()
     return db.session.scalar(sa.select(sa.func.count()).select_from(stmt)) or 0
 
 
@@ -1702,6 +1715,7 @@ def get_pick_available_page(
     limit: int,
     offset: int,
     project_id: str | None = None,
+    place=(),
 ) -> tuple[list[dict], bool]:
     """One page of the pick list and whether more follow.
 
@@ -1714,7 +1728,7 @@ def get_pick_available_page(
         return [], False
     from app.utils import va_render_serialisedates
     rows = db.session.execute(
-        _pick_available_stmt(user, pick_form_ids, project_id).limit(limit + 1).offset(offset)
+        _pick_available_stmt(user, pick_form_ids, project_id, place).limit(limit + 1).offset(offset)
     ).mappings().all()
     return (
         _with_names(user, [va_render_serialisedates(row, ["va_submission_date"]) for row in rows[:limit]]),

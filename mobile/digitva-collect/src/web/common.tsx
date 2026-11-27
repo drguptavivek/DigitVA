@@ -433,7 +433,7 @@ export function WebShell({
     <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, flexShrink: 1 }}>{headerProject}{resolvedHeaderAction}</View>
   ) : resolvedHeaderAction;
   return (
-    <Screen title={title} sidebar={<NavigationMenu />} headerAction={titleActions} footer={footer} lead={lead} wide={wide}>
+    <Screen title={title} sidebar={<NavigationMenu />} headerAction={titleActions} footer={footer} lead={lead} wide={wide} keepTitleWhole={Boolean(headerProject)}>
       {KPI_SCREENS.includes(pathname) ? <KpiStrip csrf={bootstrap.csrf} /> : null}
       {children}
     </Screen>

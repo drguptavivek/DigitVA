@@ -45,7 +45,7 @@ jest.mock("../src/web/common", () => {
 });
 jest.mock("../src/workspace/QueueScreen", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
-  return { QueueScreen: ({ mode, onViewChange, api, onOpen, Shell }: Record<string, unknown>) => ReactActual.createElement("queue-screen", { mode, onViewChange, api, onOpen, Shell }) };
+  return { QueueScreen: ({ mode, onViewChange, api, onOpen, Shell, accessProjects }: Record<string, unknown>) => ReactActual.createElement("queue-screen", { mode, onViewChange, api, onOpen, Shell, accessProjects }) };
 });
 jest.mock("../src/workspace/CaseWorkspaceScreen", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
@@ -90,6 +90,15 @@ describe("browser workspace routes", () => {
     mockRouteParams = { vaSid: "sid-1", mode: "coding", project: "SADEMO", tab: "history", offset: "50" };
     const renderer = await render(<WorkspaceScreen />);
     expect(mockRouter.replace).toHaveBeenCalledWith({ pathname: "/workspace", params: { vaSid: "sid-1", mode: "coding" } });
+    await act(async () => { renderer.unmount(); });
+  });
+
+  test("the queue gets the access summary's projects for its Site and unit filter", async () => {
+    mockAppBootstrap = bootstrap("current-user", ["coder"]);
+    mockLoadedSession = { authenticated: true, bootstrap: mockAppBootstrap };
+    mockRouteParams = {};
+    const renderer = await render(<WorkspaceScreen forcedMode="coding" />);
+    expect(renderer.root.findByType("queue-screen" as never).props.accessProjects).toBe(mockAppBootstrap.access!.projects);
     await act(async () => { renderer.unmount(); });
   });
 

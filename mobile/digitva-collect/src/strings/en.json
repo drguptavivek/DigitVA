@@ -2224,6 +2224,8 @@
   "collectionDailyLimit": "You have reached today's limit of {limit} new interviews for {name}. Contact your supervisor.",
   "codeNowKeepCase": "Keep my case",
   "codeNowReleaseConfirmNoNumber": "Releasing your current case discards your unfinished Step 1 work on it. This cannot be undone.",
+  "queuePendingCoding": "Pending coding",
+  "queueReviewedByMe": "Reviewed by me",
   "queueCaseNumber": "Case {number}",
   "detailsChip": "details: {code}",
   "detailsChipLabel": "Details {code}: tap to copy or share",

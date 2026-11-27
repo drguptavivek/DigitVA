@@ -7,7 +7,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from app.decorators import role_required
 from app.models import VaAllocation
 from app.routes.api.cod_request import BODY_CAP, json_object, parse_final_cod_body, too_long
-from app.routes.api.request_helpers import other_conditions_list
+from app.routes.api.request_helpers import BadQuery, other_conditions_list, place_filter_arg
 from app.services import coding_search_telemetry_service, training_scope
 from app.services import reviewer_dashboard_service as _svc
 from app.services.authz import Action, can
@@ -146,21 +146,29 @@ def release_allocation():
 @bp.get("/stats")
 @role_required("reviewer")
 def stats():
-    """``{in_scope, completed, available, allocation}`` for the reviewer queue.
+    """``{in_scope, completed, available, pending_coding, languages, allocation}`` for the reviewer queue.
 
-    ``in_scope`` and ``completed`` are the web dashboard's counts;
+    ``pending_coding`` (additive) is the ``in_scope`` cases still before the
+    coder's final COD (``count_pending_coding``). ``languages`` (additive) is
+    ``{mine: [codes]}``, the languages every count here filters on (the same
+    list ``/coding/stats`` sends). ``in_scope`` and
+    ``completed`` are the web dashboard's counts;
     ``available`` is the size of ``/available``; ``allocation`` the
-    ``/allocation`` body. ``project_id`` narrows the three counts."""
+    ``/allocation`` body. ``project_id``, and ``site_id`` / ``org_unit_id``
+    (one place, as on ``/available``), narrow every count."""
     training_scope.resolve("review")
     try:
         project_id = _project_arg()
-    except _BadQuery as exc:
+        place = place_filter_arg()
+    except (_BadQuery, BadQuery) as exc:
         return _error(str(exc), 400, code="invalid_request")
     va_sid = _svc.get_scoped_allocation(current_user)
     return _private(jsonify({
-        "in_scope": _svc.count_in_scope(current_user, project_id),
-        "completed": _svc.count_completed(current_user, project_id),
-        "available": _svc.count_available(current_user, project_id),
+        "in_scope": _svc.count_in_scope(current_user, project_id, place),
+        "completed": _svc.count_completed(current_user, project_id, place),
+        "available": _svc.count_available(current_user, project_id, place),
+        "pending_coding": _svc.count_pending_coding(current_user, project_id, place),
+        "languages": {"mine": list(current_user.vacode_language or [])},
         "allocation": {"va_sid": va_sid} if va_sid else None,
     }))
 
@@ -183,15 +191,17 @@ def projects():
 @role_required("reviewer")
 def available():
     """The cases ``POST /allocation/<va_sid>`` accepts, paged: ``{cases, count,
-    limit, offset, has_more}`` (``count`` is the page's size)."""
+    limit, offset, has_more}`` (``count`` is the page's size). ``site_id`` and
+    ``org_unit_id`` narrow it to one place (``place_filter_arg``)."""
     training_scope.resolve("review")
     try:
         limit, offset = _page_args()
         project_id = _project_arg()
-    except _BadQuery as exc:
+        place = place_filter_arg()
+    except (_BadQuery, BadQuery) as exc:
         return _error(str(exc), 400, code="invalid_request")
     cases, has_more = _svc.list_available(
-        current_user, limit=limit, offset=offset, project_id=project_id
+        current_user, limit=limit, offset=offset, project_id=project_id, place=place
     )
     return _private(jsonify({
         "cases": cases, "count": len(cases), "limit": limit, "offset": offset,
@@ -203,15 +213,17 @@ def available():
 @role_required("reviewer")
 def history():
     """The caller's own finished reviews, newest first, paged: ``{history,
-    count, limit, offset, has_more}``. Only cases they may still view."""
+    count, limit, offset, has_more}``. Only cases they may still view.
+    ``site_id`` and ``org_unit_id`` narrow it to one place."""
     training_scope.resolve("review")
     try:
         limit, offset = _page_args()
         project_id = _project_arg()
-    except _BadQuery as exc:
+        place = place_filter_arg()
+    except (_BadQuery, BadQuery) as exc:
         return _error(str(exc), 400, code="invalid_request")
     rows, has_more = _svc.list_history(
-        current_user, limit=limit, offset=offset, project_id=project_id
+        current_user, limit=limit, offset=offset, project_id=project_id, place=place
     )
     return _private(jsonify({
         "history": rows, "count": len(rows), "limit": limit, "offset": offset,

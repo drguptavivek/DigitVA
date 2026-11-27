@@ -3,7 +3,7 @@ title: Coding Workflow State Machine Policy
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-20
+last_updated: 2026-11-27
 ---
 
 # Coding Workflow State Machine Policy
@@ -174,6 +174,33 @@ For `pick_and_choose`:
 The project-level intake mode affects only how coding work is entered. It does
 not change the downstream coding state machine once a case enters active coder
 workflow.
+
+### Queue place filter ("Site and unit", owner 2026-11-27)
+
+The Code and Review queues, web and phone, show the Project choice first and
+then one "Site and unit" field, the same label as every other activity screen.
+It lists only the places the user's grants reach for that activity in the
+chosen project (every queue project on All projects, naming the project): the
+sites of a project without a unit tree, or the units of one with a tree, each
+with its ancestors on a muted line. The first choice, "All areas", is no filter.
+
+- The reach comes from the server (`/me/access` `actions.code` /
+  `actions.review`); the client invents no rule of its own.
+- A choice narrows the list on the server, so it covers every page: a site
+  matches that site, a unit matches the unit and every unit under it. It only
+  narrows what the user may already list and never widens access; a place
+  outside the user's reach lists nothing extra.
+- Coding in random allocation has no list to narrow: a random-only project
+  shows no place field, and the random allocation request never carries one.
+  A project with pick-and-choose (alone or with random) shows it for the pick
+  list and My coded cases; the review queue always shows it.
+- The queue counts follow the place too (owner 2026-11-27): the Coding and
+  Review tiles count only the chosen place (on All projects, within the
+  place's project). Random allocation itself still ignores the place, so a
+  place's zero Random pool does not disable "Start a random case".
+- While a place is chosen the queue never switches tab on a count (an empty
+  pick list there does not move the coder to My coded cases).
+- Changing the project, or the place, starts again from page one.
 
 ## Coder Dashboard Output Metrics
 

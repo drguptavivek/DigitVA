@@ -28,3 +28,43 @@ export function placeOptions(targets: Target[], projects: AccessProject[]): Sele
     .sort((a, b) => a.key.localeCompare(b.key) || a.order.localeCompare(b.order))
     .map(({ value, label, detail }) => ({ value, label, detail }));
 }
+
+/** The list filter one queue place choice sends; `projectId` also names the project when the queue shows All projects. */
+export type QueuePlace = { projectId: string; siteId?: string; orgUnitId?: string };
+
+/**
+ * The Code or Review queue's "Site and unit" choices in *projectIds*, from the server's reach for *action*
+ * (`actions.code` / `actions.review` on /me/access; absent there means no choice). Never a place outside that reach:
+ * - project-wide reach: every listed site (no tree) or every active, selectable unit (tree);
+ * - site reach: those sites (the server's `site_id` filter), tree or not;
+ * - unit reach (tree): the active, selectable units under a reached unit.
+ * Labelled and sorted as placeOptions (unit lineage as the detail, the project when several). The server re-checks
+ * reach on every list call; the filter only narrows it.
+ */
+export function queuePlaceOptions(projects: AccessProject[], action: "code" | "review", projectIds: string[]): { options: SelectOption[]; places: Map<string, QueuePlace> } {
+  const targets: Target[] = [];
+  const places = new Map<string, QueuePlace>();
+  for (const project of projects) {
+    const reach = project.actions[action];
+    if (!reach || !projectIds.includes(project.project_id)) continue;
+    const projectId = project.project_id;
+    const wholeSites = reach.project && !project.has_tree;
+    for (const site of project.sites) {
+      if (!wholeSites && !reach.site_ids.includes(site.site_id)) continue;
+      const key = `${projectId}:${site.site_id}`;
+      targets.push({ key, label: site.site_name, projectId, siteId: site.site_id, siteName: site.site_name });
+      places.set(key, { projectId, siteId: site.site_id });
+    }
+    if (!project.has_tree) continue;
+    const units = project.units ?? [];
+    const roots = units.filter((unit) => reach.org_unit_ids.includes(unit.org_unit_id));
+    for (const unit of units) {
+      if (!unit.selectable || unit.is_active === false) continue;
+      if (!reach.project && !roots.some((root) => unit.path === root.path || unit.path.startsWith(`${root.path}.`))) continue;
+      const key = `${projectId}::${unit.org_unit_id}`;
+      targets.push({ key, label: unit.unit_name, projectId, siteId: "", orgUnitId: unit.org_unit_id, unitName: unit.unit_name });
+      places.set(key, { projectId, orgUnitId: unit.org_unit_id });
+    }
+  }
+  return { options: placeOptions(targets, projects), places };
+}

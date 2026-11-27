@@ -244,6 +244,43 @@ when the export is present (`VaUsers.landing_url()`, policy
   `project=<id|all>` stays in the URL with its default chain, and a project
   change pushes a history entry (`queueUrlStep`, `src/workspace/viewState.ts`),
   so Back and Forward follow it.
+  Under the project both queues (`src/workspace/QueueScreen.tsx`, web and
+  phone) show one "Site and unit" `Select` (`chooseSite`, first choice "All
+  areas"), built by `queuePlaceOptions` (`src/web/placeOptions.ts`) from the
+  `accessProjects` prop: `/me/access` `actions.code` (Code) or
+  `actions.review` (Review), limited to the queue's projects. Project-wide
+  reach offers every listed site (no tree) or every active selectable unit
+  (tree); site reach offers those sites, tree or not; unit reach the active
+  selectable units under a reached unit (lineage as the detail). Never a place
+  outside the reach. A malformed reach is dropped by `parseAccessSummary` (no
+  field), never thrown. The web passes `bootstrap.access.projects`; the phone
+  route (`src/nativeRoutes/plusWorkspace.tsx`) takes `accessSummaryForDisplay`
+  (`src/auth.ts`): the summary this app run last published, else one read
+  without publishing (no stored capability, digest or listener changes);
+  offline with none held, no field. Training queues pass none. A choice sends
+  `site_id` or `org_unit_id` (and, on All projects, the place's `project_id`)
+  on the available and history pages and on the stats call (the tiles count the
+  place; without one the stats call is unchanged), resets to page one, and is
+  not kept in the URL; a project change drops it. No count-driven tab switch
+  runs while a place is chosen. Random-only coding hides the field and sends
+  neither, and the random allocation request never carries it. A place-filtered coder history load never reads, writes or
+  clears the phone's history cache, and a network failure never clears it. The page-local area chips ("Within
+  Area", "All", per-site) are gone.
+  Queue layout (owner 2026-11-27, both queues, web and phone): no summary line
+  beside the page title and no card title on Coding (the refresh icon keeps the
+  card's top right). Count tiles: Coding "Random pool", "Ready to pick",
+  "Coded" (and "Not codeable"); Review "Available to review", "Pending coding"
+  (`pending_coding`; "In scope" from an older server), "Reviewed by me". "Ready
+  to pick" / "Available to review" and "Coded" / "Reviewed by me" are buttons
+  that do what the Available / history segment does (same handler, selected
+  with it); the others are plain counts. Both queues show "Your languages ✎"
+  (Review reads `languages.mine` from `/reviewing/stats`). The Previous / Page
+  N / Next row shows only past page one or when a next page exists. Every case
+  card is one component (`QueueCaseCard`): title (the deceased's name when the
+  item carries one, the case id muted under it; else the case id) with the
+  narration-language pill, "project · site · date", the chips, then the
+  queue's own action. The web title row keeps the page title on one line
+  (`Screen keepTitleWhole`): the project switcher shrinks first.
 
 Interview supervisors (and data managers) work in the Deaths tab
 (`/death-registration`, digitva-a5jf): with supervision scope

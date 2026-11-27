@@ -3,7 +3,7 @@ title: How-Do-I Corpus - Coding
 doc_type: help-corpus
 status: draft
 owner: engineering
-last_updated: 2026-11-06
+last_updated: 2026-11-27
 ---
 
 # How-Do-I Corpus - Coding
@@ -46,7 +46,7 @@ training and accounts are in the sibling files.
 - surfaces: both
 - steps:
   1. Open **VA Code** in a project that uses pick-and-choose coding.
-  2. Find the case in the list. Use **Filter cases** (ID, area, collector or form), the sex filter or **Within Area** to narrow it.
+  2. Find the case in the list. Choose a place in **Site and unit** to list only that site or unit (and the units under it), or use **Filter cases** (ID, area, collector or form) or the sex filter on the page shown.
   3. Press **Pick case**.
 - notes: **Pick case** is disabled while you hold another case, and when the project does not use pick-and-choose ("This project does not use pick-and-choose coding."). A case already taken by another coder gives "This submission is no longer available for coding."
 - sources: coding-workflow; `app/services/coder_workflow_service.py` (`allocate_pick_form`); `mobile/digitva-collect/src/workspace/QueueScreen.tsx`

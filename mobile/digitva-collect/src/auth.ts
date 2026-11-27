@@ -138,6 +138,8 @@ const termsListeners = new Set<() => void>();
 const accountListeners = new Set<() => void>();
 const accessListeners = new Set<(userId: string, access: AccessSummary) => Promise<void> | void>();
 const accessRefreshes = new Map<string, Promise<AccessSummary | undefined>>();
+/** The last access summary published per account this app run (memory only; gone on restart). */
+const heldAccess = new Map<string, AccessSummary>();
 let accountStorageQueue: Promise<void> = Promise.resolve();
 
 function serializeAccountStorage<T>(write: () => Promise<T>): Promise<T> {
@@ -374,6 +376,21 @@ async function refreshAccessSummaryOnce(userId: string): Promise<AccessSummary |
   }
 }
 
+/**
+ * The account's access summary for a display hint (the queue's "Site and unit" choices): the one this app run last
+ * published, else one read now *without* publishing it, so no stored capability, digest or listener changes.
+ * Undefined offline or when the read fails. Never use it to gate an action: the server decides each request.
+ */
+export async function accessSummaryForDisplay(userId: string): Promise<AccessSummary | undefined> {
+  const held = heldAccess.get(userId);
+  if (held) return held;
+  try {
+    return parseAccessSummary((await authedRequest<unknown>(userId, "/api/v1/me/access")).body);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Refresh access when an action depends on fresh authorization; offline is not a grant. */
 export async function refreshAccessSummaryForAction(userId: string): Promise<AccessSummary> {
   const mode = await accountStoreIdentityMode(userId);
@@ -393,9 +410,11 @@ async function publishAccessSummary(userId: string, value: unknown): Promise<Acc
   try {
     access = parseAccessSummary(value);
   } catch (error) {
+    heldAccess.delete(userId);
     await setAccountAccess(userId, false, false, false, false, false, []);
     throw error;
   }
+  heldAccess.set(userId, access);
   await setAccessBlocked(userId, undefined);
   rememberTrainingProject(userId, access.training?.project_id);
   // Collection access includes the training project (training mode, docs/policy/training-session-types.md).
@@ -979,6 +998,7 @@ async function endServerSession(userId: string): Promise<void> {
  * (AppState lockNow), so open work is saved and nothing stays open.
  */
 export async function signOut(userId: string): Promise<void> {
+  heldAccess.delete(userId);
   const standalone = (await loadAccounts()).find((a) => a.user_id === userId)?.standalone;
   if (standalone) return;
   // Re-enrolment signs out before it forgets the device: bind legacy accounts while the server is known.

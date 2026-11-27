@@ -6,14 +6,16 @@ import Svg, { Path } from "react-native-svg";
 import { APP_VERSION } from "../appVersion";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
-import { Button, Card, DetailsChip, Screen, SegmentedControl, TextField, errorText as uiErrorText, useUiStyles } from "../ui";
+import { Button, Card, DetailsChip, FieldLabel, Screen, SegmentedControl, TextField, errorText as uiErrorText, useUiStyles } from "../ui";
 import { t, type StringKey } from "../i18n";
 import { dateOnly } from "../ui/interviewRows";
 import { ProjectSelect } from "../ui/ProjectSelect";
+import { Select } from "../ui/Select";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 import { formatDisplayTimestamp } from "../web/DeathsList";
-import type { TrainingQueue, WorkspaceApi } from "./api";
-import { ApiError } from "../api";
+import { queuePlaceOptions } from "../web/placeOptions";
+import type { QueuePlaceFilter, TrainingQueue, WorkspaceApi } from "./api";
+import { ApiError, type AccessProject } from "../api";
 import { codingLanguageLines, trainingQueueCounts } from "./codingLanguages";
 import { shortCaseNumber } from "./caseLabel";
 import type { QueueView } from "./viewState";
@@ -37,7 +39,8 @@ import type {
 const PAGE_SIZE = 50;
 const MAX_OFFSET = 1_000_000;
 
-type QueueScope = { api: WorkspaceApi; mode: "coding" | "reviewing"; projectId?: string; offset: number; showHistory: boolean };
+/** *place*: the chosen "Site and unit" key ("" for none); a page answer belongs to the place it was asked for. */
+type QueueScope = { api: WorkspaceApi; mode: "coding" | "reviewing"; projectId?: string; offset: number; showHistory: boolean; place: string };
 type GenderFilter = "all" | "female" | "male";
 type AnyQueueCase = CoderAvailableCase | CoderHistoryCase | QueueCase;
 
@@ -55,6 +58,7 @@ type QueueData = {
   projectId?: string;
   offset: number;
   showHistory: boolean;
+  place: string;
   stats?: CodingStats | ReviewerStats;
   coderAvailable?: CoderQueue;
   coderHistory?: CoderHistory;
@@ -85,6 +89,7 @@ function useQueueStyles() {
     statTile: { flexGrow: 1, flexBasis: 96, paddingVertical: spacing.xxs, paddingHorizontal: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted, gap: 2 },
     statValue: { ...typography.headline, color: colors.text, fontFamily: controls.fontFamily },
     statLabel: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
+    statTileActive: { borderColor: colors.accent },
     filterBox: { gap: spacing.xs, padding: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     searchInput: { minHeight: controls.minHeight, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, backgroundColor: colors.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
     chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, alignItems: "center" },
@@ -94,7 +99,7 @@ function useQueueStyles() {
     chipTextActive: { color: colors.onAccent },
     caseCard: { gap: spacing.xxs },
     caseHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.xs, flexWrap: "wrap" },
-    caseHeaderMain: { flex: 1, minWidth: 160, gap: 2 },
+    caseTitle: { flexShrink: 1, minWidth: 0 },
     badgeRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, alignItems: "center" },
     badge: { paddingVertical: 2, paddingHorizontal: spacing.xs, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     badgeAccent: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
@@ -111,12 +116,12 @@ function useQueueStyles() {
       ...base,
       topLine: { gap: spacing.xxs },
       statTile: { ...base.statTile, borderWidth: 0 },
+      statTileActive: { backgroundColor: ui.primaryTint },
       filterBox: { gap: spacing.xs },
       chip: { ...base.chip, borderWidth: 0, backgroundColor: ui.muted },
       chipActive: { backgroundColor: ui.primaryTint },
       chipTextActive: { color: ui.primary },
       caseHeader: { gap: spacing.xs },
-      caseHeaderMain: { minWidth: 0, gap: 2 },
       badge: { ...base.badge, borderWidth: 0 },
       badgeAccent: { backgroundColor: ui.primaryTint },
       badgeAccentText: { color: ui.primary },
@@ -248,6 +253,35 @@ function CaseCardDetails({ item }: { item: AnyQueueCase }) {
   );
 }
 
+/**
+ * One queue case card, the same on Coding and Review (owner 2026-11-27): the title with the narration language pill,
+ * "project · site · date", the chips, then *children* (each queue's badges, notes and action). The title is the
+ * deceased's name when the item carries one (the server sends it only to a caller who may see it), the case id then
+ * muted under it; otherwise the case id.
+ */
+export function QueueCaseCard({ item, children }: { item: AnyQueueCase; children?: ReactNode }) {
+  const styles = useUiStyles();
+  const q = useQueueStyles();
+  const language = "va_narration_language" in item ? item.va_narration_language : null;
+  const name = "deceased_name" in item ? item.deceased_name : null;
+  return (
+    <View style={[styles.card, q.caseCard]} testID={`queue-case-${item.va_sid}`}>
+      <View style={q.caseHeader}>
+        <Text style={[styles.headline, q.caseTitle]}>{name || caseTitle(item.va_uniqueid_masked)}</Text>
+        {language ? (
+          <View style={[q.badge, q.badgeAccent]} testID={`queue-case-language-${item.va_sid}`}>
+            <Text style={[q.badgeText, q.badgeAccentText]}>{language}</Text>
+          </View>
+        ) : null}
+      </View>
+      {name ? <Text style={styles.muted}>{caseTitle(item.va_uniqueid_masked)}</Text> : null}
+      <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
+      <CaseCardDetails item={item} />
+      {children}
+    </View>
+  );
+}
+
 function RefreshIcon({ onPress, disabled, loading = false }: { onPress: () => void; disabled: boolean; loading?: boolean }) {
   const { colors } = useTheme();
   const q = useQueueStyles();
@@ -285,6 +319,7 @@ export function QueueScreen({
   trainingQueue,
   onTrainingQueue,
   onEditLanguages,
+  accessProjects,
 }: {
   api: WorkspaceApi;
   mode: "coding" | "reviewing";
@@ -306,6 +341,8 @@ export function QueueScreen({
   onTrainingQueue?: (queue: TrainingQueue) => void;
   /** Opens the in-app coding languages editor (the ✎ after "Your languages"). */
   onEditLanguages?: () => void;
+  /** The signed-in user's /me/access projects: their code/review reach builds the "Site and unit" filter. Unset: no filter. */
+  accessProjects?: AccessProject[];
 }) {
   const ActiveShell = Shell ?? Screen;
   // Phone presentation only (round-6 Q1-Q8); the browser keeps its own look.
@@ -328,7 +365,7 @@ export function QueueScreen({
   const [refresh, setRefresh] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [genderFilter, setGenderFilter] = useState<GenderFilter>("all");
-  const [siteFilter, setSiteFilter] = useState<string | undefined>(undefined);
+  const [placeKey, setPlaceKey] = useState("");
   const [recodeableOnly, setRecodeableOnly] = useState(false);
   const generation = useRef(0);
   // null until the first coder stats answer; load() uses it to pick the tab before fetching a page.
@@ -338,8 +375,21 @@ export function QueueScreen({
   const actionInFlight = useRef(false);
   const cachedHistoryOnly = useRef(false);
   const actionError = useRef<QueueMessage | null>(null);
-  const scopeRef = useRef<QueueScope>({ api, mode, projectId, offset, showHistory });
-  scopeRef.current = { api, mode, projectId, offset, showHistory };
+  // "Site and unit": the places the user's code or review reach covers in the chosen project (every queue project on All).
+  // Only a key still offered counts, so a project change (picker, URL, fallback) drops a choice it no longer offers.
+  const placeChoices = useMemo(() => {
+    const offered = catalog?.api === api && catalog.mode === mode ? catalog.projects?.project_options.map((option) => option.project_id) : undefined;
+    if (!accessProjects || !offered) return null;
+    return queuePlaceOptions(accessProjects, mode === "coding" ? "code" : "review", projectId ? [projectId] : offered);
+  }, [accessProjects, api, catalog, mode, projectId]);
+  const placeFilter = placeChoices?.options.some((option) => option.value === placeKey) ? placeChoices.places.get(placeKey) : undefined;
+  const place = placeFilter ? placeKey : "";
+  // Primitives for load's deps: a re-read access summary rebuilds placeFilter without changing the place.
+  const placeProjectId = placeFilter?.projectId;
+  const placeSiteId = placeFilter?.siteId;
+  const placeUnitId = placeFilter?.orgUnitId;
+  const scopeRef = useRef<QueueScope>({ api, mode, projectId, offset, showHistory, place });
+  scopeRef.current = { api, mode, projectId, offset, showHistory, place };
   const activeRef = useRef(AppState.currentState !== "background" && AppState.currentState !== "inactive" && (typeof document === "undefined" || document.visibilityState !== "hidden"));
 
   // A training queue the caller may not use answers 400/403 (training_scope.resolve_queue).
@@ -354,7 +404,6 @@ export function QueueScreen({
   useEffect(() => {
     setSearchQuery("");
     setGenderFilter("all");
-    setSiteFilter(undefined);
     setRecodeableOnly(false);
   }, [projectId, showHistory, offset, mode]);
 
@@ -369,15 +418,20 @@ export function QueueScreen({
       && current.mode === requestScope.mode
       && current.projectId === requestScope.projectId
       && current.offset === requestScope.offset
-      && current.showHistory === requestScope.showHistory;
+      && current.showHistory === requestScope.showHistory
+      && current.place === requestScope.place;
   }
 
   // The queue waits for the project catalogue, so the first load already uses the last project.
   const catalogReady = catalog?.api === api && catalog.mode === mode;
 
   const load = useCallback(async () => {
-    const requestScope = { api, mode, projectId, offset, showHistory };
+    const requestScope = { api, mode, projectId, offset, showHistory, place };
     if (!isCurrent(generation.current, requestScope) || !catalogReady) return;
+    // A place on All projects also names its project: a site id alone may sit in two projects.
+    const pageFilter = { projectId: projectId ?? placeProjectId, siteId: placeSiteId, orgUnitId: placeUnitId };
+    // The counts follow the place too (owner 2026-11-27); without one the stats call is exactly as before.
+    const statsArgs: [string | undefined, QueuePlaceFilter?] = place ? [pageFilter.projectId, { siteId: placeSiteId, orgUnitId: placeUnitId }] : [projectId];
     const requestGeneration = ++generation.current;
     cachedHistoryOnly.current = false;
     setAllocationData({ api, mode, generation: requestGeneration, verified: false, snapshot: null });
@@ -398,7 +452,7 @@ export function QueueScreen({
       if (mode === "coding") {
         if (!showHistory && lastPickMode.current === null) {
           // Pick mode unknown: ask stats first so a random-only coder never fetches the available page.
-          const first = await api.getCodingStats(projectId);
+          const first = await api.getCodingStats(...statsArgs);
           if (!isCurrent(requestGeneration, requestScope)) return;
           if ((first as { has_pick_mode?: boolean }).has_pick_mode === false) {
             lastPickMode.current = false;
@@ -410,14 +464,14 @@ export function QueueScreen({
           }
         }
         if (!showHistory && lastPickMode.current === false) {
-          // Random-only: the Available segment is the random panel, so there is no pick list to fetch.
-          next = { api, mode, projectId, offset, showHistory, stats: await api.getCodingStats(projectId) };
+          // Random-only: the Available segment is the random panel, so there is no pick list to fetch (and no place).
+          next = { api, mode, projectId, offset, showHistory, place, stats: await api.getCodingStats(projectId) };
         } else {
           const [stats, page] = await Promise.all([
-            api.getCodingStats(projectId),
+            api.getCodingStats(...statsArgs),
             showHistory
-              ? api.getCodingHistory({ projectId, limit: PAGE_SIZE, offset })
-              : api.getCodingAvailable({ projectId, limit: PAGE_SIZE, offset }),
+              ? api.getCodingHistory({ ...pageFilter, limit: PAGE_SIZE, offset })
+              : api.getCodingAvailable({ ...pageFilter, limit: PAGE_SIZE, offset }),
           ]);
           next = {
             api,
@@ -425,16 +479,17 @@ export function QueueScreen({
             projectId,
             offset,
             showHistory,
+            place,
             stats,
             ...(showHistory ? { coderHistory: page as CoderHistory } : { coderAvailable: page as CoderQueue }),
           };
         }
       } else {
         const [stats, page] = await Promise.all([
-          api.getReviewerStats(projectId),
+          api.getReviewerStats(...statsArgs),
           showHistory
-            ? api.getReviewerHistory({ projectId, limit: PAGE_SIZE, offset })
-            : api.getReviewerAvailable({ projectId, limit: PAGE_SIZE, offset }),
+            ? api.getReviewerHistory({ ...pageFilter, limit: PAGE_SIZE, offset })
+            : api.getReviewerAvailable({ ...pageFilter, limit: PAGE_SIZE, offset }),
         ]);
         next = {
           api,
@@ -442,13 +497,15 @@ export function QueueScreen({
           projectId,
           offset,
           showHistory,
+          place,
           stats,
           ...(showHistory ? { history: page as ReviewerHistory } : { available: page as ReviewerQueue }),
         };
       }
       if (isCurrent(requestGeneration, requestScope)) {
         setData(next);
-        if (mode === "coding" && showHistory && projectId && historyCache && historyIdentity) {
+        // A place-filtered page is not the project's history: never saved as it.
+        if (mode === "coding" && showHistory && projectId && !place && historyCache && historyIdentity) {
           const fingerprint = historyCache.fingerprintForProject(projectId);
           if (fingerprint) void historyCache.writePage(historyIdentity, projectId, next.coderHistory!, fingerprint).catch(() => undefined);
         }
@@ -456,13 +513,18 @@ export function QueueScreen({
     } catch (error) {
       if (isCurrent(requestGeneration, requestScope)) {
         let cached: Awaited<ReturnType<CodingHistoryCache["readPage"]>> = null;
-        if (error instanceof TypeError && mode === "coding" && showHistory && projectId && historyCache && historyIdentity) {
-          try {
-            cached = await historyCache.readPage(historyIdentity, projectId, offset);
-          } catch {
-            cached = null;
+        // The cache holds whole-project pages: a place-filtered load never reads, writes or clears it, and a network
+        // failure (TypeError) never clears it.
+        const cacheable = mode === "coding" && projectId && !place && historyCache && historyIdentity;
+        if (error instanceof TypeError) {
+          if (cacheable && showHistory) {
+            try {
+              cached = await historyCache.readPage(historyIdentity, projectId, offset);
+            } catch {
+              cached = null;
+            }
           }
-        } else if (mode === "coding" && projectId && historyCache && historyIdentity) {
+        } else if (cacheable) {
           // Authorization, malformed-response, and server errors must never fall back to old rows.
           try { await historyCache.invalidateProject(historyIdentity, projectId); } catch { /* cache cleanup is best effort */ }
         }
@@ -470,10 +532,9 @@ export function QueueScreen({
           cachedHistoryOnly.current = true;
           setSearchQuery("");
           setGenderFilter("all");
-          setSiteFilter(undefined);
           setRecodeableOnly(false);
           setData({
-            api, mode, projectId, offset, showHistory, coderHistory: cached.page,
+            api, mode, projectId, offset, showHistory, place, coderHistory: cached.page,
             cachedHistoryAt: cached.fetchedAt,
           });
           setMessage(null);
@@ -483,7 +544,7 @@ export function QueueScreen({
         const previousError = actionError.current;
         if (!previousError || previousError.scope.api !== requestScope.api || previousError.scope.mode !== requestScope.mode
           || previousError.scope.projectId !== requestScope.projectId || previousError.scope.offset !== requestScope.offset
-          || previousError.scope.showHistory !== requestScope.showHistory) {
+          || previousError.scope.showHistory !== requestScope.showHistory || previousError.scope.place !== requestScope.place) {
           actionError.current = null;
           setMessage({ scope: requestScope, text: errorText(error) });
         }
@@ -491,7 +552,7 @@ export function QueueScreen({
     } finally {
       if (isCurrent(requestGeneration, requestScope)) setLoading(false);
     }
-  }, [api, catalogReady, historyCache, historyIdentity, mode, offset, projectId, showHistory]);
+  }, [api, catalogReady, historyCache, historyIdentity, mode, offset, place, placeProjectId, placeSiteId, placeUnitId, projectId, showHistory]);
 
   // Load the project catalogue once per api and mode. Default: the URL's project, else the last project
   // when still offered, else (reviewers) the first project with cases to review, else All projects.
@@ -602,15 +663,15 @@ export function QueueScreen({
   const currentData = activeRef.current && AppState.currentState !== "background" && AppState.currentState !== "inactive"
     && (typeof document === "undefined" || document.visibilityState !== "hidden")
     && data?.api === api && data.mode === mode && data.projectId === projectId
-    && data.offset === offset && data.showHistory === showHistory ? data : null;
+    && data.offset === offset && data.showHistory === showHistory && data.place === place ? data : null;
   const currentMessage = activeRef.current && AppState.currentState !== "background" && AppState.currentState !== "inactive"
     && (typeof document === "undefined" || document.visibilityState !== "hidden")
     && message?.scope.api === api && message.scope.mode === mode
     && message.scope.projectId === projectId && message.scope.offset === offset
-    && message.scope.showHistory === showHistory ? message.text : "";
+    && message.scope.showHistory === showHistory && message.scope.place === place ? message.text : "";
 
   function openCurrent(identity: WorkspaceIdentity) {
-    const requestScope = { api, mode, projectId, offset, showHistory };
+    const requestScope = { api, mode, projectId, offset, showHistory, place };
     if (isCurrent(generation.current, requestScope)) onOpen(identity);
   }
 
@@ -633,7 +694,7 @@ export function QueueScreen({
   }, [load]);
 
   async function allocateRandom() {
-    const requestScope = { api, mode, projectId, offset, showHistory };
+    const requestScope = { api, mode, projectId, offset, showHistory, place };
     if (busy || actionInFlight.current || mode !== "coding" || !allocationVerified || !isCurrent(generation.current, requestScope)) return;
     const requestGeneration = generation.current;
     actionInFlight.current = true;
@@ -654,7 +715,7 @@ export function QueueScreen({
   }
 
   async function allocateReviewer(vaSid: string) {
-    const requestScope = { api, mode, projectId, offset, showHistory };
+    const requestScope = { api, mode, projectId, offset, showHistory, place };
     if (busy || actionInFlight.current || mode !== "reviewing" || !allocationVerified || !isCurrent(generation.current, requestScope)) return;
     const requestGeneration = generation.current;
     actionInFlight.current = true;
@@ -705,7 +766,7 @@ export function QueueScreen({
 
   function askRelease() {
     const requestGeneration = generation.current;
-    const requestScope = { api, mode, projectId, offset, showHistory };
+    const requestScope = { api, mode, projectId, offset, showHistory, place };
     if (!isCurrent(requestGeneration, requestScope)) return;
     // Name the case being given up, so the coder sees what is lost.
     const name = heldCase?.formId;
@@ -733,10 +794,11 @@ export function QueueScreen({
     && allocationData.generation === generation.current && allocationData.verified;
   // Switching Available / My coded cases reloads the list; keep the last counts of the same queue on screen
   // meanwhile, so the header, languages and filters do not collapse and reappear (they all follow the stats).
-  const lastStats = useRef<{ api: unknown; mode: string; projectId: unknown; stats: NonNullable<typeof currentData>["stats"] } | null>(null);
-  if (currentData?.stats) lastStats.current = { api, mode, projectId, stats: currentData.stats };
+  // The counts follow the place, so another place's counts are never held over (they would also mislead the tab rules).
+  const lastStats = useRef<{ api: unknown; mode: string; projectId: unknown; place: string; stats: NonNullable<typeof currentData>["stats"] } | null>(null);
+  if (currentData?.stats) lastStats.current = { api, mode, projectId, place, stats: currentData.stats };
   const heldStats = lastStats.current && lastStats.current.api === api && lastStats.current.mode === mode
-    && lastStats.current.projectId === projectId ? lastStats.current.stats : undefined;
+    && lastStats.current.projectId === projectId && lastStats.current.place === place ? lastStats.current.stats : undefined;
   const stats = currentData?.stats ?? heldStats;
   const projects = catalogReady ? catalog?.projects : undefined;
 
@@ -768,22 +830,27 @@ export function QueueScreen({
   const coderStats = mode === "coding" && stats && "random_ready" in stats ? stats : undefined;
   const reviewerStats = mode === "reviewing" && stats && "available" in stats ? stats : undefined;
   const randomReady = coderStats?.random_ready;
+  // With a place the random pool count is the place's, but random allocation ignores the place: an empty place count
+  // must not disable it (the server answers if the whole pool is empty).
   const canAllocateRandom = mode === "coding"
     && allocationVerified
     && coderStats?.has_random_mode === true
     && typeof randomReady === "number"
-    && randomReady > 0;
+    && (randomReady > 0 || Boolean(place));
   const coderCount = showHistory ? currentData?.coderHistory?.history.length : currentData?.coderAvailable?.forms.length;
   const reviewerRows = showHistory ? currentData?.history?.history : currentData?.available?.cases;
   const canGoNext = mode === "coding"
     ? showHistory ? currentData?.coderHistory?.has_more : currentData?.coderAvailable?.has_more
     : showHistory ? currentData?.history?.has_more : currentData?.available?.has_more;
+  // Previous / Page N / Next only when there is another page to reach: past page one, or a next page.
+  const showPager = offset > 0 || Boolean(canGoNext);
 
   // Random-only coders have nothing to pick by hand, so their list is the coded-case history.
   // lastPickMode (declared above load) keeps the tab row from flickering while page loads clear stats.
-  // Before this mount's first stats, the project's modes from the last visit: guessing drew a "Random allocation"
-  // card that the stats then swapped for "Pick a case" (a flash on every return to the Code tab).
-  const modesKey = `${mode}:${String(projectId)}`;
+  // Before this mount's first stats, the project's modes from the last visit: guessing drew the random panel
+  // that the stats then swapped for the pick list (a flash on every return to the Code tab).
+  // Keyed by the project the stats were asked for: on All projects a place's stats are its own project's.
+  const modesKey = `${mode}:${String(place ? projectId ?? placeProjectId : projectId)}`;
   if (coderStats) knownCoderModes.set(modesKey, { pick: coderStats.has_pick_mode === true, random: coderStats.has_random_mode === true });
   const knownModes = knownCoderModes.get(modesKey);
   if (coderStats) lastPickMode.current = coderStats.has_pick_mode === true;
@@ -793,31 +860,36 @@ export function QueueScreen({
   // Random-only: Available is the random panel; the list, filters and pager belong to My coded cases.
   const showList = showHistory || pickMode || !randomMode;
   const pickReady = typeof coderStats?.pick_ready === "number" ? coderStats.pick_ready : undefined;
-  let readyText = "Availability is loading.";
-  if (typeof randomReady === "number" || pickReady !== undefined) {
-    if (randomMode && pickMode && typeof randomReady === "number" && pickReady !== undefined) readyText = `${randomReady} random · ${pickReady} to pick`;
-    else readyText = `${(randomMode ? randomReady : pickReady) ?? 0} ready`;
-  }
+  // Random-only coding has no list to narrow (owner rule 2026-11-27): no place choice there, and none is sent.
+  // On All projects a place's stats carry its own project's modes: a random-only project there keeps the choice
+  // (the coder changes it back), rather than the field vanishing under them.
+  const placeHidden = mode === "coding" && randomMode && !pickMode && !(projectId === undefined && place);
   useEffect(() => {
-    if (coderStats && ((!pickMode && !randomMode) || (pickMode && pickReady === 0 && randomMode && typeof randomReady === "number" && randomReady > 0)) && !showHistory) {
+    if (placeHidden && placeKey) setPlaceKey("");
+  }, [placeHidden, placeKey]);
+  // No count-driven tab switch while a place is chosen: a place's zero must not move the coder to their history.
+  useEffect(() => {
+    const emptyPick = !place && pickMode && pickReady === 0 && randomMode && typeof randomReady === "number" && randomReady > 0;
+    if (coderStats && ((!pickMode && !randomMode) || emptyPick) && !showHistory) {
       setOffset(0);
       setShowHistory(true);
     }
-  }, [coderStats, pickMode, pickReady, randomMode, randomReady, showHistory]);
+  }, [coderStats, pickMode, pickReady, place, randomMode, randomReady, showHistory]);
   // A project that has pick mode (after one that had not) must not stay stuck on the history tab.
   const wasPickMode = useRef(pickMode || showHistory);
   // Only loaded stats count: a page load clears them, and reading that gap as "pick_ready unknown"
   // would undo the history tab the effect above (or the user) just chose, in a loop.
   const statsLoaded = Boolean(coderStats);
   useEffect(() => {
-    if (!statsLoaded) return;
+    // A place's counts say nothing about the project's pick list: leave the tab and the memory as they are.
+    if (!statsLoaded || place) return;
     const pickable = pickMode && (pickReady === undefined || pickReady > 0);
     if (pickable && !wasPickMode.current && showHistory) {
       setOffset(0);
       setShowHistory(false);
     }
     wasPickMode.current = pickable;
-  }, [statsLoaded, pickMode, pickReady, showHistory]);
+  }, [statsLoaded, pickMode, pickReady, place, showHistory]);
 
   const viewChanged = useRef(onViewChange);
   viewChanged.current = onViewChange;
@@ -836,6 +908,7 @@ export function QueueScreen({
     if (next === projectId) return;
     clearMessage();
     setOffset(initialView?.offset ?? 0);
+    setPlaceKey("");
     setProjectId(next);
   }, [catalogReady, urlProject]);
 
@@ -848,14 +921,6 @@ export function QueueScreen({
     return reviewerRows ?? [];
   }, [currentData, mode, reviewerRows, showHistory]);
 
-  const siteOptions = useMemo(() => {
-    const sites = new Set<string>();
-    for (const item of activeItems) {
-      if (item.site_id && !isInternalPlaceholderArea(item.site_id)) sites.add(item.site_id);
-    }
-    return Array.from(sites);
-  }, [activeItems]);
-
   const hasGenderData = useMemo(
     () => activeItems.some((item) => Boolean(item.va_deceased_gender)),
     [activeItems],
@@ -867,12 +932,6 @@ export function QueueScreen({
   );
 
   const matchesCase = useCallback((item: AnyQueueCase): boolean => {
-    if (siteFilter === "__within_area__") {
-      const primaryArea = siteOptions[0];
-      if (primaryArea && item.site_id !== primaryArea) return false;
-    } else if (siteFilter && item.site_id !== siteFilter) {
-      return false;
-    }
     if (genderFilter !== "all" && normalizeGenderKey(item.va_deceased_gender) !== genderFilter) return false;
     if (recodeableOnly && mode === "coding" && showHistory) {
       if (!("recodeable" in item && item.recodeable === true)) return false;
@@ -894,7 +953,7 @@ export function QueueScreen({
       .join(" ")
       .toLowerCase();
     return haystack.includes(query);
-  }, [genderFilter, mode, recodeableOnly, searchQuery, showHistory, siteFilter, siteOptions]);
+  }, [genderFilter, mode, recodeableOnly, searchQuery, showHistory]);
 
   const filteredCoderHistory = useMemo(
     () => (currentData?.coderHistory?.history ?? []).filter(matchesCase),
@@ -909,13 +968,14 @@ export function QueueScreen({
     [matchesCase, reviewerRows],
   );
 
-  const hasActiveFilters = searchQuery.trim().length > 0 || genderFilter !== "all" || siteFilter !== undefined || recodeableOnly;
+  const hasActiveFilters = searchQuery.trim().length > 0 || genderFilter !== "all" || recodeableOnly;
   const filteredCount = mode === "coding"
     ? (showHistory ? filteredCoderHistory.length : filteredCoderAvailable.length)
     : filteredReviewerRows.length;
 
+  /** "Your languages ✎" (both queues filter on them) and, on Coding, "Forms pending coding". */
   function renderLanguageLines() {
-    const lines = codingLanguageLines(coderStats);
+    const lines = codingLanguageLines(coderStats ?? reviewerStats);
     if (!lines) return null;
     return (
       <View testID="coding-languages">
@@ -1008,46 +1068,6 @@ export function QueueScreen({
             ) : null}
           </View>
         ) : null}
-        {siteOptions.length > 1 ? (
-          <View style={q.chipRow}>
-            <Pressable
-              hitSlop={spacing.xs}
-              accessibilityRole="button"
-              accessibilityLabel="Filter area: Within Area"
-              accessibilityState={{ selected: siteFilter === "__within_area__" }}
-              onPress={() => setSiteFilter(siteFilter === "__within_area__" ? undefined : "__within_area__")}
-              style={[q.chip, siteFilter === "__within_area__" && q.chipActive]}
-            >
-              <Text style={[q.chipText, siteFilter === "__within_area__" && q.chipTextActive]}>Within Area</Text>
-            </Pressable>
-            <Pressable
-              hitSlop={spacing.xs}
-              accessibilityRole="button"
-              accessibilityLabel="Filter area: All"
-              accessibilityState={{ selected: siteFilter === undefined }}
-              onPress={() => setSiteFilter(undefined)}
-              style={[q.chip, siteFilter === undefined && q.chipActive]}
-            >
-              <Text style={[q.chipText, siteFilter === undefined && q.chipTextActive]}>All</Text>
-            </Pressable>
-            {siteOptions.map((site) => {
-              const active = siteFilter === site;
-              return (
-                <Pressable
-                  key={site}
-                  hitSlop={spacing.xs}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Filter area: ${site}`}
-                  accessibilityState={{ selected: active }}
-                  onPress={() => setSiteFilter(active ? undefined : site)}
-                  style={[q.chip, active && q.chipActive]}
-                >
-                  <Text style={[q.chipText, active && q.chipTextActive]}>{site}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : null}
         {hasActiveFilters ? (
           <View style={q.chipRow}>
             <Text style={styles.muted}>Showing {filteredCount} of {activeItems.length} cases</Text>
@@ -1058,7 +1078,6 @@ export function QueueScreen({
               onPress={() => {
                 setSearchQuery("");
                 setGenderFilter("all");
-                setSiteFilter(undefined);
                 setRecodeableOnly(false);
               }}
               style={q.chip}
@@ -1073,7 +1092,7 @@ export function QueueScreen({
 
   /** Allocate a SID from the current server page; mismatches fail and action errors survive refresh. */
   async function allocatePicked(vaSid: string) {
-    const requestScope = { api, mode, projectId, offset, showHistory };
+    const requestScope = { api, mode, projectId, offset, showHistory, place };
     if (busy || actionInFlight.current || mode !== "coding" || showHistory || !allocationVerified || allocation || !isCurrent(generation.current, requestScope)) return;
     const requestGeneration = generation.current;
     actionInFlight.current = true;
@@ -1096,7 +1115,7 @@ export function QueueScreen({
 
   /** Recode a server-marked history SID; mismatches fail and action errors survive refresh. */
   async function recodeCase(vaSid: string) {
-    const requestScope = { api, mode, projectId, offset, showHistory };
+    const requestScope = { api, mode, projectId, offset, showHistory, place };
     if (busy || actionInFlight.current || mode !== "coding" || !showHistory || !allocationVerified || allocation || !isCurrent(generation.current, requestScope)) return;
     const requestGeneration = generation.current;
     actionInFlight.current = true;
@@ -1131,20 +1150,37 @@ export function QueueScreen({
 
   /** Phone: the header, tiles, tabs and filter share one card and each case is its own card; the browser nests all in one. */
   const headBlock = (kids: ReactNode) => (phone ? <Card>{kids}</Card> : <>{kids}</>);
+  /** Available (false) or the history segment (true): the segment buttons and the count tiles share it. */
+  const showTab = (history: boolean) => { clearMessage(); setShowHistory(history); setOffset(0); };
   const tabs = (history: string) => (phone ? (
     <SegmentedControl
       accessibilityLabel="Cases"
       disabled={busy}
       value={showHistory ? "history" : "available"}
       options={[{ value: "available", label: "Available" }, { value: "history", label: history }]}
-      onChange={(next) => { clearMessage(); setShowHistory(next === "history"); setOffset(0); }}
+      onChange={(next) => showTab(next === "history")}
     />
   ) : (
     <View style={q.segmentedTrack}>
-      <Button label="Available" size="sm" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(false); setOffset(0); }} />
-      <Button label={history} size="sm" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => { clearMessage(); setShowHistory(true); setOffset(0); }} />
+      <Button label="Available" size="sm" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => showTab(false)} />
+      <Button label={history} size="sm" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => showTab(true)} />
     </View>
   ));
+  /**
+   * One count tile. With *history* (false: Available, true: the history segment) it is a button doing what that
+   * segment does, selected while that segment shows; without, a plain count (no list behind it).
+   */
+  const statTile = (value: number | string, label: string, history?: boolean) => {
+    const body = <><Text style={q.statValue}>{String(value)}</Text><Text style={q.statLabel}>{label}</Text></>;
+    if (history === undefined) return <View key={label} style={q.statTile}>{body}</View>;
+    const selected = showHistory === history;
+    return (
+      <Pressable key={label} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`} accessibilityState={{ selected, disabled: busy }}
+        disabled={busy} focusable onPress={() => showTab(history)} style={[q.statTile, selected && q.statTileActive]}>
+        {body}
+      </Pressable>
+    );
+  };
   const historyBadges = (item: CoderHistoryCase) => (item.va_code_status || item.recodeable) ? (
     <View style={q.badgeRow}>
       {item.va_code_status ? (
@@ -1180,10 +1216,32 @@ export function QueueScreen({
         // A new project starts on its default segment; its pick mode is not known until its stats arrive.
         setShowHistory(initialView?.showHistory ?? false);
         lastPickMode.current = null;
+        // Choosing the project already shown keeps its place; another project starts on All areas.
+        if (next[0] !== projectId) setPlaceKey("");
         setProjectId(next[0]);
       }}
       fieldRow={phone}
     />
+  ) : null;
+  // One "Site and unit" choice under the project (owner rule 2026-11-27); the server narrows every page to it.
+  const placeSelect = placeChoices?.options.length && !placeHidden ? (
+    <View style={{ gap: spacing.xxs }} testID="queue-place">
+      <FieldLabel label={t("chooseSite")} />
+      <Select
+        label={t("chooseSite")}
+        placeholder={t("filterAllAreas")}
+        searchLabel={t("filterUnitSearch")}
+        searchable
+        options={[{ value: "", label: t("filterAllAreas") }, ...placeChoices.options]}
+        value={place}
+        onChange={(next) => {
+          if (next === place) return;
+          clearMessage();
+          setOffset(0);
+          setPlaceKey(next);
+        }}
+      />
+    </View>
   ) : null;
 
   return (
@@ -1195,6 +1253,7 @@ export function QueueScreen({
     >
       {phone ? null : <ContextualHelpBanner screen={mode === "coding" ? "coding" : "reviewing"} />}
       {projectSelect && !projectInHeader ? <View style={q.topLine}>{projectSelect}</View> : null}
+      {placeSelect}
       {/* First load only: once a card is drawn its refresh icon spins instead. */}
       {loading && !stats ? <ActivityIndicator accessibilityLabel="Loading queue" /> : null}
       {currentMessage ? <Text accessibilityRole={message?.success ? "text" : "alert"} style={[styles.error, message?.success && { color: ui.success }]}>{currentMessage}</Text> : null}
@@ -1215,41 +1274,19 @@ export function QueueScreen({
       {mode === "coding" ? (
         <View style={phone ? { gap: controls.gap } : styles.card}>
           {headBlock(<>
+          {/* No card title on Coding (owner 2026-11-27): the page title says it; the refresh icon keeps the top right. */}
           <View style={q.titleRow}>
-            <View style={q.titleMain}>
-              <Text style={styles.headline}>{randomMode ? "Random allocation" : "Pick a case"}</Text>
-              <Text style={styles.muted}>{readyText}</Text>
-            </View>
+            <View style={q.titleMain} />
             <RefreshIcon disabled={busy || loading} loading={loading} onPress={refreshCases} />
           </View>
           {renderLanguageLines()}
           {renderTrainingQueues()}
           {coderStats ? (
             <View style={q.statsGrid}>
-              {randomMode && typeof coderStats.random_ready === "number" ? (
-                <View style={q.statTile}>
-                  <Text style={q.statValue}>{coderStats.random_ready}</Text>
-                  <Text style={q.statLabel}>Random pool</Text>
-                </View>
-              ) : null}
-              {pickMode && typeof coderStats.pick_ready === "number" ? (
-                <View style={q.statTile}>
-                  <Text style={q.statValue}>{coderStats.pick_ready}</Text>
-                  <Text style={q.statLabel}>Ready to pick</Text>
-                </View>
-              ) : null}
-              {typeof coderStats.completed === "number" ? (
-                <View style={q.statTile}>
-                  <Text style={q.statValue}>{coderStats.completed}</Text>
-                  <Text style={q.statLabel}>Coded</Text>
-                </View>
-              ) : null}
-              {typeof coderStats.not_codeable === "number" && coderStats.not_codeable > 0 ? (
-                <View style={q.statTile}>
-                  <Text style={q.statValue}>{coderStats.not_codeable}</Text>
-                  <Text style={q.statLabel}>Not codeable</Text>
-                </View>
-              ) : null}
+              {randomMode && typeof coderStats.random_ready === "number" ? statTile(coderStats.random_ready, "Random pool") : null}
+              {pickMode && typeof coderStats.pick_ready === "number" ? statTile(coderStats.pick_ready, "Ready to pick", false) : null}
+              {typeof coderStats.completed === "number" ? statTile(coderStats.completed, "Coded", true) : null}
+              {typeof coderStats.not_codeable === "number" && coderStats.not_codeable > 0 ? statTile(coderStats.not_codeable, "Not codeable") : null}
             </View>
           ) : null}
           {randomMode && (pickMode || !showHistory) && !currentData?.cachedHistoryAt ? <Button label="Start a random case" size="sm" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
@@ -1258,16 +1295,8 @@ export function QueueScreen({
           {showList ? renderFilterControls() : null}
           </>)}
           {!showList ? null : showHistory ? filteredCoderHistory.map((item) => (
-            <View key={item.va_sid} style={[styles.card, q.caseCard]}>
-              <View style={q.caseHeader}>
-                <View style={q.caseHeaderMain}>
-                  <Text style={styles.headline}>{caseTitle(item.va_uniqueid_masked)}</Text>
-                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
-                </View>
-                {phone ? null : historyBadges(item)}
-              </View>
-              <CaseCardDetails item={item} />
-              {phone ? historyBadges(item) : null}
+            <QueueCaseCard key={item.va_sid} item={item}>
+              {historyBadges(item)}
               {codingServerStatusText(item) ? <Text style={styles.muted} testID={`coding-server-status-${item.va_sid}`}>{codingServerStatusText(item)}</Text> : null}
               {item.server_status === "refused" ? <DetailsChip code={item.server_code} /> : null}
               {recodeDeadlineText(item) ? <Text style={styles.muted} testID={`recode-deadline-${item.va_sid}`}>{recodeDeadlineText(item)}</Text> : null}
@@ -1276,24 +1305,16 @@ export function QueueScreen({
                 {item.recodeable ? <Button label="Recode" size="sm" style={q.actionBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
               </View> : null}
               <Button label="Copy details" kind="secondary" size="sm" accessibilityLabel={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} onPress={() => void Share.share({ message: codedCaseSupportText(item) }).catch(() => undefined)} />
-            </View>
+            </QueueCaseCard>
           )) : filteredCoderAvailable.map((item) => (
-            <View key={item.va_sid} style={[styles.card, q.caseCard]}>
-              <View style={q.caseHeader}>
-                <View style={q.caseHeaderMain}>
-                  {item.deceased_name ? <Text style={styles.headline}>{item.deceased_name}</Text> : null}
-                  <Text style={item.deceased_name ? styles.muted : styles.headline}>{caseTitle(item.va_uniqueid_masked)}</Text>
-                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
-                </View>
-              </View>
-              <CaseCardDetails item={item} />
+            <QueueCaseCard key={item.va_sid} item={item}>
               <Button label="Pick case" size="sm" disabled={busy || loading || !allocationVerified || Boolean(allocation) || coderStats?.has_pick_mode !== true} loading={busy} onPress={() => void allocatePicked(item.va_sid)} />
-            </View>
+            </QueueCaseCard>
           ))}
           {(projects as CoderProjects | undefined)?.station_coding_disabled ? <Text style={styles.muted} testID="coding-done-on-server">{t("codingDoneOnServer")}</Text> : null}
           {showList && coderCount === 0 ? <Text style={styles.muted}>{showHistory ? "No coded cases yet." : pickMode ? "No cases to pick right now." : "No available cases on this page."}</Text> : null}
           {(coderCount ?? 0) > 0 && filteredCount === 0 ? <Text style={styles.muted}>No cases match your filters.</Text> : null}
-          {showList ? <View style={q.pager}>
+          {showList && showPager ? <View style={q.pager}>
             <Button label="Previous" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
             <Text style={q.pageText}>Page {Math.floor(offset / PAGE_SIZE) + 1}</Text>
             <Button label="Next" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
@@ -1305,63 +1326,38 @@ export function QueueScreen({
           <View style={q.titleRow}>
             <View style={q.titleMain}>
               <Text style={styles.headline}>Reviewer queue</Text>
-              <Text style={styles.muted}>
-                {reviewerStats ? `${reviewerStats.available} available · ${reviewerStats.completed} completed` : "Queue counts are loading."}
-              </Text>
             </View>
             <RefreshIcon disabled={busy || loading} loading={loading} onPress={refreshCases} />
           </View>
+          {renderLanguageLines()}
           {reviewerStats ? (
             <View style={q.statsGrid}>
-              <View style={q.statTile}>
-                <Text style={q.statValue}>{String(reviewerStats.available ?? 0)}</Text>
-                <Text style={q.statLabel}>Available to review</Text>
-              </View>
-              <View style={q.statTile}>
-                <Text style={q.statValue}>{String(reviewerStats.completed ?? 0)}</Text>
-                <Text style={q.statLabel}>Reviewed</Text>
-              </View>
-              {typeof reviewerStats.in_scope === "number" ? (
-                <View style={q.statTile}>
-                  <Text style={q.statValue}>{reviewerStats.in_scope}</Text>
-                  <Text style={q.statLabel}>In scope</Text>
-                </View>
-              ) : null}
+              {statTile(String(reviewerStats.available ?? 0), "Available to review", false)}
+              {/* Pending coding (owner 2026-11-27); an older server without it keeps In scope. */}
+              {typeof reviewerStats.pending_coding === "number" ? statTile(reviewerStats.pending_coding, t("queuePendingCoding"))
+                : typeof reviewerStats.in_scope === "number" ? statTile(reviewerStats.in_scope, "In scope") : null}
+              {statTile(String(reviewerStats.completed ?? 0), t("queueReviewedByMe"), true)}
             </View>
           ) : null}
           {tabs("My reviewed cases")}
           {renderFilterControls()}
           </>)}
           {filteredReviewerRows.map((item) => (
-            <View key={item.va_sid} style={[styles.card, q.caseCard]}>
-              <View style={q.caseHeader}>
-                <View style={q.caseHeaderMain}>
-                  <Text style={styles.headline}>{caseTitle(item.va_uniqueid_masked)}</Text>
-                  <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
-                </View>
-                {item.va_narration_language ? (
-                  <View style={q.badgeRow}>
-                    <View style={[q.badge, q.badgeAccent]}>
-                      <Text style={[q.badgeText, q.badgeAccentText]}>{item.va_narration_language}</Text>
-                    </View>
-                  </View>
-                ) : null}
-              </View>
-              <CaseCardDetails item={item} />
+            <QueueCaseCard key={item.va_sid} item={item}>
               {showHistory ? (
                 <Button label="View case" kind="secondary" size="sm" disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
               ) : (
                 <Button label="Review case" size="sm" disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void allocateReviewer(item.va_sid)} />
               )}
-            </View>
+            </QueueCaseCard>
           ))}
           {reviewerRows?.length === 0 ? <Text style={styles.muted}>{reviewerEmptyText()}</Text> : null}
           {(reviewerRows?.length ?? 0) > 0 && filteredReviewerRows.length === 0 ? <Text style={styles.muted}>No cases match your filters.</Text> : null}
-          <View style={q.pager}>
+          {showPager ? <View style={q.pager}>
             <Button label="Previous" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
             <Text style={q.pageText}>Page {Math.floor(offset / PAGE_SIZE) + 1}</Text>
             <Button label="Next" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
-          </View>
+          </View> : null}
         </View>
       )}
       {confirmRelease ? <ConfirmDialog

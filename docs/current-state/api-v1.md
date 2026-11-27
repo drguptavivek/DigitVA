@@ -3,7 +3,7 @@ title: API v1 Reference
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-26
+last_updated: 2026-11-27
 ---
 
 # API v1 Reference
@@ -513,6 +513,10 @@ pending coding", the forms allocation would offer them now grouped by
 narration language regardless of their own languages (blank as
 `unrecorded`; `pending_by_language`, one grouped count; `project_id`
 narrows). `random_ready` now applies the coding gates, like the pick count.
+`site_id` and `org_unit_id` (the queue place filter, with the `/available`
+rules: 400 `invalid_request` when malformed, narrowing only) narrow every
+count, `pending` included; the mode flags and `training_queues` stay the
+project's. Without them the body is unchanged (2026-11-27).
 `PATCH /api/v1/profile/languages {languages: [codes]}` sets the caller's own
 coding languages (coders only, else 403 `forbidden`; non-empty, active codes;
 audited as `coding_languages_changed`). A cookie session sends CSRF; since
@@ -528,13 +532,16 @@ in code order (one query; additive, older clients ignore it). Policy:
 Gate `coder`, `coding_tester` or `admin`. Paging is opt-in, because the web
 coder dashboard (`va_code_dashboard.js`) reads both lists whole and renders
 them in a client-side table: **without `limit` the body is exactly what it was**
-(`{forms, count}`, `{history, count}`, every existing row key unchanged; `recode_until` is added).
+(`{forms, count}`, `{history, count}`, every existing row key unchanged; `recode_until` is added, and since
+2026-11-27 `va_narration_language`, the case's narration language for the queue card's pill, on both lists).
 
 | Parameter | Rule |
 | --- | --- |
 | `limit` | 1 to 200. Switches paging on. |
 | `offset` | 0 to 1,000,000, with `limit` only; `offset` alone is 400. |
 | `project_id` | Optional, upper-cased, at most 64 characters. Narrows to one project **within** the caller's own reach: a project the caller holds no grant on answers an empty list (`forms` / `history` `[]`), never its rows. Works with or without `limit`. |
+| `site_id` | Optional, 1 to 64 of `A-Z a-z 0-9 _ -` (else 400). Narrows to cases of that site, within the caller's reach as `project_id` does. `/history` takes it with `limit` only (400 without: the unpaged history is the cached whole list). |
+| `org_unit_id` | Optional UUID (else 400). Narrows to cases routed to that unit or any active unit under it (`authz.subtree_select`, the ltree path), within the caller's reach. Same `limit` rule as `site_id` on `/history`. With `site_id` both must hold. |
 
 With `limit` the body is `{forms|history, count, limit, offset, has_more}`;
 `count` is the page's size and `has_more` is answered by fetching one extra
@@ -586,10 +593,14 @@ The reviewer dashboard's reads for any client, from
 `app/services/reviewer_dashboard_service.py` (the web page calls the same
 functions). Gate `reviewer`; every reply is `private, no-store`. Optional
 `project_id` (upper-cased, at most 64 characters) narrows each route.
+`/available` and `/history` also take the queue place filter `site_id` and
+`org_unit_id` with the coder routes' rules (a site; a unit and its subtree;
+narrowing only, 400 for a malformed value); since 2026-11-27 `/stats` takes
+them too and narrows every count. Without them every reply is unchanged.
 
 | Route | Reply |
 | --- | --- |
-| `GET /stats` | `{in_scope, completed, available, allocation}`. `in_scope` and `completed` are the web page's counts (cases in review scope in any state; the caller's active reviewer finals, any scope); `available` is the size of `/available`; `allocation` is `{va_sid}` or `null`, as `GET /allocation`. |
+| `GET /stats` | `{in_scope, completed, available, pending_coding, languages, allocation}`. `in_scope` and `completed` are the web page's counts (cases in review scope in any state; the caller's active reviewer finals, any scope); `available` is the size of `/available`; `allocation` is `{va_sid}` or `null`, as `GET /allocation`. Additive (2026-11-27): `pending_coding` is the `in_scope` cases still before the coder's final COD, workflow state one of `screening_pending`, `attachment_sync_pending`, `smartva_pending`, `ready_for_coding`, `coding_in_progress`, `coder_step1_saved` (`PENDING_STATES`); `languages` is `{mine: [codes]}`, the caller's languages these counts filter on (the list `/coding/stats` sends). |
 | `GET /available` | `{cases, count, limit, offset, has_more}`. Exactly the cases `POST /allocation/<va_sid>` accepts: `reviewer_eligible`, REVIEW scope, narration language in the caller's profile, in ODK (not retired), not a confirmed duplicate, no active reviewer final, active project-site. A row is `va_sid`, `va_uniqueid_masked`, `va_form_id`, `project_id`, `site_id`, `va_submission_date`, `va_data_collector`, `va_deceased_age`, `va_deceased_gender`, `va_narration_language`. Ordered by project, site, submission date, masked id, `va_sid`. |
 | `GET /projects` | `{project_options: [{project_id, project_name}], last_project_id}`. `project_options` are the projects the queue reaches, the scope of `/stats` and `/available`. `last_project_id` is the project of the caller's most recent reviewing allocation (any status), or `null` when there is none or it is not in `project_options` (`digitva-umc4`). |
 | `GET /history` | `{history, count, limit, offset, has_more}`. The caller's own active reviewer finals on cases they may still view, newest first. A row is the `/available` keys plus `va_reviewed_at` (UTC ISO timestamp of the final, with `+00:00`). |

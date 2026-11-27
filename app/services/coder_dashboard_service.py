@@ -120,8 +120,12 @@ def bust_coder_dashboard_cache(user_id) -> int:
     return deleted
 
 
-def get_coder_output_summary(user_id, project_id: str | None = None) -> dict[str, int]:
-    """Return cached authored-output KPIs, excluding demo-training projects."""
+def get_coder_output_summary(user_id, project_id: str | None = None, place=()) -> dict[str, int]:
+    """Return cached authored-output KPIs, excluding demo-training projects.
+
+    *place* (conditions on ``VaForms`` / ``VaSubmissions``) narrows both
+    counts; a place-narrowed answer is computed fresh, never cached.
+    """
 
     def compute():
         final_filters = [
@@ -153,6 +157,8 @@ def get_coder_output_summary(user_id, project_id: str | None = None) -> dict[str
         # The request's training scope also decides an explicit project_id.
         final_filters += training_scope.conditions(VaForms.project_id)
         review_filters += training_scope.conditions(VaForms.project_id)
+        final_filters += place
+        review_filters += place
 
         completed = db.session.scalar(
             sa.select(sa.func.count(sa.distinct(VaFinalAssessments.va_sid)))
@@ -181,6 +187,8 @@ def get_coder_output_summary(user_id, project_id: str | None = None) -> dict[str
             "not_codeable": not_codeable,
         }
 
+    if place:
+        return compute()
     return _cached_dashboard_project_value(
         user_id,
         "output_summary",
@@ -199,13 +207,14 @@ def get_coder_not_codeable_count(user_id, accessible_form_ids: Sequence[str]) ->
     return get_coder_output_summary(user_id)["not_codeable"]
 
 
-def _history_selects(user, scoped_form_ids, project_id: str | None = None):
+def _history_selects(user, scoped_form_ids, project_id: str | None = None, place=()):
     """The two history queries (coder finals, coder reviews), one row shape.
 
     Only submissions *user* may still VIEW (what the history's view link
     opens): authoring an outcome grants nothing once the case is rerouted
-    out of the user's unit, even on a form they still hold. *project_id* only
-    narrows what that scope already allows.
+    out of the user's unit, even on a form they still hold. *project_id* and
+    *place* (conditions on ``VaForms`` / ``VaSubmissions``) only narrow what
+    that scope already allows.
     """
     from app.services.authz import Action, scope_filter
 
@@ -222,6 +231,7 @@ def _history_selects(user, scoped_form_ids, project_id: str | None = None):
             VaSubmissions.va_uniqueid_masked,
             VaSubmissions.va_deceased_age,
             VaSubmissions.va_deceased_gender,
+            VaSubmissions.va_narration_language,
             VaFinalAssessments.va_finassess_createdat.label("va_coding_date"),
             sa.literal("VA Coding Completed").label("va_code_status"),
             VaFinalAssessments.is_tester,
@@ -251,6 +261,7 @@ def _history_selects(user, scoped_form_ids, project_id: str | None = None):
             VaSubmissions.va_uniqueid_masked,
             VaSubmissions.va_deceased_age,
             VaSubmissions.va_deceased_gender,
+            VaSubmissions.va_narration_language,
             VaCoderReview.va_creview_createdat.label("va_coding_date"),
             sa.literal("Not Codeable").label("va_code_status"),
             VaCoderReview.is_tester,
@@ -271,8 +282,8 @@ def _history_selects(user, scoped_form_ids, project_id: str | None = None):
     if project_id:
         final_sel = final_sel.where(VaForms.project_id == project_id)
         review_sel = review_sel.where(VaForms.project_id == project_id)
-    final_sel = final_sel.where(*training_scope.conditions(VaForms.project_id))
-    review_sel = review_sel.where(*training_scope.conditions(VaForms.project_id))
+    final_sel = final_sel.where(*training_scope.conditions(VaForms.project_id), *place)
+    review_sel = review_sel.where(*training_scope.conditions(VaForms.project_id), *place)
     return final_sel, review_sel
 
 
@@ -319,7 +330,7 @@ def get_coder_completed_history(user, accessible_form_ids: Sequence[str]) -> lis
     )
 
 
-def _demo_history_stmt(user_id, project_id: str | None = None, tz_name: str = "Asia/Kolkata"):
+def _demo_history_stmt(user_id, project_id: str | None = None, tz_name: str = "Asia/Kolkata", place=()):
     """Unexpired demo finals of *user_id*; see ``get_coder_demo_history``."""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     stmt = (
@@ -332,6 +343,7 @@ def _demo_history_stmt(user_id, project_id: str | None = None, tz_name: str = "A
             VaSubmissions.va_uniqueid_masked,
             VaSubmissions.va_deceased_age,
             VaSubmissions.va_deceased_gender,
+            VaSubmissions.va_narration_language,
             VaFinalAssessments.va_finassess_createdat.label("va_coding_date"),
             VaFinalAssessments.demo_expires_at,
         )
@@ -345,6 +357,7 @@ def _demo_history_stmt(user_id, project_id: str | None = None, tz_name: str = "A
             VaFinalAssessments.demo_expires_at > now,
             VaProjectMaster.demo_training_enabled.is_(True),
             *training_scope.conditions(VaForms.project_id),
+            *place,
         )
     )
     if project_id:
@@ -369,6 +382,7 @@ def get_coder_history_page(
     limit: int,
     offset: int,
     project_id: str | None = None,
+    place=(),
 ) -> tuple[list[dict], bool]:
     """One page of the coder's history and whether more follow.
 
@@ -378,10 +392,11 @@ def get_coder_history_page(
     page boundary never falls between ties. Bounds go into SQL, a constant
     number of queries whatever the history's size; the cached full list is not
     read. ``recodeable`` is set on each row. ``limit + 1`` rows answer
-    ``has_more`` without a count.
+    ``has_more`` without a count. *place* narrows both parts (see
+    ``_history_selects``).
     """
     user_id = user.user_id
-    demo_stmt = _demo_history_stmt(user_id, project_id, va_user_timezone_name(user))
+    demo_stmt = _demo_history_stmt(user_id, project_id, va_user_timezone_name(user), place)
     demo_total = db.session.scalar(
         sa.select(sa.func.count()).select_from(demo_stmt.order_by(None).subquery())
     )
@@ -398,7 +413,7 @@ def get_coder_history_page(
     need = limit + 1 - len(rows)
     scoped_form_ids = _exclude_demo_form_ids(accessible_form_ids)
     if need > 0 and scoped_form_ids:
-        final_sel, review_sel = _history_selects(user, scoped_form_ids, project_id)
+        final_sel, review_sel = _history_selects(user, scoped_form_ids, project_id, place)
         union = sa.union_all(
             final_sel.add_columns(VaFinalAssessments.va_finassess_id.label("row_id")),
             review_sel.add_columns(VaCoderReview.va_creview_id.label("row_id")),

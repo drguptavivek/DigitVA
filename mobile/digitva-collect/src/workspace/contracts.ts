@@ -333,6 +333,8 @@ export interface CoderAvailableCase {
   va_data_collector: string | null;
   va_deceased_age: string | number | null;
   va_deceased_gender: string | null;
+  /** Additive (2026-11-27): absent from older servers, so the card then shows no language pill. */
+  va_narration_language?: string | null;
 }
 
 export interface CoderHistoryCase {
@@ -344,6 +346,8 @@ export interface CoderHistoryCase {
   va_submission_date: string;
   va_deceased_age: string | number | null;
   va_deceased_gender: string | null;
+  /** Additive (2026-11-27), as on CoderAvailableCase. */
+  va_narration_language?: string | null;
   va_coding_date: string;
   va_code_status: string;
   recodeable: boolean;
@@ -383,6 +387,10 @@ export interface ReviewerStats {
   in_scope: number;
   completed: number;
   available: number;
+  /** In the review reach and not yet past the coder's final COD; absent from older servers (the tile shows in_scope). */
+  pending_coding?: number;
+  /** `{mine: [codes]}`, the reviewer's languages (the same list Coding uses); absent from older servers. */
+  languages?: { mine: string[] };
   allocation: { va_sid: string } | null;
 }
 
@@ -779,7 +787,13 @@ function coderAvailableCase(value: unknown, field: string): CoderAvailableCase {
     va_data_collector: nullableString(source.va_data_collector, `${field}.va_data_collector`),
     va_deceased_age: age as string | number | null,
     va_deceased_gender: nullableString(source.va_deceased_gender, `${field}.va_deceased_gender`),
+    ...narrationLanguage(source),
   };
+}
+
+/** The additive card pill: kept when a string, else left out (display only, never a refusal of the page). */
+function narrationLanguage(source: Record<string, unknown>): { va_narration_language?: string } {
+  return typeof source.va_narration_language === "string" ? { va_narration_language: source.va_narration_language } : {};
 }
 
 function coderHistoryCase(value: unknown, field: string): CoderHistoryCase {
@@ -795,6 +809,7 @@ function coderHistoryCase(value: unknown, field: string): CoderHistoryCase {
     va_submission_date: string(source.va_submission_date, `${field}.va_submission_date`),
     va_deceased_age: age as string | number | null,
     va_deceased_gender: nullableString(source.va_deceased_gender, `${field}.va_deceased_gender`),
+    ...narrationLanguage(source),
     va_coding_date: string(source.va_coding_date, `${field}.va_coding_date`),
     va_code_status: string(source.va_code_status, `${field}.va_code_status`),
     recodeable: boolean(source.recodeable, `${field}.recodeable`),
@@ -863,7 +878,11 @@ export function parseReviewerProjects(value: unknown): ReviewerProjects {
 export function parseReviewerStats(value: unknown): ReviewerStats {
   const source = record(value, "reviewing.stats");
   const allocation = source.allocation === null ? null : { va_sid: string(record(source.allocation, "reviewing.stats.allocation").va_sid, "reviewing.stats.allocation.va_sid") };
-  return { in_scope: number(source.in_scope, "reviewing.stats.in_scope"), completed: number(source.completed, "reviewing.stats.completed"), available: number(source.available, "reviewing.stats.available"), allocation };
+  // pending_coding is a display count: kept when it is a number, else left out (never a refusal of the whole body).
+  const pending = typeof source.pending_coding === "number" && Number.isFinite(source.pending_coding) ? { pending_coding: source.pending_coding } : {};
+  const mine = source.languages && typeof source.languages === "object" ? (source.languages as Record<string, unknown>).mine : undefined;
+  const languages = Array.isArray(mine) ? { languages: { mine: mine.filter((code): code is string => typeof code === "string") } } : {};
+  return { in_scope: number(source.in_scope, "reviewing.stats.in_scope"), completed: number(source.completed, "reviewing.stats.completed"), available: number(source.available, "reviewing.stats.available"), ...pending, ...languages, allocation };
 }
 
 export function parseReviewerQueue(value: unknown, expectedLimit: number, expectedOffset: number): ReviewerQueue {

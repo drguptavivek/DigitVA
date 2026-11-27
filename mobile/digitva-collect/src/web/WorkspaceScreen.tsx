@@ -329,6 +329,8 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
     initialView={parseQueueParams(params)}
     {...(trainingRoute && mode === "coding" && hasTypedTrainingSession(activeBootstrap.access) ? { trainingQueue, onTrainingQueue: setTrainingQueue } : {})}
     reloadKey={languagesSaved}
+    // The "Site and unit" filter reads the normal projects' reach; the training queues have none.
+    accessProjects={trainingRoute ? undefined : projects}
     // Coders set their own languages; a trainee's are set at graduation (the server refuses them: 403).
     onEditLanguages={requester && !training ? () => setLanguagesOpen(true) : undefined}
     onViewChange={(view) => {

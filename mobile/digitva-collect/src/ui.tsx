@@ -31,7 +31,8 @@ export function Screen({
   lead,
   variant = "standard",
   wide = false,
-  scrollRef
+  scrollRef,
+  keepTitleWhole = false
 }: {
   title: string;
   children: ReactNode;
@@ -49,6 +50,8 @@ export function Screen({
   wide?: boolean;
   /** The page scroller (the phone layout), for a form that scrolls its first error into view. */
   scrollRef?: Ref<ScrollView>;
+  /** The title never wraps: the header action shrinks first (a title-row project switcher ellipsizes). */
+  keepTitleWhole?: boolean;
 }) {
   const theme = useTheme();
   const screenStyles = useUiStyles();
@@ -90,7 +93,7 @@ export function Screen({
   ) : (
     <View style={[screenStyles.titleWrap, widen]}>
       <View style={screenStyles.titleBar}>
-        <Text ref={titleRef} style={[screenStyles.title, { color: theme.colors.text }]} accessibilityRole="header">
+        <Text ref={titleRef} style={[screenStyles.title, { color: theme.colors.text }, keepTitleWhole && { flexShrink: 0 }]} accessibilityRole="header">
           {title}
         </Text>
         {actions}

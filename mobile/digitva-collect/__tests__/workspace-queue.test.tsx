@@ -5,7 +5,9 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from "rea
 
 import { ApiError } from "../src/api";
 import { errorText } from "../src/ui";
-import { QueueScreen, codedCaseSupportText, recodeDeadlineText } from "../src/workspace/QueueScreen";
+import { QueueCaseCard, QueueScreen, codedCaseSupportText, recodeDeadlineText } from "../src/workspace/QueueScreen";
+import { Select } from "../src/ui/Select";
+import { parseAccessSummary, type AccessProject } from "../src/api";
 import { APP_VERSION } from "../src/appVersion";
 import type { WorkspaceApi } from "../src/workspace/api";
 import type { CodingHistoryCache, CodingHistoryIdentity } from "../src/codingHistoryCache";
@@ -190,8 +192,9 @@ describe("QueueScreen", () => {
     expect(screen.onOpen).toHaveBeenCalledWith({ vaSid: coderRow.va_sid, mode: "coding" });
     await unmount(screen.renderer);
 
+    // One page only: no pager row at all (owner 2026-11-27).
     const noMore = await render("coding", makeApi());
-    expect(button(noMore.renderer.root, "Next")?.props.accessibilityState.disabled).toBe(true);
+    expect(button(noMore.renderer.root, "Next")).toBeUndefined();
     await unmount(noMore.renderer);
   });
 
@@ -798,7 +801,7 @@ describe("queue layout", () => {
   test("random-only coders get the segmented control: Available is the random panel, My coded cases the filter and list", async () => {
     const pick = await render("coding", makeApi());
     expect(button(pick.renderer.root, "Available")).toBeDefined();
-    expect(JSON.stringify(pick.renderer.toJSON())).toContain("2 ready");
+    expect(JSON.stringify(pick.renderer.toJSON())).toContain("Random pool");
     await unmount(pick.renderer);
 
     const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 21, has_random_mode: true, has_pick_mode: false }) });
@@ -813,7 +816,8 @@ describe("queue layout", () => {
     await settle();
     expect(api.getCodingHistory).toHaveBeenCalled();
     expect(button(randomOnly.renderer.root, "Start a random case")).toBeUndefined();
-    expect(button(randomOnly.renderer.root, "Next")).toBeDefined();
+    // The list is drawn; one page of it, so no pager.
+    expect(button(randomOnly.renderer.root, "Next")).toBeUndefined();
     expect(JSON.stringify(randomOnly.renderer.toJSON())).toContain("CODER-MASKED-1");
     await unmount(randomOnly.renderer);
   });
@@ -938,14 +942,15 @@ describe("queue layout", () => {
     await unmount(screen.renderer);
   });
 
-  test("a pick-only project is titled Pick a case, counts pick_ready and has no random button", async () => {
+  test("a pick-only project has no card title, counts pick_ready and has no random button", async () => {
     const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 0, pick_ready: 5, has_random_mode: false, has_pick_mode: true }) });
     const screen = await render("coding", api);
     await settle();
     const text = JSON.stringify(screen.renderer.toJSON());
-    expect(text).toContain("Pick a case");
-    expect(text).toContain("5 ready");
+    expect(button(screen.renderer.root, "Ready to pick: 5")).toBeDefined();
+    expect(text).not.toContain("Pick a case");
     expect(text).not.toContain("Random allocation");
+    expect(text).not.toContain("Random pool");
     expect(button(screen.renderer.root, "Start a random case")).toBeUndefined();
     expect(button(screen.renderer.root, "Available")).toBeDefined();
     await unmount(screen.renderer);
@@ -956,8 +961,12 @@ describe("queue layout", () => {
     const screen = await render("coding", api);
     await settle();
     const text = JSON.stringify(screen.renderer.toJSON());
-    expect(text).toContain("Random allocation");
-    expect(text).toContain("3 random · 4 to pick");
+    expect(text).toContain("Random pool");
+    expect(button(screen.renderer.root, "Ready to pick: 4")).toBeDefined();
+    // No card title in any mode, and no summary line beside the page title (owner 2026-11-27).
+    expect(text).not.toContain("Random allocation");
+    expect(text).not.toContain("Pick a case");
+    expect(text).not.toContain("3 random · 4 to pick");
     expect(button(screen.renderer.root, "Start a random case")).toBeDefined();
     expect(button(screen.renderer.root, "Available")).toBeDefined();
     await unmount(screen.renderer);
@@ -994,7 +1003,7 @@ describe("queue layout", () => {
     await unmount(available.renderer);
   });
 
-  test("renders rich case card metadata and filters queue cases by search, sex, site, and recodeable status", async () => {
+  test("renders rich case card metadata and filters queue cases by search, sex, and recodeable status", async () => {
     const api = makeApi({
       getCodingStats: jest.fn().mockResolvedValue({
         random_ready: 3,
@@ -1094,23 +1103,8 @@ describe("queue layout", () => {
     expect(text).toContain("UID-FEM-1");
     expect(text).toContain("UID-MALE-2");
 
-    // Filter by area: Within Area
-    await press(screen.renderer, "Filter area: Within Area");
-    text = JSON.stringify(screen.renderer.toJSON());
-    expect(text).toContain("UID-FEM-1");
-    expect(text).not.toContain("UID-MALE-2");
-
-    // Filter by area: All
-    await press(screen.renderer, "Filter area: All");
-    text = JSON.stringify(screen.renderer.toJSON());
-    expect(text).toContain("UID-FEM-1");
-    expect(text).toContain("UID-MALE-2");
-
-    // Filter by area: S2
-    await press(screen.renderer, "Filter area: S2");
-    text = JSON.stringify(screen.renderer.toJSON());
-    expect(text).toContain("UID-MALE-2");
-    expect(text).not.toContain("UID-FEM-1");
+    // The page's own sites are no longer chips: the place filter is the server-side "Site and unit" field.
+    expect(button(screen.renderer.root, "Filter area: S2")).toBeUndefined();
 
     // Filter by text search that matches nothing
     const filterInput = screen.renderer.root.findByProps({ accessibilityLabel: "Filter cases" });
@@ -1251,5 +1245,463 @@ describe("codedCaseSupportText", () => {
     expect(text).toContain("Recode until");
     expect(text).toContain(`App ${APP_VERSION}`);
     expect(text).not.toContain("Secret Name");
+  });
+});
+
+const placeUnit = (id: string, name: string, path: string, over: Record<string, unknown> = {}) =>
+  ({ org_unit_id: id, unit_code: id, unit_name: name, level_code: "x", path, is_active: true, selectable: true, roles: [], can_code: true, ...over });
+const placeAccess = [
+  {
+    project_id: "P1", project_name: "Project One", has_tree: true, grants: [], sites: [{ site_id: "S1", site_name: "Site One", roles: ["coder"] }],
+    actions: { interview: [], register_death: [], code: { project: false, site_ids: [], org_unit_ids: ["chc1"] }, review: { project: false, site_ids: [], org_unit_ids: ["phc1"] } },
+    units: [placeUnit("d1", "District", "D", { selectable: false }), placeUnit("chc1", "CHC 01", "D.C"), placeUnit("phc1", "PHC 1", "D.C.P"),
+      placeUnit("chc2", "CHC 02", "D.O"), placeUnit("gone", "Closed PHC", "D.C.G", { is_active: false })],
+    levels: [],
+  },
+  {
+    project_id: "P2", project_name: "Project Two", has_tree: false, grants: [],
+    sites: [{ site_id: "S7", site_name: "Site Seven", roles: ["coder"] }, { site_id: "S8", site_name: "Site Eight", roles: ["reviewer"] }],
+    actions: { interview: [], register_death: [], code: { project: false, site_ids: ["S7"], org_unit_ids: [] } },
+  },
+] as unknown as AccessProject[];
+
+/** *accessProjects* null renders the queue without any (the training route). */
+async function renderPlaces(mode: "coding" | "reviewing", api = makeApi(), accessProjects: AccessProject[] | null = placeAccess) {
+  let renderer!: ReactTestRenderer;
+  await act(async () => {
+    renderer = create(<QueueScreen api={api} mode={mode} onOpen={jest.fn()} accessProjects={accessProjects ?? undefined} />);
+  });
+  await settle();
+  return { renderer, api };
+}
+
+const placeSelect = (renderer: ReactTestRenderer) => renderer.root.findAllByType(Select)[0];
+
+async function choosePlace(renderer: ReactTestRenderer, value: string) {
+  await act(async () => { placeSelect(renderer).props.onChange(value); });
+  await settle();
+}
+
+describe("QueueScreen Site and unit filter", () => {
+  test("coding offers only the places the code reach covers, units with their lineage, sites with their project", async () => {
+    const { renderer } = await renderPlaces("coding");
+    const field = placeSelect(renderer);
+    expect(field.props.label).toBe("Site and unit");
+    expect(field.props.value).toBe("");
+    expect(field.props.options).toEqual([
+      { value: "", label: "All areas" },
+      { value: "P1::chc1", label: "CHC 01", detail: "District · Project One" },
+      { value: "P1::phc1", label: "PHC 1", detail: "CHC 01 < District · Project One" },
+      { value: "P2:S7", label: "Site Seven", detail: "Project Two" },
+    ]);
+    await unmount(renderer);
+  });
+
+  test("a choice narrows the server list from page one, keeps across paging, and a site on All names its project", async () => {
+    const api = makeApi({ getCodingAvailable: jest.fn().mockResolvedValue({ forms: [coderRow], count: 1, limit: 50, offset: 0, has_more: true }) });
+    const { renderer } = await renderPlaces("coding", api);
+    await press(renderer, "Next");
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 50 });
+    expect(api.getCodingStats).toHaveBeenLastCalledWith(undefined);
+    await choosePlace(renderer, "P1::phc1");
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P1", orgUnitId: "phc1", limit: 50, offset: 0 });
+    // The counts follow the place (owner 2026-11-27), refetched on every change.
+    expect(api.getCodingStats).toHaveBeenLastCalledWith("P1", { siteId: undefined, orgUnitId: "phc1" });
+    await press(renderer, "Next");
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P1", orgUnitId: "phc1", limit: 50, offset: 50 });
+    await choosePlace(renderer, "P2:S7");
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P2", siteId: "S7", limit: 50, offset: 0 });
+    expect(api.getCodingStats).toHaveBeenLastCalledWith("P2", { siteId: "S7", orgUnitId: undefined });
+    await press(renderer, "History");
+    await settle();
+    expect(api.getCodingHistory).toHaveBeenLastCalledWith({ projectId: "P2", siteId: "S7", limit: 50, offset: 0 });
+    await choosePlace(renderer, "");
+    expect(api.getCodingHistory).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    // All areas again: the stats call is exactly the one without a place.
+    expect((api.getCodingStats as jest.Mock).mock.calls.at(-1)).toEqual([undefined]);
+    await unmount(renderer);
+  });
+
+  test("a project change drops the place and lists only that project's places", async () => {
+    const api = makeApi();
+    const { renderer } = await renderPlaces("coding", api);
+    await choosePlace(renderer, "P1::chc1");
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P1", orgUnitId: "chc1", limit: 50, offset: 0 });
+    await pickProject(renderer, "Project Two");
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P2", limit: 50, offset: 0 });
+    expect(placeSelect(renderer).props.options.map((option: { value: string }) => option.value)).toEqual(["", "P2:S7"]);
+    await unmount(renderer);
+  });
+
+  test("random-only coding shows no place choice and sends none", async () => {
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 2, has_random_mode: true, has_pick_mode: false }) });
+    const { renderer } = await renderPlaces("coding", api);
+    expect(button(renderer.root, "Start a random case")).toBeDefined();
+    expect(renderer.root.findAllByType(Select)).toHaveLength(0);
+    await press(renderer, "History");
+    await settle();
+    expect(api.getCodingHistory).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    expect(renderer.root.findAllByType(Select)).toHaveLength(0);
+    await press(renderer, "Available");
+    await settle();
+    await press(renderer, "Start a random case");
+    expect(api.allocateCoding).toHaveBeenCalledWith(undefined, undefined);
+    await unmount(renderer);
+  });
+
+  test("reviewing offers the review reach and narrows the review list", async () => {
+    const api = makeApi();
+    const { renderer } = await renderPlaces("reviewing", api);
+    // Only P1 is a review project here, and its review reach is PHC 1 alone; P2 has no review reach.
+    expect(placeSelect(renderer).props.options).toEqual([
+      { value: "", label: "All areas" },
+      { value: "P1::phc1", label: "PHC 1", detail: "CHC 01 < District" },
+    ]);
+    await choosePlace(renderer, "P1::phc1");
+    expect(api.getReviewerAvailable).toHaveBeenLastCalledWith({ projectId: "P1", orgUnitId: "phc1", limit: 50, offset: 0 });
+    expect(api.getReviewerStats).toHaveBeenLastCalledWith("P1", { siteId: undefined, orgUnitId: "phc1" });
+    await unmount(renderer);
+  });
+
+  test("a tree project with site reach offers its reached sites and the units under reached units, never another unit", async () => {
+    const tree = placeAccess[0] as unknown as Record<string, unknown> & { actions: Record<string, unknown> };
+    const siteReach = [{ ...tree, sites: [...(tree.sites as unknown[]), { site_id: "S9", site_name: "Site Nine", roles: [] }],
+      actions: { ...tree.actions, code: { project: false, site_ids: ["S1"], org_unit_ids: ["phc1"] } } }] as unknown as AccessProject[];
+    const { renderer } = await renderPlaces("coding", makeApi(), siteReach);
+    expect(placeSelect(renderer).props.options).toEqual([
+      { value: "", label: "All areas" },
+      { value: "P1::phc1", label: "PHC 1", detail: "CHC 01 < District" },
+      { value: "P1:S1", label: "Site One" },
+    ]);
+    await choosePlace(renderer, "P1:S1");
+    expect(renderer.root.findAllByType(Select)[0].props.value).toBe("P1:S1");
+    await unmount(renderer);
+  });
+
+  test("a pick on the project the URL names keeps the place and its request; re-choosing that project keeps it too", async () => {
+    const api = makeApi();
+    let renderer!: ReactTestRenderer;
+    const view = (offset: number) => ({ projectId: "P1", allProjects: false, showHistory: false, offset });
+    const onViewChange = jest.fn((next: { offset: number }) => {
+      // The web route writes the view back into the URL, so the queue gets a fresh initialView each time.
+      renderer.update(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} accessProjects={placeAccess} initialView={view(next.offset)} onViewChange={onViewChange} />);
+    });
+    await act(async () => {
+      renderer = create(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} accessProjects={placeAccess} initialView={view(0)} onViewChange={onViewChange} />);
+    });
+    await settle();
+    await choosePlace(renderer, "P1::phc1");
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P1", orgUnitId: "phc1", limit: 50, offset: 0 });
+    expect(placeSelect(renderer).props.value).toBe("P1::phc1");
+    await pickProject(renderer, "Project One");
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P1", orgUnitId: "phc1", limit: 50, offset: 0 });
+    expect(placeSelect(renderer).props.value).toBe("P1::phc1");
+    await unmount(renderer);
+  });
+
+  test("on All projects a place scopes the list and the counts to its own project", async () => {
+    const api = makeApi();
+    const { renderer } = await renderPlaces("coding", api);
+    await choosePlace(renderer, "P1::phc1");
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P1", orgUnitId: "phc1", limit: 50, offset: 0 });
+    expect(api.getCodingStats).toHaveBeenLastCalledWith("P1", { siteId: undefined, orgUnitId: "phc1" });
+    await unmount(renderer);
+  });
+
+  test("a place-filtered history load offline never reads, writes or clears the history cache", async () => {
+    const page: CoderHistory = { history: [{ ...coderRow, va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "completed", recodeable: true }], count: 1, limit: 50, offset: 0, has_more: false };
+    const identity: CodingHistoryIdentity = { mode: "enrolled", serverOrigin: "https://va.example.org", userId: "u1" };
+    const cache: CodingHistoryCache = {
+      cachedProjects: jest.fn().mockResolvedValue(["P1"]),
+      fingerprintForProject: jest.fn().mockReturnValue("a".repeat(64)),
+      readPage: jest.fn().mockResolvedValue({ page, fetchedAt: "2026-10-03T12:00:00Z", accessFingerprint: "a".repeat(64) }),
+      writePage: jest.fn().mockResolvedValue(undefined), invalidateCase: jest.fn(), invalidateProject: jest.fn(),
+    };
+    const api = makeApi({
+      getCodingHistory: jest.fn((options: { orgUnitId?: string }) => options.orgUnitId ? Promise.reject(new TypeError("Network request failed")) : Promise.resolve(page)),
+    });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} historyCache={cache} historyIdentity={identity} accessProjects={placeAccess}
+        initialView={{ projectId: "P1", allProjects: false, showHistory: true, offset: 0 }} />);
+    });
+    await settle();
+    // Present first: the unfiltered page is saved as the project's history.
+    expect(cache.writePage).toHaveBeenCalledTimes(1);
+    await choosePlace(renderer, "P1::chc1");
+    await settle();
+    expect(api.getCodingHistory).toHaveBeenLastCalledWith({ projectId: "P1", orgUnitId: "chc1", limit: 50, offset: 0 });
+    expect(cache.writePage).toHaveBeenCalledTimes(1);
+    expect(cache.readPage).not.toHaveBeenCalled();
+    expect(cache.invalidateProject).not.toHaveBeenCalled();
+    const text = JSON.stringify(renderer.toJSON());
+    expect(text).not.toContain("Saved on this phone");
+    expect(text).not.toContain("CODER-MASKED-1");
+    expect(text).toContain(errorText(new TypeError("Network request failed")));
+    await unmount(renderer);
+  });
+
+  test("a network failure on the unfiltered Available page leaves the history cache alone", async () => {
+    const identity: CodingHistoryIdentity = { mode: "enrolled", serverOrigin: "https://va.example.org", userId: "u1" };
+    const cache: CodingHistoryCache = {
+      cachedProjects: jest.fn().mockResolvedValue(["P1"]), fingerprintForProject: jest.fn().mockReturnValue("a".repeat(64)),
+      readPage: jest.fn(), writePage: jest.fn(), invalidateCase: jest.fn(), invalidateProject: jest.fn(),
+    };
+    const api = makeApi({ getCodingAvailable: jest.fn().mockRejectedValue(new TypeError("Network request failed")) });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} historyCache={cache} historyIdentity={identity}
+        initialView={{ projectId: "P1", allProjects: false, showHistory: false, offset: 0 }} />);
+    });
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenCalled();
+    expect(cache.invalidateProject).not.toHaveBeenCalled();
+    await unmount(renderer);
+  });
+
+  test("a malformed reach from the server offers no place choice", async () => {
+    const project = placeAccess[1] as unknown as { actions: Record<string, unknown> };
+    const access = parseAccessSummary({ user: { user_id: "u1", name: "W" }, is_admin: false, roles: ["coder"], demo_coding: { available: false, project_ids: [] },
+      projects: [{ ...project, actions: { ...project.actions, code: { project: "yes", site_ids: [], org_unit_ids: [] } } }] });
+    const { renderer } = await renderPlaces("coding", makeApi(), access.projects);
+    expect(renderer.root.findAllByType(Select)).toHaveLength(0);
+    await unmount(renderer);
+  });
+
+  test("without access projects, or with no reach for the action, there is no place choice", async () => {
+    const none = await renderPlaces("coding", makeApi(), null);
+    expect(none.renderer.root.findAllByType(Select)).toHaveLength(0);
+    await unmount(none.renderer);
+    const noReach = await renderPlaces("reviewing", makeApi(), [placeAccess[1]]);
+    expect(noReach.renderer.root.findAllByType(Select)).toHaveLength(0);
+    await unmount(noReach.renderer);
+  });
+});
+
+describe("queue counts, pager, tiles and cards (owner 2026-11-27)", () => {
+  const texts = (node: ReactTestInstance) => node.findAll((n) => (n.type as unknown) === "Text")
+    .map((n) => n.children.filter((c) => typeof c === "string").join(""));
+
+  test("no count-driven switch to My coded cases while a place is chosen", async () => {
+    // Both modes: the whole pool has pick work, the chosen place has none.
+    const stats = jest.fn((_projectId?: string, place?: unknown) => Promise.resolve(
+      { random_ready: 3, pick_ready: place ? 0 : 2, has_random_mode: true, has_pick_mode: true }));
+    const api = makeApi({ getCodingStats: stats as unknown as WorkspaceApi["getCodingStats"] });
+    const { renderer } = await renderPlaces("coding", api);
+    await choosePlace(renderer, "P1::phc1");
+    for (let i = 0; i < 4; i += 1) await settle();
+    expect(stats).toHaveBeenLastCalledWith("P1", { siteId: undefined, orgUnitId: "phc1" });
+    expect(tabKind(renderer.root, "My coded cases")).toBe("secondary");
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P1", orgUnitId: "phc1", limit: 50, offset: 0 });
+    await unmount(renderer);
+  });
+
+  test.each([
+    ["coding Available", "coding" as const, "getCodingAvailable" as const, (rows: unknown[], hasMore: boolean) => ({ forms: rows, count: rows.length, limit: 50, offset: 0, has_more: hasMore }), coderRow, false],
+    ["coding history", "coding" as const, "getCodingHistory" as const, (rows: unknown[], hasMore: boolean) => ({ history: rows, count: rows.length, limit: 50, offset: 0, has_more: hasMore }), { ...coderRow, va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "completed", recodeable: false }, true],
+    ["review Available", "reviewing" as const, "getReviewerAvailable" as const, (rows: unknown[], hasMore: boolean) => ({ cases: rows, count: rows.length, limit: 50, offset: 0, has_more: hasMore }), row, false],
+  ])("%s: the pager shows only when there is another page", async (_name, mode, method, body, item, history) => {
+    const open = async (rows: unknown[], hasMore: boolean | ((options: { offset: number }) => boolean)) => {
+      const fetch = jest.fn((options: { offset: number }) => Promise.resolve({ ...body(rows, typeof hasMore === "function" ? hasMore(options) : hasMore), offset: options.offset }));
+      const screen = await render(mode, makeApi({ [method]: fetch } as Partial<WorkspaceApi>));
+      if (history) { await press(screen.renderer, "History"); await settle(); }
+      return screen;
+    };
+    const empty = await open([], false);
+    expect(button(empty.renderer.root, "Next")).toBeUndefined();
+    expect(button(empty.renderer.root, "Previous")).toBeUndefined();
+    await unmount(empty.renderer);
+    const onePage = await open([item], false);
+    expect(button(onePage.renderer.root, "Next")).toBeUndefined();
+    await unmount(onePage.renderer);
+    // A next page shows the row; on page two (offset > 0) it stays though nothing follows.
+    const more = await open([item], (options) => options.offset === 0);
+    expect(button(more.renderer.root, "Next")?.props.accessibilityState.disabled).toBe(false);
+    await press(more.renderer, "Next");
+    await settle();
+    expect(button(more.renderer.root, "Previous")?.props.accessibilityState.disabled).toBe(false);
+    expect(button(more.renderer.root, "Next")?.props.accessibilityState.disabled).toBe(true);
+    await unmount(more.renderer);
+  });
+
+  test("review tiles: Available to review, Pending coding, Reviewed by me; no summary line beside the title", async () => {
+    const api = makeApi({ getReviewerStats: jest.fn().mockResolvedValue({ in_scope: 9, completed: 1, available: 2, pending_coding: 4, allocation: null }) });
+    const { renderer } = await render("reviewing", api);
+    const text = texts(renderer.root);
+    const order = ["Available to review", "Pending coding", "Reviewed by me"].map((label) => text.indexOf(label));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(text).not.toContain("In scope");
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("available ·");
+    // Pending coding is a count, not a button; the other two are.
+    expect(renderer.root.findAll((n) => n.props.accessibilityRole === "button" && String(n.props.accessibilityLabel).startsWith("Pending coding"))).toHaveLength(0);
+    expect(button(renderer.root, "Available to review: 2")).toBeDefined();
+    expect(button(renderer.root, "Reviewed by me: 1")).toBeDefined();
+    await unmount(renderer);
+  });
+
+  test("an older reviewer /stats without pending_coding keeps the In scope tile", async () => {
+    const { renderer } = await render("reviewing");
+    const text = texts(renderer.root);
+    expect(text).toContain("In scope");
+    expect(text).not.toContain("Pending coding");
+    await unmount(renderer);
+  });
+
+  test("review tiles do exactly what the segment buttons do", async () => {
+    const api = makeApi();
+    const { renderer } = await render("reviewing", api);
+    await press(renderer, "History");
+    await settle();
+    const viaSegment = (api.getReviewerHistory as jest.Mock).mock.calls.at(-1);
+    await press(renderer, "Available");
+    await settle();
+    const availableViaSegment = (api.getReviewerAvailable as jest.Mock).mock.calls.at(-1);
+    await press(renderer, "Reviewed by me: 1");
+    await settle();
+    expect((api.getReviewerHistory as jest.Mock).mock.calls.at(-1)).toEqual(viaSegment);
+    expect(tabKind(renderer.root, "My reviewed cases")).toBe("primary");
+    expect(button(renderer.root, "Reviewed by me: 1")?.props.accessibilityState.selected).toBe(true);
+    await press(renderer, "Available to review: 2");
+    await settle();
+    expect((api.getReviewerAvailable as jest.Mock).mock.calls.at(-1)).toEqual(availableViaSegment);
+    expect(tabKind(renderer.root, "My reviewed cases")).toBe("secondary");
+    expect(button(renderer.root, "Available to review: 2")?.props.accessibilityState.selected).toBe(true);
+    await unmount(renderer);
+  });
+
+  test("coding tiles: Ready to pick acts as Available, Coded as My coded cases; Random pool is not a button", async () => {
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 3, pick_ready: 4, completed: 2, has_random_mode: true, has_pick_mode: true }) });
+    const { renderer } = await render("coding", api);
+    expect(renderer.root.findAll((n) => n.props.accessibilityRole === "button" && String(n.props.accessibilityLabel).startsWith("Random pool"))).toHaveLength(0);
+    await press(renderer, "Coded: 2");
+    await settle();
+    expect(api.getCodingHistory).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    expect(tabKind(renderer.root, "My coded cases")).toBe("primary");
+    const loads = (api.getCodingAvailable as jest.Mock).mock.calls.length;
+    await press(renderer, "Ready to pick: 4");
+    await settle();
+    expect((api.getCodingAvailable as jest.Mock).mock.calls.length).toBe(loads + 1);
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 0 });
+    expect(tabKind(renderer.root, "My coded cases")).toBe("secondary");
+    await unmount(renderer);
+  });
+
+  test("on All projects a place in a random-only project keeps the choice and its request", async () => {
+    const stats = jest.fn((_projectId?: string, place?: unknown) => Promise.resolve(place
+      ? { random_ready: 1, has_random_mode: true, has_pick_mode: false }
+      : { random_ready: 3, pick_ready: 2, has_random_mode: true, has_pick_mode: true }));
+    const api = makeApi({ getCodingStats: stats as unknown as WorkspaceApi["getCodingStats"] });
+    const { renderer } = await renderPlaces("coding", api);
+    await choosePlace(renderer, "P2:S7");
+    for (let i = 0; i < 4; i += 1) await settle();
+    expect(stats).toHaveBeenLastCalledWith("P2", { siteId: "S7", orgUnitId: undefined });
+    expect(placeSelect(renderer)?.props.value).toBe("P2:S7");
+    await choosePlace(renderer, "");
+    for (let i = 0; i < 4; i += 1) await settle();
+    // Back on All areas the All-projects modes return: the pick list and its tile.
+    expect(button(renderer.root, "Ready to pick: 2")).toBeDefined();
+    await unmount(renderer);
+  });
+
+  test("random-only coding has no card title either", async () => {
+    const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 2, has_random_mode: true, has_pick_mode: false }) });
+    const { renderer } = await render("coding", api);
+    expect(button(renderer.root, "Start a random case")).toBeDefined();
+    expect(JSON.stringify(renderer.toJSON())).not.toContain("Random allocation");
+    await unmount(renderer);
+  });
+
+  test("Review shows Your languages with the same edit action; a save reloads the review counts and list", async () => {
+    const api = makeApi({ getReviewerStats: jest.fn().mockResolvedValue({ in_scope: 3, completed: 1, available: 2, languages: { mine: ["english", "hindi"] }, allocation: null }) });
+    const onEditLanguages = jest.fn();
+    let renderer!: ReactTestRenderer;
+    const view = (reloadKey: number) => <QueueScreen api={api} mode="reviewing" onOpen={jest.fn()} onEditLanguages={onEditLanguages} reloadKey={reloadKey} />;
+    await act(async () => { renderer = create(view(0)); });
+    await settle();
+    expect(texts(renderer.root)).toContain("Your languages: English, Hindi");
+    const edit = renderer.root.findAll((n) => n.props.testID === "coding-languages-edit" && n.props.onPress)[0];
+    await act(async () => { edit.props.onPress(); });
+    expect(onEditLanguages).toHaveBeenCalledTimes(1);
+    const statsLoads = (api.getReviewerStats as jest.Mock).mock.calls.length;
+    const listLoads = (api.getReviewerAvailable as jest.Mock).mock.calls.length;
+    await act(async () => { renderer.update(view(1)); });
+    await settle();
+    expect((api.getReviewerStats as jest.Mock).mock.calls.length).toBeGreaterThan(statsLoads);
+    expect((api.getReviewerAvailable as jest.Mock).mock.calls.length).toBeGreaterThan(listLoads);
+    await unmount(renderer);
+  });
+
+  test("an older reviewer /stats without languages draws no languages line", async () => {
+    const { renderer } = await render("reviewing");
+    expect(renderer.root.findAll((n) => n.props.testID === "coding-languages")).toHaveLength(0);
+    await unmount(renderer);
+  });
+
+  test("both queues draw the one shared card: title and pill, the id under a name, project · site · date, chips, action", async () => {
+    const named = { ...coderRow, va_uniqueid_masked: "PHC01-000020_172313647", deceased_name: "Esha Testcase", va_narration_language: "english" };
+    const coding = await render("coding", makeApi({
+      getCodingAvailable: jest.fn().mockResolvedValue({ forms: [named, { ...coderRow, va_sid: "c2" }], count: 2, limit: 50, offset: 0, has_more: false }),
+    }));
+    const reviewing = await render("reviewing", makeApi({
+      getReviewerAvailable: jest.fn().mockResolvedValue({ cases: [{ ...row, va_narration_language: "english" }], count: 1, limit: 50, offset: 0, has_more: false }),
+    }));
+    const codingCards = coding.renderer.root.findAllByType(QueueCaseCard);
+    const reviewCards = reviewing.renderer.root.findAllByType(QueueCaseCard);
+    expect(codingCards).toHaveLength(2);
+    expect(reviewCards).toHaveLength(1);
+    // A name is the title, the case id muted under it; then the pill sits in row one, then project · site · date and the chips.
+    expect(texts(codingCards[0]).slice(0, 6)).toEqual(["Esha Testcase", "english", "Case 000020", "P1 · P1-S1 · 1 Oct 2026", "Age: 52", "Sex: female"]);
+    // No name: the id is the title and there is no id line; no language from an older server: no pill.
+    expect(texts(codingCards[1]).slice(0, 4)).toEqual(["CODER-MASKED-1", "P1 · P1-S1 · 1 Oct 2026", "Age: 52", "Sex: female"]);
+    expect(texts(reviewCards[0]).slice(0, 5)).toEqual(["MASKED-1", "english", "P1 · P1-S1 · 1 Oct 2026", "Age: 52", "Sex: female"]);
+    // The action is the card's last child, each queue's own.
+    expect(codingCards[0].findAll((n) => n.props.accessibilityLabel === "Pick case")).not.toHaveLength(0);
+    expect(reviewCards[0].findAll((n) => n.props.accessibilityLabel === "Review case")).not.toHaveLength(0);
+    await unmount(coding.renderer);
+    await unmount(reviewing.renderer);
+    // The same rule on Review, should a review item carry a name (today's server and parser send none).
+    const namedReview = await render("reviewing", makeApi({
+      getReviewerAvailable: jest.fn().mockResolvedValue({ cases: [{ ...row, deceased_name: "Ravi Kumar" }], count: 1, limit: 50, offset: 0, has_more: false }),
+    }));
+    expect(texts(namedReview.renderer.root.findAllByType(QueueCaseCard)[0]).slice(0, 3)).toEqual(["Ravi Kumar", "en", "MASKED-1"]);
+    await unmount(namedReview.renderer);
+  });
+
+  test("coding history cards show the language pill too", async () => {
+    const api = makeApi({
+      getCodingHistory: jest.fn().mockResolvedValue({ history: [{ ...coderRow, va_narration_language: "odia", va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "completed", recodeable: false }], count: 1, limit: 50, offset: 0, has_more: false }),
+    });
+    const { renderer } = await render("coding", api);
+    await press(renderer, "History");
+    await settle();
+    const card = renderer.root.findAllByType(QueueCaseCard)[0];
+    expect(texts(card).slice(0, 2)).toEqual(["CODER-MASKED-1", "odia"]);
+    await unmount(renderer);
+  });
+});
+
+describe("additive queue keys are parsed leniently", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { parseReviewerStats, parseCoderQueue, parseCoderHistory } = require("../src/workspace/contracts") as typeof import("../src/workspace/contracts");
+  const base = { in_scope: 3, completed: 1, available: 2, allocation: null };
+
+  test("reviewer stats keep a numeric pending_coding and a languages list, and drop malformed ones", () => {
+    expect(parseReviewerStats({ ...base, pending_coding: 4, languages: { mine: ["english", 7] } })).toEqual({ ...base, pending_coding: 4, languages: { mine: ["english"] } });
+    expect(parseReviewerStats({ ...base, pending_coding: "4", languages: "english" })).toEqual(base);
+    expect(parseReviewerStats(base)).toEqual(base);
+  });
+
+  test("coding items keep a string narration language and drop anything else", () => {
+    const page = (item: Record<string, unknown>) => ({ forms: [item], count: 1, limit: 50, offset: 0, has_more: false });
+    expect(parseCoderQueue(page({ ...coderRow, va_narration_language: "english" }), 50, 0).forms[0].va_narration_language).toBe("english");
+    expect("va_narration_language" in parseCoderQueue(page({ ...coderRow, va_narration_language: 3 }), 50, 0).forms[0]).toBe(false);
+    const history = { history: [{ ...coderRow, va_narration_language: "odia", va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "completed", recodeable: false }], count: 1, limit: 50, offset: 0, has_more: false };
+    expect(parseCoderHistory(history, 50, 0).history[0].va_narration_language).toBe("odia");
   });
 });

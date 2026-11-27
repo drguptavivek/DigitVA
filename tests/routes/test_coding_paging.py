@@ -279,6 +279,8 @@ class CodingPagingTests(BaseTestCase):
                 "va_sid", "va_uniqueid_masked", "va_form_id", "project_id",
                 "site_id", "va_submission_date", "va_data_collector",
                 "va_deceased_age", "va_deceased_gender", "deceased_name",
+                # va_narration_language: additive, the card's language pill (2026-11-27).
+                "va_narration_language",
             },
         )
         self.assertNotIn("pg-b-0", sids)
@@ -451,6 +453,8 @@ class CodingPagingTests(BaseTestCase):
                 # recode_until: additive, digitva-yeg3.2.
                 # needs_recode: additive, digitva-knu2.
                 "is_tester", "recodeable", "recode_until", "needs_recode",
+                # va_narration_language: additive, the card's language pill (2026-11-27).
+                "va_narration_language",
             },
         )
         self.assertEqual(

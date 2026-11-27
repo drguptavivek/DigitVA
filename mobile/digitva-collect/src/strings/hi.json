@@ -2224,6 +2224,8 @@
   "collectionDailyLimit": "आप {name} के लिए आज की {limit} नए साक्षात्कारों की सीमा तक पहुँच गए हैं। अपने पर्यवेक्षक से संपर्क करें।",
   "codeNowKeepCase": "मेरा मामला रखें",
   "codeNowReleaseConfirmNoNumber": "अपना मौजूदा मामला छोड़ने पर उस पर आपका अधूरा चरण 1 का काम मिट जाएगा। इसे वापस नहीं किया जा सकता।",
+  "queuePendingCoding": "कोडिंग बाकी",
+  "queueReviewedByMe": "मेरे द्वारा समीक्षित",
   "queueCaseNumber": "मामला {number}",
   "detailsChip": "विवरण: {code}",
   "detailsChipLabel": "विवरण {code}: कॉपी या साझा करने के लिए दबाएँ",

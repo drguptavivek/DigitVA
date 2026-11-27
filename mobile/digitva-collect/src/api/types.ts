@@ -27,7 +27,12 @@ export interface AccessProject {
   supervises_deaths?: boolean;
   grants: Array<{ role: string; scope: string; site_id?: string; org_unit_id?: string; unit_name?: string; codes?: boolean; active: boolean; source: "assigned" | "self_coding" }>;
   sites: Array<{ site_id: string; site_name: string; roles: string[] }>;
-  actions: { interview: AccessActionContext[]; register_death: AccessActionContext[] };
+  /**
+   * `code` and `review` are the server's per-action reach (`authz.predicates.action_reach`), present only where the user
+   * holds that action in the project; absent from older servers, and dropped by the parser when malformed. Other reach
+   * keys the server sends are not read here.
+   */
+  actions: { interview: AccessActionContext[]; register_death: AccessActionContext[]; code?: ActionReach; review?: ActionReach };
   /** Exact SmartVA snapshot for authorized interview site/unit targets. */
   smartva_targets?: SmartVaTarget[];
   /** Project-owned self-coding setting; absent on older servers/fixtures. */
@@ -56,6 +61,13 @@ export interface SmartVaTarget {
   form_updated_at: string;
   options: { country: string; hiv: boolean; malaria: boolean; hce: boolean; freetext: boolean };
   options_digest: `sha256:${string}`;
+}
+
+/** Where an action's grants reach in one project: the whole project, these sites, or these units and their subtrees. */
+export interface ActionReach {
+  project: boolean;
+  site_ids: string[];
+  org_unit_ids: string[];
 }
 
 export interface AccessActionContext {
@@ -170,6 +182,14 @@ export function parseAccessSummary(value: unknown): AccessSummary {
     }
     for (const entry of project.actions.register_death) {
       if (!isAccessActionContext(entry)) throw new ApiError(200, "malformed_response");
+    }
+    // Advisory only (it builds the queue's "Site and unit" choices, never a gate): a malformed reach is dropped, never
+    // thrown, since a throw here revokes every capability the account holds on the phone.
+    for (const key of ["code", "review"] as const) {
+      const reach = project.actions[key];
+      if (reach !== undefined && (!record(reach) || typeof reach.project !== "boolean" || !strings(reach.site_ids) || !strings(reach.org_unit_ids))) {
+        delete project.actions[key];
+      }
     }
     for (const site of project.sites) {
       if (!record(site) || typeof site.site_id !== "string" || typeof site.site_name !== "string" || !strings(site.roles)) throw new ApiError(200, "malformed_response");

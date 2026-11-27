@@ -39,6 +39,7 @@ from app.routes.api.request_helpers import (
     optional_object_body,
     optional_page_args,
     parse_body,
+    place_filter_arg,
     project_filter_arg,
 )
 from app.routes.api.request_helpers import (
@@ -615,9 +616,11 @@ def available_forms():
     With ``limit`` (1..200) and optional ``offset`` (>= 0): one page,
     ``{forms, count, limit, offset, has_more}``, ``count`` the page's size.
     ``project_id`` narrows either form to one project of the caller's reach
-    (another project's id answers an empty list). 400 ``invalid_request`` for
-    a bad parameter, ``offset`` without ``limit`` included. On the training
-    side ``queue`` (standard, the default, or own) picks the training queue
+    (another project's id answers an empty list); ``site_id`` and
+    ``org_unit_id`` (the unit and its subtree) narrow it to one place the same
+    way (``place_filter_arg``). 400 ``invalid_request`` for a bad parameter,
+    ``offset`` without ``limit`` included. On the training side ``queue``
+    (standard, the default, or own) picks the training queue
     (``training_scope.resolve_queue``).
     """
     training_scope.resolve("coding")
@@ -625,15 +628,16 @@ def available_forms():
     try:
         limit, offset = optional_page_args()
         project_id = project_filter_arg()
+        place = place_filter_arg()
     except BadQuery as exc:
         return api_error(str(exc), "invalid_request", 400)
     va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
     _, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access or [])
     if limit is None:
-        forms = get_pick_available_forms(current_user, pick_form_ids, project_id)
+        forms = get_pick_available_forms(current_user, pick_form_ids, project_id, place=place)
         return jsonify({"forms": forms, "count": len(forms)})
     forms, has_more = get_pick_available_page(
-        current_user, pick_form_ids, limit=limit, offset=offset, project_id=project_id
+        current_user, pick_form_ids, limit=limit, offset=offset, project_id=project_id, place=place
     )
     return jsonify({
         "forms": forms, "count": len(forms), "limit": limit, "offset": offset,
@@ -653,12 +657,19 @@ def stats():
     ``training_queues`` adds each queue's "X of Y" (an additive key).
     ``languages`` (additive) is ``{mine: [codes], pending: [{language,
     count}]}``: the coder's coding languages and the forms pending coding
-    by narration language (``pending_by_language``)."""
+    by narration language (``pending_by_language``). ``site_id`` and
+    ``org_unit_id`` narrow every count to one place as they narrow the list
+    (``place_filter_arg``; 400 ``invalid_request`` when malformed); the mode
+    flags and ``training_queues`` stay the project's."""
     training_scope.resolve("coding")
     training_scope.resolve_queue()
     project_id = (request.args.get("project_id") or "").strip().upper() or None
-    kpis = get_coder_ready_stats(current_user, project_id=project_id)
-    output_summary = get_coder_output_summary(current_user.user_id, project_id=project_id)
+    try:
+        place = place_filter_arg()
+    except BadQuery as exc:
+        return api_error(str(exc), "invalid_request", 400)
+    kpis = get_coder_ready_stats(current_user, project_id=project_id, place=place)
+    output_summary = get_coder_output_summary(current_user.user_id, project_id=project_id, place=place)
     kpis["completed"] = output_summary["completed"]
     kpis["not_codeable"] = output_summary["not_codeable"]
     if training_scope.on_training_side():
@@ -666,7 +677,7 @@ def stats():
     # "Your languages" and "Forms pending coding" (additive; old clients ignore it).
     kpis["languages"] = {
         "mine": list(current_user.vacode_language or []),
-        "pending": pending_by_language(current_user, project_id=project_id),
+        "pending": pending_by_language(current_user, project_id=project_id, place=place),
     }
     return jsonify(kpis)
 
@@ -689,13 +700,19 @@ def history():
     dashboard). With ``limit`` (1..200) and optional ``offset`` (>= 0): one
     page of the same rows in the same order, ``{history, count, limit,
     offset, has_more}``, ``count`` the page's size. ``project_id`` narrows
-    either form to one project of the caller's reach. 400 ``invalid_request``
-    for a bad parameter, ``offset`` without ``limit`` included.
+    either form to one project of the caller's reach; ``site_id`` and
+    ``org_unit_id`` narrow a page to one place (``place_filter_arg``; the
+    unpaged body is the cached whole list, so there they are refused). 400
+    ``invalid_request`` for a bad parameter, ``offset`` without ``limit``
+    included.
     """
     training_scope.resolve("coding")
     try:
         limit, offset = optional_page_args()
         project_id = project_filter_arg()
+        place = place_filter_arg()
+        if place and limit is None:
+            raise BadQuery("site_id and org_unit_id require limit.")
     except BadQuery as exc:
         return api_error(str(exc), "invalid_request", 400)
     va_form_access = list(training_scope.filter_form_ids(
@@ -703,7 +720,7 @@ def history():
     ))
     if limit is not None:
         rows, has_more = get_coder_history_page(
-            current_user, va_form_access, limit=limit, offset=offset, project_id=project_id
+            current_user, va_form_access, limit=limit, offset=offset, project_id=project_id, place=place
         )
         return jsonify({
             "history": rows, "count": len(rows), "limit": limit, "offset": offset,

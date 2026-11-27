@@ -65,16 +65,25 @@ export interface WorkspaceRequestInit {
 
 export type JsonRequester = (path: string, init?: WorkspaceRequestInit) => Promise<unknown>;
 
+/**
+ * One page of a queue list. `siteId` / `orgUnitId` (the "Site and unit" filter) narrow it on the server to that site,
+ * or that unit and its subtree; absent, the list is the whole queue as before.
+ */
+export type QueuePageOptions = { projectId?: string; siteId?: string; orgUnitId?: string; limit?: number; offset?: number };
+
+/** The "Site and unit" filter alone: the queue counts follow it as the lists do. */
+export type QueuePlaceFilter = { siteId?: string; orgUnitId?: string };
+
 /** The coder and reviewer queues: counts, available cases, history, projects. */
 export interface WorkspaceQueueApi {
-  getCodingStats(projectId?: string): Promise<CodingStats>;
-  getCodingAvailable(options?: { projectId?: string; limit?: number; offset?: number }): Promise<CoderQueue>;
-  getCodingHistory(options?: { projectId?: string; limit?: number; offset?: number }): Promise<CoderHistory>;
+  getCodingStats(projectId?: string, place?: QueuePlaceFilter): Promise<CodingStats>;
+  getCodingAvailable(options?: QueuePageOptions): Promise<CoderQueue>;
+  getCodingHistory(options?: QueuePageOptions): Promise<CoderHistory>;
   getCodingProjects(): Promise<CoderProjects>;
   getReviewerProjects(): Promise<ReviewerProjects>;
-  getReviewerStats(projectId?: string): Promise<ReviewerStats>;
-  getReviewerAvailable(options?: { projectId?: string; limit?: number; offset?: number }): Promise<ReviewerQueue>;
-  getReviewerHistory(options?: { projectId?: string; limit?: number; offset?: number }): Promise<ReviewerHistory>;
+  getReviewerStats(projectId?: string, place?: QueuePlaceFilter): Promise<ReviewerStats>;
+  getReviewerAvailable(options?: QueuePageOptions): Promise<ReviewerQueue>;
+  getReviewerHistory(options?: QueuePageOptions): Promise<ReviewerHistory>;
 }
 
 /** Taking, reading and giving back a coding or review allocation. */
@@ -134,13 +143,11 @@ function id(value: string): string {
   return encodeURIComponent(value);
 }
 
-function projectQuery(projectId?: string): string {
-  return projectId ? `?${new URLSearchParams({ project_id: projectId })}` : "";
-}
-
-function pagingQuery(options: { projectId?: string; limit?: number; offset?: number } = {}): string {
+function pagingQuery(options: QueuePageOptions = {}): string {
   const params = new URLSearchParams();
   if (options.projectId) params.set("project_id", options.projectId);
+  if (options.siteId) params.set("site_id", options.siteId);
+  if (options.orgUnitId) params.set("org_unit_id", options.orgUnitId);
   if (options.limit !== undefined) {
     if (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 200) throw new WorkspaceContractError("request.limit");
     params.set("limit", String(options.limit));
@@ -201,23 +208,23 @@ export function createWorkspaceApi(request: JsonRequester, options: { training?:
       const value = await get(`/va/${id(vaSid)}/categories/${id(code)}?mode=${encodeURIComponent(mode)}`);
       return parsed(value, body => parseCategory(body, mode));
     },
-    async getCodingStats(projectId) { return parsed(await scopedGet(`/coding/stats${projectQuery(projectId)}`), parseCodingStats); },
+    async getCodingStats(projectId, place) { return parsed(await scopedGet(`/coding/stats${pagingQuery({ projectId, ...place })}`), parseCodingStats); },
     async getCodingAvailable(options) {
       const limit = options?.limit ?? 50;
       const offset = options?.offset ?? 0;
-      const query = pagingQuery({ projectId: options?.projectId, limit, offset });
+      const query = pagingQuery({ ...options, limit, offset });
       return parsed(await scopedGet(`/coding/available${query}`), value => parseCoderQueue(value, limit, offset));
     },
     async getCodingHistory(options) {
       const limit = options?.limit ?? 50;
       const offset = options?.offset ?? 0;
-      const query = pagingQuery({ projectId: options?.projectId, limit, offset });
+      const query = pagingQuery({ ...options, limit, offset });
       return parsed(await scopedGet(`/coding/history${query}`), value => parseCoderHistory(value, limit, offset));
     },
     async getCodingProjects() { return parsed(await scopedGet("/coding/projects"), parseCoderProjects); },
     async getCodingAllocation() { return parsed(await scopedGet("/coding/allocation"), parseOptionalAllocation); },
     async getReviewerProjects() { return parsed(await scopedGet("/reviewing/projects"), parseReviewerProjects); },
-    async getReviewerStats(projectId) { return parsed(await scopedGet(`/reviewing/stats${projectQuery(projectId)}`), parseReviewerStats); },
+    async getReviewerStats(projectId, place) { return parsed(await scopedGet(`/reviewing/stats${pagingQuery({ projectId, ...place })}`), parseReviewerStats); },
     async getReviewerAvailable(options) {
       const limit = options?.limit ?? 50;
       const offset = options?.offset ?? 0;

@@ -409,6 +409,19 @@ it("rejects incomplete interview entries and unit roots at the access boundary",
   expect(() => parseAccessSummary({ ...access, projects: [{ ...access.projects[0], actions: { interview: [{ ...entry, org_units: [{ org_unit_id: "i" }] }], register_death: [] } }] })).toThrow(ApiError);
 });
 
+it("reads code and review reach when sent, lets older servers omit it, and drops a malformed one", () => {
+  const project = access.projects[0];
+  expect(parseAccessSummary(access).projects[0].actions.code).toBeUndefined();
+  const code = { project: false, site_ids: ["S1"], org_unit_ids: ["u1"] };
+  const view = { anything: "the server sends other reach keys too" };
+  expect(parseAccessSummary({ ...access, projects: [{ ...project, actions: { ...project.actions, code, view } }] }).projects[0].actions.code).toEqual(code);
+  for (const review of [null, { project: "yes", site_ids: [], org_unit_ids: [] }, { project: true, site_ids: [1], org_unit_ids: [] }, { project: true, site_ids: [] }]) {
+    const parsed = parseAccessSummary({ ...access, projects: [{ ...project, actions: { ...project.actions, code, review } }] });
+    expect(parsed.projects[0].actions.review).toBeUndefined();
+    expect(parsed.projects[0].actions.code).toEqual(code);
+  }
+});
+
 it("parses only complete SmartVA snapshots while allowing older servers to omit them", () => {
   const target = {
     schema_version: 1,

@@ -4,14 +4,18 @@ Both answer ``{"error", "code"}``; both name the interviewer's project in the
 request, never taken from the device's enrolment.
 """
 
+import re
+import uuid
+
 from flask import current_app, jsonify, request
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
 
 from app import _rate_limit_key, db, limiter
-from app.models import VaAccessRoles
+from app.models import VaAccessRoles, VaForms, VaSubmissions
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
+from app.services.authz import subtree_select
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
 
 #: Interviewer reach alone, the default of every intake route; the register
@@ -124,6 +128,36 @@ def project_filter_arg() -> str | None:
     if project_id and len(project_id) > _MAX_PROJECT_ID:
         raise BadQuery("project_id is too long.")
     return project_id
+
+
+_SITE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+def place_filter_arg() -> list:
+    """The optional "Site and unit" filter of the queue lists, as SQL conditions.
+
+    ``site_id`` matches the form's site; ``org_unit_id`` (a UUID) the unit and
+    every active unit under it (``authz.subtree_select``). Both may be given
+    (both must hold); neither answers ``[]``, so the route is unchanged. The
+    conditions are ANDed onto the caller's own authorized query, so the filter
+    only narrows: a place outside the caller's reach answers nothing extra.
+    Each statement must already join ``VaForms`` and ``VaSubmissions``.
+    Raises ``BadQuery`` for a malformed value.
+    """
+    conditions = []
+    site_id = (request.args.get("site_id") or "").strip()
+    if site_id:
+        if not _SITE_ID.fullmatch(site_id):
+            raise BadQuery("site_id is not a site id.")
+        conditions.append(VaForms.site_id == site_id)
+    org_unit_id = (request.args.get("org_unit_id") or "").strip()
+    if org_unit_id:
+        try:
+            unit = uuid.UUID(org_unit_id)
+        except ValueError:
+            raise BadQuery("org_unit_id is not a unit id.") from None
+        conditions.append(VaSubmissions.org_unit_id.in_(subtree_select([unit])))
+    return conditions
 
 
 def identifier_rate_limit(carries, *, search=False):

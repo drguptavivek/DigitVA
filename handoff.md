@@ -2,25 +2,26 @@
 
 ## Start here
 
-Staging runs `eeb8e4815` (deployed 2026-11-27 on the owner's go: rglh,
-l2dg, public VA definitions; migrations at `f3c9d1a7b5e2`; app, worker and
-beat recreated on the new image; rollback, schema changes are additive so no
-downgrade needed:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 5a3f994b3af6c00423e5de83d1fbcab4e1344d27`;
-the demo stack runs the same commit as `digitva-demo-app:eeb8e4815`, its
-previous env saved at `/data/digitva-demo.env.pre-eeb8e4815`;
-EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-27). The image carries 0.3.31
-(`android-v0.3.31`, `collect-plus-v0.3.31-plus.1`; supersedes 0.3.30, which
-never reached phones); phones are offered 0.3.31 since 2026-11-26. Play AAB
-0.3.31 (run 45770414218, expires about 2026-12-10) awaits the owner's upload.
-No device check of 0.3.30 or 0.3.31.
+Staging runs `c7b1ac797` (deployed 2026-11-27 on the owner's go: the queue
+and cards set, Local cases row, web screen cache and screen stack, queue
+tab-return; migrations at `a40477e55b72`; app, worker and beat recreated on
+the new image; rollback, the one new column is nullable so no downgrade
+needed:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh eeb8e48158dc3073013d9580237e22fdcced6ff6`;
+EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-27). The demo stack
+still runs `eeb8e4815` (`digitva-demo-app:eeb8e4815`, previous env at
+`/data/digitva-demo.env.pre-eeb8e4815`); upgrading it needs the owner's go.
+The image carries 0.3.33 (`android-v0.3.33`,
+`collect-plus-v0.3.33-plus.1`, web `expo-web-v2026.11.27.3`; 0.3.32 was
+never pinned) but phones are still offered 0.3.31: copying 0.3.33 into
+`private/android-hosted` needs the owner's go after a device check (steps in
+docs/current-state/android-release-builds.md). Play AAB 0.3.33 (run
+46014411448, expires about 2026-12-11) awaits the owner's upload; the 0.3.31
+AAB is superseded. No device check of 0.3.31 or 0.3.33.
 
 Owner decisions:
-- Staging deploy and 0.3.32 build: owner go 2026-11-27 ("if all needed
-  components are built ... commit, land, build expo, server, apks, aabs ...
-  deploy to staging"). Excluded: the `Scoped ICD-11 API client tokens`
-  session (not on main) and `digitva-hre5` (own branch). The phone offer
-  of 0.3.32, the demo upgrade and the Play upload need separate goes.
+- Offer 0.3.33 to phones, upgrade the demo, upload the Play AAB: each its
+  own go.
 - Homepage "DigitVA in use" counts only HMR001 (10 interviews): the owner
   will tick "Included in homepage KPIs" (Admin → Projects) for ICMR01,
   UNSW01, KEM001 and TELE01 themselves.
@@ -28,16 +29,20 @@ Owner decisions:
   fail open or closed is the owner's call.
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer
   trainee at a sub-centre may get `grant_not_allowed`.
-- Not verified after the deploys: the signed-in pages (coding, training
-  interview, ICD search, System health, a data manager's user management
-  site list from `digitva-b94q`, ICD-10 VA definitions from `digitva-31ac`,
-  the web org-unit pickers, the save-burst check `digitva-3ko3`), which need
-  the owner's sign-in.
+- Not verified after the deploys: the signed-in pages (coding queues with
+  the new Sort and filter panel, training interview, ICD search, System
+  health, a data manager's user management site list from `digitva-b94q`,
+  ICD-10 VA definitions from `digitva-31ac`, the web org-unit pickers, the
+  save-burst check `digitva-3ko3`), which need the owner's sign-in.
+- ICD-11 client API stays https-only with no plain-HTTP refusal (owner
+  2026-11-27, "https is default"; `digitva-lkow` closed).
 - Never re-run the ICD-10 CSV or policy import on staging: it re-enables the
   withdrawn R00-R94 codes (`1f037b4717e4`; R50 and R54 stay selectable by
   design).
-- The twenty pre-deploy EBS snapshots (tags `release=0.3.30`,
-  `release=cb5c903c1`, `release=634711950`, `release=5a3f994b3` and `release=eeb8e4815`) never expire; delete them when no longer needed.
+- The twenty-four pre-deploy EBS snapshots (tags `release=0.3.30`,
+  `release=cb5c903c1`, `release=634711950`, `release=5a3f994b3`,
+  `release=eeb8e4815` and `release=c7b1ac797`) never expire; delete them
+  when no longer needed.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect
@@ -48,27 +53,30 @@ and maps stay in the browser).
 
 ## Ranked next steps
 
-- Land after 0.3.32 is cut, not before (owner 2026-11-27, "After 0.3.32"):
-  `digitva-329t` dropdowns open at the field, reviewed and emulator-checked,
-  on `refs/heads/worktree-agent-aa48d1112a502ab3d` at `221eab308` (worktree
-  `.claude/worktrees/agent-aa48d1112a502ab3d`). Flip-above on Android not
-  device-checked (`digitva-wlfr`, P3).
-- On hold (owner 2026-11-27, "wait on .32"; approved 2026-11-26): do not
-  build until the owner says go. The offline Social Autopsy display passed
-  the l2dg emulator rerun (2026-11-27, debug APK with the pinned engine
-  `icd11-engine-v2026.10.29.1`): SA question text and answer labels show, no
-  SA analysis form offline, final COD not blocked by SA. The earlier
-  load_failed was a stale local engine, not an app bug. The Collect Plus
-  Local cases row it found missing is back on the Code tab (`digitva-5cqm`,
-  landed; not yet device-checked). The next APK
-  (0.3.32): version bump, web release, Collect, Plus and Play bundle, gates,
-  verification, pin commit; report version and CI links to the l2dg
-  session. It also carries the case-definition line-break fix
-  (`6070c5c65`). Staging and the phone offer need separate goes.
-- Device-check 0.3.31 (now offered to phones; adds the org-unit lineage
-  pickers): re-enrol from Sign in again (`digitva-dbcw`), DORIS
-  interview/report death dates, case summary, Reset DORIS dialog, COD form
-  PDF on staging. Flaky under `-n 4`: `digitva-9czl`, `digitva-wd09`.
+- Land the ICD-11 API client tokens (`digitva-ddpf`, owner-requested):
+  reviewed LAND at `368aaf2f8` on `refs/heads/icd11-api-clients` (worktree
+  `.claude/worktrees/icd11-api-clients`, session `Scoped ICD-11 API client
+  tokens`), migration `a4d7e2c9b1f6` on `a40477e55b72`. Needs a rebase onto
+  main (pin commits only since its base), the full backend suite including
+  `test_schema_drift.py`, and a browser check of the admin "ICD-11 API
+  Clients" page on dev. Deploy and live token issuance need the owner's go.
+  Follow-up `digitva-zcmg` (dedupe codeinfo item builders).
+- Land `digitva-329t` (dropdowns open at the field; owner "after 0.3.32",
+  now cut): `refs/heads/worktree-agent-aa48d1112a502ab3d` at `221eab308`,
+  reviewed and emulator-checked; rebase onto main, rerun Jest and
+  check-web, and re-review if the rebase is not trivial. Flip-above on
+  Android not device-checked (`digitva-wlfr`, P3).
+- Device-check 0.3.33 from the CI APKs before asking to offer it: Collect
+  Plus Local cases row on the Code tab (`digitva-5cqm`), phone Interviews and
+  Reported deaths cards with copy and call (`digitva-2b7d`), the Sort and
+  filter sheet and Recodeable (`digitva-znbm`), Reported deaths chips and
+  the Refused badge (`digitva-aunm`), queue tab-return (`digitva-1xof`),
+  offline Social Autopsy display, plus the 0.3.31 list: re-enrol from Sign in
+  again (`digitva-dbcw`), DORIS death dates, case summary, Reset DORIS
+  dialog, COD form PDF, org-unit lineage pickers. Flaky under `-n 4`:
+  `digitva-9czl`, `digitva-wd09`, `digitva-jajs` (before 13:00 UTC).
+- Queue search has no index yet; watch it on large projects (reviewer note
+  on `digitva-wqz7`).
 - Bulk invitations: owner gets the mail host's SMTP limits and relay logs
   for 21 and 23 Nov, then tune pace and backoff (`digitva-povs`). Pacing is
   per import only. 86 staging users whose 21 Nov invitations failed still

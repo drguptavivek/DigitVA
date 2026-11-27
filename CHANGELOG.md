@@ -5,6 +5,26 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Staging runs `c7b1ac797` (owner go 2026-11-27): the queue and cards set,
+  the Local cases row, the web screen cache and screen stack, queue
+  tab-return, and the 0.3.33 pins. Collect 0.3.33 (run 46014399596), Collect
+  Plus 0.3.33 (run 46014404642), web `expo-web-v2026.11.27.3` (run
+  46014394366) and the Play AAB (run 46014411448, artifact only) were built
+  on CI from `724a310f9`; both APKs verified (release certificate, versionCode
+  3332, staging origin, checksums) and pinned by `c7b1ac797`; image run
+  46018403010. 0.3.32 (`android-v0.3.32` from `197551ff1`) was published
+  before the tab-return fix landed and is never pinned; its Collect Plus
+  build and web `.27.2` were cancelled before publishing, and the owner chose
+  0.3.33 now. Before: EBS snapshots snap-014353318a2f81ae7,
+  snap-02dca0cb72d153edd, snap-0e2b689161fe28d63, snap-0fe01aa716f96954d,
+  tag `release=c7b1ac797`; the deploy's verified pg_dump
+  `pg_dump_minerva_20261127T144822Z.dump`. Old-APK audit of
+  `eeb8e4815..` the deployed tree: safe. After: `/api/v1/app/version`
+  reports `c7b1ac797`, migrations at `a40477e55b72`, app, worker and beat on
+  the new image with no restarts and the worker ready, no tracebacks, public
+  pages and sign-in 200, `/api/v1/me/access` 401 signed out, the image holds
+  the 0.3.33 APKs. Phones are still offered 0.3.31; the demo stays on
+  `eeb8e4815`. Not checked: signed-in pages.
 - Web sidebar clicks no longer pile screens up (`digitva-hre5`): a screen
   with a later menu section above it is not rendered, Back still walks the
   sections, and case screens (workspace, case detail, training cases) are

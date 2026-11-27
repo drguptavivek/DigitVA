@@ -102,8 +102,9 @@ export default function ProfileNudge() {
     <Text style={{ color: theme.ui.warningForeground, fontSize: 14, lineHeight: 20 }}>
       Please complete your profile ({labelText}).
     </Text>
-    <a href="/profile/" style={{ color: theme.ui.warningForeground, fontSize: 14, fontWeight: "600" }}>
-      My Profile
+    {/* A raw <a> gets the browser's serif font; the RN Text inside carries the app font. */}
+    <a href="/profile/" style={{ color: theme.ui.warningForeground }}>
+      <Text style={{ color: theme.ui.warningForeground, fontSize: 14, fontWeight: "600" }}>My Profile</Text>
     </a>
     <Pressable
       accessibilityRole="button"

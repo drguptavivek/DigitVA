@@ -5,6 +5,10 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Web profile nudge: the "My Profile" link renders in the app font instead
+  of the browser's serif (`digitva-a2yf`); the link text is an RN Text
+  inside the same `<a>`. Reviewed by the independent reviewer; Jest
+  profile-nudge 4/4, `make check-web` passed. Not looked at in a browser.
 - Staging deployed to `eeb8e4815` on the owner's go (rglh token reply,
   l2dg Social Autopsy split and layer mapping, public VA definitions).
   Old-APK audit and the independent reviewer's read found nothing breaking.

@@ -30,11 +30,16 @@ test("sidebar clicks drop the screens under the new section", () => {
 test("a queue under the case it opened stays mounted, so Back keeps its filters", () => {
   const stack = [route("coding", "q"), route("workspace", "w")];
   expect(coveredBySection(stack, "q")).toBe(false);
-  // A section opened from the case drops both.
+  // A section opened from the case drops the queue, but never the case: its coding input lives only in the screen.
   const later = [...stack, route("reviewing", "r")];
   expect(coveredBySection(later, "q")).toBe(true);
-  expect(coveredBySection(later, "w")).toBe(true);
+  expect(coveredBySection(later, "w")).toBe(false);
   expect(coveredBySection(later, "r")).toBe(false);
+});
+
+test("training case workspaces are never covered either", () => {
+  const stack = [route("training/coding/case", "c"), route("training/reviewing/case", "v"), route("index", "h"), route("coding", "q")];
+  expect(stack.map((r) => coveredBySection(stack, r.key))).toEqual([false, false, true, false]);
 });
 
 test("an unknown key is never covered", () => {

@@ -630,7 +630,10 @@ longer piles screens up. The stack keeps its routes, so Back still walks the
 sections; a section reached by Back mounts afresh (the screen cache shows its last
 answer at once) and has lost its in-screen state, such as filters and scroll. A
 queue under the case it opened is not covered, so Back from the case finds it as
-it was. Native builds keep the plain stack.
+it was. A case workspace (`/workspace`, the training coding and review cases) is
+never covered: its unsaved coding input lives only in the screen and has no leave
+guard, so a section opened from a case leaves it under the page for Back, as
+before. Native builds keep the plain stack.
 
 An open coding/review case uses its own HTMX-style browser workspace:
 Hints and VA Form Details above category navigation and Query/Response

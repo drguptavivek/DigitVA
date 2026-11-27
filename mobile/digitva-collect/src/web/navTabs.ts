@@ -80,6 +80,27 @@ export function navEntries(bootstrap: NavBootstrap): { primary: NavEntry[]; more
   return { primary, more };
 }
 
+/** Every in-app route the sidebar or bottom bar can open (each `route` navEntries may return). */
+export const SECTION_ROUTES: ReadonlySet<string> = new Set([
+  "/", "/death-registration", "/collection", "/coding", "/reviewing", "/statistics", "/training", ...Object.values(TRAINING_ROUTES),
+  "/organization", "/users", "/settings", "/mentoring", "/mentor-view", "/withdrawn-cases",
+]);
+
+/** The path of a root-stack route name: "index" is "/", "training/coding/index" is "/training/coding". */
+export function stackRoutePath(name: string): string {
+  return `/${name}`.replace(/\/index$/, "") || "/";
+}
+
+/**
+ * Web only (digitva-hre5): a screen with a section opened above it is not rendered, so sidebar clicks do not pile
+ * screens up on the page. The stack keeps its route: Back still reaches it, and it mounts afresh (the screen cache
+ * shows its last answer at once). A screen under a case or form it opened is not a section's, so it stays as it was.
+ */
+export function coveredBySection(routes: ReadonlyArray<{ key: string; name: string }>, key: string): boolean {
+  const index = routes.findIndex((route) => route.key === key);
+  return index >= 0 && routes.slice(index + 1).some((route) => SECTION_ROUTES.has(stackRoutePath(route.name)));
+}
+
 const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value)?.trim();
 
 /** The item route a path belongs to, or undefined (a view-only workspace, unknown routes). /workspace belongs to Coding or Review by its `mode`. */

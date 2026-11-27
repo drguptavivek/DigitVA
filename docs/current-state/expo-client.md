@@ -623,6 +623,15 @@ sidebar or phone rail and the screen header. It forwards optional header actions
 and a footer slot to `Screen`; page content does not construct its own main
 navigation. Empty footer slots consume no screen space.
 
+In the browser the root stack renders only the screens since the last section the
+menu can open (`navTabs.SECTION_ROUTES`): a screen with a later section above it
+leaves the page (`coveredBySection`, digitva-hre5), so moving between sections no
+longer piles screens up. The stack keeps its routes, so Back still walks the
+sections; a section reached by Back mounts afresh (the screen cache shows its last
+answer at once) and has lost its in-screen state, such as filters and scroll. A
+queue under the case it opened is not covered, so Back from the case finds it as
+it was. Native builds keep the plain stack.
+
 An open coding/review case uses its own HTMX-style browser workspace:
 Hints and VA Form Details above category navigation and Query/Response
 sections. The shared `CaseWorkspaceScreen` retains allocation-safe loading,

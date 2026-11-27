@@ -1,8 +1,9 @@
 import "../src/polyfills";
 import { Stack } from "expo-router";
+import { useNavigationState } from "expo-router/react-navigation";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { ActivityIndicator, Dimensions, LogBox, Platform, Text, View } from "react-native";
 import { GestureRoot } from "../src/GestureRoot";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -25,6 +26,7 @@ import NativeIcd11DorisFirstLaunchGate from "../src/NativeIcd11DorisFirstLaunchG
 import { useDemoDocumentTitle } from "../src/DemoBadge";
 import { TelemetryPrompt } from "../src/TelemetryPrompt";
 import { installPerformanceTelemetryLifecycle } from "../src/performanceTelemetry";
+import { coveredBySection } from "../src/web/navTabs";
 
 // The debug build's warning toast ("Open debugger to view warnings") covers the bottom strip of every screen and
 // swallows taps there (tab bar, last choices, Next). Warnings still reach Metro and the debugger; a fatal error
@@ -79,7 +81,7 @@ function ActivityRoot() {
           screenOptions={{ headerShown: false, animation: "none", contentStyle: { backgroundColor: colors.background } }}
           screenLayout={({ children, route }) => (
             <NativeCollectionGate routeName={route.name} routeParams={route.params}>
-              {children}
+              {Platform.OS === "web" ? <WebStackGate routeKey={route.key}>{children}</WebStackGate> : children}
             </NativeCollectionGate>
           )}
         />
@@ -88,6 +90,12 @@ function ActivityRoot() {
       {ready ? <TelemetryPrompt /> : null}
     </View>
   );
+}
+
+/** Web: a screen under a later sidebar section leaves the page (navTabs.coveredBySection, digitva-hre5). */
+function WebStackGate({ routeKey, children }: { routeKey: string; children: ReactNode }) {
+  const covered = useNavigationState((state) => coveredBySection(state.routes, routeKey));
+  return covered ? null : children;
 }
 
 export default function RootLayout() {

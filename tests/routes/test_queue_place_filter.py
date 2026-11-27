@@ -431,6 +431,19 @@ class ReviewingPlaceFilterTests(_PlaceFilterBase):
         # Outside the review reach nothing counts: reviewer_sp1 holds only the site project's AZS1.
         self.assertEqual(self._stats("reviewer_sp1")["pending_coding"], 0)
 
+    def test_pending_coding_leaves_out_a_confirmed_duplicate(self):
+        before = self._stats("reviewer_p1")
+        self.assertEqual(before["pending_coding"], 3)  # pc-p1 is among them
+        db.session.add(VaDeathRegister(
+            project_id=TA, site_id=FORMS["ta1"][2], death_number=990004, unique_id=f"QC-{uuid.uuid4().hex[:8]}",
+            deceased_name="Asha Rao", has_deceased_name=True, deceased_sex="female", date_of_death=date(2026, 1, 1),
+            registered_by=self.users["interviewer_p1"].user_id, source="direct", status="duplicate", va_sid="pc-p1",
+        ))
+        db.session.commit()
+        after = self._stats("reviewer_p1")
+        self.assertEqual(after["pending_coding"], 2)
+        self.assertEqual(after["in_scope"], before["in_scope"] - 1)
+
     def _author(self, sid, user_key):
         """*user_key*'s active reviewer final on *sid* (a history row of theirs)."""
         db.session.add(VaReviewerFinalAssessments(

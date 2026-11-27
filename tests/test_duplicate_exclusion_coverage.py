@@ -60,6 +60,7 @@ COVERED_HELPERS = frozenset({
     "routes/api/analytics.py::_dm_scope_filter",
     "routes/api/dm_kpi/dm_kpi_scope.py::bucket_flow_by_day",
     "services/reviewer_dashboard_service.py::_available_where",
+    "services/reviewer_dashboard_service.py::_in_scope_count",
     "services/ai_analytics_tables.py::_scope_filter",
     "services/area_dashboard_service.py::_medians",
 })

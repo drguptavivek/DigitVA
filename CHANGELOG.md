@@ -5,6 +5,17 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Web sidebar clicks no longer pile screens up (`digitva-hre5`): a screen
+  with a later menu section above it is not rendered, Back still walks the
+  sections, and case screens (workspace, case detail, training cases) are
+  never covered, so their unsaved input survives. Web only.
+- Returning to the app or browser tab keeps the Code queue's tab, page and
+  filters and shows the last page while it reloads (`digitva-1xof`);
+  Refresh and conflicts still go to Available; the phone still drops rows
+  on background. Both reviewed by the independent reviewer (hre5 after two
+  fix rounds); landed after the 0.3.32 bump, so they reach the web through
+  the second web release `expo-web-v2026.11.27.2` and phones with the next
+  APK. Full Jest 369 suites / 6739 passed and check-web passed on main.
 - The queue and cards set landed together (owner 2026-11-27: finish every
   bead of the work first), each piece reviewed by the independent reviewer:
   - Code and Review queues sort and filter on the server (`digitva-wqz7`):

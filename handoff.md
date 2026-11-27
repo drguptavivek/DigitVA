@@ -23,8 +23,12 @@ Owner decisions waiting:
   `f09e6ec6f`) and issue the first token.
 - Homepage KPIs: the owner ticks "Included in homepage KPIs" for ICMR01,
   UNSW01, KEM001, TELE01 (only HMR001 counts now).
-- Redis outage 500s every request via the IP-ban check (`digitva-248z`):
-  fail open or closed.
+- On main, not deployed (each needs the owner's go for staging): Redis
+  fail-open (`6d3cbed61`, `digitva-248z` closed), ingress gzip (`329a75b05`,
+  `digitva-qq5l`: after deploy run the curl checks in its notes), web error
+  text and closed-draft guard (`0ad457383`, `digitva-k34z` closed;
+  `digitva-y96b` open: PATCH on load of an open draft unconfirmed).
+  `digitva-6sty` heap: needs a device measurement (ranked causes in its notes).
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer
   trainee at a sub-centre may get `grant_not_allowed`.
 - Signed-in staging pages are unchecked since the deploys (queues with the
@@ -40,6 +44,9 @@ Owner decisions waiting:
   (`jb4t`), WHO technical note (a WHO contact email), `kkdb` step 2, `wawz`
   start, engine provenance and InterVA/InSilicoVA (no go yet), AI
   interview-quality checks (`digitva-qtmq`, on hold), Hindi string review.
+- Policy `docs/policy/data-manager-project-setup-exports-and-2fa.md`
+  (commit `b9762ba89`, not pushed) has no open questions; build order is the
+  owner's call (ranked step 12).
 - The 24 pre-deploy EBS snapshots (tags `release=0.3.30`, `cb5c903c1`,
   `634711950`, `5a3f994b3`, `eeb8e4815`, `c7b1ac797`) never expire; delete
   when no longer needed.
@@ -85,6 +92,21 @@ Owner decisions waiting:
     (`xxfz`). Offline PHC station (`xt9y`). Help chatbot (`wawz`, CPU or
     edge model only). Backend performance `f41g`: owner "dont fix for now".
 11. Queue search has no index yet (reviewer note on `digitva-wqz7`).
+12. Approved 2026-11-27, not started, no code yet (baseline above; each
+    needs the policy pushed first, then a writer):
+    - `digitva-8wct` mandatory passkey-or-TOTP for admin, project PI, site PI,
+      In-charge and every data manager; 14-day grace; admin reset, no
+      recovery codes. Reverses `authentication-factors.md` for those roles.
+    - `digitva-vg9c` data manager Project Setup: coding gates, units (project
+      scope), grants via `authz.can_grant`; a new case-key-details export;
+      org-tree data managers only see staff names, village and birth date;
+      drop their SmartVA, payload, COD snapshot and COD bucket exports; log
+      every download. Separate screen, per-endpoint authz.
+    - `digitva-hwxy` consent placeholders editable per project (organisation,
+      project area, DPO, contacts); check the fill reads `contacts.dpo`.
+    - Tidy: retitle epic `digitva-sn1` (passkeys are optional-built, only
+      `sn1.1.7` open). `digitva-om65` is not due until 2026-12-31 (owner
+      extended the screenshot allowance 2026-11-12).
 
 ## Boundaries still true
 

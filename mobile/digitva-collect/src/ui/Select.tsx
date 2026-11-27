@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { t } from "../i18n";
 import { controls, radius, spacing, useTheme } from "../theme";
 import { Chevron } from "../web/Chevron";
 import { anchorMenu, CheckMark, useSelectStyles } from "./ProjectSelect";
+import { RevealFieldContext } from "./revealField";
 
 /** *detail* is an optional muted second line (e.g. a unit's ancestors); search matches it too. */
 export type SelectOption = { value: string; label: string; detail?: string };
@@ -38,6 +39,7 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
   const [query, setQuery] = useState("");
   const [anchor, setAnchor] = useState<ReturnType<typeof anchorMenu> | null>(null);
   const button = useRef<View>(null);
+  const reveal = useContext(RevealFieldContext);
   const wasOpen = useRef(false);
   useEffect(() => {
     if (wasOpen.current && !open) (button.current as unknown as { focus?: () => void } | null)?.focus?.();
@@ -64,8 +66,13 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
     setAnchor(null);
     setQuery("");
     setOpen(true);
-    // Test renderers and some hosts have no layout; the menu then sits at the top left.
-    button.current?.measureInWindow?.((x, y, w, h) => setAnchor(anchorMenu({ x, y, w, h }, win, { side: "left", menuWidth: MENU_WIDTH })));
+    const place = () => {
+      // Test renderers and some hosts have no layout; the menu then sits at the top left.
+      button.current?.measureInWindow?.((x, y, w, h) => setAnchor(anchorMenu({ x, y, w, h }, win, { side: "left", menuWidth: MENU_WIDTH })));
+    };
+    // Inside a scroll area that offers it, bring the field to the top first so the menu (and the keyboard the search box raises) has room below it.
+    if (reveal && button.current) reveal(button.current, place);
+    else place();
   };
   const pick = (next: string) => {
     setOpen(false);

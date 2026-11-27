@@ -1,11 +1,12 @@
-import { forwardRef, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import type { AccessProject, IntakeContextEntry } from "../api";
 import { orgUnitChains } from "../ui/orgUnitLabel";
 import { t } from "../i18n";
 import { controls, fontSize, radius, spacing, typography, useTheme } from "../theme";
 import { RemovableChip } from "../ui/controls";
+import { RevealFieldContext, revealOnWeb, useRevealField } from "../ui/revealField";
 import { Select } from "../ui/Select";
 
 /** 40px controls, 44px under 768px (the touch target); as `useControlHeight` in src/ui.tsx, which tests here mock away. */
@@ -300,6 +301,10 @@ export function FilterPanel({ open, title, onClose, footer, children }: {
   const s = useFilterStyles();
   const { width } = useWindowDimensions();
   const wide = width >= 768;
+  const scrollRef = useRef<ScrollView>(null);
+  const { reveal, onScroll, onLayout, onContentSizeChange, reset } = useRevealField(scrollRef);
+  // The Modal unmounts its ScrollView, so a reopened sheet starts at the top.
+  useEffect(reset, [open, reset]);
   return (
     <Modal visible={open} transparent animationType={wide ? "fade" : "slide"} onRequestClose={onClose}>
       <View style={wide ? s.backdropSide : s.backdropSheet}>
@@ -309,7 +314,9 @@ export function FilterPanel({ open, title, onClose, footer, children }: {
             <Text style={s.sheetTitle} accessibilityRole="header">{title}</Text>
             <Button kind="secondary" size="sm" label={t("supervisionClose")} onPress={onClose} />
           </View>
-          <ScrollView keyboardDismissMode="on-drag" contentContainerStyle={s.sheetBody}>{children}</ScrollView>
+          <RevealFieldContext.Provider value={Platform.OS === "web" ? revealOnWeb : reveal}>
+            <ScrollView ref={scrollRef} onScroll={onScroll} onLayout={onLayout} onContentSizeChange={onContentSizeChange} scrollEventThrottle={16} keyboardDismissMode="on-drag" contentContainerStyle={s.sheetBody}>{children}</ScrollView>
+          </RevealFieldContext.Provider>
           <View style={s.sheetFooter}>{footer}</View>
         </View>
       </View>

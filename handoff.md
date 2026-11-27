@@ -17,10 +17,10 @@ No device check of 0.3.30 or 0.3.31.
 
 Owner decisions:
 - No staging deploy until the sessions finish their in-flight work (owner
-  2026-11-27): `digitva-5cqm` local-cases-row (in review), and each piece
-  reviewed by the INDEPENDENT CODE REVIEWER session before it lands. Main
-  is ahead of staging `eeb8e4815` with uee4, zxw0, a2yf, vbr2, oo77, ctj2,
-  lqmo.
+  2026-11-27): `digitva-pav3` web Loading flash (Flashing screens bug
+  session, moving out of the main checkout), and each piece reviewed by
+  the INDEPENDENT CODE REVIEWER session before it lands. Main is ahead of
+  staging `eeb8e4815` with uee4, zxw0, a2yf, vbr2, oo77, ctj2, lqmo, 5cqm.
 - Homepage "DigitVA in use" counts only HMR001 (10 interviews): the owner
   will tick "Included in homepage KPIs" (Admin → Projects) for ICMR01,
   UNSW01, KEM001 and TELE01 themselves.
@@ -58,13 +58,9 @@ and maps stay in the browser).
   the l2dg emulator rerun (2026-11-27, debug APK with the pinned engine
   `icd11-engine-v2026.10.29.1`): SA question text and answer labels show, no
   SA analysis form offline, final COD not blocked by SA. The earlier
-  load_failed was a stale local engine, not an app bug. Found there: an
-  online Collect Plus coder has no Local cases entry row on the Code tab
-  since `d024b5ad0` (shipped 0.3.28-0.3.31; the row survives only in
-  NativeCollectionGate's fallback), plus the raw code at
-  offlineCoding.native.tsx:487 (`digitva-5cqm`; the owner sent the fix to the
-  Shared Unit selector session, which is redesigning the cards; its branch
-  comes to the coordinator for review and landing). The next APK
+  load_failed was a stale local engine, not an app bug. The Collect Plus
+  Local cases row it found missing is back on the Code tab (`digitva-5cqm`,
+  landed; not yet device-checked). The next APK
   (0.3.32): version bump, web release, Collect, Plus and Play bundle, gates,
   verification, pin commit; report version and CI links to the l2dg
   session. It also carries the case-definition line-break fix

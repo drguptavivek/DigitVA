@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Collect Plus coders have their Local cases row again, at the top of the
+  Code tab (`digitva-5cqm`); `d024b5ad0` had removed it, so 0.3.28-0.3.31
+  shipped with offline cases reachable only by deep link. Owner 2026-11-27:
+  Code tab only, never on Home (docs/policy/field-data-collection.md keeps
+  coder links off Home). The offline case screen says why a case is closed
+  instead of showing the raw `offline_case_access_revoked`. Collect app and
+  docs only. Reviewed by the independent reviewer; full Jest 364 suites /
+  6690 passed and check-web passed on the landed tree. Not device-checked:
+  no test phone profile has offline coding on.
 - Code and Review queues follow the Site and unit place filter on the
   server and share one case card (`digitva-lqmo`, owner-settled
   2026-11-27): name or case id, language and last-action pills, a place line

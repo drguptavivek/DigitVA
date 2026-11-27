@@ -952,9 +952,10 @@ trainee holds an explicit interviewer grant, which it already counts.
 A coder's coding languages (`vacode_language`) narrow the coding pool and the
 pick: a case whose narration language is not one of them is not offered, and
 its pick is refused (see "Coding Intake Mode"). With none set, nothing is
-narrowed. Admins and project managers set them (user and project user
-screens); a coder (and only a coder: 403 for anyone without a coder
-grant) may also set their own in their profile
+narrowed. The review queue filters on the same list. Admins and project
+managers set them (user and project user screens); a coder or a reviewer
+(owner 2026-11-27: reviewers too, since their queue filters on them; 403 for
+anyone with neither grant) may also set their own in their profile
 (`PATCH /api/v1/profile/languages`: a non-empty list of active language
 codes, the admin screen's rule). The browser session (with CSRF) and, since
 2026-11-19, the Collect device bearer token may call it (owner,

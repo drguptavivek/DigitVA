@@ -564,7 +564,10 @@ class ReviewingApiPhase3bTests(BaseTestCase):
         self.assertEqual(
             set(row),
             {"va_sid", "va_uniqueid_masked", "va_form_id", "project_id", "site_id", "va_submission_date",
-             "va_data_collector", "va_deceased_age", "va_deceased_gender", "va_narration_language"},
+             "va_data_collector", "va_deceased_age", "va_deceased_gender", "va_narration_language",
+             # The queue card's keys: additive (queue_card_service, 2026-11-27).
+             "unit_name", "site_name", "project_nickname", "va_deceased_age_normalized_days",
+             "date_of_death", "first_coded_at", "last_coded_at", "recoded"},
         )
         self.assertEqual(row["va_narration_language"], "English")
         self.assertEqual(row["project_id"], self.BASE_PROJECT_ID)

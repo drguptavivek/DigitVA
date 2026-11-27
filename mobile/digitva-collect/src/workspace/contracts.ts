@@ -295,7 +295,23 @@ export interface CategoryPayload {
   blocked_by?: string[];
 }
 
-export interface QueueCase {
+/**
+ * The queue card's additive keys (2026-11-27, `app/services/queue_card_service.py`): absent from older servers, and
+ * each dropped by the parser when malformed. `deceased_name` only for a caller with personal-data access.
+ */
+export interface QueueCardKeys {
+  unit_name?: string | null;
+  site_name?: string | null;
+  project_nickname?: string | null;
+  va_deceased_age_normalized_days?: number | null;
+  date_of_death?: string | null;
+  first_coded_at?: string | null;
+  last_coded_at?: string | null;
+  recoded?: boolean;
+  deceased_name?: string | null;
+}
+
+export interface QueueCase extends QueueCardKeys {
   va_sid: string;
   va_uniqueid_masked: string;
   va_form_id: string;
@@ -322,7 +338,7 @@ export interface CoderQueue {
   has_more: boolean;
 }
 
-export interface CoderAvailableCase {
+export interface CoderAvailableCase extends QueueCardKeys {
   va_sid: string;
   va_uniqueid_masked: string;
   deceased_name?: string | null;
@@ -337,7 +353,7 @@ export interface CoderAvailableCase {
   va_narration_language?: string | null;
 }
 
-export interface CoderHistoryCase {
+export interface CoderHistoryCase extends QueueCardKeys {
   va_sid: string;
   va_uniqueid_masked: string;
   va_form_id: string;
@@ -769,6 +785,7 @@ function queueCase(value: unknown, field: string): QueueCase {
     va_sid: string(source.va_sid, `${field}.va_sid`), va_uniqueid_masked: string(source.va_uniqueid_masked, `${field}.va_uniqueid_masked`), va_form_id: string(source.va_form_id, `${field}.va_form_id`), project_id: string(source.project_id, `${field}.project_id`), site_id: string(source.site_id, `${field}.site_id`), va_submission_date: string(source.va_submission_date, `${field}.va_submission_date`), va_data_collector: nullableString(source.va_data_collector, `${field}.va_data_collector`), va_deceased_age: age as string | number | null, va_deceased_gender: nullableString(source.va_deceased_gender, `${field}.va_deceased_gender`), va_narration_language: nullableString(source.va_narration_language, `${field}.va_narration_language`),
     ...(source.va_reviewed_at !== undefined ? { va_reviewed_at: string(source.va_reviewed_at, `${field}.va_reviewed_at`) } : {}),
     ...(source.recodeable !== undefined ? { recodeable: boolean(source.recodeable, `${field}.recodeable`) } : {}),
+    ...cardKeys(source),
   };
 }
 
@@ -788,12 +805,28 @@ function coderAvailableCase(value: unknown, field: string): CoderAvailableCase {
     va_deceased_age: age as string | number | null,
     va_deceased_gender: nullableString(source.va_deceased_gender, `${field}.va_deceased_gender`),
     ...narrationLanguage(source),
+    ...cardKeys(source),
   };
 }
 
 /** The additive card pill: kept when a string, else left out (display only, never a refusal of the page). */
 function narrationLanguage(source: Record<string, unknown>): { va_narration_language?: string } {
   return typeof source.va_narration_language === "string" ? { va_narration_language: source.va_narration_language } : {};
+}
+
+const CARD_TEXT_KEYS = ["unit_name", "site_name", "project_nickname", "date_of_death", "first_coded_at", "last_coded_at", "deceased_name"] as const;
+
+/** The card keys present and well-formed (a string or null; a finite number; a boolean); a malformed one is left out. */
+function cardKeys(source: Record<string, unknown>): QueueCardKeys {
+  const keys: QueueCardKeys = {};
+  for (const key of CARD_TEXT_KEYS) {
+    const value = source[key];
+    if (typeof value === "string" || value === null) keys[key] = value;
+  }
+  const days = source.va_deceased_age_normalized_days;
+  if (days === null || (typeof days === "number" && Number.isFinite(days) && days >= 0)) keys.va_deceased_age_normalized_days = days;
+  if (typeof source.recoded === "boolean") keys.recoded = source.recoded;
+  return keys;
 }
 
 function coderHistoryCase(value: unknown, field: string): CoderHistoryCase {
@@ -810,6 +843,7 @@ function coderHistoryCase(value: unknown, field: string): CoderHistoryCase {
     va_deceased_age: age as string | number | null,
     va_deceased_gender: nullableString(source.va_deceased_gender, `${field}.va_deceased_gender`),
     ...narrationLanguage(source),
+    ...cardKeys(source),
     va_coding_date: string(source.va_coding_date, `${field}.va_coding_date`),
     va_code_status: string(source.va_code_status, `${field}.va_code_status`),
     recodeable: boolean(source.recodeable, `${field}.recodeable`),

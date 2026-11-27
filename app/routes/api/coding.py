@@ -90,6 +90,7 @@ from app.services.demo_project_service import should_use_demo_actiontype_for_sub
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.interview_send_back_service import send_back_for_revision
 from app.services.odk_retirement_service import submission_is_in_odk
+from app.services.queue_card_service import add_card_keys
 from app.services.viewer_pii_service import should_redact_pii
 from app.services.workflow.definition import CODER_READY_POOL_STATES
 from app.services.workflow.intake_modes import split_form_ids_by_coding_intake_mode
@@ -621,7 +622,8 @@ def available_forms():
     way (``place_filter_arg``). 400 ``invalid_request`` for a bad parameter,
     ``offset`` without ``limit`` included. On the training side ``queue``
     (standard, the default, or own) picks the training queue
-    (``training_scope.resolve_queue``).
+    (``training_scope.resolve_queue``). Rows carry the queue card keys
+    (``queue_card_service.add_card_keys``).
     """
     training_scope.resolve("coding")
     training_scope.resolve_queue()
@@ -634,11 +636,12 @@ def available_forms():
     va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
     _, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access or [])
     if limit is None:
-        forms = get_pick_available_forms(current_user, pick_form_ids, project_id, place=place)
+        forms = add_card_keys(current_user, get_pick_available_forms(current_user, pick_form_ids, project_id, place=place))
         return jsonify({"forms": forms, "count": len(forms)})
     forms, has_more = get_pick_available_page(
         current_user, pick_form_ids, limit=limit, offset=offset, project_id=project_id, place=place
     )
+    add_card_keys(current_user, forms)
     return jsonify({
         "forms": forms, "count": len(forms), "limit": limit, "offset": offset,
         "has_more": has_more,
@@ -704,7 +707,9 @@ def history():
     ``org_unit_id`` narrow a page to one place (``place_filter_arg``; the
     unpaged body is the cached whole list, so there they are refused). 400
     ``invalid_request`` for a bad parameter, ``offset`` without ``limit``
-    included.
+    included. Rows carry the queue card keys, set after the cache read
+    (``queue_card_service.add_card_keys``); a page also carries the
+    deceased's name where the caller may see it (the unpaged list does not).
     """
     training_scope.resolve("coding")
     try:
@@ -722,6 +727,7 @@ def history():
         rows, has_more = get_coder_history_page(
             current_user, va_form_access, limit=limit, offset=offset, project_id=project_id, place=place
         )
+        add_card_keys(current_user, rows, names=True, coder_id=current_user.user_id)
         return jsonify({
             "history": rows, "count": len(rows), "limit": limit, "offset": offset,
             "has_more": has_more,
@@ -741,6 +747,8 @@ def history():
     if project_id:
         rows = [row for row in rows if row["project_id"] == project_id]
     rows = [row for row in rows if training_scope.keeps_project(row["project_id"])]
+    # ponytail: no names on the whole unpaged list (one sealed-blob open per named row); the app pages.
+    add_card_keys(current_user, rows, coder_id=current_user.user_id)
     return jsonify({"history": rows, "count": len(rows)})
 
 

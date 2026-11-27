@@ -226,7 +226,7 @@ def update_job_title():
 
 
 # ---------------------------------------------------------------------------
-# PATCH /api/v1/profile/languages  — the coder's own coding languages
+# PATCH /api/v1/profile/languages  — a coder's or reviewer's own languages
 # ---------------------------------------------------------------------------
 
 @bp.patch("/languages")
@@ -235,14 +235,16 @@ def update_coding_languages():
     """Set the current user's coding languages (coding-workflow-state-machine.md,
     "Coder coding languages"): a non-empty list of active language codes, the
     admin user screen's rule. They narrow coding and review lists in every
-    project. Coders only (403 otherwise); each change is audited with the old
+    project. Coders and reviewers only (403 otherwise; reviewers since
+    2026-11-27: the review queue filters on them too); each change is audited with the old
     and new codes. A cookie caller needs CSRF (the app-wide check); the
     Collect device bearer may call it too, CSRF-exempt like every bearer."""
     from app.models.mas_languages import MasLanguages
     from app.services.authz.predicates import role_flags
 
-    if "coder" not in role_flags(current_user, virtual=False):
-        return api_error("Only coders can set coding languages.", "forbidden", 403)
+    roles = role_flags(current_user, virtual=False)
+    if "coder" not in roles and "reviewer" not in roles:
+        return api_error("Only coders and reviewers can set coding languages.", "forbidden", 403)
 
     body = optional_object_body()
     if body is None:

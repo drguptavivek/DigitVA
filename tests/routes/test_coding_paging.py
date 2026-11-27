@@ -281,6 +281,9 @@ class CodingPagingTests(BaseTestCase):
                 "va_deceased_age", "va_deceased_gender", "deceased_name",
                 # va_narration_language: additive, the card's language pill (2026-11-27).
                 "va_narration_language",
+                # The queue card's keys: additive (queue_card_service, 2026-11-27).
+                "unit_name", "site_name", "project_nickname", "va_deceased_age_normalized_days",
+                "date_of_death", "first_coded_at", "last_coded_at", "recoded",
             },
         )
         self.assertNotIn("pg-b-0", sids)
@@ -455,6 +458,9 @@ class CodingPagingTests(BaseTestCase):
                 "is_tester", "recodeable", "recode_until", "needs_recode",
                 # va_narration_language: additive, the card's language pill (2026-11-27).
                 "va_narration_language",
+                # The queue card's keys: additive (queue_card_service, 2026-11-27).
+                "unit_name", "site_name", "project_nickname", "va_deceased_age_normalized_days",
+                "date_of_death", "first_coded_at", "last_coded_at", "recoded",
             },
         )
         self.assertEqual(

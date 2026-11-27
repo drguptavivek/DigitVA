@@ -6,16 +6,22 @@ already lists: a site matches the form's site, a unit itself and its subtree.
 The AZTA01 tree (D1 > C1 > P1 > SC1, C1 > P2, D2) and the AZSP01 site project
 come from the authz fixture.
 """
-from datetime import datetime
+import uuid
+from datetime import date, datetime, timedelta
 
 from app import db
 from app.models import (
+    MasOrgUnit,
+    VaDeathRegister,
     VaFinalAssessments,
+    VaProjectMaster,
     VaReviewerFinalAssessments,
+    VaSiteMaster,
     VaStatuses,
     VaSubmissions,
     VaSubmissionWorkflow,
 )
+from app.models.mas_languages import MasLanguages
 from app.services import org_unit_routing_service as routing
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
@@ -25,7 +31,7 @@ from app.services.workflow.definition import (
     WORKFLOW_REVIEWER_ELIGIBLE,
     WORKFLOW_REVIEWER_FINALIZED,
 )
-from tests.authz.fixture import FORMS, SIDS, SP, AuthzFixtureMixin, P, R
+from tests.authz.fixture import FORMS, SIDS, SP, TA, AuthzFixtureMixin, P, R
 from tests.base import BaseTestCase
 
 CODED_AT = datetime(2026, 5, 1, 12, 0, 0)  # naive UTC, as the columns are
@@ -157,6 +163,80 @@ class _PlaceFilterBase(AuthzFixtureMixin, BaseTestCase):
             self.assertEqual(item["va_narration_language"], "English")
             self.assertEqual(item["va_deceased_age"], 42)
 
+    def _assert_card_keys(self, user_key, nonpii_key, *, add_active_final):
+        """The card keys (owner 2026-11-27) on Available and history rows, beside the old keys,
+        and the deceased's name only for a caller with personal-data access."""
+        earlier = CODED_AT - timedelta(days=2)
+        if add_active_final:
+            db.session.add(VaFinalAssessments(
+                va_sid="hx-sc1", va_finassess_by=self.users["coder_p1"].user_id, va_conclusive_cod="R99",
+                va_finassess_status=VaStatuses.active, va_finassess_createdat=CODED_AT,
+            ))
+        # The recode deactivated the first final and kept it.
+        db.session.add(VaFinalAssessments(
+            va_sid="hx-sc1", va_finassess_by=self.users["coder_p1"].user_id, va_conclusive_cod="R98",
+            va_finassess_status=VaStatuses.deactive, va_finassess_createdat=earlier,
+        ))
+        # Another coder's final on the same case (a training standard case) and a demo final never count.
+        db.session.add(VaFinalAssessments(
+            va_sid="hx-sc1", va_finassess_by=self.users["coder_c1"].user_id, va_conclusive_cod="R96",
+            va_finassess_status=VaStatuses.deactive, va_finassess_createdat=earlier - timedelta(days=3),
+        ))
+        db.session.add(VaFinalAssessments(
+            va_sid="hx-sc1", va_finassess_by=self.users["coder_p1"].user_id, va_conclusive_cod="R95",
+            va_finassess_status=VaStatuses.deactive, va_finassess_createdat=earlier - timedelta(days=4),
+            demo_expires_at=earlier,
+        ))
+        # Tester output never counts as a coding.
+        db.session.add(VaFinalAssessments(
+            va_sid="hx-sc1", va_finassess_by=self.users["tester_c1"].user_id, va_conclusive_cod="R97",
+            va_finassess_status=VaStatuses.deactive, va_finassess_createdat=earlier - timedelta(days=5), is_tester=True,
+        ))
+        sub = db.session.get(VaSubmissions, "hx-sc1")
+        sub.va_deceased_age_normalized_days = 12.5
+        for number, sid, name in ((990001, "hx-sc1", "Asha Rao"), (990002, "ta-p1", "Bela Das")):
+            db.session.add(VaDeathRegister(
+                project_id=TA, site_id=FORMS["ta1"][2], death_number=number, unique_id=f"QC-{uuid.uuid4().hex[:8]}",
+                deceased_name=name, has_deceased_name=True, deceased_sex="female", date_of_death=date(2026, 4, 20),
+                registered_by=self.users["interviewer_p1"].user_id, source="direct", status="submitted", va_sid=sid,
+            ))
+        # A cancelled duplicate register row never gives the date.
+        db.session.add(VaDeathRegister(
+            project_id=TA, site_id=FORMS["ta1"][2], death_number=990003, unique_id=f"QC-{uuid.uuid4().hex[:8]}",
+            deceased_name="Asha Rao", has_deceased_name=True, deceased_sex="female", date_of_death=date(2026, 1, 1),
+            registered_by=self.users["interviewer_p1"].user_id, source="direct", status="cancelled", va_sid="hx-sc1",
+        ))
+        db.session.commit()
+        available = self._rows(user_key, self.AVAILABLE)
+        history = self._rows(user_key, self.HISTORY)
+        old = {"va_sid", "va_uniqueid_masked", "va_form_id", "project_id", "site_id", "va_submission_date",
+               "va_deceased_age", "va_deceased_gender", "va_narration_language"}
+        project = db.session.get(VaProjectMaster, TA)
+        nickname = (project.project_nickname or "").strip() or project.project_name
+        unit_name = db.session.get(MasOrgUnit, self.units["SC1"].org_unit_id).unit_name
+        fresh = available["ta-sc1"]
+        self.assertTrue(old <= fresh.keys(), fresh.keys())
+        self.assertEqual((fresh["unit_name"], fresh["project_nickname"]), (unit_name, nickname))
+        self.assertEqual(fresh["site_name"], db.session.get(VaSiteMaster, FORMS["ta1"][2]).site_name)
+        self.assertEqual((fresh["date_of_death"], fresh["first_coded_at"], fresh["last_coded_at"], fresh["recoded"]),
+                         (None, None, None, False))
+        self.assertIsNone(fresh["va_deceased_age_normalized_days"])
+        coded = history["hx-sc1"]
+        self.assertTrue(old <= coded.keys(), coded.keys())
+        self.assertEqual(coded["va_deceased_age"], 42)
+        self.assertEqual(coded["va_deceased_age_normalized_days"], 12.5)
+        self.assertEqual(coded["date_of_death"], "2026-04-20")
+        self.assertEqual(coded["first_coded_at"], "2026-04-29T12:00:00+00:00")
+        self.assertEqual(coded["last_coded_at"], "2026-05-01T12:00:00+00:00")
+        self.assertTrue(coded["recoded"])
+        # A unit-scope (in-system) coder or reviewer holds personal-data access: the name.
+        self.assertEqual(coded["deceased_name"], "Asha Rao")
+        # A project-scope one (Tier 1) does not: no name key at all on their own history row.
+        self._author("ta-p1", nonpii_key)
+        plain = self._rows(nonpii_key, self.HISTORY)["ta-p1"]
+        self.assertEqual(plain["date_of_death"], "2026-04-20")
+        self.assertNotIn("deceased_name", plain)
+
     def _assert_malformed_values_are_400(self, user_key):
         self._login(str(self.users[user_key].user_id))
         for path in (self.AVAILABLE, self.HISTORY):
@@ -207,6 +287,14 @@ class CodingPlaceFilterTests(_PlaceFilterBase):
     def test_stats_refuse_malformed_places_and_answer_blank_ones_unchanged(self):
         self._assert_stats_malformed_are_400_and_blank_is_unchanged("coder_p1")
 
+    def _author(self, sid, user_key):
+        """*user_key*'s active final on *sid* (a history row of theirs)."""
+        db.session.add(VaFinalAssessments(
+            va_sid=sid, va_finassess_by=self.users[user_key].user_id, va_conclusive_cod="R99",
+            va_finassess_status=VaStatuses.active, va_finassess_createdat=CODED_AT,
+        ))
+        db.session.commit()
+
     @classmethod
     def _finish(cls, sid):
         db.session.add(VaSubmissionWorkflow(
@@ -244,6 +332,16 @@ class CodingPlaceFilterTests(_PlaceFilterBase):
 
     def test_items_carry_the_narration_language(self):
         self._assert_items_carry_the_narration_language("coder_p1")
+
+    def test_items_carry_the_card_keys_and_names_only_with_pii(self):
+        self._assert_card_keys("coder_p1", "coder_ta", add_active_final=False)
+
+    def test_the_unpaged_lists_carry_the_card_keys(self):
+        self._login(str(self.users["coder_p1"].user_id))
+        for path, key in ((self.AVAILABLE, "forms"), (self.HISTORY, "history")):
+            rows = self.client.get(path).get_json()[key]
+            self.assertTrue(rows, path)
+            self.assertTrue({"unit_name", "site_name", "project_nickname", "date_of_death", "recoded"} <= rows[0].keys(), path)
 
     def test_malformed_values_are_400(self):
         self._assert_malformed_values_are_400("coder_p1")
@@ -310,6 +408,13 @@ class ReviewingPlaceFilterTests(_PlaceFilterBase):
         # Outside the review reach nothing counts: reviewer_sp1 holds only the site project's AZS1.
         self.assertEqual(self._stats("reviewer_sp1")["pending_coding"], 0)
 
+    def _author(self, sid, user_key):
+        """*user_key*'s active reviewer final on *sid* (a history row of theirs)."""
+        db.session.add(VaReviewerFinalAssessments(
+            va_sid=sid, va_rfinassess_by=self.users[user_key].user_id, va_conclusive_cod="R99",
+        ))
+        db.session.commit()
+
     @classmethod
     def _finish(cls, sid):
         db.session.add(VaSubmissionWorkflow(
@@ -346,6 +451,24 @@ class ReviewingPlaceFilterTests(_PlaceFilterBase):
 
     def test_items_carry_the_narration_language(self):
         self._assert_items_carry_the_narration_language("reviewer_p1")
+
+    def test_items_carry_the_card_keys_and_names_only_with_pii(self):
+        self._assert_card_keys("reviewer_p1", "reviewer_ta", add_active_final=True)
+
+    def test_a_reviewer_saves_their_own_languages_and_a_user_with_neither_role_is_refused(self):
+        url = "/api/v1/profile/languages"
+        if db.session.get(MasLanguages, "english") is None:
+            db.session.add(MasLanguages(language_code="english", language_name="English", is_active=True))
+            db.session.commit()
+        self._login(str(self.users["reviewer_p1"].user_id))
+        saved = self.client.patch(url, json={"languages": ["english"]}, headers=self._csrf_headers())
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        self.assertEqual(self.client.patch(url, json={"languages": []}, headers=self._csrf_headers()).status_code, 400)
+        self._login(str(self.users["interviewer_p1"].user_id))
+        refused = self.client.patch(url, json={"languages": ["english"]}, headers=self._csrf_headers())
+        self.assertEqual(refused.status_code, 403)
+        db.session.expire_all()
+        self.assertEqual(db.session.get(type(self.users["reviewer_p1"]), self.users["reviewer_p1"].user_id).vacode_language, ["english"])
 
     def test_malformed_values_are_400(self):
         self._assert_malformed_values_are_400("reviewer_p1")

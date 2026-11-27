@@ -518,7 +518,7 @@ rules: 400 `invalid_request` when malformed, narrowing only) narrow every
 count, `pending` included; the mode flags and `training_queues` stay the
 project's. Without them the body is unchanged (2026-11-27).
 `PATCH /api/v1/profile/languages {languages: [codes]}` sets the caller's own
-coding languages (coders only, else 403 `forbidden`; non-empty, active codes;
+coding languages (coders and, since 2026-11-27, reviewers; else 403 `forbidden`; non-empty, active codes;
 audited as `coding_languages_changed`). A cookie session sends CSRF; since
 2026-11-19 a device bearer token may call it too (`digitva-mb0d.2`: Collect
 edits them in the app), the one profile write added for bearers: coding
@@ -533,7 +533,22 @@ Gate `coder`, `coding_tester` or `admin`. Paging is opt-in, because the web
 coder dashboard (`va_code_dashboard.js`) reads both lists whole and renders
 them in a client-side table: **without `limit` the body is exactly what it was**
 (`{forms, count}`, `{history, count}`, every existing row key unchanged; `recode_until` is added, and since
-2026-11-27 `va_narration_language`, the case's narration language for the queue card's pill, on both lists).
+2026-11-27 `va_narration_language`, the case's narration language for the queue card's pill, on both lists,
+and the queue card keys below).
+
+**Queue card keys** (additive, 2026-11-27; `app/services/queue_card_service.py` `add_card_keys`, one query per page
+plus `coding_names`): on `/coding/available` and `/coding/history` (paged, unpaged and cached, demo rows included)
+and on `/reviewing/available` and `/reviewing/history`, every row also carries `unit_name` (the submission's org
+unit, null without one), `site_name`, `project_nickname` (`project_nickname`, else `project_name`),
+`va_deceased_age_normalized_days` (number or null), `date_of_death` (ISO date or null: the earliest date of death
+of the case's register rows that are not duplicate or cancelled; an ODK submission has one only when the sync made
+its case, and a year-only answer is stored there as 1 July of that year), `first_coded_at` / `last_coded_at`
+(tz-aware UTC ISO or null: the earliest and latest final COD, any status, tester output excluded) and
+`recoded` (more than one such final). The coding dates are one coder's finals: the caller's own on
+`/coding/history`, else the author of the active final (several coders on one case never read as a recode), demo
+output excluded. A `/coding/history` page and both reviewing lists add `deceased_name` only for a row the caller
+may name (`coding_names`, the coding screens' PII rule); it is absent otherwise, and absent on the unpaged history
+(one sealed-blob open per named row). `/coding/available` keeps its own `deceased_name` as before.
 
 | Parameter | Rule |
 | --- | --- |

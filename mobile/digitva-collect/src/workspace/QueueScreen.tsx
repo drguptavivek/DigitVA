@@ -17,7 +17,7 @@ import { queuePlaceOptions } from "../web/placeOptions";
 import type { QueuePlaceFilter, TrainingQueue, WorkspaceApi } from "./api";
 import { ApiError, type AccessProject } from "../api";
 import { codingLanguageLines, trainingQueueCounts } from "./codingLanguages";
-import { shortCaseNumber } from "./caseLabel";
+import { cardAge, formatCardDate, shortCaseNumber } from "./caseLabel";
 import type { QueueView } from "./viewState";
 import type { CodingHistoryCache, CodingHistoryIdentity } from "../codingHistoryCache";
 import type {
@@ -108,10 +108,14 @@ function useQueueStyles() {
     metaGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs },
     metaChip: { paddingVertical: 2, paddingHorizontal: spacing.xs, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
     metaChipText: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
+    // "Sync: Failed": the dark neutral (text-colour fill, inverse text); the card has no red, green or orange.
+    metaChipStrong: { backgroundColor: colors.text, borderColor: colors.text },
+    metaChipStrongText: { color: colors.surface },
+    partsLine: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.xxs },
     });
     if (!phone) return base;
     // Phone (round-6 Q3-Q7): chips, badges and tiles are filled, never ringed; the selected chip takes the
-    // primary tint; the case header stacks so the id never shares its line with a badge. The browser keeps `base`.
+    // primary tint. The browser keeps `base`; the case card's rows are the same on both (owner 2026-11-27).
     return {
       ...base,
       topLine: { gap: spacing.xxs },
@@ -121,7 +125,6 @@ function useQueueStyles() {
       chip: { ...base.chip, borderWidth: 0, backgroundColor: ui.muted },
       chipActive: { backgroundColor: ui.primaryTint },
       chipTextActive: { color: ui.primary },
-      caseHeader: { gap: spacing.xs },
       badge: { ...base.badge, borderWidth: 0 },
       badgeAccent: { backgroundColor: ui.primaryTint },
       badgeAccentText: { color: ui.primary },
@@ -180,7 +183,7 @@ export function recodeDeadlineText(item: Pick<CoderHistoryCase, "recodeable" | "
 }
 
 /**
- * The coded-case card's visible details as plain text, for "Copy details": the share sheet offers Copy,
+ * The coded-case card's details as plain text, for its copy icon: the share sheet offers Copy,
  * WhatsApp and email, so a coder can send it to support. The full masked case id, never the deceased's name.
  */
 export function codedCaseSupportText(item: CoderHistoryCase, now: number = Date.now()): string {
@@ -200,85 +203,153 @@ export function codedCaseSupportText(item: CoderHistoryCase, now: number = Date.
   return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
+/**
+ * The reviewed-case card's details as plain text, for its copy icon (as `codedCaseSupportText`): the full masked case
+ * id, never the deceased's name.
+ */
+export function reviewedCaseSupportText(item: QueueCase): string {
+  const lines = [
+    `Case ${item.va_uniqueid_masked}`,
+    [item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · "),
+    [item.va_deceased_age != null && String(item.va_deceased_age).trim() !== "" ? `Age: ${item.va_deceased_age}` : null,
+      item.va_deceased_gender ? `Sex: ${item.va_deceased_gender}` : null,
+      item.va_form_id ? `Form: ${item.va_form_id}` : null,
+      item.va_reviewed_at ? `Reviewed: ${formatQueueDate(item.va_reviewed_at)}` : null].filter(Boolean).join(" · "),
+    `App ${APP_VERSION}`,
+  ];
+  return lines.filter((line): line is string => Boolean(line)).join("\n");
+}
+
 /** "Case 000020" for a masked id like PHC01-000020_172313647; any other shape is shown as given. */
 function caseTitle(masked: string): string {
   const number = shortCaseNumber(masked);
   return number ? t("queueCaseNumber", { number }) : masked;
 }
 
-function CaseCardDetails({ item }: { item: AnyQueueCase }) {
+/** Which list a card is on: it picks the last-action pill and the dates the card shows. */
+export type QueueCardKind = "coding" | "codingHistory" | "review" | "reviewHistory";
+
+/** The grey last-action pill: what last happened to the case on this list. */
+function lastActionLabel(item: AnyQueueCase, kind: QueueCardKind): string {
+  if (kind === "coding") return t("queuePillInterviewed");
+  if (kind === "reviewHistory") return t("queuePillReviewed");
+  if (kind === "codingHistory" && "va_code_status" in item && item.va_code_status === "Not Codeable") return t("queuePillNotCodeable");
+  return item.recoded ? t("queuePillRecoded") : t("queuePillCoded");
+}
+
+/**
+ * The dates line's "label: date" pairs, each only where its value exists: Died, Interviewed, Coded (the case's first
+ * final COD; a history row's own coding date when the server sends none, e.g. tester output), Recoded (the latest,
+ * only when recoded), then Not codeable or Reviewed (that action's date).
+ */
+function cardDates(item: AnyQueueCase, kind: QueueCardKind): string[] {
+  const notCodeable = kind === "codingHistory" && "va_code_status" in item && item.va_code_status === "Not Codeable";
+  const ownCoding = kind === "codingHistory" && !notCodeable && "va_coding_date" in item ? item.va_coding_date : null;
+  const pairs: Array<[StringKey, string | null | undefined]> = [
+    ["queueDateDied", item.date_of_death],
+    ["queueDateInterviewed", item.va_submission_date],
+    ["queueDateCoded", item.first_coded_at ?? ownCoding],
+    ["queueDateRecoded", item.recoded ? item.last_coded_at : null],
+    ["queueDateNotCodeable", notCodeable && "va_coding_date" in item ? item.va_coding_date : null],
+    ["queueDateReviewed", kind === "reviewHistory" && "va_reviewed_at" in item ? item.va_reviewed_at : null],
+  ];
+  return pairs.flatMap(([key, raw]) => {
+    const date = formatCardDate(raw);
+    return date ? [t(key, { date })] : [];
+  });
+}
+
+/** Phone only: the offline station's answer to a coded case, from `server_status`. */
+function syncPill(item: AnyQueueCase): { label: string; failed: boolean } {
+  const status = "server_status" in item ? item.server_status : null;
+  if (status === "pending") return { label: t("queueSyncPending"), failed: false };
+  if (status === "refused") return { label: t("queueSyncFailed"), failed: true };
+  return { label: t("queueSyncDone"), failed: false };
+}
+
+/** Parts that wrap only between each other: each part keeps to one line. */
+function PartsLine({ parts, testID }: { parts: string[]; testID: string }) {
+  const styles = useUiStyles();
   const q = useQueueStyles();
-  const hasAge = item.va_deceased_age != null && String(item.va_deceased_age).trim() !== "";
-  const hasGender = Boolean(item.va_deceased_gender);
-  const collector = "va_data_collector" in item && item.va_data_collector ? item.va_data_collector : null;
-  const formId = item.va_form_id ? item.va_form_id : null;
-  const codingDate = "va_coding_date" in item && item.va_coding_date ? formatQueueDate(item.va_coding_date) : null;
-  const reviewedAt = "va_reviewed_at" in item && item.va_reviewed_at ? formatQueueDate(item.va_reviewed_at) : null;
-
-  if (!hasAge && !hasGender && !collector && !formId && !codingDate && !reviewedAt) return null;
-
+  if (!parts.length) return null;
   return (
-    <View style={q.metaGrid}>
-      {hasAge ? (
-        <View style={q.metaChip}>
-          <Text style={q.metaChipText}>{`Age: ${item.va_deceased_age}`}</Text>
-        </View>
-      ) : null}
-      {hasGender ? (
-        <View style={q.metaChip}>
-          <Text style={q.metaChipText}>{`Sex: ${item.va_deceased_gender}`}</Text>
-        </View>
-      ) : null}
-      {collector ? (
-        <View style={q.metaChip}>
-          <Text style={q.metaChipText}>{t("queueInterviewer", { name: collector })}</Text>
-        </View>
-      ) : null}
-      {formId ? (
-        <View style={q.metaChip}>
-          <Text style={q.metaChipText}>{`Form: ${formId}`}</Text>
-        </View>
-      ) : null}
-      {codingDate ? (
-        <View style={q.metaChip}>
-          <Text style={q.metaChipText}>{`Coded: ${codingDate}`}</Text>
-        </View>
-      ) : null}
-      {reviewedAt ? (
-        <View style={q.metaChip}>
-          <Text style={q.metaChipText}>{`Reviewed: ${reviewedAt}`}</Text>
-        </View>
-      ) : null}
+    <View style={q.partsLine} testID={testID}>
+      {parts.map((part, index) => <Text key={index} numberOfLines={1} style={styles.muted}>{index ? `· ${part}` : part}</Text>)}
     </View>
   );
 }
 
 /**
- * One queue case card, the same on Coding and Review (owner 2026-11-27): the title with the narration language pill,
- * "project · site · date", the chips, then *children* (each queue's badges, notes and action). The title is the
- * deceased's name when the item carries one (the server sends it only to a caller who may see it), the case id then
- * muted under it; otherwise the case id.
+ * One queue case card, the same on Coding and Review, web and phone (owner 2026-11-27), top to bottom:
+ * 1. the title (the deceased's name when the item carries one, the server sending it only to a caller with
+ *    personal-data access; else the case id) with the language pill and the grey last-action pill on its right;
+ * 2. the place line: the case id (only under a name), the unit name (tree projects) or site name (never a code; a
+ *    placeholder site hidden), and the project nickname when the picker is on All projects;
+ * 3. the dates line (`cardDates`), dd-mmm-yyyy;
+ * 4. the pills: age with its unit, sex, interviewer (absent when the server nulls it), and on the phone's coding
+ *    history the Sync pill;
+ * 5. *children*: each list's notes and its one row of buttons.
  */
-export function QueueCaseCard({ item, children }: { item: AnyQueueCase; children?: ReactNode }) {
+export function QueueCaseCard({ item, kind, allProjects, children }: { item: AnyQueueCase; kind: QueueCardKind; allProjects: boolean; children?: ReactNode }) {
   const styles = useUiStyles();
   const q = useQueueStyles();
   const language = "va_narration_language" in item ? item.va_narration_language : null;
-  const name = "deceased_name" in item ? item.deceased_name : null;
+  const name = item.deceased_name || null;
+  const site = isInternalPlaceholderArea(item.site_id) || isInternalPlaceholderArea(item.site_name) ? null : item.site_name;
+  const place = [name ? caseTitle(item.va_uniqueid_masked) : null, item.unit_name || site, allProjects ? item.project_nickname : null]
+    .filter((part): part is string => Boolean(part));
+  const age = cardAge(item.va_deceased_age_normalized_days, item.va_deceased_age);
+  const collector = "va_data_collector" in item ? item.va_data_collector : null;
+  const sync = Platform.OS !== "web" && kind === "codingHistory" ? syncPill(item) : null;
+  const pills = [
+    age ? t("queueAge", { age: t(age.unit === "d" ? "queueAgeDays" : age.unit === "m" ? "queueAgeMonths" : "queueAgeYears", { n: age.n }) }) : null,
+    item.va_deceased_gender ? t("queueSex", { sex: item.va_deceased_gender }) : null,
+    collector ? t("queueInterviewer", { name: collector }) : null,
+  ].filter((pill): pill is string => Boolean(pill));
   return (
     <View style={[styles.card, q.caseCard]} testID={`queue-case-${item.va_sid}`}>
       <View style={q.caseHeader}>
         <Text style={[styles.headline, q.caseTitle]}>{name || caseTitle(item.va_uniqueid_masked)}</Text>
-        {language ? (
-          <View style={[q.badge, q.badgeAccent]} testID={`queue-case-language-${item.va_sid}`}>
-            <Text style={[q.badgeText, q.badgeAccentText]}>{language}</Text>
+        <View style={q.badgeRow}>
+          {language ? (
+            <View style={[q.badge, q.badgeAccent]} testID={`queue-case-language-${item.va_sid}`}>
+              <Text style={[q.badgeText, q.badgeAccentText]}>{language}</Text>
+            </View>
+          ) : null}
+          <View style={q.badge} testID={`queue-case-action-${item.va_sid}`}>
+            <Text style={q.badgeText}>{lastActionLabel(item, kind)}</Text>
           </View>
-        ) : null}
+        </View>
       </View>
-      {name ? <Text style={styles.muted}>{caseTitle(item.va_uniqueid_masked)}</Text> : null}
-      <Text style={styles.muted}>{[item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · ")}</Text>
-      <CaseCardDetails item={item} />
+      <PartsLine parts={place} testID={`queue-case-place-${item.va_sid}`} />
+      <PartsLine parts={cardDates(item, kind)} testID={`queue-case-dates-${item.va_sid}`} />
+      {pills.length || sync ? (
+        <View style={q.metaGrid}>
+          {pills.map((pill) => <View key={pill} style={q.metaChip}><Text style={q.metaChipText}>{pill}</Text></View>)}
+          {sync ? (
+            <View style={[q.metaChip, sync.failed && q.metaChipStrong]} testID={`queue-case-sync-${item.va_sid}`}>
+              <Text style={[q.metaChipText, sync.failed && q.metaChipStrongText]}>{sync.label}</Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       {children}
     </View>
+  );
+}
+
+/** The 44px copy icon on the history cards: shares the case's support text (Copy, WhatsApp, email). */
+function CopyIcon({ label, message }: { label: string; message: string }) {
+  const { colors } = useTheme();
+  const q = useQueueStyles();
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => void Share.share({ message }).catch(() => undefined)} style={q.iconButton}>
+      {/* Tabler "copy": two overlapping sheets. */}
+      <Svg width={22} height={22} viewBox="0 0 24 24">
+        <Path d="M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z" stroke={colors.text} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <Path d="M4.012 16.737a2 2 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1" stroke={colors.text} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </Svg>
+    </Pressable>
   );
 }
 
@@ -1181,20 +1252,6 @@ export function QueueScreen({
       </Pressable>
     );
   };
-  const historyBadges = (item: CoderHistoryCase) => (item.va_code_status || item.recodeable) ? (
-    <View style={q.badgeRow}>
-      {item.va_code_status ? (
-        <View style={[q.badge, q.badgeAccent]}>
-          <Text style={[q.badgeText, q.badgeAccentText]}>{item.va_code_status}</Text>
-        </View>
-      ) : null}
-      {item.recodeable ? (
-        <View style={[q.badge, q.badgeAccent]}>
-          <Text style={[q.badgeText, q.badgeAccentText]}>Recodeable</Text>
-        </View>
-      ) : null}
-    </View>
-  ) : null;
 
   function refreshCases() {
     clearMessage();
@@ -1295,20 +1352,20 @@ export function QueueScreen({
           {showList ? renderFilterControls() : null}
           </>)}
           {!showList ? null : showHistory ? filteredCoderHistory.map((item) => (
-            <QueueCaseCard key={item.va_sid} item={item}>
-              {historyBadges(item)}
+            <QueueCaseCard key={item.va_sid} item={item} kind="codingHistory" allProjects={projectId === undefined}>
               {codingServerStatusText(item) ? <Text style={styles.muted} testID={`coding-server-status-${item.va_sid}`}>{codingServerStatusText(item)}</Text> : null}
               {item.server_status === "refused" ? <DetailsChip code={item.server_code} /> : null}
-              {recodeDeadlineText(item) ? <Text style={styles.muted} testID={`recode-deadline-${item.va_sid}`}>{recodeDeadlineText(item)}</Text> : null}
-              {!currentData?.cachedHistoryAt ? <View style={q.actions}>
-                <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
-                {item.recodeable ? <Button label="Recode" size="sm" style={q.actionBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
-              </View> : null}
-              <Button label="Copy details" kind="secondary" size="sm" accessibilityLabel={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} onPress={() => void Share.share({ message: codedCaseSupportText(item) }).catch(() => undefined)} />
+              <View style={q.actions}>
+                {!currentData?.cachedHistoryAt ? <>
+                  <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
+                  {item.recodeable ? <Button label={t("queueRecodeCase")} size="sm" style={q.actionBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
+                </> : null}
+                <CopyIcon label={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} message={codedCaseSupportText(item)} />
+              </View>
             </QueueCaseCard>
           )) : filteredCoderAvailable.map((item) => (
-            <QueueCaseCard key={item.va_sid} item={item}>
-              <Button label="Pick case" size="sm" disabled={busy || loading || !allocationVerified || Boolean(allocation) || coderStats?.has_pick_mode !== true} loading={busy} onPress={() => void allocatePicked(item.va_sid)} />
+            <QueueCaseCard key={item.va_sid} item={item} kind="coding" allProjects={projectId === undefined}>
+              <Button label={t("queueCodeCase")} size="sm" disabled={busy || loading || !allocationVerified || Boolean(allocation) || coderStats?.has_pick_mode !== true} loading={busy} onPress={() => void allocatePicked(item.va_sid)} />
             </QueueCaseCard>
           ))}
           {(projects as CoderProjects | undefined)?.station_coding_disabled ? <Text style={styles.muted} testID="coding-done-on-server">{t("codingDoneOnServer")}</Text> : null}
@@ -1343,9 +1400,12 @@ export function QueueScreen({
           {renderFilterControls()}
           </>)}
           {filteredReviewerRows.map((item) => (
-            <QueueCaseCard key={item.va_sid} item={item}>
+            <QueueCaseCard key={item.va_sid} item={item} kind={showHistory ? "reviewHistory" : "review"} allProjects={projectId === undefined}>
               {showHistory ? (
-                <Button label="View case" kind="secondary" size="sm" disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
+                <View style={q.actions}>
+                  <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
+                  <CopyIcon label={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} message={reviewedCaseSupportText(item)} />
+                </View>
               ) : (
                 <Button label="Review case" size="sm" disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void allocateReviewer(item.va_sid)} />
               )}

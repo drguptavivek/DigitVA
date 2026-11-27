@@ -276,11 +276,29 @@ when the export is present (`VaUsers.landing_url()`, policy
   with it); the others are plain counts. Both queues show "Your languages ✎"
   (Review reads `languages.mine` from `/reviewing/stats`). The Previous / Page
   N / Next row shows only past page one or when a next page exists. Every case
-  card is one component (`QueueCaseCard`): title (the deceased's name when the
-  item carries one, the case id muted under it; else the case id) with the
-  narration-language pill, "project · site · date", the chips, then the
-  queue's own action. The web title row keeps the page title on one line
-  (`Screen keepTitleWhole`): the project switcher shrinks first.
+  card is one component (`QueueCaseCard`, the same rows on web and phone):
+  1. the title (the deceased's name when the item carries one, else the case
+     id: "Case 000182" via `shortCaseNumber`, an ODK id as given) with the
+     language pill (accent) and a grey last-action pill: Coding Available
+     "Interviewed"; Review Available "Coded" / "Recoded"; Coding history
+     "Coded" / "Recoded" / "Not codeable"; Review history "Reviewed";
+  2. the place line: the case id (only under a name), the unit name (tree) or
+     site name (no codes; a placeholder site hidden), and the project nickname
+     on All projects; each part on one line, wrapping only between parts;
+  3. the dates line, dd-mmm-yyyy (`formatCardDate`), each pair only where its
+     value exists: Died, Interviewed, Coded (first final), Recoded (latest,
+     when recoded), then Not codeable or Reviewed;
+  4. pills: age with its unit (`cardAge`: days under a month, whole months
+     under a year, else years), sex, interviewer (absent when the server nulls
+     it), and on the phone's coding history "Sync: Pending / Failed / Done"
+     from `server_status` (Failed is the dark neutral; the details chip and
+     refusal text stay);
+  5. one row of buttons: "Code case"; "View case", "Recode case" (only while
+     recodeable) and the copy icon; "Review case"; "View case" and the copy
+     icon (`reviewedCaseSupportText`).
+  No Form chip, status or Recodeable pill, recode-deadline line, or separate
+  date chips. Pills are grey or accent only. The web title row keeps the page
+  title on one line (`Screen keepTitleWhole`): the project switcher shrinks first.
 
 Interview supervisors (and data managers) work in the Deaths tab
 (`/death-registration`, digitva-a5jf): with supervision scope

@@ -208,8 +208,9 @@ class RequestQueryCountTests(BaseTestCase):
         # + the memoised mentor-membership read behind the per-project
         # va_data_collector redaction (digitva-ssg7.11)
         # + the projects' timezones and the one grouped daily-cap count
-        # (docs/policy/project-clock-and-gates.md).
-        self.assertLessEqual(len(sql), 18)
+        # (docs/policy/project-clock-and-gates.md)
+        # + the page's two card-key lookups (queue_card_service.add_card_keys).
+        self.assertLessEqual(len(sql), 20)
         response, _, writes = self._measure("available_warm", "get", "/api/v1/coding/available")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(writes, 0)  # unchanged session inside the refresh window

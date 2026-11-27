@@ -356,7 +356,7 @@ class CorpusLanguageTests(SessionTypeTestBase):
 
 
 class OwnCodingLanguagesTests(SessionTypeTestBase):
-    def test_only_a_coder_may_set_languages(self):
+    def test_only_a_coder_or_reviewer_may_set_languages(self):
         user = self._user("lang.noncoder")
         db.session.commit()
         self._login(str(user.user_id))

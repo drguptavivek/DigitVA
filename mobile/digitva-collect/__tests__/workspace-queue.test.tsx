@@ -1,11 +1,11 @@
 import { formatWhen } from "../src/ui/interviewRows";
 import React from "react";
-import { Alert, Modal, Platform } from "react-native";
+import { Alert, Modal, Platform, Share } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 import { ApiError } from "../src/api";
-import { errorText } from "../src/ui";
-import { QueueCaseCard, QueueScreen, codedCaseSupportText, recodeDeadlineText } from "../src/workspace/QueueScreen";
+import { DetailsChip, errorText } from "../src/ui";
+import { QueueCaseCard, QueueScreen, codedCaseSupportText, recodeDeadlineText, reviewedCaseSupportText } from "../src/workspace/QueueScreen";
 import { Select } from "../src/ui/Select";
 import { parseAccessSummary, type AccessProject } from "../src/api";
 import { APP_VERSION } from "../src/appVersion";
@@ -187,7 +187,7 @@ describe("QueueScreen", () => {
     await press(screen.renderer, "Available");
     await settle();
     expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: "P2", limit: 50, offset: 0 });
-    await press(screen.renderer, "Pick case");
+    await press(screen.renderer, "Code case");
     expect(api.allocateCoding).toHaveBeenCalledWith(coderRow.va_sid, "P2");
     expect(screen.onOpen).toHaveBeenCalledWith({ vaSid: coderRow.va_sid, mode: "coding" });
     await unmount(screen.renderer);
@@ -206,7 +206,7 @@ describe("QueueScreen", () => {
     await press(screen.renderer, "View case");
     expect(screen.onOpen).toHaveBeenCalledWith({ vaSid: coderRow.va_sid, mode: "view" });
     expect(api.recode).not.toHaveBeenCalled();
-    await press(screen.renderer, "Recode");
+    await press(screen.renderer, "Recode case");
     expect(api.recode).toHaveBeenCalledWith(coderRow.va_sid);
     expect(screen.onOpen).toHaveBeenLastCalledWith({ vaSid: coderRow.va_sid, mode: "coding" });
     await unmount(screen.renderer);
@@ -250,7 +250,7 @@ describe("QueueScreen", () => {
     const screen = await render("coding", api);
     await press(screen.renderer, "Next");
     await settle();
-    const pick = button(screen.renderer.root, "Pick case");
+    const pick = button(screen.renderer.root, "Code case");
     await act(async () => {
       pick?.props.onPress();
       pick?.props.onPress();
@@ -391,10 +391,10 @@ describe("QueueScreen", () => {
     const coderApi = makeApi({ getCodingAllocation: jest.fn().mockRejectedValue(new ApiError(403, "forbidden")) });
     const coder = await render("coding", coderApi);
     expect(button(coder.renderer.root, "Start a random case")?.props.accessibilityState.disabled).toBe(true);
-    expect(button(coder.renderer.root, "Pick case")?.props.accessibilityState.disabled).toBe(true);
+    expect(button(coder.renderer.root, "Code case")?.props.accessibilityState.disabled).toBe(true);
     await press(coder.renderer, "History");
     await settle();
-    expect(button(coder.renderer.root, "Recode")?.props.accessibilityState.disabled).toBe(true);
+    expect(button(coder.renderer.root, "Recode case")?.props.accessibilityState.disabled).toBe(true);
     await unmount(coder.renderer);
 
     const reviewerApi = makeApi({ getReviewerAllocation: jest.fn().mockRejectedValue(new ApiError(401, "session_revoked")) });
@@ -634,7 +634,7 @@ describe("queue project defaults", () => {
     await settle();
     expect(JSON.stringify(renderer.toJSON())).toContain("Saved on this phone");
     expect(JSON.stringify(renderer.toJSON())).toContain("CODER-MASKED-1");
-    for (const label of ["View case", "Recode", "Pick case", "Start a random case", "Release case"]) {
+    for (const label of ["View case", "Recode case", "Code case", "Start a random case", "Release case"]) {
       expect(button(renderer.root, label)).toBeUndefined();
     }
     expect(cache.readPage).toHaveBeenCalledWith(identity, "P1", 0);
@@ -809,7 +809,7 @@ describe("queue layout", () => {
     await settle();
     expect(button(randomOnly.renderer.root, "Start a random case")).toBeDefined();
     expect(button(randomOnly.renderer.root, "Available")).toBeDefined();
-    expect(button(randomOnly.renderer.root, "Pick case")).toBeUndefined();
+    expect(button(randomOnly.renderer.root, "Code case")).toBeUndefined();
     expect(button(randomOnly.renderer.root, "Next")).toBeUndefined();
     expect(api.getCodingHistory).not.toHaveBeenCalled();
     await press(randomOnly.renderer, "My coded cases");
@@ -938,7 +938,7 @@ describe("queue layout", () => {
     for (let i = 0; i < 6; i += 1) await settle();
     expect(tabKind(screen.renderer.root, "My coded cases")).toBe("primary");
     expect((api.getCodingHistory as jest.Mock).mock.calls.length).toBe(1);
-    expect(button(screen.renderer.root, "Recode")).toBeDefined();
+    expect(button(screen.renderer.root, "Recode case")).toBeDefined();
     await unmount(screen.renderer);
   });
 
@@ -1089,7 +1089,8 @@ describe("queue layout", () => {
     expect(text).toContain("Age: 64");
     expect(text).toContain("Sex: Female");
     expect(text).toContain("Interviewer: Collector Anita");
-    expect(text).toContain("Form: WHO2022_ADULT");
+    // The card has no Form chip and no status or Recodeable pill any more (owner 2026-11-27).
+    expect(text).not.toContain("Form: WHO2022_ADULT");
 
     // Filter by sex: Female
     await press(screen.renderer, "Filter sex: Female");
@@ -1118,7 +1119,7 @@ describe("queue layout", () => {
     text = JSON.stringify(screen.renderer.toJSON());
     expect(text).toContain("UID-HIST-1");
     expect(text).toContain("UID-HIST-2");
-    expect(text).toContain("Coded: 9 Oct 2026");
+    expect(text).toContain("Coded: 09-Oct-2026");
 
     await press(screen.renderer, "Filter recodeable only");
     text = JSON.stringify(screen.renderer.toJSON());
@@ -1209,7 +1210,7 @@ describe("coder recode deadline", () => {
     expect(recodeDeadlineText({ recodeable: true }, now)).toBeNull();
   });
 
-  test("history rows carry the deadline next to the Recode action", async () => {
+  test("history cards no longer carry the recode deadline line (it stays in the copied support text)", async () => {
     const api = makeApi({
       getCodingHistory: jest.fn().mockResolvedValue({
         history: [
@@ -1222,10 +1223,10 @@ describe("coder recode deadline", () => {
     });
     const { renderer } = await render("coding", api);
     await press(renderer, "History");
-    const line = (sid: string) => renderer.root.findAll((n) => typeof n.type === "string" && n.props.testID === `recode-deadline-${sid}`).map((n) => n.props.children);
-    expect(line("open")).toEqual([`Recode until ${local("2999-01-01T00:00:00+00:00")}`]);
-    expect(line("closed")).toEqual(["Recode window closed"]);
-    expect(line("none")).toEqual([]);
+    const text = JSON.stringify(renderer.toJSON());
+    expect(button(renderer.root, "Recode case")).toBeDefined();
+    expect(text).not.toContain("Recode until");
+    expect(text).not.toContain("Recode window closed");
     await unmount(renderer);
   });
 });
@@ -1643,46 +1644,132 @@ describe("queue counts, pager, tiles and cards (owner 2026-11-27)", () => {
     await unmount(renderer);
   });
 
-  test("both queues draw the one shared card: title and pill, the id under a name, project · site · date, chips, action", async () => {
-    const named = { ...coderRow, va_uniqueid_masked: "PHC01-000020_172313647", deceased_name: "Esha Testcase", va_narration_language: "english" };
+  const cardRow = {
+    ...coderRow, va_uniqueid_masked: "PHC01-000020_172313647", va_narration_language: "english", unit_name: "PHC Rampur",
+    site_name: "Site One", project_nickname: "Nick One", va_deceased_age_normalized_days: 12, date_of_death: "2026-09-30",
+    va_data_collector: "S. Devi",
+  };
+  const cardOf = (renderer: ReactTestRenderer, index = 0) => renderer.root.findAllByType(QueueCaseCard)[index];
+  const testIdText = (card: ReactTestInstance, id: string) => {
+    const node = card.findAll((n) => n.props.testID === id && typeof n.type !== "string")[0] ?? card.findAll((n) => n.props.testID === id)[0];
+    return node ? texts(node) : [];
+  };
+
+  test("a named card: name title, both pills, the id first on the place line, dates, pills, then its button", async () => {
     const coding = await render("coding", makeApi({
-      getCodingAvailable: jest.fn().mockResolvedValue({ forms: [named, { ...coderRow, va_sid: "c2" }], count: 2, limit: 50, offset: 0, has_more: false }),
+      getCodingAvailable: jest.fn().mockResolvedValue({ forms: [{ ...cardRow, deceased_name: "Esha Testcase" }], count: 1, limit: 50, offset: 0, has_more: false }),
     }));
-    const reviewing = await render("reviewing", makeApi({
-      getReviewerAvailable: jest.fn().mockResolvedValue({ cases: [{ ...row, va_narration_language: "english" }], count: 1, limit: 50, offset: 0, has_more: false }),
-    }));
-    const codingCards = coding.renderer.root.findAllByType(QueueCaseCard);
-    const reviewCards = reviewing.renderer.root.findAllByType(QueueCaseCard);
-    expect(codingCards).toHaveLength(2);
-    expect(reviewCards).toHaveLength(1);
-    // A name is the title, the case id muted under it; then the pill sits in row one, then project · site · date and the chips.
-    expect(texts(codingCards[0]).slice(0, 6)).toEqual(["Esha Testcase", "english", "Case 000020", "P1 · P1-S1 · 1 Oct 2026", "Age: 52", "Sex: female"]);
-    // No name: the id is the title and there is no id line; no language from an older server: no pill.
-    expect(texts(codingCards[1]).slice(0, 4)).toEqual(["CODER-MASKED-1", "P1 · P1-S1 · 1 Oct 2026", "Age: 52", "Sex: female"]);
-    expect(texts(reviewCards[0]).slice(0, 5)).toEqual(["MASKED-1", "english", "P1 · P1-S1 · 1 Oct 2026", "Age: 52", "Sex: female"]);
-    // The action is the card's last child, each queue's own.
-    expect(codingCards[0].findAll((n) => n.props.accessibilityLabel === "Pick case")).not.toHaveLength(0);
-    expect(reviewCards[0].findAll((n) => n.props.accessibilityLabel === "Review case")).not.toHaveLength(0);
+    const card = cardOf(coding.renderer);
+    expect(texts(card)).toEqual([
+      "Esha Testcase", "english", "Interviewed",
+      "Case 000020", "· PHC Rampur", "· Nick One",
+      "Died: 30-Sep-2026", "· Interviewed: 01-Oct-2026",
+      "Age: 12 d", "Sex: female", "Interviewer: S. Devi",
+      "Code case",
+    ]);
     await unmount(coding.renderer);
-    await unmount(reviewing.renderer);
-    // The same rule on Review, should a review item carry a name (today's server and parser send none).
-    const namedReview = await render("reviewing", makeApi({
-      getReviewerAvailable: jest.fn().mockResolvedValue({ cases: [{ ...row, deceased_name: "Ravi Kumar" }], count: 1, limit: 50, offset: 0, has_more: false }),
-    }));
-    expect(texts(namedReview.renderer.root.findAllByType(QueueCaseCard)[0]).slice(0, 3)).toEqual(["Ravi Kumar", "en", "MASKED-1"]);
-    await unmount(namedReview.renderer);
   });
 
-  test("coding history cards show the language pill too", async () => {
+  test("an unnamed card: the id is the title and the place line has no id; a picked project drops the nickname", async () => {
+    const api = makeApi({ getCodingAvailable: jest.fn().mockResolvedValue({ forms: [cardRow], count: 1, limit: 50, offset: 0, has_more: false }) });
+    const { renderer } = await render("coding", api);
+    expect(texts(cardOf(renderer)).slice(0, 5)).toEqual(["Case 000020", "english", "Interviewed", "PHC Rampur", "· Nick One"]);
+    await pickProject(renderer, "Project One");
+    await settle();
+    expect(testIdText(cardOf(renderer), `queue-case-place-${cardRow.va_sid}`)).toEqual(["PHC Rampur"]);
+    await unmount(renderer);
+  });
+
+  test("the place line names the site of a site project, never a code, and hides a placeholder site", async () => {
+    const site = { ...cardRow, unit_name: null, site_name: "Jodhpur Site" };
+    const placeholder = { ...cardRow, va_sid: "c-ph", unit_name: null, site_id: "sites_in_project_P1", site_name: "sites_in_project_P1" };
+    const old = { ...coderRow, va_sid: "c-old" };
+    const { renderer } = await render("coding", makeApi({ getCodingAvailable: jest.fn().mockResolvedValue({ forms: [site, placeholder, old], count: 3, limit: 50, offset: 0, has_more: false }) }));
+    expect(testIdText(cardOf(renderer, 0), `queue-case-place-${site.va_sid}`)).toEqual(["Jodhpur Site", "· Nick One"]);
+    expect(testIdText(cardOf(renderer, 1), "queue-case-place-c-ph")).toEqual(["Nick One"]);
+    // An older server sends no names: no place line, and still no code (P1, P1-S1).
+    expect(testIdText(cardOf(renderer, 2), "queue-case-place-c-old")).toEqual([]);
+    expect(texts(cardOf(renderer, 2))).not.toContain("P1-S1");
+    await unmount(renderer);
+  });
+
+  test("Review: Coded or Recoded with the coding dates; Review history: Reviewed, View case and the copy icon", async () => {
+    const coded = { ...row, va_sid: "r1", first_coded_at: "2026-10-02T12:00:00+00:00", recoded: false, last_coded_at: "2026-10-02T12:00:00+00:00" };
+    const recoded = { ...row, va_sid: "r2", first_coded_at: "2026-10-02T12:00:00+00:00", last_coded_at: "2026-10-05T12:00:00+00:00", recoded: true };
     const api = makeApi({
-      getCodingHistory: jest.fn().mockResolvedValue({ history: [{ ...coderRow, va_narration_language: "odia", va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "completed", recodeable: false }], count: 1, limit: 50, offset: 0, has_more: false }),
+      getReviewerAvailable: jest.fn().mockResolvedValue({ cases: [coded, recoded], count: 2, limit: 50, offset: 0, has_more: false }),
+      getReviewerHistory: jest.fn().mockResolvedValue({ history: [{ ...coded, va_reviewed_at: "2026-10-07T12:00:00+00:00" }], count: 1, limit: 50, offset: 0, has_more: false }),
     });
+    const { renderer } = await render("reviewing", api);
+    expect(testIdText(cardOf(renderer, 0), "queue-case-action-r1")).toEqual(["Coded"]);
+    expect(testIdText(cardOf(renderer, 0), "queue-case-dates-r1")).toEqual(["Interviewed: 01-Oct-2026", "· Coded: 02-Oct-2026"]);
+    expect(testIdText(cardOf(renderer, 1), "queue-case-action-r2")).toEqual(["Recoded"]);
+    expect(testIdText(cardOf(renderer, 1), "queue-case-dates-r2")).toEqual(["Interviewed: 01-Oct-2026", "· Coded: 02-Oct-2026", "· Recoded: 05-Oct-2026"]);
+    expect(button(renderer.root, "Review case")).toBeDefined();
+    await press(renderer, "History");
+    await settle();
+    const card = cardOf(renderer);
+    expect(testIdText(card, "queue-case-action-r1")).toEqual(["Reviewed"]);
+    expect(testIdText(card, "queue-case-dates-r1")).toEqual(["Interviewed: 01-Oct-2026", "· Coded: 02-Oct-2026", "· Reviewed: 07-Oct-2026"]);
+    expect(button(renderer.root, "View case")).toBeDefined();
+    expect(button(renderer.root, "Review case")).toBeUndefined();
+    const share = jest.spyOn(Share, "share").mockResolvedValue({ action: "sharedAction" } as never);
+    await press(renderer, "Copy details of MASKED-1");
+    expect(share.mock.calls[0][0].message).toBe(reviewedCaseSupportText({ ...coded, va_reviewed_at: "2026-10-07T12:00:00+00:00" } as never));
+    share.mockRestore();
+    await unmount(renderer);
+  });
+
+  test("Coding history: Coded, Recoded or Not codeable; Recode case only while recodeable; the copy icon; no Form chip or Recodeable pill", async () => {
+    const history = [
+      { ...coderRow, va_sid: "h1", va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "VA Coding Completed", recodeable: true, first_coded_at: "2026-10-02T12:00:00+00:00", last_coded_at: "2026-10-02T12:00:00+00:00", recoded: false },
+      { ...coderRow, va_sid: "h2", va_coding_date: "2026-10-05T12:00:00+00:00", va_code_status: "VA Coding Completed", recodeable: false, first_coded_at: "2026-10-02T12:00:00+00:00", last_coded_at: "2026-10-05T12:00:00+00:00", recoded: true },
+      { ...coderRow, va_sid: "h3", va_coding_date: "2026-10-06T12:00:00+00:00", va_code_status: "Not Codeable", recodeable: false },
+    ];
+    const api = makeApi({ getCodingHistory: jest.fn().mockResolvedValue({ history, count: 3, limit: 50, offset: 0, has_more: false }) });
     const { renderer } = await render("coding", api);
     await press(renderer, "History");
     await settle();
-    const card = renderer.root.findAllByType(QueueCaseCard)[0];
-    expect(texts(card).slice(0, 2)).toEqual(["CODER-MASKED-1", "odia"]);
+    expect(testIdText(cardOf(renderer, 0), "queue-case-action-h1")).toEqual(["Coded"]);
+    expect(testIdText(cardOf(renderer, 1), "queue-case-action-h2")).toEqual(["Recoded"]);
+    expect(testIdText(cardOf(renderer, 1), "queue-case-dates-h2")).toEqual(["Interviewed: 01-Oct-2026", "· Coded: 02-Oct-2026", "· Recoded: 05-Oct-2026"]);
+    expect(testIdText(cardOf(renderer, 2), "queue-case-action-h3")).toEqual(["Not codeable"]);
+    expect(testIdText(cardOf(renderer, 2), "queue-case-dates-h3")).toEqual(["Interviewed: 01-Oct-2026", "· Not codeable: 06-Oct-2026"]);
+    const labels = (index: number) => cardOf(renderer, index).findAll((n) => n.props.accessibilityRole === "button" && typeof n.props.accessibilityLabel === "string").map((n) => n.props.accessibilityLabel);
+    expect(new Set(labels(0))).toEqual(new Set(["View case", "Recode case", "Copy details of CODER-MASKED-1"]));
+    expect(new Set(labels(1))).toEqual(new Set(["View case", "Copy details of CODER-MASKED-1"]));
+    const text = JSON.stringify(renderer.toJSON());
+    expect(text).toContain("Age: 52 y");
+    expect(text).not.toContain("Form:");
+    expect(text).not.toContain('"Recodeable"');
+    expect(text).not.toContain("VA Coding Completed");
     await unmount(renderer);
+  });
+
+  test("the Sync pill: phone only, Pending, Failed (dark, with the details chip) or Done", async () => {
+    const history = [
+      { ...coderRow, va_sid: "s1", va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "VA Coding Completed", recodeable: false, server_status: "pending" },
+      { ...coderRow, va_sid: "s2", va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "VA Coding Completed", recodeable: false, server_status: "refused", server_code: "doris_pending" },
+      { ...coderRow, va_sid: "s3", va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "VA Coding Completed", recodeable: false },
+    ];
+    const api = () => makeApi({ getCodingHistory: jest.fn().mockResolvedValue({ history, count: 3, limit: 50, offset: 0, has_more: false }) });
+    const phone = await render("coding", api());
+    await press(phone.renderer, "History");
+    await settle();
+    expect(["s1", "s2", "s3"].map((sid, index) => testIdText(cardOf(phone.renderer, index), `queue-case-sync-${sid}`))).toEqual([["Sync: Pending"], ["Sync: Failed"], ["Sync: Done"]]);
+    expect(cardOf(phone.renderer, 1).findAllByType(DetailsChip)).toHaveLength(1);
+    expect(cardOf(phone.renderer, 1).findAll((n) => n.props.testID === "coding-server-status-s2")).not.toHaveLength(0);
+    await unmount(phone.renderer);
+    Object.defineProperty(Platform, "OS", { configurable: true, get: () => "web" });
+    try {
+      const web = await render("coding", api());
+      await press(web.renderer, "History");
+      await settle();
+      expect(web.renderer.root.findAll((n) => String(n.props.testID ?? "").startsWith("queue-case-sync-"))).toHaveLength(0);
+      await unmount(web.renderer);
+    } finally {
+      if (originalPlatformDescriptor) Object.defineProperty(Platform, "OS", originalPlatformDescriptor);
+    }
   });
 });
 
@@ -1695,6 +1782,23 @@ describe("additive queue keys are parsed leniently", () => {
     expect(parseReviewerStats({ ...base, pending_coding: 4, languages: { mine: ["english", 7] } })).toEqual({ ...base, pending_coding: 4, languages: { mine: ["english"] } });
     expect(parseReviewerStats({ ...base, pending_coding: "4", languages: "english" })).toEqual(base);
     expect(parseReviewerStats(base)).toEqual(base);
+  });
+
+  test("the card keys are kept when well-formed and dropped one by one when not, on every list", () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { parseReviewerQueue } = require("../src/workspace/contracts") as typeof import("../src/workspace/contracts");
+    const good = { unit_name: "PHC 1", site_name: null, project_nickname: "Nick", va_deceased_age_normalized_days: 12.5,
+      date_of_death: "2026-09-30", first_coded_at: "2026-10-02T12:00:00+00:00", last_coded_at: null, recoded: true, deceased_name: "Asha" };
+    const bad = { unit_name: 3, site_name: {}, project_nickname: [], va_deceased_age_normalized_days: "12", date_of_death: 20260930,
+      first_coded_at: false, last_coded_at: 1, recoded: "yes", deceased_name: 7 };
+    const review = (item: Record<string, unknown>) => parseReviewerQueue({ cases: [{ ...row, ...item }], count: 1, limit: 50, offset: 0, has_more: false }, 50, 0).cases[0];
+    expect(review(good)).toMatchObject(good);
+    const dropped = review(bad) as unknown as Record<string, unknown>;
+    for (const key of Object.keys(bad)) expect(key in dropped).toBe(false);
+    const page = (item: Record<string, unknown>) => ({ history: [{ ...coderRow, va_coding_date: "2026-10-02T12:00:00+00:00", va_code_status: "completed", recodeable: false, ...item }], count: 1, limit: 50, offset: 0, has_more: false });
+    expect(parseCoderHistory(page(good), 50, 0).history[0]).toMatchObject(good);
+    expect("recoded" in parseCoderHistory(page({ recoded: "yes" }), 50, 0).history[0]).toBe(false);
+    expect(parseCoderQueue({ forms: [{ ...coderRow, va_deceased_age_normalized_days: -1 }], count: 1, limit: 50, offset: 0, has_more: false }, 50, 0).forms[0].va_deceased_age_normalized_days).toBeUndefined();
   });
 
   test("coding items keep a string narration language and drop anything else", () => {

@@ -14,6 +14,7 @@ from app.services.authz import Action, can
 from app.services.cod_entry_mode import project_mode
 from app.services.coder_dashboard_service import last_allocated_project_id
 from app.services.coding_service import get_project_for_submission
+from app.services.queue_card_service import add_card_keys
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     get_active_reviewing_allocation,
@@ -192,7 +193,9 @@ def projects():
 def available():
     """The cases ``POST /allocation/<va_sid>`` accepts, paged: ``{cases, count,
     limit, offset, has_more}`` (``count`` is the page's size). ``site_id`` and
-    ``org_unit_id`` narrow it to one place (``place_filter_arg``)."""
+    ``org_unit_id`` narrow it to one place (``place_filter_arg``). Rows carry
+    the queue card keys, the name only where the caller may see it
+    (``queue_card_service.add_card_keys``)."""
     training_scope.resolve("review")
     try:
         limit, offset = _page_args()
@@ -203,6 +206,7 @@ def available():
     cases, has_more = _svc.list_available(
         current_user, limit=limit, offset=offset, project_id=project_id, place=place
     )
+    add_card_keys(current_user, cases, names=True)
     return _private(jsonify({
         "cases": cases, "count": len(cases), "limit": limit, "offset": offset,
         "has_more": has_more,
@@ -214,7 +218,8 @@ def available():
 def history():
     """The caller's own finished reviews, newest first, paged: ``{history,
     count, limit, offset, has_more}``. Only cases they may still view.
-    ``site_id`` and ``org_unit_id`` narrow it to one place."""
+    ``site_id`` and ``org_unit_id`` narrow it to one place. Rows carry the
+    queue card keys, as ``/available``."""
     training_scope.resolve("review")
     try:
         limit, offset = _page_args()
@@ -225,6 +230,7 @@ def history():
     rows, has_more = _svc.list_history(
         current_user, limit=limit, offset=offset, project_id=project_id, place=place
     )
+    add_card_keys(current_user, rows, names=True)
     return _private(jsonify({
         "history": rows, "count": len(rows), "limit": limit, "offset": offset,
         "has_more": has_more,

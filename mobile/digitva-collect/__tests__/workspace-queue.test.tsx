@@ -1086,8 +1086,8 @@ describe("queue layout", () => {
     expect(text).toContain("Random pool");
     expect(text).toContain("Ready to pick");
     expect(text).toContain("Not codeable");
-    expect(text).toContain("Age: 64");
-    expect(text).toContain("Sex: Female");
+    expect(text).toContain("64 y");
+    expect(text).toContain("Female");
     expect(text).toContain("Interviewer: Collector Anita");
     // The card has no Form chip and no status or Recodeable pill any more (owner 2026-11-27).
     expect(text).not.toContain("Form: WHO2022_ADULT");
@@ -1661,19 +1661,21 @@ describe("queue counts, pager, tiles and cards (owner 2026-11-27)", () => {
     }));
     const card = cardOf(coding.renderer);
     expect(texts(card)).toEqual([
-      "Esha Testcase", "english", "Interviewed",
+      "Esha Testcase", "English", "Interviewed",
       "Case 000020", "· PHC Rampur", "· Nick One",
       "Died: 30-Sep-2026", "· Interviewed: 01-Oct-2026",
-      "Age: 12 d", "Sex: female", "Interviewer: S. Devi",
+      "12 d", "Female", "Interviewer: S. Devi",
       "Code case",
     ]);
+    // The copy icon is on every card, Available included (owner 2026-11-27), for sending the case to support.
+    expect(button(card, "Copy details of Case 000020")).toBeDefined();
     await unmount(coding.renderer);
   });
 
   test("an unnamed card: the id is the title and the place line has no id; a picked project drops the nickname", async () => {
     const api = makeApi({ getCodingAvailable: jest.fn().mockResolvedValue({ forms: [cardRow], count: 1, limit: 50, offset: 0, has_more: false }) });
     const { renderer } = await render("coding", api);
-    expect(texts(cardOf(renderer)).slice(0, 5)).toEqual(["Case 000020", "english", "Interviewed", "PHC Rampur", "· Nick One"]);
+    expect(texts(cardOf(renderer)).slice(0, 5)).toEqual(["Case 000020", "English", "Interviewed", "PHC Rampur", "· Nick One"]);
     await pickProject(renderer, "Project One");
     await settle();
     expect(testIdText(cardOf(renderer), `queue-case-place-${cardRow.va_sid}`)).toEqual(["PHC Rampur"]);
@@ -1706,6 +1708,7 @@ describe("queue counts, pager, tiles and cards (owner 2026-11-27)", () => {
     expect(testIdText(cardOf(renderer, 1), "queue-case-action-r2")).toEqual(["Recoded"]);
     expect(testIdText(cardOf(renderer, 1), "queue-case-dates-r2")).toEqual(["Interviewed: 01-Oct-2026", "· Coded: 02-Oct-2026", "· Recoded: 05-Oct-2026"]);
     expect(button(renderer.root, "Review case")).toBeDefined();
+    expect(button(cardOf(renderer, 0), "Copy details of MASKED-1")).toBeDefined();
     await press(renderer, "History");
     await settle();
     const card = cardOf(renderer);
@@ -1739,7 +1742,7 @@ describe("queue counts, pager, tiles and cards (owner 2026-11-27)", () => {
     expect(new Set(labels(0))).toEqual(new Set(["View case", "Recode case", "Copy details of CODER-MASKED-1"]));
     expect(new Set(labels(1))).toEqual(new Set(["View case", "Copy details of CODER-MASKED-1"]));
     const text = JSON.stringify(renderer.toJSON());
-    expect(text).toContain("Age: 52 y");
+    expect(text).toContain("52 y");
     expect(text).not.toContain("Form:");
     expect(text).not.toContain('"Recodeable"');
     expect(text).not.toContain("VA Coding Completed");

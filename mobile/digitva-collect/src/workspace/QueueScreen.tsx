@@ -16,7 +16,8 @@ import { formatDisplayTimestamp } from "../web/DeathsList";
 import { queuePlaceOptions } from "../web/placeOptions";
 import type { QueuePlaceFilter, TrainingQueue, WorkspaceApi } from "./api";
 import { ApiError, type AccessProject } from "../api";
-import { codingLanguageLines, trainingQueueCounts } from "./codingLanguages";
+import { sexLabel } from "../ui/CaseCard";
+import { codingLanguageLines, languageLabel, trainingQueueCounts } from "./codingLanguages";
 import { cardAge, formatCardDate, shortCaseNumber } from "./caseLabel";
 import type { QueueView } from "./viewState";
 import type { CodingHistoryCache, CodingHistoryIdentity } from "../codingHistoryCache";
@@ -80,8 +81,11 @@ function useQueueStyles() {
     titleMain: { flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: spacing.xs },
     iconButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.md, ...(phone ? {} : { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }) },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+    // Card buttons on the web: right-aligned at their own width, never full width (owner 2026-11-27); the phone fills the row.
+    cardActions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, ...(phone ? {} : { justifyContent: "flex-end" }) },
     segmentedTrack: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, padding: spacing.xxs, borderRadius: radius.md, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border },
     actionBtn: { flexGrow: 1, flexBasis: 132 },
+    cardBtn: phone ? { flexGrow: 1, flexBasis: 132 } : { minWidth: 160 },
     pager: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
     pagerBtn: { flex: 1 },
     pageText: { flex: 1, textAlign: "center", ...typography.subhead, color: colors.textMuted, fontFamily: controls.fontFamily },
@@ -204,17 +208,17 @@ export function codedCaseSupportText(item: CoderHistoryCase, now: number = Date.
 }
 
 /**
- * The reviewed-case card's details as plain text, for its copy icon (as `codedCaseSupportText`): the full masked case
+ * An available or reviewed card's details as plain text, for its copy icon (as `codedCaseSupportText`): the full masked case
  * id, never the deceased's name.
  */
-export function reviewedCaseSupportText(item: QueueCase): string {
+export function reviewedCaseSupportText(item: QueueCase | CoderAvailableCase): string {
   const lines = [
     `Case ${item.va_uniqueid_masked}`,
     [item.project_id, !isInternalPlaceholderArea(item.site_id) ? item.site_id : null, queueDate(item.va_submission_date)].filter(Boolean).join(" · "),
     [item.va_deceased_age != null && String(item.va_deceased_age).trim() !== "" ? `Age: ${item.va_deceased_age}` : null,
       item.va_deceased_gender ? `Sex: ${item.va_deceased_gender}` : null,
       item.va_form_id ? `Form: ${item.va_form_id}` : null,
-      item.va_reviewed_at ? `Reviewed: ${formatQueueDate(item.va_reviewed_at)}` : null].filter(Boolean).join(" · "),
+      "va_reviewed_at" in item && item.va_reviewed_at ? `Reviewed: ${formatQueueDate(item.va_reviewed_at)}` : null].filter(Boolean).join(" · "),
     `App ${APP_VERSION}`,
   ];
   return lines.filter((line): line is string => Boolean(line)).join("\n");
@@ -304,8 +308,9 @@ export function QueueCaseCard({ item, kind, allProjects, children }: { item: Any
   const collector = "va_data_collector" in item ? item.va_data_collector : null;
   const sync = Platform.OS !== "web" && kind === "codingHistory" ? syncPill(item) : null;
   const pills = [
-    age ? t("queueAge", { age: t(age.unit === "d" ? "queueAgeDays" : age.unit === "m" ? "queueAgeMonths" : "queueAgeYears", { n: age.n }) }) : null,
-    item.va_deceased_gender ? t("queueSex", { sex: item.va_deceased_gender }) : null,
+    // Bare values, as the settled card (owner 2026-11-27): "83 y", "Female"; only the interviewer keeps its label.
+    age ? t(age.unit === "d" ? "queueAgeDays" : age.unit === "m" ? "queueAgeMonths" : "queueAgeYears", { n: age.n }) : null,
+    item.va_deceased_gender ? sexLabel(item.va_deceased_gender) : null,
     collector ? t("queueInterviewer", { name: collector }) : null,
   ].filter((pill): pill is string => Boolean(pill));
   return (
@@ -315,7 +320,7 @@ export function QueueCaseCard({ item, kind, allProjects, children }: { item: Any
         <View style={q.badgeRow}>
           {language ? (
             <View style={[q.badge, q.badgeAccent]} testID={`queue-case-language-${item.va_sid}`}>
-              <Text style={[q.badgeText, q.badgeAccentText]}>{language}</Text>
+              <Text style={[q.badgeText, q.badgeAccentText]}>{languageLabel(language)}</Text>
             </View>
           ) : null}
           <View style={q.badge} testID={`queue-case-action-${item.va_sid}`}>
@@ -340,7 +345,7 @@ export function QueueCaseCard({ item, kind, allProjects, children }: { item: Any
   );
 }
 
-/** The 44px copy icon on the history cards: shares the case's support text (Copy, WhatsApp, email). */
+/** The 44px copy icon on every queue card (owner 2026-11-27): shares the case's support text (Copy, WhatsApp, email). */
 function CopyIcon({ label, message }: { label: string; message: string }) {
   const { colors } = useTheme();
   const q = useQueueStyles();
@@ -1333,12 +1338,11 @@ export function QueueScreen({
       {mode === "coding" ? (
         <View style={phone ? { gap: controls.gap } : styles.card}>
           {headBlock(<>
-          {/* No card title on Coding (owner 2026-11-27): the page title says it; the refresh icon keeps the top right. */}
+          {/* No card title on Coding (owner 2026-11-27): the page title says it; the refresh icon shares the languages row, so no empty row. */}
           <View style={q.titleRow}>
-            <View style={q.titleMain} />
+            <View style={{ flex: 1, minWidth: 0 }}>{renderLanguageLines()}</View>
             <RefreshIcon disabled={busy || loading} loading={loading} onPress={refreshCases} />
           </View>
-          {renderLanguageLines()}
           {renderTrainingQueues()}
           {coderStats ? (
             <View style={q.statsGrid}>
@@ -1357,17 +1361,20 @@ export function QueueScreen({
             <QueueCaseCard key={item.va_sid} item={item} kind="codingHistory" allProjects={projectId === undefined}>
               {codingServerStatusText(item) ? <Text style={styles.muted} testID={`coding-server-status-${item.va_sid}`}>{codingServerStatusText(item)}</Text> : null}
               {item.server_status === "refused" ? <DetailsChip code={item.server_code} /> : null}
-              <View style={q.actions}>
+              <View style={q.cardActions}>
                 {!currentData?.cachedHistoryAt ? <>
-                  <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
-                  {item.recodeable ? <Button label={t("queueRecodeCase")} size="sm" style={q.actionBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
+                  <Button label="View case" kind="secondary" size="sm" style={q.cardBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
+                  {item.recodeable ? <Button label={t("queueRecodeCase")} size="sm" style={q.cardBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
                 </> : null}
                 <CopyIcon label={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} message={codedCaseSupportText(item)} />
               </View>
             </QueueCaseCard>
           )) : filteredCoderAvailable.map((item) => (
             <QueueCaseCard key={item.va_sid} item={item} kind="coding" allProjects={projectId === undefined}>
-              <Button label={t("queueCodeCase")} size="sm" disabled={busy || loading || !allocationVerified || Boolean(allocation) || coderStats?.has_pick_mode !== true} loading={busy} onPress={() => void allocatePicked(item.va_sid)} />
+              <View style={q.cardActions}>
+                <Button label={t("queueCodeCase")} size="sm" style={q.cardBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation) || coderStats?.has_pick_mode !== true} loading={busy} onPress={() => void allocatePicked(item.va_sid)} />
+                <CopyIcon label={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} message={reviewedCaseSupportText(item)} />
+              </View>
             </QueueCaseCard>
           ))}
           {(projects as CoderProjects | undefined)?.station_coding_disabled ? <Text style={styles.muted} testID="coding-done-on-server">{t("codingDoneOnServer")}</Text> : null}
@@ -1382,13 +1389,11 @@ export function QueueScreen({
       ) : (
         <View style={phone ? { gap: controls.gap } : styles.card}>
           {headBlock(<>
+          {/* As Coding: no card title under the page title; the refresh icon shares the languages row. */}
           <View style={q.titleRow}>
-            <View style={q.titleMain}>
-              <Text style={styles.headline}>Reviewer queue</Text>
-            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>{renderLanguageLines()}</View>
             <RefreshIcon disabled={busy || loading} loading={loading} onPress={refreshCases} />
           </View>
-          {renderLanguageLines()}
           {reviewerStats ? (
             <View style={q.statsGrid}>
               {statTile(String(reviewerStats.available ?? 0), "Available to review", false)}
@@ -1404,12 +1409,15 @@ export function QueueScreen({
           {filteredReviewerRows.map((item) => (
             <QueueCaseCard key={item.va_sid} item={item} kind={showHistory ? "reviewHistory" : "review"} allProjects={projectId === undefined}>
               {showHistory ? (
-                <View style={q.actions}>
-                  <Button label="View case" kind="secondary" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
+                <View style={q.cardActions}>
+                  <Button label="View case" kind="secondary" size="sm" style={q.cardBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
                   <CopyIcon label={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} message={reviewedCaseSupportText(item)} />
                 </View>
               ) : (
-                <Button label="Review case" size="sm" disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void allocateReviewer(item.va_sid)} />
+                <View style={q.cardActions}>
+                  <Button label="Review case" size="sm" style={q.cardBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void allocateReviewer(item.va_sid)} />
+                  <CopyIcon label={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} message={reviewedCaseSupportText(item)} />
+                </View>
               )}
             </QueueCaseCard>
           ))}

@@ -27,6 +27,7 @@ import { resetFirstHomeLoad } from "./web/roleHome";
 import { clearBrowserDraft } from "./workspace/doris/browserDraft";
 import { browserSessionStore, clearAllScroll } from "./workspace/viewState";
 import { setInterviewAssetWarmEligibility } from "./web/interviewAssetCache";
+import { clearScreenCache } from "./web/screenCache";
 import { unsentWebAttachmentCount, wipeOtherUsersWebAttachments, wipeWebAttachments } from "./web/attachmentBufferSession";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 60_000;
@@ -223,6 +224,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (attachmentBufferUser.current !== userId) {
         attachmentBufferUser.current = userId;
         void wipeOtherUsersWebAttachments(userId);
+        clearScreenCache();
       }
       if (accessChanged || notificationSession.current?.userId !== userId) {
         resetNotificationSession(userId, accessChanged);
@@ -234,6 +236,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setActionCode(undefined);
     } else {
       resetFirstHomeLoad();
+      clearScreenCache();
       if (notificationSession.current) clearNotificationSession();
       setError(undefined);
       setAuthenticated(false);
@@ -257,6 +260,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           if (error instanceof ApiError && [401, 403].includes(error.status)) {
             clearBrowserDraft();
             resetFirstHomeLoad();
+            clearScreenCache();
             clearDefinitionSession();
             clearNotificationSession();
             setSessionGeneration((current) => current + 1);
@@ -439,6 +443,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     abortClientRequests();
     resetFirstHomeLoad();
     clearAllScroll(browserSessionStore());
+    clearScreenCache();
     try {
       for (let attempt = 0; attempt < LOGOUT_ATTEMPTS; attempt += 1) {
         if (attempt > 0) await new Promise((done) => setTimeout(done, LOGOUT_RETRY_MS));
@@ -469,6 +474,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       abortClientRequests();
       clearWebRecall();
       clearBrowserDraft();
+      clearScreenCache();
       setInterviewAssetWarmEligibility(false);
       const link = bootstrap?.links.logout;
       if (signOutFirst && link && bootstrap) {

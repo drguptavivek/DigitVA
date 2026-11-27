@@ -22,6 +22,7 @@ import { AddIdentifierAction, IdentifierFacts } from "./CaseIdentifiers";
 import { RefreshIconButton } from "./DirectInterviewPanel";
 import { ProjectSelect, type ProjectChoice } from "../ui/ProjectSelect";
 import { rememberCasePreviews } from "./newCasePreview";
+import { readCached, screenKey, writeCached } from "./screenCache";
 import { CaseCard, formatDisplayTimestamp, otherDraftWarning, sexLabel, useCaseCardStyles, type CaseBadge } from "../ui/CaseCard";
 import {
   TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE,
@@ -69,6 +70,13 @@ export function reporterOnly(bootstrap: Pick<ClientBootstrap, "access"> | undefi
     !roles.some((role) => ["admin", "interviewer", "interview_supervisor", "data_manager"].includes(role));
 }
 
+type DeathsPage = { cases: CaseRow[]; counts: Record<string, number>; nextCursor: string | null };
+
+/** The first page last seen for this user, scope and project: shown at once on a revisit, replaced when the fetch lands. */
+function firstPage(account: ClientBootstrap | undefined, forProject: string | undefined): DeathsPage | undefined {
+  return readCached<DeathsPage>(screenKey(account?.user.user_id, "deaths", account?.scope === "training", forProject));
+}
+
 export type DeathCases = {
   cases: CaseRow[];
   counts: Record<string, number>;
@@ -90,9 +98,9 @@ export type DeathCases = {
  */
 export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCases {
   const training = bootstrap?.scope === "training";
-  const [cases, setCases] = useState<CaseRow[]>([]);
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [cases, setCases] = useState<CaseRow[]>(() => firstPage(bootstrap, undefined)?.cases ?? []);
+  const [counts, setCounts] = useState<Record<string, number>>(() => firstPage(bootstrap, undefined)?.counts ?? {});
+  const [nextCursor, setNextCursor] = useState<string | null>(() => firstPage(bootstrap, undefined)?.nextCursor ?? null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [project, setProject] = useState<string | undefined>(undefined);
@@ -110,9 +118,10 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
     // effects when the screen owns the hook, and the reset must not undo what that refresh set (busy above all).
     projectRef.current = undefined;
     loadedRef.current = false;
-    setCases([]);
-    setCounts({});
-    setNextCursor(null);
+    const seen = firstPage(bootstrap, undefined);
+    setCases(seen?.cases ?? []);
+    setCounts(seen?.counts ?? {});
+    setNextCursor(seen?.nextCursor ?? null);
     setBusy(false);
     setMessage("");
     setProject(undefined);
@@ -140,6 +149,11 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
       if (!isCurrent()) return false;
       rememberCasePreviews(bootstrap, result.cases ?? []);
       if (projectRef.current === requested) apply(result);
+      if (cursor === null) {
+        writeCached(screenKey(bootstrap.user.user_id, "deaths", training, requested), {
+          cases: result.cases ?? [], counts: result.counts ?? {}, nextCursor: result.next_cursor ?? null,
+        } satisfies DeathsPage);
+      }
       return true;
     } catch (error) {
       if (isCurrent()) setMessage(browserErrorText(error));
@@ -169,9 +183,10 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
     if (!bootstrap || projectRef.current === next) return;
     projectRef.current = next;
     setProject(next);
-    setCases([]);
-    setCounts({});
-    setNextCursor(null);
+    const seen = firstPage(bootstrap, next);
+    setCases(seen?.cases ?? []);
+    setCounts(seen?.counts ?? {});
+    setNextCursor(seen?.nextCursor ?? null);
     if (loadedRef.current) await fetchPage(null, replace);
   }, [bootstrap, fetchPage, replace]);
 

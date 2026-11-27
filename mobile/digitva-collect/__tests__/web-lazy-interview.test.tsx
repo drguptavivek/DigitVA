@@ -48,3 +48,18 @@ test("interview downloads only on use and a failed download can retry without pa
     errors.mockRestore();
   }
 });
+
+test("a screen whose code already downloaded remounts without the loading fallback", async () => {
+  const load = jest.fn().mockResolvedValue({ default: () => React.createElement("deaths-ready") });
+  let first!: ReactTestRenderer;
+  await act(async () => { first = create(<DeferredScreen load={load} />); });
+  expect(first.root.findAllByType("deaths-ready" as never)).toHaveLength(1);
+  await act(async () => { first.unmount(); });
+  // A sidebar revisit mounts a new instance: the first committed render already shows the screen.
+  let again!: ReactTestRenderer;
+  act(() => { again = create(<DeferredScreen load={load} />); });
+  expect(again.root.findAllByType("deaths-ready" as never)).toHaveLength(1);
+  expect(again.root.findAll((node) => node.props?.testID === "web-route-loading")).toHaveLength(0);
+  expect(load).toHaveBeenCalledTimes(1);
+  await act(async () => { again.unmount(); });
+});

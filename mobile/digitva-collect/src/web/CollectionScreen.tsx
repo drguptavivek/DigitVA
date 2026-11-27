@@ -20,10 +20,12 @@ import { CaseFilterBar, EMPTY_ADVANCED, isInternalPlaceholderUnit, matchesAdvanc
 import {
   CaseCard, CaseToolbar, DeathsList, formatDisplayTimestamp, projectOptionsOf, useCaseCardStyles, useDeathCases, useProjectChoices,
 } from "./DeathsList";
+import { readCached, screenKey, writeCached } from "./screenCache";
 import { DirectInterviewPanel } from "./DirectInterviewPanel";
 
 type InterviewStatusFilter = "all" | "in_progress" | "submitted";
 type CollectionTab = "interviews" | "deaths";
+type CollectionSnapshot = { intake: IntakeBootstrap; drafts: DraftSummary[]; submitted: SubmittedRevisionSummary[] };
 
 function validTab(value: unknown): CollectionTab | undefined {
   return value === "interviews" || value === "deaths" ? value : undefined;
@@ -136,9 +138,12 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
   const { filter: projectFilter } = useCollectionProject();
   const changeDeathsProject = deaths.changeProject;
   useEffect(() => { void changeDeathsProject(projectFilter); }, [changeDeathsProject, projectFilter]);
-  const [intake, setIntake] = useState<IntakeBootstrap>();
-  const [drafts, setDrafts] = useState<DraftSummary[]>([]);
-  const [submitted, setSubmitted] = useState<SubmittedRevisionSummary[]>([]);
+  // The last intake context, drafts and submitted revisions of this user show at once on a revisit (screenCache).
+  const collectionKey = screenKey(bootstrap?.user.user_id, "collection", isTraining);
+  const seen = useRef(readCached<CollectionSnapshot>(collectionKey)).current;
+  const [intake, setIntake] = useState<IntakeBootstrap | undefined>(seen?.intake);
+  const [drafts, setDrafts] = useState<DraftSummary[]>(seen?.drafts ?? []);
+  const [submitted, setSubmitted] = useState<SubmittedRevisionSummary[]>(seen?.submitted ?? []);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -203,6 +208,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
         setIntake(nextIntake);
         setDrafts(draftResult.drafts ?? []);
         setSubmitted(submittedResult);
+        writeCached(collectionKey, { intake: nextIntake, drafts: draftResult.drafts ?? [], submitted: submittedResult } satisfies CollectionSnapshot);
         return { success: deathsLoaded, revision };
       } catch (error) {
         if (isCurrent()) setMessage(browserErrorText(error));
@@ -214,7 +220,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
     })();
     refreshInFlight.current = { generation, promise: task };
     return task;
-  }, [bootstrap, loadIntake, refreshDeaths]);
+  }, [bootstrap, collectionKey, loadIntake, refreshDeaths]);
 
   const requestNotificationRefresh = useCallback((revision: number) => {
     if (!mounted.current) return Promise.resolve();
@@ -265,7 +271,11 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
     if (fromUrl) setTabChoice(fromUrl);
   }, [params.tab]);
 
+  const seededUser = useRef(bootstrap?.user.user_id);
   useEffect(() => {
+    // Mount keeps what the cache seeded (same user); only a changed account resets.
+    if (seededUser.current === bootstrap?.user.user_id) return;
+    seededUser.current = bootstrap?.user.user_id;
     setIntake(undefined);
     setDrafts([]);
     setSubmitted([]);

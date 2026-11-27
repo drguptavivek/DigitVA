@@ -20,6 +20,7 @@ import { AttachmentTrainingContext } from "../workspace/media/attachmentScope";
 import { browserErrorText, LoginLanding, WebShell } from "./common";
 import { Chevron, FoldButton } from "./Chevron";
 import { ContextualHelpBanner } from "./ContextualHelp";
+import { clearScreenCache, readCached, screenKey, writeCached } from "./screenCache";
 import { KpiStrip } from "./KpiStrip";
 import { dataAccess, hasAnyRoleOrProject, openServerPage, statisticsAllowed } from "./roleHome";
 import {
@@ -174,11 +175,16 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   const { bootstrap, loginUrl, reload } = useAppState();
   const styles = useUiStyles();
   const { ui } = useTheme();
-  const [sessionCheck, setSessionCheck] = useState<SessionCheck>();
+  const userId = bootstrap?.user.user_id;
+  const checkKey = `${userId ?? ""}:${mode}`;
+  // A revisit starts from the last verified session and Home summary (screenCache) and revalidates behind them.
+  const sessionKey = screenKey(userId, "workspace-session", mode);
+  const homeKey = screenKey(userId, "home");
+  const [sessionCheck, setSessionCheck] = useState<SessionCheck | undefined>(() => readCached<SessionCheck>(sessionKey));
   const [sessionError, setSessionError] = useState("");
   const [viewVaSid, setViewVaSid] = useState("");
   // undefined while loading, null when the call failed.
-  const [home, setHome] = useState<HomeSummary | null>();
+  const [home, setHome] = useState<HomeSummary | null | undefined>(() => readCached<HomeSummary>(homeKey));
   const [progressOpen, setProgressOpen] = useState(false);
   // The coding languages editor; a save reloads the queue (its "My languages" line).
   const [languagesOpen, setLanguagesOpen] = useState(false);
@@ -188,8 +194,6 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   const [caseLookupOpen, setCaseLookupOpen] = useState(false);
   const wide = useWindowDimensions().width >= WIDE_MIN_WIDTH;
   const requestGeneration = useRef(0);
-  const userId = bootstrap?.user.user_id;
-  const checkKey = `${userId ?? ""}:${mode}`;
 
   // Queue params belong to the queue routes only; drop any that a case URL inherited.
   const caseWithQueueParams = Boolean(vaSid) && mode !== "home" && hasQueueParams(params);
@@ -205,34 +209,48 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   useEffect(() => {
     const request = ++requestGeneration.current;
     let active = true;
-    setSessionCheck(undefined);
+    // The last verified session keeps the screen painted while this check runs; any failure below blanks it as before.
+    setSessionCheck(readCached<SessionCheck>(sessionKey));
     setSessionError("");
     void loadBrowserSession().then(async (result) => {
       if (!active || requestGeneration.current !== request) return;
       if (!result.authenticated) {
+        clearScreenCache();
+        setSessionCheck(undefined);
         setSessionError(t("serverUnauthorized"));
         return;
       }
       if (userId && result.bootstrap.user.user_id !== userId) {
+        clearScreenCache();
+        setSessionCheck(undefined);
         await reload();
         if (active && requestGeneration.current === request) setSessionError(t("serverUnauthorized"));
         return;
       }
-      setSessionCheck({ key: checkKey, bootstrap: result.bootstrap });
+      const verified = { key: checkKey, bootstrap: result.bootstrap };
+      writeCached(sessionKey, verified);
+      setSessionCheck(verified);
       await reload();
     }).catch((error) => {
-      if (active && requestGeneration.current === request) setSessionError(browserErrorText(error));
+      if (active && requestGeneration.current === request) {
+        setSessionCheck(undefined);
+        setSessionError(browserErrorText(error));
+      }
     });
     return () => {
       active = false;
       requestGeneration.current += 1;
     };
-  }, [checkKey, reload, userId]);
+  }, [checkKey, reload, sessionKey, userId]);
 
   const activeBootstrap = sessionCheck?.key === checkKey ? sessionCheck.bootstrap : undefined;
+  // Keyed by the token's content: the revalidated session of a revisit must not replace the requester and api the
+  // queue already loaded with (its data and catalogue belong to that api).
+  const csrfKey = activeBootstrap ? JSON.stringify(activeBootstrap.csrf) : "";
   const workspaceCsrf = useMemo(
     () => activeBootstrap ? (training ? { ...activeBootstrap.csrf, training: true as const } : activeBootstrap.csrf) : undefined,
-    [activeBootstrap, training],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [csrfKey, training],
   );
   const requester: JsonRequester | undefined = useMemo(
     () => workspaceCsrf ? createWebWorkspaceTransport(workspaceCsrf) : undefined,
@@ -251,9 +269,10 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   useEffect(() => {
     if (mode !== "home" || !requester) return;
     let mounted = true;
-    setHome(undefined);
+    setHome(readCached<HomeSummary>(homeKey));
     void requester(HOME_API)
       .then((summary) => {
+        writeCached(homeKey, summary);
         if (mounted) setHome(summary as HomeSummary);
       })
       .catch(() => {
@@ -262,7 +281,7 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
     return () => {
       mounted = false;
     };
-  }, [mode, requester]);
+  }, [homeKey, mode, requester]);
 
   if (loginUrl && !bootstrap) return <LoginLanding />;
   if (!activeBootstrap) return <WebShell title={t("workspaceTitle")}>
@@ -329,6 +348,7 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
     initialView={parseQueueParams(params)}
     {...(trainingRoute && mode === "coding" && hasTypedTrainingSession(activeBootstrap.access) ? { trainingQueue, onTrainingQueue: setTrainingQueue } : {})}
     reloadKey={languagesSaved}
+    cacheScope={screenKey(userId, "queue", training, trainingQueue)}
     // The "Site and unit" filter reads the normal projects' reach; the training queues have none.
     accessProjects={trainingRoute ? undefined : projects}
     // Coders set their own languages; a trainee's are set at graduation (the server refuses them: 403).

@@ -20,6 +20,7 @@ import { sexLabel } from "../ui/CaseCard";
 import { codingLanguageLines, languageLabel, trainingQueueCounts } from "./codingLanguages";
 import { cardAge, formatCardDate, shortCaseNumber } from "./caseLabel";
 import type { QueueView } from "./viewState";
+import { readCached, screenKey, writeCached } from "../web/screenCache";
 import type { CodingHistoryCache, CodingHistoryIdentity } from "../codingHistoryCache";
 import type {
   AllocationSnapshot,
@@ -399,6 +400,7 @@ export function QueueScreen({
   onEditLanguages,
   accessProjects,
   topSlot,
+  cacheScope,
 }: {
   api: WorkspaceApi;
   mode: "coding" | "reviewing";
@@ -424,6 +426,8 @@ export function QueueScreen({
   accessProjects?: AccessProject[];
   /** Rendered first inside the shell, above the queue (native Plus: the Local cases row). */
   topSlot?: ReactNode;
+  /** Web only: the user and queue kind that scope the in-memory last-good pages (screenCache); unset caches nothing. */
+  cacheScope?: string;
 }) {
   const ActiveShell = Shell ?? Screen;
   // Phone presentation only (round-6 Q1-Q8); the browser keeps its own look.
@@ -431,14 +435,26 @@ export function QueueScreen({
   const styles = useUiStyles();
   const q = useQueueStyles();
   const { colors, ui } = useTheme();
-  const [projectId, setProjectId] = useState<string | undefined>(initialView?.projectId);
+  // A revisit starts from the last catalogue and pages (refreshed behind them); see web/screenCache.ts.
+  const catalogKey = screenKey(cacheScope, "catalog", mode);
+  const cachedCatalog = useRef(readCached<{ projects: ProjectOptions; fallback?: string }>(catalogKey)).current;
+  // Only a placeholder: the fresh catalogue's default replaces it unless the user has picked another project.
+  const seededProject = useRef(initialView?.projectId === undefined && !initialView?.allProjects ? cachedCatalog?.fallback : undefined).current;
+  const [projectId, setProjectId] = useState<string | undefined>(initialView?.projectId ?? seededProject);
   const [offset, setOffset] = useState(initialView?.offset ?? 0);
   const [showHistory, setShowHistory] = useState(initialView?.showHistory ?? false);
   const startedOnAll = useRef(initialView?.allProjects === true);
   const startedOnProject = useRef(initialView?.projectId !== undefined);
-  const [data, setData] = useState<QueueData | null>(null);
+  const pageKey = (scope: QueueScope) => screenKey(cacheScope, "page", scope.mode, scope.projectId, scope.offset, scope.showHistory, scope.place);
+  const cachedPage = (scope: QueueScope): QueueData | null => {
+    const hit = readCached<Omit<QueueData, "api">>(pageKey(scope));
+    return hit ? { ...hit, api } : null;
+  };
+  const [data, setData] = useState<QueueData | null>(() => cachedPage({ api, mode, projectId, offset: initialView?.offset ?? 0, showHistory: initialView?.showHistory ?? false, place: "" }));
   const [allocationData, setAllocationData] = useState<AllocationData | null>(null);
-  const [catalog, setCatalog] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; projects?: ProjectOptions } | null>(null);
+  const [catalog, setCatalog] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; projects?: ProjectOptions } | null>(
+    cachedCatalog ? { api, mode, projects: cachedCatalog.projects } : null,
+  );
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [confirmRelease, setConfirmRelease] = useState<{ warning: string; proceed: () => void } | null>(null);
@@ -585,6 +601,8 @@ export function QueueScreen({
       }
       if (isCurrent(requestGeneration, requestScope)) {
         setData(next);
+        const { api: _api, ...page } = next;
+        writeCached(pageKey(requestScope), page);
         // A place-filtered page is not the project's history: never saved as it.
         if (mode === "coding" && showHistory && projectId && !place && historyCache && historyIdentity) {
           const fingerprint = historyCache.fingerprintForProject(projectId);
@@ -654,10 +672,12 @@ export function QueueScreen({
       }
       // A project named by the URL that is not offered (stale or edited) falls back to All projects.
       setProjectId((current) => {
+        if (seededProject !== undefined && current === seededProject) return fallback;
         if (current !== undefined) return offered(current) ? current : undefined;
         return fallback;
       });
       setCatalog({ api, mode, projects });
+      writeCached(catalogKey, { projects, fallback });
     }).catch(async (error) => {
       if (!active) return;
       if (error instanceof TypeError && mode === "coding" && historyCache && historyIdentity) {
@@ -682,8 +702,12 @@ export function QueueScreen({
     };
   }, [api, historyCache, historyIdentity, mode]);
 
+  const lastRefresh = useRef(refresh);
   useEffect(() => {
-    setData(null);
+    // A page seen before shows at once; a reload after an action or a return to the tab starts empty, as before.
+    const reloaded = lastRefresh.current !== refresh;
+    lastRefresh.current = refresh;
+    setData(reloaded ? null : cachedPage(scopeRef.current));
     setBusy(false);
     actionInFlight.current = false;
     void load();

@@ -69,6 +69,7 @@ import CollectionScreen from "../src/web/CollectionScreen";
 import DeathRegistrationScreen from "../src/web/DeathRegistrationScreen";
 import { DeathsList, DeathsListPanel as Panel, DeathsProjectSelect, useDeathCases } from "../src/web/DeathsList";
 import { withinLastDays } from "../src/web/caseFilters";
+import { clearScreenCache } from "../src/web/screenCache";
 import * as identifiersApi from "../src/identifiers";
 import { getCases, getDrafts, getIntakeContext } from "../src/client/api";
 import { getSubmittedRevisions } from "../src/client/revisionList";
@@ -115,6 +116,7 @@ const titles = (tree: ReactTestRenderer) => tree.root.findByType(DeathsList)
 
 beforeEach(() => {
   jest.clearAllMocks();
+  clearScreenCache();
   mockParams = {};
   mockBootstrap = makeBootstrap(["interviewer"], { intake: true });
   mockGetCases.mockResolvedValue({ cases: rows, counts: { registered: 1, in_progress: 1, submitted: 1 }, next_cursor: null });
@@ -165,6 +167,25 @@ describe("DeathsList filter bar", () => {
     expect(mockGetCases).toHaveBeenCalledTimes(1);
     expect(text(tree)).toContain("\"loading\"");
     expect(text(tree)).not.toContain("noReportedDeaths");
+  });
+
+  it("shows the cached first page at once on a remount while the refetch is still out", async () => {
+    const first = await render(<DeathsListPanel />);
+    await settle();
+    expect(titles(first)).toContain("Asha Devi");
+    await act(async () => first.unmount());
+
+    mockGetCases.mockReturnValue(new Promise(() => undefined));
+    const again = await render(<DeathsListPanel />);
+    expect(mockGetCases).toHaveBeenCalledTimes(2);
+    expect(titles(again)).toContain("Asha Devi");
+    expect(text(again)).not.toContain("\"loading\"");
+
+    // Another user never sees it.
+    await act(async () => again.unmount());
+    mockBootstrap = { ...mockBootstrap, user: { ...mockBootstrap.user, user_id: "someone-else" } };
+    const other = await render(<DeathsListPanel />);
+    expect(titles(other)).not.toContain("Asha Devi");
   });
 
   it("asks the server for the training scope only inside the Training screens", async () => {

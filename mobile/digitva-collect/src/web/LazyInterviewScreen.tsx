@@ -23,10 +23,18 @@ function DownloadRetry({ onRetry }: { onRetry(): void }) {
   </View></WebShell>;
 }
 
+type Loader = () => Promise<{ default: ComponentType }>;
+// One lazy component per loader for the page's life: a fresh lazy() per mount suspended every visit (a full-screen
+// "Loading…" flash) though the chunk was already downloaded. A retry replaces the failed one.
+const lazyScreens = new Map<Loader, ComponentType>();
+
 /** Keep the interviewer and WHO form renderer out of login and coding downloads. */
-export function DeferredScreen({ load }: { load(): Promise<{ default: ComponentType }> }) {
+export function DeferredScreen({ load }: { load: Loader }) {
   const [attempt, setAttempt] = useState(0);
-  const Screen = useMemo(() => lazy(load), [load, attempt]);
+  const Screen = useMemo(() => {
+    if (attempt > 0 || !lazyScreens.has(load)) lazyScreens.set(load, lazy(load));
+    return lazyScreens.get(load)!;
+  }, [load, attempt]);
   return <DownloadBoundary key={attempt} onRetry={() => setAttempt((value) => value + 1)}>
     <Suspense fallback={<LoadingScreen />}><Screen /></Suspense>
   </DownloadBoundary>;

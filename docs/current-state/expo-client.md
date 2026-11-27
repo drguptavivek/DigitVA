@@ -630,8 +630,8 @@ longer piles screens up. The stack keeps its routes, so Back still walks the
 sections; a section reached by Back mounts afresh (the screen cache shows its last
 answer at once) and has lost its in-screen state, such as filters and scroll. A
 queue under the case it opened is not covered, so Back from the case finds it as
-it was. A case workspace (`/workspace`, the training coding and review cases) is
-never covered: its unsaved coding input lives only in the screen and has no leave
+it was. A case screen (`/workspace`, `/case` and the training coding, review and
+interview cases) is never covered: its unsaved input lives only in the screen and has no leave
 guard, so a section opened from a case leaves it under the page for Back, as
 before. Native builds keep the plain stack.
 

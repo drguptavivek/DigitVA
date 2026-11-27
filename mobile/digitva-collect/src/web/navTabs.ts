@@ -1,7 +1,7 @@
 /** Pure navigation rules of the browser app: the items a user sees, which one is current, when the phone bottom bar shows. */
 import type { ClientBootstrap } from "../client/api";
 import type { StringKey } from "../i18n";
-import { TRAINING_CODING_CASE_ROUTE, TRAINING_REPORTING_ROUTE, TRAINING_REVIEWING_CASE_ROUTE, TRAINING_ROUTES, trainingAreas } from "../training";
+import { TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_CASE_ROUTE, TRAINING_REPORTING_ROUTE, TRAINING_REVIEWING_CASE_ROUTE, TRAINING_ROUTES, trainingAreas } from "../training";
 import { roleScreens, statisticsAllowed } from "./roleHome";
 
 /** Pre-login and device screens: nobody is signed in to see navigation there. */
@@ -87,11 +87,11 @@ export const SECTION_ROUTES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Case workspaces are never covered: their coding input (codes, remark, notes) lives only in the screen and has no
- * leave guard, so a section opened from a case keeps it under the page for Back, as before.
+ * Case screens are never covered: their unsaved input (codes, remark, notes; a case detail's contact outcome and
+ * visit date) lives only in the screen and has no leave guard, so a section opened from a case keeps it under the page for Back, as before.
  * ponytail: a case stays mounted under the sections opened from it; a leave guard in the workspace would let it go.
  */
-const CASE_ROUTES: ReadonlySet<string> = new Set(["/workspace", TRAINING_CODING_CASE_ROUTE, TRAINING_REVIEWING_CASE_ROUTE]);
+const CASE_ROUTES: ReadonlySet<string> = new Set(["/workspace", TRAINING_CODING_CASE_ROUTE, TRAINING_REVIEWING_CASE_ROUTE, "/case", TRAINING_INTERVIEW_CASE_ROUTE]);
 
 /** The path of a root-stack route name: "index" is "/", "training/coding/index" is "/training/coding". */
 export function stackRoutePath(name: string): string {

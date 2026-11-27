@@ -37,9 +37,9 @@ test("a queue under the case it opened stays mounted, so Back keeps its filters"
   expect(coveredBySection(later, "r")).toBe(false);
 });
 
-test("training case workspaces are never covered either", () => {
-  const stack = [route("training/coding/case", "c"), route("training/reviewing/case", "v"), route("index", "h"), route("coding", "q")];
-  expect(stack.map((r) => coveredBySection(stack, r.key))).toEqual([false, false, true, false]);
+test("training cases and case details are never covered either", () => {
+  const stack = [route("training/coding/case", "c"), route("training/reviewing/case", "v"), route("case", "d"), route("training/interview/case", "t"), route("index", "h"), route("coding", "q")];
+  expect(stack.map((r) => coveredBySection(stack, r.key))).toEqual([false, false, false, false, true, false]);
 });
 
 test("an unknown key is never covered", () => {

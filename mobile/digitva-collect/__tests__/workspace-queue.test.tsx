@@ -753,12 +753,34 @@ describe("queue layout", () => {
     await unmount(screen.renderer);
   });
 
-  test("a single project is plain text, not a dropdown", async () => {
+  test("a single project is still a dropdown, without an All projects row", async () => {
     const api = makeApi({ getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1"], project_options: [options[0]], last_project_id: null }) });
     const screen = await render("coding", api);
-    expect(JSON.stringify(screen.renderer.toJSON())).toContain(long);
+    expect(button(screen.renderer.root, "Project: " + long)).toBeDefined();
     expect(button(screen.renderer.root, "Project: All projects")).toBeUndefined();
+    await press(screen.renderer, "Project: " + long);
+    expect(button(screen.renderer.root, "All projects")).toBeUndefined();
     await unmount(screen.renderer);
+  });
+
+  test("web with a Shell hands the project control to the shell's title row; no line of its own", async () => {
+    const seen: { headerProject?: unknown } = {};
+    const Shell = ({ headerProject, children }: { headerProject?: React.ReactNode; children: React.ReactNode }) => {
+      seen.headerProject = headerProject;
+      return <>{children}</>;
+    };
+    const api = makeApi({ getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1", "P2"], project_options: options, last_project_id: null }) });
+    Object.defineProperty(Platform, "OS", { configurable: true, value: "web" });
+    let renderer!: ReactTestRenderer;
+    await act(async () => { renderer = create(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} Shell={Shell as never} />); });
+    await settle();
+    try {
+      expect(seen.headerProject).toBeTruthy();
+      expect(button(renderer.root, "Project: All projects")).toBeUndefined();
+    } finally {
+      if (originalPlatformDescriptor) Object.defineProperty(Platform, "OS", originalPlatformDescriptor);
+      await unmount(renderer);
+    }
   });
 
   test("resume and release share one row with their handlers", async () => {

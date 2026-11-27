@@ -106,6 +106,10 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
   if (bootstrapRef.current !== bootstrap) {
     bootstrapRef.current = bootstrap;
     generationRef.current += 1;
+    // During render, not in the reset effect below: a child's effect (the list panel's first refresh) runs before
+    // this hook's effects when the screen owns the hook, and the reset must not undo what that refresh set.
+    projectRef.current = undefined;
+    loadedRef.current = false;
   }
 
   useEffect(() => {
@@ -123,8 +127,6 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
     setBusy(false);
     setMessage("");
     setProject(undefined);
-    projectRef.current = undefined;
-    loadedRef.current = false;
   }, [bootstrap]);
 
   /** Fetch one page; apply it only while the bootstrap, mount and project still match. */
@@ -416,14 +418,11 @@ const toolbarStyles = StyleSheet.create({
 });
 
 /**
- * The top card of the case screens: *actions* on the left, the shared Project control and the refresh icon
- * top-right (wrapping under the actions on a phone); *children* sit below the row (Collection's direct-interview form).
+ * The top card of the case screens: *actions* on the left, the refresh icon top-right (the Project control sits in
+ * the page's title row, see WebShell `headerProject`); *children* sit below the row (Collection's direct-interview form).
  */
-export function CaseToolbar({ actions, projects, project, onProject, refreshing, onRefresh, children }: {
+export function CaseToolbar({ actions, refreshing, onRefresh, children }: {
   actions?: ReactNode;
-  projects: ProjectChoice[];
-  project?: string;
-  onProject: (next: string | undefined) => void;
   refreshing: boolean;
   onRefresh: () => void;
   children?: ReactNode;
@@ -434,7 +433,6 @@ export function CaseToolbar({ actions, projects, project, onProject, refreshing,
       <View style={toolbarStyles.row}>
         <View style={toolbarStyles.actions}>{actions}</View>
         <View style={toolbarStyles.topRight}>
-          <ProjectSelect projects={projects} value={project ? [project] : []} onChange={(next) => onProject(next[0])} />
           <RefreshIconButton disabled={refreshing} onPress={onRefresh} />
         </View>
       </View>
@@ -443,20 +441,29 @@ export function CaseToolbar({ actions, projects, project, onProject, refreshing,
   );
 }
 
-/** The list loading its own pages, for a screen that has no other data to refresh with it. */
-export function DeathsListPanel({ headerAction }: { headerAction?: ReactNode }) {
+/** The projects a user may filter the case lists by, as the Project control's choices. */
+export function useProjectChoices(bootstrap: ClientBootstrap | undefined): ProjectChoice[] {
+  return useMemo(() => projectOptionsOf(deathListContext(bootstrap)).map((option) => ({ id: option.value, name: option.label })), [bootstrap]);
+}
+
+/** The Project control for *list*, for the page's title row (WebShell `headerProject`). */
+export function DeathsProjectSelect({ list }: { list: DeathCases }) {
   const { bootstrap } = useAppState();
-  const list = useDeathCases(bootstrap);
+  const projects = useProjectChoices(bootstrap);
+  return <ProjectSelect projects={projects} value={list.project ? [list.project] : []} onChange={(next) => void list.changeProject(next[0])} />;
+}
+
+/**
+ * The list loading its pages. The screen owns *list* (`useDeathCases`) so its title row can show the Project
+ * control (`DeathsProjectSelect`) for the same list.
+ */
+export function DeathsListPanel({ list, headerAction }: { list: DeathCases; headerAction?: ReactNode }) {
   const { refresh } = list;
   useEffect(() => { void refresh(); }, [refresh]);
-  const projects = useMemo(() => projectOptionsOf(deathListContext(bootstrap)).map((option) => ({ id: option.value, name: option.label })), [bootstrap]);
   return (
     <>
       <CaseToolbar
         actions={headerAction}
-        projects={projects}
-        project={list.project}
-        onProject={(next) => void list.changeProject(next)}
         refreshing={list.busy}
         onRefresh={() => void refresh()}
       />

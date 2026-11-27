@@ -30,7 +30,7 @@ jest.mock("../src/AppState", () => ({
   useAppState: () => ({ bootstrap: mockBootstrap, unscopedBootstrap: mockUnscoped, ready: true, logout: mockLogout, uiLocale: "en", chooseUiLocale: jest.fn() }),
 }));
 jest.mock("../src/theme", () => ({
-  radius: { sm: 4, md: 6, lg: 8, full: 9999 }, 
+  radius: { sm: 4, md: 6, lg: 8, full: 9999 }, spacing: { xs: 8 },
   useTheme: () => ({ colors: { surface: "#fff", border: "#ccc", text: "#000", textMuted: "#666", accent: "#00f", accentSoft: "#eef", focus: "#00f" } }),
 }));
 jest.mock("../src/i18n", () => ({ t: (key: string) => key, UI_LOCALES: [{ code: "en", label: "English" }] }));
@@ -38,7 +38,7 @@ jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {
     Button: () => null,
-    Screen: ({ sidebar, children, lead }: { sidebar?: React.ReactNode; children?: React.ReactNode; lead?: React.ReactNode }) => ReactActual.createElement("screen", { lead }, sidebar, children),
+    Screen: ({ sidebar, children, lead, headerAction }: { sidebar?: React.ReactNode; children?: React.ReactNode; lead?: React.ReactNode; headerAction?: React.ReactNode }) => ReactActual.createElement("screen", { lead, headerAction }, sidebar, children),
     useUiStyles: () => ({ muted: {}, text: {} }),
   };
 });
@@ -255,4 +255,17 @@ describe("web shell navigation and last visit", () => {
     expect(mockLogout).toHaveBeenCalled();
     await act(async () => { renderer.unmount(); });
   });
+
+  it("puts headerProject in the title-row action group, immediately before the language switcher", async () => {
+    mockBootstrap = bootstrap(["coder"], { coding: true });
+    let tree!: ReactTestRenderer;
+    await act(async () => { tree = create(<WebShell title="Coding" headerProject={React.createElement("project-field")}><span /></WebShell>); });
+    const action = tree.root.findByType("screen" as never).props.headerAction as React.ReactElement<{ children: React.ReactNode[]; style: { flexDirection: string } }>;
+    expect(action.props.style.flexDirection).toBe("row");
+    const [project, language] = action.props.children as React.ReactElement[];
+    expect(project.type).toBe("project-field");
+    expect(typeof language.type).toBe("function");
+    await act(async () => tree.unmount());
+  });
+
 });

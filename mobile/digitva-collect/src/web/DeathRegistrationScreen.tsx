@@ -17,7 +17,7 @@ import { Button, FieldLabel, useUiStyles } from "../ui";
 import { OrgUnitSelect } from "../ui/OrgUnitSelect";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
-import { DeathsListPanel } from "./DeathsList";
+import { DeathsListPanel, DeathsProjectSelect, useDeathCases } from "./DeathsList";
 import { TRAINING_INTERVIEW_FORM_ROUTE, TRAINING_INTERVIEW_HOME, TRAINING_REPORTING_ROUTE } from "../training";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { convertPrecision, type Precision } from "../workspace/doris/dateFieldShared";
@@ -154,6 +154,8 @@ export default function DeathRegistrationScreen() {
   const styles = useUiStyles();
   // Inside the Training screens (training scope) this screen lives under /training and returns to the Training list.
   const training = bootstrap?.scope === "training";
+  // Owned here so the title row can carry the list's Project control.
+  const deaths = useDeathCases(bootstrap);
   // Opened from a supervisor's case detail: go back to supervision after.
   const fromSupervision = (Array.isArray(params.from) ? params.from[0] : params.from) === "supervisor";
   const registerPath = training ? TRAINING_REPORTING_ROUTE : "/death-registration";
@@ -877,7 +879,10 @@ export default function DeathRegistrationScreen() {
   }
 
   return (
-    <WebShell title={showRegisteredDeaths ? t("reportedDeaths") : editingDeathId ? t("editRegistration") : t("registrationTitle")}>
+    <WebShell
+      title={showRegisteredDeaths ? t("reportedDeaths") : editingDeathId ? t("editRegistration") : t("registrationTitle")}
+      headerProject={privateUiReady && showRegisteredDeaths && !supervisionView ? <DeathsProjectSelect list={deaths} /> : undefined}
+    >
       {privateUiReady ? <>
       <ContextualHelpBanner screen={showRegisteredDeaths ? (supervisionView ? "supervision" : "myRegisteredDeaths") : "deathRegistration"} />
       {canList && !showRegisteredDeaths ? (
@@ -927,6 +932,7 @@ export default function DeathRegistrationScreen() {
             <SupervisionPanel />
           ) : (
             <DeathsListPanel
+              list={deaths}
               headerAction={intake?.context.length ? (
                 <Button label={t("registerDeath")} onPress={() => { setMessage(""); setNotice(""); showList(false); }} />
               ) : null}

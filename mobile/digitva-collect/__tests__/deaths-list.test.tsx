@@ -67,13 +67,19 @@ jest.mock("../src/web/LocationCapture", () => ({
 
 import CollectionScreen from "../src/web/CollectionScreen";
 import DeathRegistrationScreen from "../src/web/DeathRegistrationScreen";
-import { DeathsList, DeathsListPanel } from "../src/web/DeathsList";
+import { DeathsList, DeathsListPanel as Panel, DeathsProjectSelect, useDeathCases } from "../src/web/DeathsList";
 import { withinLastDays } from "../src/web/caseFilters";
 import * as identifiersApi from "../src/identifiers";
 import { getCases, getDrafts, getIntakeContext } from "../src/client/api";
 import { getSubmittedRevisions } from "../src/client/revisionList";
 
 const mockGetCases = getCases as jest.Mock;
+
+/** What the screens do: own the list, put the Project control in the title row, the panel below. */
+function DeathsListPanel({ headerAction }: { headerAction?: React.ReactNode }) {
+  const list = useDeathCases(mockBootstrap as never);
+  return <><DeathsProjectSelect list={list} /><Panel list={list} headerAction={headerAction} /></>;
+}
 
 const today = new Date();
 const daysAgo = (days: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() - days, 12).toISOString();

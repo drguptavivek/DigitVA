@@ -68,7 +68,7 @@ jest.mock("../src/ui", () => ({
   stateLabel: (state: string) => state,
   useUiStyles: () => ({ error: {}, muted: {}, headline: {}, card: {}, text: {} })
 }));
-jest.mock("../src/web/common", () => ({ WebShell: ({ children, title }: { children: ReactNode; title: string }) => <><span data-shell-title={title} />{children}</>, browserErrorText: () => "error" }));
+jest.mock("../src/web/common", () => ({ WebShell: ({ children, title, headerProject }: { children: ReactNode; title: string; headerProject?: ReactNode }) => <><span data-shell-title={title} />{headerProject}{children}</>, browserErrorText: () => "error" }));
 
 import CollectionScreen, { CollectionPanel } from "../src/web/CollectionScreen";
 import { formatDisplayTimestamp } from "../src/ui/CaseCard";
@@ -789,7 +789,7 @@ describe("CollectionScreen tabs and filters", () => {
     expect(tree.root.findAll((n) => String(n.props.accessibilityLabel).startsWith("filterProjectLabel"))).toHaveLength(0);
     await press(tree, "filterProject: filterAllProjects");
     await press(tree, "Project One");
-    expect(mockRouterPush).toHaveBeenLastCalledWith({ pathname: "/collection", params: { tab: "interviews", project: "P1" } });
+    expect(mockRouterPush).toHaveBeenLastCalledWith({ pathname: "/collection", params: { project: "P1" } });
 
     // The URL names the project: My interviews narrow on the client, the deaths list re-fetches for it on the server.
     mockGetCases.mockClear();
@@ -813,7 +813,7 @@ describe("CollectionScreen tabs and filters", () => {
     expect(mockGetCases).toHaveBeenLastCalledWith("/api/v1/intake/cases", expect.anything(), null, undefined, false);
     await press(tree, "filterProject: filterAllProjects");
     await press(tree, "Project Two");
-    expect(mockRouterPush).toHaveBeenLastCalledWith({ pathname: "/collection", params: { tab: "interviews", project: "P2" } });
+    expect(mockRouterPush).toHaveBeenLastCalledWith({ pathname: "/collection", params: { project: "P2" } });
     await act(async () => tree.unmount());
   });
 
@@ -855,11 +855,13 @@ describe("CollectionScreen tabs and filters", () => {
     await act(async () => tree.unmount());
   });
 
-  it("shows the one project as plain text, with no project choice", async () => {
+  it("shows the project dropdown in the title row, not the toolbar, even with one project", async () => {
     mockGetCases.mockResolvedValue({ cases: deathCases, next_cursor: null });
     const tree = await render();
-    expect(text(tree)).toContain("filterProject: Project");
-    expect(tree.root.findAll((n) => String(n.props.accessibilityLabel).startsWith("filterProject"))).toHaveLength(0);
+    const fields = tree.root.findAll((n) => n.props.accessibilityLabel === "filterProject: Project" && typeof n.props.onPress === "function");
+    expect(fields.length).toBeGreaterThan(0);
+    const toolbar = tree.root.findAll((n) => typeof n.type === "string" && n.props.style?.flexGrow === 1 && n.props.style?.flexWrap === "wrap")[0];
+    expect(toolbar.findAll((n) => String(n.props.accessibilityLabel).startsWith("filterProject"))).toHaveLength(0);
     await act(async () => tree.unmount());
   });
 

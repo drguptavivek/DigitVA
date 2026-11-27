@@ -9,8 +9,8 @@ import { startTraining, TRAINING_REPORTING_ROUTE, TRAINING_ROUTES } from "../tra
 import { spacing } from "../theme";
 import { Button, useUiStyles } from "../ui";
 import { browserErrorText, WebShell } from "./common";
-import { CollectionPanel } from "./CollectionScreen";
-import { DeathsListPanel } from "./DeathsList";
+import { CollectionPanel, CollectionProjectSelect } from "./CollectionScreen";
+import { DeathsListPanel, DeathsProjectSelect, useDeathCases } from "./DeathsList";
 import { SupervisionPanel } from "./SupervisionPanel";
 import { TrainingScope } from "../AppState";
 import { CaseDetailScreen, DeathRegistrationScreen, InterviewScreen } from "./LazyInterviewScreen";
@@ -117,8 +117,12 @@ function TrainingInterview() {
   const interviews = roles.has("interviewer") || bootstrap?.capabilities?.intake === true;
   const registers = roles.has("death_reporter") || interviews;
   const supervises = roles.has("interview_supervisor");
+  const deaths = useDeathCases(bootstrap);
   return (
-    <WebShell title={t("trainingInterview")}>
+    <WebShell
+      title={t("trainingInterview")}
+      headerProject={bootstrap && me ? (interviews ? <CollectionProjectSelect /> : <DeathsProjectSelect list={deaths} />) : undefined}
+    >
       <TrainingChecklistView area="interview" me={me} error={error} />
       {bootstrap && me ? (
         <>
@@ -128,6 +132,7 @@ function TrainingInterview() {
             <CollectionPanel training />
           ) : (
             <DeathsListPanel
+              list={deaths}
               headerAction={registers ? (
                 <Button size="sm" label={t("trainingReportDeath")} onPress={() => router.push(TRAINING_REPORTING_ROUTE as never)} />
               ) : undefined}

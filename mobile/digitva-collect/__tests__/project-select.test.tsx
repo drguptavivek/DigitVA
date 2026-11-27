@@ -106,10 +106,16 @@ test("wide screens anchor the menu below the button; narrow ones use a bottom sh
   await act(async () => narrow.tree.unmount());
 });
 
-test("one project is plain text; no project renders nothing", async () => {
-  const one = await render({ projects: [projects[0]] });
-  expect(JSON.stringify(one.tree.toJSON())).toContain("filterProject: Alpha");
-  expect(one.tree.root.findAll((node) => node.props.accessibilityRole === "button")).toHaveLength(0);
+test("one project is still a dropdown listing just that project; no project renders nothing", async () => {
+  const onChange = jest.fn();
+  const one = await render({ projects: [projects[0]], onChange });
+  await press(one.tree, "filterProject: Alpha");
+  expect(one.tree.root.findByType(Modal).props.visible).toBe(true);
+  expect(one.tree.root.findAll((node) => node.props.accessibilityLabel === "filterAllProjects")).toHaveLength(0);
+  expect(find(one.tree, "Alpha").props.accessibilityState.checked).toBe(true);
+  await press(one.tree, "Alpha");
+  expect(one.tree.root.findByType(Modal).props.visible).toBe(false);
+  expect(onChange).not.toHaveBeenCalled();
   await act(async () => one.tree.unmount());
   const none = await render({ projects: [] });
   expect(none.tree.toJSON()).toBeNull();

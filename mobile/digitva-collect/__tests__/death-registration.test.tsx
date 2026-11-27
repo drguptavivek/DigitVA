@@ -40,7 +40,7 @@ jest.mock("../src/ui", () => require("../test-support/uiMockExtras").withUiExtra
   stateLabel: (state: string) => `state:${state}`,
   useUiStyles: () => ({ error: {}, muted: {}, input: {}, card: {}, text: {}, row: {} })
 }));
-jest.mock("../src/web/common", () => ({ WebShell: ({ children }: { children: ReactNode }) => <>{children}</>, browserErrorText: () => "error" }));
+jest.mock("../src/web/common", () => ({ WebShell: ({ children, headerProject }: { children: ReactNode; headerProject?: ReactNode }) => <>{headerProject}{children}</>, browserErrorText: () => "error" }));
 jest.mock("../src/web/SupervisionPanel", () => ({ SupervisionPanel: () => <div data-supervision-panel="true" /> }));
 jest.mock("../src/web/registrationControls", () => {
   const React = require("react") as typeof import("react");

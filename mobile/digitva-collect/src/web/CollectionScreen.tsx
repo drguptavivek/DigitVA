@@ -12,11 +12,12 @@ import { t } from "../i18n";
 import { controls, spacing, typography, useTheme } from "../theme";
 import { TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE, TRAINING_REPORTING_ROUTE } from "../training";
 import { Button, useUiStyles } from "../ui";
+import { ProjectSelect } from "../ui/ProjectSelect";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { CaseFilterBar, EMPTY_ADVANCED, isInternalPlaceholderUnit, matchesAdvanced, useAreaFilter, type AdvancedFilters } from "./caseFilters";
 import {
-  CaseCard, CaseToolbar, deathListContext, DeathsList, formatDisplayTimestamp, projectOptionsOf, useCaseCardStyles, useDeathCases,
+  CaseCard, CaseToolbar, DeathsList, formatDisplayTimestamp, projectOptionsOf, useCaseCardStyles, useDeathCases, useProjectChoices,
 } from "./DeathsList";
 import { DirectInterviewPanel, directInterviewTargets } from "./DirectInterviewPanel";
 
@@ -72,6 +73,29 @@ type AuthoritativeRefreshResult = {
   revision: number;
 };
 
+/** The Project of the Collection tabs, from the URL (absent = All); an id the user has no collection project for is All. */
+function useCollectionProject() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useLocalSearchParams<{ project?: string; tab?: string }>();
+  const { bootstrap } = useAppState();
+  const choices = useProjectChoices(bootstrap);
+  const urlProject = typeof params.project === "string" ? params.project : undefined;
+  const filter = choices.some((choice) => choice.id === urlProject) ? urlProject : undefined;
+  /** A project change is a history entry (Back returns to the previous project) and keeps the tab. */
+  const select = (next: string | undefined) => {
+    const tab = validTab(params.tab);
+    router.push({ pathname: pathname as never, params: { ...(tab ? { tab } : {}), ...(next ? { project: next } : {}) } });
+  };
+  return { choices, filter, select };
+}
+
+/** The Project control for the page's title row (WebShell `headerProject`). */
+export function CollectionProjectSelect() {
+  const { choices, filter, select } = useCollectionProject();
+  return <ProjectSelect projects={choices} value={filter ? [filter] : []} onChange={(next) => select(next[0])} />;
+}
+
 export function CollectionPanel({ training: trainingProp = false }: { training?: boolean } = {}) {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -108,9 +132,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
   const deaths = useDeathCases(bootstrap);
   // One Project for both tabs, from the URL (absent = All). The URL is untrusted: an id the user has no collection
   // project for is All. Interviews filter on the client; the deaths list re-fetches from the server for the project.
-  const projectChoices = useMemo(() => projectOptionsOf(deathListContext(bootstrap)).map((option) => ({ id: option.value, name: option.label })), [bootstrap]);
-  const urlProject = typeof params.project === "string" ? params.project : undefined;
-  const projectFilter = projectChoices.some((choice) => choice.id === urlProject) ? urlProject : undefined;
+  const { filter: projectFilter } = useCollectionProject();
   const changeDeathsProject = deaths.changeProject;
   useEffect(() => { void changeDeathsProject(projectFilter); }, [changeDeathsProject, projectFilter]);
   const [intake, setIntake] = useState<IntakeBootstrap>();
@@ -320,10 +342,6 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
     setTabChoice(next);
     router.setParams({ tab: next });
   };
-  /** A project change is a history entry (Back returns to the previous project) and keeps the tab. */
-  const selectProject = (next: string | undefined) => {
-    router.push({ pathname: pathname as never, params: { tab, ...(next ? { project: next } : {}) } });
-  };
   const clearInterviewFilters = () => {
     setSearchQuery("");
     setInterviewStatus("all");
@@ -383,9 +401,6 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
                 <Button kind="secondary" label={t("directVaInterview")} expanded={directOpen} onPress={() => setDirectOpen((open) => !open)} />
               ) : null}
             </>}
-            projects={projectChoices}
-            project={projectFilter}
-            onProject={selectProject}
             refreshing={busy}
             onRefresh={() => {
               void refresh().then((result) => {
@@ -506,7 +521,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
 
 export default function CollectionScreen() {
   return (
-    <WebShell title={t("navVaInterview")}>
+    <WebShell title={t("navVaInterview")} headerProject={<CollectionProjectSelect />}>
       <ContextualHelpBanner screen="collection" />
       <CollectionPanel />
     </WebShell>

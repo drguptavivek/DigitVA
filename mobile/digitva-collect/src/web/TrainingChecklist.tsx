@@ -84,10 +84,10 @@ export function TrainingChecklistView({ area, me, error = "" }: { area: Training
 }
 
 /** A queue shell (QueueScreen's `Shell`) that puts an area's checklist above the queue. */
-export function TrainingShell(area: TrainingArea): ComponentType<{ title: string; headerAction?: ReactNode; children: ReactNode }> {
-  return function TrainingAreaShell({ title, headerAction, children }) {
+export function TrainingShell(area: TrainingArea): ComponentType<{ title: string; headerAction?: ReactNode; headerProject?: ReactNode; children: ReactNode }> {
+  return function TrainingAreaShell({ title, headerAction, headerProject, children }) {
     return (
-      <WebShell title={title} headerAction={headerAction}>
+      <WebShell title={title} headerAction={headerAction} headerProject={headerProject}>
         <TrainingChecklist area={area} />
         {children}
       </WebShell>

@@ -8,7 +8,7 @@ import { ClientApiError } from "../client/api";
 import { errorKeyFor } from "../errorMessages";
 import { t } from "../i18n";
 import { useUiLanguages } from "../uiPacks";
-import { radius, useTheme } from "../theme";
+import { radius, spacing, useTheme } from "../theme";
 import { Button, errorReference, Screen, useUiStyles } from "../ui";
 import { MenuChoiceRow, XMark } from "../ui/controls";
 import { KPI_SCREENS, KpiStrip } from "./KpiStrip";
@@ -403,6 +403,7 @@ export function WebShell({
   title,
   children,
   headerAction,
+  headerProject,
   footer,
   lead,
   wide
@@ -412,6 +413,8 @@ export function WebShell({
   /** Use the full page width instead of the 720px reading column. */
   wide?: boolean;
   headerAction?: React.ReactNode;
+  /** The project switcher: sits in the title row, immediately left of the header action. */
+  headerProject?: React.ReactNode;
   footer?: React.ReactNode;
   /** Rendered above the title inside the scroller (Screen `lead`); the interview passes its header bar here. */
   lead?: React.ReactNode;
@@ -426,8 +429,11 @@ export function WebShell({
   if (!ready) return <Screen title={t("appName")}><Text style={uiStyles.muted}>{t("loading")}</Text></Screen>;
   if (!bootstrap) return <LoginLanding />;
   const resolvedHeaderAction = headerAction === undefined ? <UiLanguageSwitcher /> : headerAction;
+  const titleActions = headerProject ? (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, flexShrink: 1 }}>{headerProject}{resolvedHeaderAction}</View>
+  ) : resolvedHeaderAction;
   return (
-    <Screen title={title} sidebar={<NavigationMenu />} headerAction={resolvedHeaderAction} footer={footer} lead={lead} wide={wide}>
+    <Screen title={title} sidebar={<NavigationMenu />} headerAction={titleActions} footer={footer} lead={lead} wide={wide}>
       {KPI_SCREENS.includes(pathname) ? <KpiStrip csrf={bootstrap.csrf} /> : null}
       {children}
     </Screen>

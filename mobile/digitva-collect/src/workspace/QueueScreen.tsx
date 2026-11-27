@@ -295,7 +295,7 @@ export function QueueScreen({
   /** Reports the settled project, tab and page so the route can keep them in the URL across a reload. */
   onViewChange?: (view: { projectId?: string; showHistory: boolean; offset: number }) => void;
   /** Optional shell component (e.g. WebShell on web) to wrap the queue with left navigation and language switcher. */
-  Shell?: ComponentType<{ title: string; headerAction?: ReactNode; children: ReactNode }>;
+  Shell?: ComponentType<{ title: string; headerAction?: ReactNode; headerProject?: ReactNode; children: ReactNode }>;
   /** Native only; web leaves this unset. */
   historyCache?: CodingHistoryCache;
   historyIdentity?: CodingHistoryIdentity;
@@ -1167,31 +1167,34 @@ export function QueueScreen({
     setRefresh((value) => value + 1);
   }
 
+  // On the web shell the project switcher joins the title row (left of the language button); the phone and a bare Screen keep a line of their own.
+  const projectInHeader = !phone && Boolean(Shell);
+  const projectSelect = projects?.project_options.length ? (
+    <ProjectSelect
+      projects={projects.project_options.map((option) => ({ id: option.project_id, name: option.project_name }))}
+      value={projectId ? [projectId] : []}
+      disabled={busy}
+      onChange={(next) => {
+        clearMessage();
+        setOffset(0);
+        // A new project starts on its default segment; its pick mode is not known until its stats arrive.
+        setShowHistory(initialView?.showHistory ?? false);
+        lastPickMode.current = null;
+        setProjectId(next[0]);
+      }}
+      fieldRow={phone}
+    />
+  ) : null;
+
   return (
     <ActiveShell
       title={mode === "coding" ? "Coding queue" : "Review queue"}
+      {...(projectInHeader ? { headerProject: projectSelect } : {})}
       // Phone: the bar has the back arrow and the shell Help sheet has the guide, so no Back or Help pill here.
       headerAction={onExit && !phone ? <Button label="Back" kind="secondary" size="sm" onPress={onExit} /> : undefined}
     >
       {phone ? null : <ContextualHelpBanner screen={mode === "coding" ? "coding" : "reviewing"} />}
-      {projects?.project_options.length ? (
-        <View style={q.topLine}>
-          <ProjectSelect
-            projects={projects.project_options.map((option) => ({ id: option.project_id, name: option.project_name }))}
-            value={projectId ? [projectId] : []}
-            disabled={busy}
-            onChange={(next) => {
-              clearMessage();
-              setOffset(0);
-              // A new project starts on its default segment; its pick mode is not known until its stats arrive.
-              setShowHistory(initialView?.showHistory ?? false);
-              lastPickMode.current = null;
-              setProjectId(next[0]);
-            }}
-            fieldRow={phone}
-          />
-        </View>
-      ) : null}
+      {projectSelect && !projectInHeader ? <View style={q.topLine}>{projectSelect}</View> : null}
       {/* First load only: once a card is drawn its refresh icon spins instead. */}
       {loading && !stats ? <ActivityIndicator accessibilityLabel="Loading queue" /> : null}
       {currentMessage ? <Text accessibilityRole={message?.success ? "text" : "alert"} style={[styles.error, message?.success && { color: ui.success }]}>{currentMessage}</Text> : null}

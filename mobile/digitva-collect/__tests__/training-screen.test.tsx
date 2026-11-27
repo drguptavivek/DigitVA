@@ -23,13 +23,16 @@ jest.mock("../src/ui", () => {
 jest.mock("../src/web/common", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {
-    WebShell: ({ children }: { children: React.ReactNode }) => ReactActual.createElement("web-shell", null, children),
+    WebShell: ({ children, headerProject }: { children: React.ReactNode; headerProject?: React.ReactNode }) => ReactActual.createElement("web-shell", { headerProject: headerProject ? "set" : undefined }, headerProject, children),
     browserErrorText: () => "server-error",
   };
 });
 jest.mock("../src/web/roleHome", () => ({ openServerPage: jest.fn() }));
-jest.mock("../src/web/CollectionScreen", () => ({ CollectionPanel: ({ training }: { training?: boolean }) => require("react").createElement("collection-panel", { training }) }));
-jest.mock("../src/web/DeathsList", () => ({ DeathsListPanel: ({ headerAction }: { headerAction?: React.ReactNode }) => require("react").createElement("deaths-list", null, headerAction) }));
+jest.mock("../src/web/CollectionScreen", () => ({
+  CollectionPanel: ({ training }: { training?: boolean }) => require("react").createElement("collection-panel", { training }),
+  CollectionProjectSelect: () => require("react").createElement("collection-project"),
+}));
+jest.mock("../src/web/DeathsList", () => ({ useDeathCases: () => ({}), DeathsProjectSelect: () => require("react").createElement("deaths-project"), DeathsListPanel: ({ headerAction }: { headerAction?: React.ReactNode }) => require("react").createElement("deaths-list", null, headerAction) }));
 jest.mock("../src/web/SupervisionPanel", () => ({ SupervisionPanel: () => require("react").createElement("supervision-panel") }));
 jest.mock("../src/web/LazyInterviewScreen", () => ({ DeathRegistrationScreen: () => require("react").createElement("registration") }));
 jest.mock("../src/training", () => ({

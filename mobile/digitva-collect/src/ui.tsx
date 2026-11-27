@@ -80,7 +80,7 @@ export function Screen({
   // With the title in the phone bar, the page keeps only the header action (right-aligned), or no title row at all.
   // An outdated browser's warning icon sits just left of the screen's own action (the language button).
   const notice = Platform.OS === "web" && outdatedBrowser() ? <OutdatedBrowserNotice /> : null;
-  const actions = notice ? <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>{notice}{headerAction}</View> : headerAction;
+  const actions = notice ? <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs, flexShrink: 1 }}>{notice}{headerAction}</View> : headerAction;
   const titleNode = shell.titleInBar ? (
     actions ? (
       <View style={[screenStyles.titleWrap, widen]}>

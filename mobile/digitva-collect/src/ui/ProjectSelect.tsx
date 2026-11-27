@@ -55,7 +55,8 @@ export function projectSummary(projects: ProjectChoice[], value: string[]): stri
  * field-like button "Project: …" opening a menu anchored below it on a wide screen, a bottom sheet on a narrow one.
  * The menu lists All projects, then each project. *value* empty means All. Single choice (the default) closes on a
  * press and reports `[]` or `[id]`; *multiple* keeps the menu open and reports the next set (from All a press narrows
- * to that project; every project, or none, is All). One project is plain text; no project renders nothing.
+ * to that project; every project, or none, is All). One project still renders the field, its menu listing just that
+ * project (no All row: it would mean the same) and closing on a press without a change; no project renders nothing.
  */
 export function ProjectSelect({ projects, value, onChange, multiple = false, disabled = false, fieldRow = false }: {
   projects: ProjectChoice[];
@@ -81,8 +82,7 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
   }, [open]);
 
   if (projects.length === 0) return null;
-  const field = `${t("filterProject")}: ${projectSummary(projects, value)}`;
-  if (projects.length === 1) return <Text style={s.plain}>{`${t("filterProject")}: ${projects[0].name}`}</Text>;
+  const field = `${t("filterProject")}: ${projectSummary(projects, projects.length === 1 ? [projects[0].id] : value)}`;
 
   const show = () => {
     setAnchor(null);
@@ -91,7 +91,12 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
     button.current?.measureInWindow?.((x, y, w, h) => setAnchor({ top: y + h + spacing.xxs, right: Math.max(spacing.xs, width - x - w) }));
   };
   const all = value.length === 0;
+  const single = projects.length === 1;
   const press = (id: string | null) => {
+    if (single) {
+      setOpen(false);
+      return;
+    }
     if (!multiple) {
       setOpen(false);
       onChange(id === null ? [] : [id]);
@@ -119,8 +124,8 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
   );
   const list = (
     <ScrollView keyboardDismissMode="on-drag" accessibilityRole={multiple ? "list" : "radiogroup"} accessibilityLabel={t("filterProject")}>
-      {row("__all__", t("filterAllProjects"), null, all)}
-      {projects.map((project) => row(project.id, project.name, project.id, multiple ? all || value.includes(project.id) : value[0] === project.id))}
+      {single ? null : row("__all__", t("filterAllProjects"), null, all)}
+      {projects.map((project) => row(project.id, project.name, project.id, single || (multiple ? all || value.includes(project.id) : value[0] === project.id)))}
     </ScrollView>
   );
   const phoneRow = fieldRow && Platform.OS !== "web";

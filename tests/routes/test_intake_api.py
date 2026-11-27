@@ -239,9 +239,11 @@ class IntakeApiTests(BaseTestCase):
         self.assertIn(linked["draft_id"], listed)
         row = listed[linked["draft_id"]]
         self.assertEqual((row["deceased_sex"], row["age_years"], row["date_of_death"]), ("male", 4, dod))
+        self.assertIs(row["date_of_death_year_only"], False)
         self.assertIn(direct["draft_id"], listed)
         row = listed[direct["draft_id"]]
         self.assertEqual((row["deceased_sex"], row["age_years"], row["date_of_death"]), (None, None, None))
+        self.assertNotIn("date_of_death_year_only", row)
 
     # ── page context (no bootstrap route: the page renders it) ─────────────
 
@@ -299,6 +301,43 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(case["my_draft_id"], draft["draft_id"])
         self.assertEqual(case["links"]["form"], f"/intake/form/{draft['draft_id']}")
         self.assertEqual(case["state"], "in_progress")
+
+    def test_a_registration_is_exact_and_a_corrected_date_clears_a_year_only_marker(self):
+        self._login(self.interviewer_id)
+        death_id = self.client.post(
+            "/api/v1/intake/deaths", json=self._death_payload(), headers=self._csrf_headers(),
+        ).get_json()["case"]["death_id"]
+        death = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        self.assertIsNotNone(death.date_of_death)
+        self.assertIs(death.date_of_death_year_only, False)
+
+        def listed():
+            rows = self.client.get("/api/v1/intake/cases", query_string={"project_id": self.PROJECT_ID}).get_json()
+            return next(r for r in rows["cases"] if r["death_id"] == death_id)
+
+        self.assertIs(listed()["date_of_death_year_only"], False)
+        death.date_of_death_year_only = None  # a case from before the marker
+        db.session.commit()
+        row = listed()
+        self.assertIsNotNone(row["date_of_death"])
+        self.assertNotIn("date_of_death_year_only", row)
+        death.date_of_death_year_only = True  # as an interview's year-only answer leaves it
+        db.session.commit()
+        self.assertIs(listed()["date_of_death_year_only"], True)
+        register = self.client.get("/api/v1/intake/deaths", query_string={
+            "project_id": self.PROJECT_ID, "site_id": self.SITE_ID}).get_json()["deaths"]
+        self.assertIs(next(r for r in register if r["death_id"] == death_id)["date_of_death_year_only"], True)
+        url = f"/api/v1/intake/deaths/{death_id}"
+        # An edit that leaves the date alone leaves the marker.
+        self.assertEqual(self.client.patch(url, json={"remarks": "ok"}, headers=self._csrf_headers()).status_code, 200)
+        db.session.refresh(death)
+        self.assertIs(death.date_of_death_year_only, True)
+        corrected = (date.today() - timedelta(days=3)).isoformat()
+        fixed = self.client.patch(url, json={"date_of_death": corrected}, headers=self._csrf_headers())
+        self.assertEqual(fixed.status_code, 200, fixed.get_json())
+        db.session.refresh(death)
+        self.assertEqual(death.date_of_death.isoformat(), corrected)
+        self.assertIs(death.date_of_death_year_only, False)
 
     def test_a_death_correction_refuses_an_unknown_field_and_changes_nothing(self):
         self._login(self.interviewer_id)
@@ -1205,7 +1244,24 @@ class IntakeApiTests(BaseTestCase):
         self.assertEqual(submitted.status_code, 201, submitted.get_json())
         case = db.session.get(VaDeathRegister, uuid.UUID(draft["death_id"]))
         self.assertEqual(case.date_of_death, date(2025, 7, 1))
+        self.assertIs(case.date_of_death_year_only, True)
         self.assertEqual(case.status, "submitted")
+
+    def test_an_exact_date_replacing_a_year_only_one_clears_the_marker(self):
+        self._login(self.interviewer_id)
+        draft = self._start_draft()
+        saved = self._browser_save(draft["draft_id"], {"background": {
+            "Id10017": "Bina", "Id10018": "Sahu", "Id10019": "female", "Id10022": "no", "Id10024": "2025"}})
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        case = db.session.get(VaDeathRegister, uuid.UUID(draft["death_id"]))
+        self.assertEqual(case.date_of_death, date(2025, 7, 1))
+        self.assertIs(case.date_of_death_year_only, True)
+        # The exact day is 1 July too: the date stays, the marker still clears.
+        submitted = self._submit_answers(draft, Id10022="yes", Id10023="2025-07-01")
+        self.assertEqual(submitted.status_code, 201, submitted.get_json())
+        db.session.refresh(case)
+        self.assertEqual(case.date_of_death, date(2025, 7, 1))
+        self.assertIs(case.date_of_death_year_only, False)
 
     def test_an_incomplete_identity_names_the_questions_to_answer(self):
         self._login(self.interviewer_id)
@@ -1228,7 +1284,9 @@ class IntakeApiTests(BaseTestCase):
         draft = self._start_draft(death_id=death_id)
         submitted = self._submit_answers(draft, Id10022="no", Id10024="2025-01-01")
         self.assertEqual(submitted.status_code, 201, submitted.get_json())
-        self.assertEqual(db.session.get(VaDeathRegister, uuid.UUID(death_id)).date_of_death, registered)
+        case = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        self.assertEqual(case.date_of_death, registered)
+        self.assertIs(case.date_of_death_year_only, False)
 
     def test_a_closed_case_refuses_the_sync(self):
         death_id = self._case()

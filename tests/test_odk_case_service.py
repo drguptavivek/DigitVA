@@ -102,6 +102,8 @@ class OdkCaseCreationTests(OdkCaseFixtureMixin, BaseTestCase):
         self.assertEqual(case.status, "submitted")
         self.assertEqual(case.deceased_name, "Asha Devi")
         self.assertEqual(case.deceased_sex, "female")
+        self.assertIsNotNone(case.date_of_death)
+        self.assertIs(case.date_of_death_year_only, False)
         self.assertEqual(case.org_unit_id, phc.org_unit_id)
         self.assertEqual(case.site_id, self.SITE)
         self.assertEqual(case.project_id, self.PROJECT)
@@ -140,6 +142,7 @@ class OdkCaseCreationTests(OdkCaseFixtureMixin, BaseTestCase):
 
         (case,) = self._odk_cases(sid)
         self.assertEqual(case.date_of_death, date(2025, 7, 1))
+        self.assertIs(case.date_of_death_year_only, True)
 
     def test_missing_identity_creates_no_case(self):
         self._tree()

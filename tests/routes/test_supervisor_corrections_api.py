@@ -68,6 +68,8 @@ SUPERVISOR_ROW_KEYS = [
     "consent_withdrawn",
     "created_at",
     "date_of_death",
+    # Additive (digitva-xmlw): present when the marker is known, as for this registered case.
+    "date_of_death_year_only",
     "death_id",
     "deceased_name",
     "deceased_sex",

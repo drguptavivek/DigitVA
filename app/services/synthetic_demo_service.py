@@ -578,6 +578,7 @@ def _seed_cases(session):
             deceased_sex="female",
             age_years=60,
             date_of_death=datetime.now(UTC).date(),
+            date_of_death_year_only=False,
             registered_by=interviewer.user_id,
             status="registered" if number == 1 else "submitted",
             source="register",

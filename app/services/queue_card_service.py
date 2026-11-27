@@ -17,6 +17,10 @@ page's size:
   only when the sync could make its case (name, sex and a date of death);
   for a year-only answer that case holds 1 July of that year
   (``web_intake.drafts._approximate_date_of_death``).
+- ``death_date_year_only`` (bool): whether that date is such a 1 July
+  (``va_death_register.date_of_death_year_only`` of the same row; an exact
+  date wins a tie). Absent when the flag is not known (a row from before the
+  flag, or no date): the card then shows the full date.
 - ``first_coded_at`` / ``last_coded_at`` (tz-aware UTC ISO or null) and
   ``recoded`` (bool): one coder's earliest and latest final COD on the case,
   any status (a new final deactivates the earlier one and keeps it,
@@ -35,6 +39,7 @@ pick list's own ``deceased_name`` is left as it is (it is not asked for names).
 from datetime import UTC
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import aggregate_order_by, array_agg
 
 from app import db
 from app.models import (
@@ -64,8 +69,17 @@ def add_card_keys(user, rows: list[dict], *, names: bool = False, coder_id=None)
     if not sids:
         return rows
     # The page's submissions with their place names and the grouped register deaths, bounded by the same sids.
+    # The year-only flag is the earliest date's own row's (an exact date first on a tie).
     deaths = (
-        sa.select(VaDeathRegister.va_sid, sa.func.min(VaDeathRegister.date_of_death).label("died"))
+        sa.select(
+            VaDeathRegister.va_sid,
+            sa.func.min(VaDeathRegister.date_of_death).label("died"),
+            array_agg(aggregate_order_by(
+                VaDeathRegister.date_of_death_year_only,
+                VaDeathRegister.date_of_death.asc().nulls_last(),
+                VaDeathRegister.date_of_death_year_only.asc().nulls_last(),
+            ))[1].label("died_year_only"),
+        )
         .where(VaDeathRegister.va_sid.in_(sids), VaDeathRegister.status.not_in(_DEAD_CASE_STATES))
         .group_by(VaDeathRegister.va_sid)
         .subquery()
@@ -109,6 +123,7 @@ def add_card_keys(user, rows: list[dict], *, names: bool = False, coder_id=None)
                 ).label("project_nickname"),
                 sa.cast(VaSubmissions.va_deceased_age_normalized_days, sa.Float).label("age_days"),
                 deaths.c.died,
+                deaths.c.died_year_only,
             )
             .join(VaForms, VaForms.form_id == VaSubmissions.va_form_id)
             .outerjoin(MasOrgUnit, MasOrgUnit.org_unit_id == VaSubmissions.org_unit_id)
@@ -135,6 +150,11 @@ def add_card_keys(user, rows: list[dict], *, names: bool = False, coder_id=None)
                 row.pop(key, None)
         row["va_deceased_age_normalized_days"] = found_row.age_days if found_row else None
         row["date_of_death"] = found_row.died.isoformat() if found_row and found_row.died else None
+        year_only = found_row.died_year_only if found_row and found_row.died else None
+        if year_only is None:
+            row.pop("death_date_year_only", None)
+        else:
+            row["death_date_year_only"] = year_only
         first, last, count = coding_of.get(sid, (None, None, 0))[:3]
         row["first_coded_at"] = _utc_iso(first)
         row["last_coded_at"] = _utc_iso(last)

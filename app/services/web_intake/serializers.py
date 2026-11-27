@@ -87,6 +87,13 @@ def without_location(names=register_pii_accessor.SEALED_ATTRS) -> tuple:
 _without_location = without_location  # the earlier name: this module and tests still use it
 
 
+def _year_only(death: VaDeathRegister) -> dict:
+    """``date_of_death_year_only`` when known (the date is 1 July of a
+    year-only answer, or exact); absent when NULL, read as not year-only."""
+    flag = death.date_of_death_year_only
+    return {} if flag is None else {"date_of_death_year_only": flag}
+
+
 def serialize_death(death: VaDeathRegister, *, show_gps: bool = False, register: dict | None = None) -> dict:
     """One register row. The GPS fix (``latitude``, ``longitude``,
     ``accuracy_m``, ``captured_at``) only when *show_gps* (``shows_gps``).
@@ -108,6 +115,7 @@ def serialize_death(death: VaDeathRegister, *, show_gps: bool = False, register:
         "date_of_birth_partial": death.date_of_birth_partial,
         "age_years": death.age_years,
         "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
+        **_year_only(death),
         "place_of_death": values["place_of_death"],
         "address": values["address"],
         "address_house_street": values["address_house_street"],
@@ -171,6 +179,7 @@ def serialize_worklist_row(user: VaUsers, death: VaDeathRegister, unit_name: str
         "deceased_sex": death.deceased_sex,
         "age_years": death.age_years,
         "date_of_death": death.date_of_death.isoformat() if death.date_of_death else None,
+        **_year_only(death),
         "pending_flag": death.pending_flag,
         "next_visit_at": death.next_visit_at.isoformat() if death.next_visit_at else None,
         "last_contact_at": death.last_contact_at.isoformat() if death.last_contact_at else None,
@@ -358,6 +367,7 @@ def serialize_drafts(drafts: list[VaWebIntakeDraft]) -> list[dict]:
             deceased_sex=case.deceased_sex if case else None,
             age_years=case.age_years if case else None,
             date_of_death=case.date_of_death.isoformat() if case and case.date_of_death else None,
+            **(_year_only(case) if case else {}),
         ))
     return rows
 

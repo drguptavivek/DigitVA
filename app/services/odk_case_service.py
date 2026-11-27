@@ -48,9 +48,12 @@ _IDENTITY_KEYS = ("deceased_name", "deceased_sex", "date_of_death")
 
 
 def _identity_or_none(payload: dict) -> dict | None:
-    """The case's identity from the ODK answers, or None unless all three are given."""
+    """The case's identity from the ODK answers, or None unless all three are
+    given; with ``date_of_death_year_only`` saying whether the date is 1 July
+    of a year-only answer."""
     identity = _identity_from_answers(payload)
-    if "date_of_death" not in identity:
+    identity["date_of_death_year_only"] = "date_of_death" not in identity
+    if identity["date_of_death_year_only"]:
         approximate = _approximate_date_of_death(payload)
         if approximate:
             identity["date_of_death"] = approximate

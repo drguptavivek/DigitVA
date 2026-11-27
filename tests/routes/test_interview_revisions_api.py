@@ -197,6 +197,20 @@ class InterviewRevisionTests(BaseTestCase):
 
     # ── a changed revision ─────────────────────────────────────────────────
 
+    def test_a_revision_with_an_exact_date_clears_a_year_only_marker(self):
+        death_id, va_sid = self._submitted()
+        death = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        self.assertIsNotNone(death.date_of_death)
+        death.date_of_death_year_only = True  # as a year-only interview leaves it
+        db.session.commit()
+        exact = date.today() - timedelta(days=6)
+        response = self._revise(va_sid, _answers(Id10023=exact.isoformat()))
+        self.assertEqual(response.status_code, 200, response.get_json())
+        db.session.expire_all()
+        death = db.session.get(VaDeathRegister, uuid.UUID(death_id))
+        self.assertEqual(death.date_of_death, exact)
+        self.assertIs(death.date_of_death_year_only, False)
+
     def test_revision_before_coding_makes_a_new_version_and_keeps_the_old_answers(self):
         for state in (WORKFLOW_SMARTVA_PENDING, WORKFLOW_READY_FOR_CODING):
             with self.subTest(state=state):

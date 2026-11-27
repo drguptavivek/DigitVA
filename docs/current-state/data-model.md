@@ -3,7 +3,7 @@ title: Current Data Model
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-26
+last_updated: 2026-11-27
 ---
 
 # Current Data Model
@@ -661,6 +661,13 @@ where `source = 'odk'` allows one per submission). `status` is the case state, w
   `draft_identity` or `cancelled`. A direct start's draft saves fill them from
   `Id10017`/`Id10018`, `Id10019` and `Id10023` (else `Id10023_a`/`_b`, else 1 July of the `Id10024` year when the exact date is unknown); form
   edits on a registered case flow back the same way.
+- `date_of_death_year_only` (Boolean, nullable, no default; migration `a40477e55b72`, digitva-xmlw):
+  true when `date_of_death` is 1 July of a year-only `Id10024` answer, false when exact, NULL when not
+  known (rows from before the column; no backfill). Every writer of the date sets it in the same write:
+  the interview identity sync (true for the approximate date, false when an exact answer changes the
+  date or replaces a year-only one), the ODK case create, registration and register edits (false), and
+  the refusal scrub (NULL with the date). Not audited. Sent as `death_date_year_only` on queue cards and
+  `date_of_death_year_only` on the intake lists (api-v1.md).
 - `date_of_birth_partial` (String(7), nullable; migration `b7d4e9f2a6c1`):
   `YYYY-MM` or `YYYY` when the day, or day and month, of birth is unknown.
   CHECK `ck_va_death_register_date_of_birth_partial_format` holds the format;

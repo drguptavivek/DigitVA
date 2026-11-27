@@ -656,6 +656,11 @@ second interviewer now gets their own copy (see "Parallel interviews").
   error. It applies to a direct-start sync/submit, a revision and the ODK case
   creation, and **never replaces a date the case already holds**; the answers
   keep `Id10022` = no, so the approximation stays visible in the interview.
+  The case marks such a date (`va_death_register.date_of_death_year_only`,
+  digitva-xmlw) so cards show "Died: 2026", never the stored 1 July: true
+  when this rule wrote the date, false for any exact date (registration, a
+  date correction, an exact answer replacing the approximation), unknown
+  (null) on rows from before the marker; lists send it only when known.
 - Until then the row shows as "New interview, details pending" and is visible
   to **the interviewer who started it and to supervisors in scope** (owner,
   2026-09-30, item 11). A supervisor sees "details pending, started by

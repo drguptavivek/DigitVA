@@ -326,6 +326,40 @@ class CodingPlaceFilterTests(_PlaceFilterBase):
             va_finassess_status=VaStatuses.active, va_finassess_createdat=CODED_AT,
         ))
 
+    def test_card_year_only_flag_is_the_dated_rows_own_and_absent_when_unknown(self):
+        from app.services.queue_card_service import add_card_keys
+
+        def case(number, sid, died, year_only, status="submitted"):
+            db.session.add(VaDeathRegister(
+                project_id=TA, site_id=FORMS["ta1"][2], death_number=number, unique_id=f"QY-{uuid.uuid4().hex[:8]}",
+                deceased_name="Asha Rao", has_deceased_name=True, deceased_sex="female", date_of_death=died,
+                date_of_death_year_only=year_only, registered_by=self.users["interviewer_p1"].user_id,
+                source="direct", status=status, va_sid=sid,
+            ))
+
+        case(990101, "hx-p1", date(2020, 7, 1), True)
+        # A later year-only live row (inserted first) never lends its flag to the earlier date;
+        # a cancelled one never counts.
+        case(990103, "hx-sc1", date(2026, 7, 1), True)
+        case(990102, "hx-sc1", date(2026, 4, 20), False)
+        case(990104, "hx-sc1", date(2026, 1, 1), True, status="cancelled")
+        case(990105, "ta-p1", date(2026, 4, 20), None)
+        db.session.commit()
+        # A cached row keeps no old flag.
+        rows = add_card_keys(self.users["coder_p1"], [
+            {"va_sid": "hx-p1"}, {"va_sid": "hx-sc1"}, {"va_sid": "ta-p1", "death_date_year_only": True},
+            {"va_sid": "ta-sc1", "death_date_year_only": False},
+        ])
+        by_sid = {row["va_sid"]: row for row in rows}
+        self.assertEqual(by_sid["hx-p1"]["date_of_death"], "2020-07-01")
+        self.assertIs(by_sid["hx-p1"]["death_date_year_only"], True)
+        self.assertEqual(by_sid["hx-sc1"]["date_of_death"], "2026-04-20")
+        self.assertIs(by_sid["hx-sc1"]["death_date_year_only"], False)
+        self.assertEqual(by_sid["ta-p1"]["date_of_death"], "2026-04-20")
+        self.assertNotIn("death_date_year_only", by_sid["ta-p1"])
+        self.assertIsNone(by_sid["ta-sc1"]["date_of_death"])
+        self.assertNotIn("death_date_year_only", by_sid["ta-sc1"])
+
     def test_a_unit_filter_matches_the_unit_and_its_subtree(self):
         # coding_tester is exempt from the PHC coding level, so a C1 tester lists C1's whole subtree.
         self._assert_unit_filter_is_its_subtree("tester_c1")

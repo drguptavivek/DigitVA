@@ -381,7 +381,11 @@ def _correct_register_fields(user: VaUsers, death: VaDeathRegister, changes: dic
     changed = [name for name in changes if cleaned[name] != current[name]]
     if not changed:
         return
-    register_pii_accessor.write_fields(death, {name: cleaned[name] for name in changed})
+    values = {name: cleaned[name] for name in changed}
+    if "date_of_death" in values:
+        # An edited date is exact (the form takes no year-only date); not audited.
+        values["date_of_death_year_only"] = False
+    register_pii_accessor.write_fields(death, values)
     if any(name in LOCATION_FIELDS for name in changed):
         death.captured_at = facade()._utcnow() if cleaned["latitude"] is not None else None
     _audit_details_change(death, user, DETAILS_EDITED,

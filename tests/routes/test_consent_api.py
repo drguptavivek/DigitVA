@@ -888,11 +888,15 @@ class ConsentApiTests(BaseTestCase):
         draft = db.session.get(VaWebIntakeDraft, uuid.UUID(draft_id))
         death = db.session.get(VaDeathRegister, draft.death_id)
         self.assertTrue(death.has_deceased_name or death.deceased_name)
+        self.assertIsNotNone(death.date_of_death)
+        self.assertIs(death.date_of_death_year_only, False)
         self.assertEqual(self._draft_consent(draft_id, self._consent(decision="refused")).status_code, 201)
         db.session.refresh(death)
         self.assertFalse(death.has_deceased_name or death.deceased_name)
         self.assertIsNone(death.deceased_sex)
         self.assertIsNone(death.date_of_death)
+        # The marker goes with the date it marks.
+        self.assertIsNone(death.date_of_death_year_only)
         self.assertEqual(death.status, "draft_identity")
 
     def test_stale_who_yes_does_not_reverse_refusal(self):

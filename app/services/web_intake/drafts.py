@@ -735,12 +735,22 @@ def _sync_case_identity(death: VaDeathRegister, data: dict, actor: VaUsers) -> N
     of the interview); a direct start leaves ``draft_identity`` once complete.
     Name, sex, date of death, date of birth and age: the interview's replace
     the case's, the previous values going to the audit. An empty or unusable
-    answer never blanks a value the case already holds."""
+    answer never blanks a value the case already holds. ``date_of_death_year_only``
+    follows the date it marks: True for a year-only date written here; False
+    for an exact answer that changes the date or replaces a year-only one;
+    otherwise unchanged. It is not audited (a marker, not a value)."""
     incoming = _identity_from_answers(data)
-    if "date_of_death" not in incoming and not death.date_of_death:
+    year_only = None
+    if "date_of_death" in incoming:
+        if incoming["date_of_death"] != death.date_of_death or death.date_of_death_year_only:
+            year_only = False
+    elif not death.date_of_death:
         approximate = _approximate_date_of_death(data)
         if approximate:
             incoming["date_of_death"] = approximate
+            year_only = True
+    if year_only is not None:
+        death.date_of_death_year_only = year_only
     incoming.update(_birth_age_from_answers(data, incoming.get("date_of_death") or death.date_of_death))
     opened = register_pii_accessor.current_values(death)
     before: dict = {}
@@ -895,7 +905,7 @@ def clear_direct_identity_for_refusal(draft: VaWebIntakeDraft, actor: VaUsers, *
     if death.status == "in_progress":
         cases.transition(death, "draft_identity", actor=actor, action="refusal_identity_cleared")
     register_pii_accessor.write_fields(death, {
-        "deceased_name": None, "deceased_sex": None, "date_of_death": None,
+        "deceased_name": None, "deceased_sex": None, "date_of_death": None, "date_of_death_year_only": None,
         "date_of_birth": None, "date_of_birth_partial": None, "age_years": None,
     })
     db.session.flush()

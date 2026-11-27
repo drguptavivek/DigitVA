@@ -295,6 +295,7 @@ def register_death(user: VaUsers, *, project_id: str, site_id: str, org_unit_id:
         death_number=number,
         unique_id=unique_id,
         **cleaned,
+        date_of_death_year_only=False,  # the register form takes an exact date only
         captured_at=facade()._utcnow() if cleaned["latitude"] is not None else None,
         registered_by=user.user_id,
         source="register",

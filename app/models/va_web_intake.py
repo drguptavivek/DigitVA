@@ -175,6 +175,9 @@ class VaDeathRegister(db.Model):
     date_of_birth_partial: so.Mapped[str | None] = so.mapped_column(sa.String(7), nullable=True)
     age_years: so.Mapped[int | None] = so.mapped_column(sa.Integer, nullable=True)
     date_of_death: so.Mapped[date | None] = so.mapped_column(sa.Date, nullable=True)
+    # True: date_of_death is 1 July of a year-only answer (drafts._approximate_date_of_death);
+    # False: an exact date; NULL: not known (rows from before the flag).
+    date_of_death_year_only: so.Mapped[bool | None] = so.mapped_column(sa.Boolean, nullable=True)
     place_of_death: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     address: so.Mapped[str | None] = so.mapped_column(sa.Text, nullable=True)
     # Structured address beside the free-text one (PII).

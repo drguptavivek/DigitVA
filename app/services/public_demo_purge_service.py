@@ -174,6 +174,7 @@ PURGED_TABLES = frozenset(table for table, _ in PLAN)
 RETAINED_TABLES = {
     "auth_security_events": "audit trail; user columns are ON DELETE SET NULL",
     "va_smartva_form_runs": "one run per form, shared by every account, no account key; aged out by purge_smartva_runs",
+    "auth_icd11_api_clients": "ICD-11 client API tokens, issued by admins only; a demo account never has one",
     "auth_station_configs": "offline station setup, admin only; a demo account never has one",
     "auth_station_custodians": "offline station setup, admin only",
     "auth_station_roster": "offline station setup, admin only",

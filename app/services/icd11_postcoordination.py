@@ -45,16 +45,22 @@ class PostcoordinationError(ValueError):
 
 
 @contextmanager
-def guidance_request():
-    """Keep guidance calls bounded without using public Process capacity."""
-    if not _guidance_capacity.acquire(blocking=False):
+def guidance_request(*, capacity: BoundedSemaphore | None = None):
+    """Keep guidance calls bounded without using public Process capacity.
+
+    ``capacity`` is the semaphore to take a slot from; None (every coder and
+    demo caller) means the shared guidance slots. The ICD-11 client API
+    passes its own, so external traffic cannot take the coders' slots.
+    """
+    capacity = _guidance_capacity if capacity is None else capacity
+    if not capacity.acquire(blocking=False):
         raise PostcoordinationError("GUIDANCE_BUSY", "WHO guidance is busy.", 429)
     token = _budget.set((time.monotonic() + _GUIDANCE_SECONDS, [0]))
     try:
         yield
     finally:
         _budget.reset(token)
-        _guidance_capacity.release()
+        capacity.release()
 
 
 def _check_budget():

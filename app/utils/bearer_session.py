@@ -1,7 +1,8 @@
 """A session interface that keeps bearer requests away from the cookie.
 
 Wraps the app's real session interface (Flask-Session). On an ``/api/v1/``
-request carrying ``Authorization: Bearer`` it never reads the session cookie
+request carrying ``Authorization: Bearer``, and on every ICD-11 client API
+request (``/api/icd11-client/``), it never reads the session cookie
 (so a cookie cannot supply, or leak into, a bearer request) and never writes
 one (so a bearer response carries no ``Set-Cookie``, whatever a route does to
 ``session``: ``generate_csrf()`` and friends write to a throwaway dict).
@@ -16,6 +17,12 @@ from flask import request as flask_request
 from flask.sessions import SecureCookieSession, SessionInterface
 
 from app.services.device_auth_service import request_bearer_token
+from app.services.icd11_client_auth import PATH_PREFIX as ICD11_CLIENT_PREFIX
+
+
+def _cookie_blind(request) -> bool:
+    # A device bearer request, or the ICD-11 client API (its own token only).
+    return request_bearer_token(request) is not None or request.path.startswith(ICD11_CLIENT_PREFIX)
 
 
 #: A cookie session that has not changed is re-saved (stored expiry and
@@ -31,12 +38,12 @@ class BearerBlindSessionInterface(SessionInterface):
         self._inner = inner
 
     def open_session(self, app, request):
-        if request_bearer_token(request) is not None:
+        if _cookie_blind(request):
             return SecureCookieSession()
         return self._inner.open_session(app, request)
 
     def save_session(self, app, session, response):
-        if request_bearer_token(flask_request) is not None:
+        if _cookie_blind(flask_request):
             return None
         # A read-only API GET that changed nothing never writes the session
         # (digitva-x928): its copy may predate a logout finishing meanwhile,

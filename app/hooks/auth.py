@@ -3,6 +3,7 @@ from flask import g, jsonify, request
 from app import login
 from app.models.va_users import load_user_from_device_token
 from app.services import device_auth_service
+from app.services.icd11_client_auth import PATH_PREFIX as ICD11_CLIENT_PREFIX
 
 
 def register_authenticate_bearer(app):
@@ -15,6 +16,11 @@ def register_authenticate_bearer(app):
     def authenticate_bearer():
         g.bearer_auth = False
         g.pop("device_session", None)
+        # The ICD-11 client API authenticates its own token in each view: no
+        # cookie or device user ever counts there (icd11-client-api.md section 12).
+        if request.path.startswith(ICD11_CLIENT_PREFIX):
+            g._login_user = login.anonymous_user()
+            return None
         if device_auth_service.request_bearer_token(request) is None:
             return None
         # Sign-in endpoints take no token: a client may still send its stale one.

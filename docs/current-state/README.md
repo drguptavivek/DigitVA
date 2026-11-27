@@ -3,7 +3,7 @@ title: Current State Index
 doc_type: index
 status: active
 owner: engineering
-last_updated: 2026-10-30
+last_updated: 2026-11-27
 ---
 
 # Current State Index
@@ -45,6 +45,8 @@ Read these documents in this order:
     - [ICD-11 Android Engine Interface](icd11-android-engine-interface.md):
       Collect Plus offline engine, each layer's functions and input/output shapes
 17. [Device Collection API](device-collection-api.md)
+    - [ICD-11 Client API](icd11-client-api.md): scoped tokens for approved
+      applications (DeathNote) to call the WHO ICD-11 container server to server
 18. [Test Project TST001](test-project-tst001.md)
 19. [Expo Client Hosting And Bootstrap](expo-client.md)
     - [App Release Review](app-release-review.md): unified workflows, queued

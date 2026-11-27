@@ -812,6 +812,15 @@ migration, `status` is free text; digitva-xz83 part B);
 hold hashed enrolment codes, device secrets and tokens. See
 [Device Collection API](device-collection-api.md).
 
+Migration `a4d7e2c9b1f6` (digitva-ddpf; model
+`app/models/auth_icd11_api_clients.py`): `auth_icd11_api_clients`, one row
+per ICD-11 client API token for an approved application: `name`, `key_id`
+(unique, the token's public part), `token_sha256` (unique, the only stored
+form of the token), `scopes` (`varchar(32)[]`), `expires_at`, `created_by` /
+`created_at` (indexed), `revoked_by` / `revoked_at`, `last_used_at`. Issue
+and revoke also write `auth_security_events`. Additive and empty at upgrade;
+downgrade drops the table. See [ICD-11 Client API](icd11-client-api.md).
+
 Migration `c7a3e9d1f5b8` (digitva-5bzf.4): `auth_devices.client_device_uuid`
 (UUID, nullable, plain index `ix_auth_devices_client_device_uuid`): the Collect
 Plus install UUID sent at enrolment; repeats across rows on re-enrolment, so

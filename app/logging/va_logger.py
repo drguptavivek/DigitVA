@@ -304,6 +304,10 @@ def _masked_request_payload() -> dict[str, Any] | None:
     # materialize that body before the endpoint enforces its 8 KiB contract.
     if request.endpoint == "api_v1.app_telemetry.submit_batch":
         return None
+    # The ICD-11 client API enforces an 8 KiB body after authenticating; an
+    # anonymous caller must not get a 2 MiB JSON parse out of the logger.
+    if request.path.startswith("/api/icd11-client/"):
+        return None
     request_data: dict[str, Any] | None = None
     if request.content_type == "application/json":
         raw = request.get_json(silent=True)
@@ -475,6 +479,11 @@ def va_logging(app):
             # unsupported media type) answers the contract's JSON, never HTML.
             # 3xx (a trailing-slash redirect) is not an error and passes through.
             # The 405 stays here so the abuse counter above still sees it.
+            if status_code >= 400 and request.path.startswith("/api/icd11-client/"):
+                # An unmatched path or method (405) has no blueprint handler.
+                from app.routes.icd11_client_api import http_error
+
+                return http_error(e)
             if status_code >= 400 and request.path.startswith("/api/v1/"):
                 from app.routes.api.request_helpers import error as api_error
 

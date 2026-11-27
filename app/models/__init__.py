@@ -13,6 +13,7 @@ from app.models.auth_factors import (
     AuthTotp,
     AuthWebauthnCredential,
 )
+from app.models.auth_icd11_api_clients import AuthIcd11ApiClient
 from app.models.auth_station import (
     AuthStationConfig,
     AuthStationCustodian,
@@ -178,6 +179,7 @@ __all__ = [
     "AuthRecoveryCode",
     "AuthSecurityEvent",
     "AuthAccountDeletionRequest",
+    "AuthIcd11ApiClient",
     "VaStatuses",
     "VaResearchProjects",
     "VaProjectMaster",

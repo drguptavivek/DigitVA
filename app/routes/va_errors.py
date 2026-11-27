@@ -19,6 +19,11 @@ def register_error_handlers(app):
 
     @app.errorhandler(404)
     def not_found_error(error):
+        if request.path.startswith("/api/icd11-client/"):
+            # An unmatched path has no blueprint, so the API's own handler never sees it.
+            from app.routes.icd11_client_api import http_error
+
+            return http_error(error)
         if request.path.startswith("/api/v1/"):
             return jsonify({"error": "Not found.", "code": "not_found"}), 404
         return render_template("va_errors/va_404.html"), 404

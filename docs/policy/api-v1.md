@@ -3,7 +3,7 @@ title: One Client API (/api/v1)
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-11-25
+last_updated: 2026-11-27
 ---
 
 # One Client API (`/api/v1`)
@@ -46,7 +46,9 @@ on Android and iOS. Built; "State" below records what shipped.
      (`app/routes/api/auth.py`), which take their credential from the body or a
      bearer and never sign the browser in; and the WHO ICD-11 proxy, which the
      coding tool calls without a token and which only reads from the
-     configured ICD service.
+     configured ICD service. Outside `/api/v1/`, the ICD-11 client API views
+     (`app/routes/icd11_client_api.py`) are exempt one by one too: they read
+     only their own bearer token, never a cookie (icd11-client-api.md).
    - **Sign-in cookies are same-site.** The session and remember cookies are
      `SameSite=Lax` (or `Strict`): the exemptions above rely on the browser
      withholding the cookie from another site's POST. Any other value from the

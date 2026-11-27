@@ -7,7 +7,7 @@ from app.logging.va_logger import slow_request_logger
 
 #: API paths whose responses are never stored by a browser or proxy.
 _NO_STORE_API_PREFIXES = ("/api/v1/me/", "/api/v1/intake/", "/api/v1/cases",
-                         "/api/v1/coding/")
+                         "/api/v1/coding/", "/api/icd11-client/")
 
 
 def register_cache_headers(app):

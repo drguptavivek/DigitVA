@@ -50,6 +50,9 @@ _REFUSALS = frozenset({401, 403, 429})
 # authz. An entry for a route that no longer exists fails that test.
 # ---------------------------------------------------------------------------
 
+_ICD11_CLIENT_REASON = ("Authenticated by an ICD-11 client token, not a user session; "
+                        "terminology only, no case data (icd11-client-api.md).")
+
 # Reachable with no session at all.
 PUBLIC_ENDPOINTS = {
     "static": "The app's own static assets (CSS, JS, fonts, icons). No VA "
@@ -175,6 +178,14 @@ PUBLIC_ENDPOINTS = {
                                              "(device secret), only audits and ends that "
                                              "user's sessions on that device; 403 unless the "
                                              "user signed in there; rate-limited.",
+    "icd11_client_api.client_info": _ICD11_CLIENT_REASON,
+    "icd11_client_api.search": _ICD11_CLIENT_REASON,
+    "icd11_client_api.words": _ICD11_CLIENT_REASON,
+    "icd11_client_api.lookup": _ICD11_CLIENT_REASON,
+    "icd11_client_api.details": _ICD11_CLIENT_REASON,
+    "icd11_client_api.axes": _ICD11_CLIENT_REASON,
+    "icd11_client_api.values": _ICD11_CLIENT_REASON,
+    "icd11_client_api.validate": _ICD11_CLIENT_REASON,
 }
 
 # Signed in, but never another user's or any submission's data: the account's

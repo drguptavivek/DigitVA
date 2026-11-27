@@ -677,6 +677,11 @@ class Config:
     ICD11_API_CACHE_TIMEOUT = int(
         os.environ.get("ICD11_API_CACHE_TIMEOUT", str(60 * 60 * 24 * 30))
     )
+    # ICD-11 client API (docs/policy/icd11-client-api.md): per-token limit,
+    # shared across every operation, and per-IP limit, counted before the
+    # token is checked so bad tokens are throttled too. Flask-Limiter strings.
+    ICD11_CLIENT_RATE_LIMIT = os.environ.get("ICD11_CLIENT_RATE_LIMIT", "120 per minute")
+    ICD11_CLIENT_IP_RATE_LIMIT = os.environ.get("ICD11_CLIENT_IP_RATE_LIMIT", "300 per minute")
     ICD_SEARCH_CACHE_TIMEOUT = int(
         os.environ.get("ICD_SEARCH_CACHE_TIMEOUT", str(60 * 60 * 24 * 7))
     )

@@ -1,0 +1,97 @@
+<div id="icdclient-panel">
+  <h2 class="h4">ICD-11 API clients</h2>
+  <p class="text-muted">Tokens for approved applications (such as DeathNote) to call DigitVA's ICD-11 terminology API from their own servers. A token gives terminology only, never case data. To rotate a token, issue a replacement, deploy it in the application, then revoke the old one.</p>
+  <div id="icdclient-message" role="status" class="alert d-none"></div>
+  <form id="icdclient-issue" class="row g-2 mb-4">
+    <div class="col-md-4"><label class="form-label" for="icdclient-name">Application name</label><input id="icdclient-name" name="name" class="form-control" maxlength="120" required></div>
+    <fieldset class="col-md-5"><legend class="form-label fs-6">Scopes</legend>
+      {% for scope in scopes %}
+      <div class="form-check form-check-inline"><input class="form-check-input icdclient-scope" type="checkbox" id="icdclient-scope-{{ loop.index }}" value="{{ scope }}"><label class="form-check-label font-monospace" for="icdclient-scope-{{ loop.index }}">{{ scope }}</label></div>
+      {% endfor %}
+    </fieldset>
+    <div class="col-md-2"><label class="form-label" for="icdclient-days">Expires in (days)</label><input id="icdclient-days" name="expires_in_days" type="number" class="form-control" min="1" max="365" value="90" required></div>
+    <div class="col-md-1 align-self-end"><button class="btn btn-primary">Issue</button></div>
+  </form>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead><tr><th>Name</th><th>Key ID</th><th>Scopes</th><th>Status</th><th>Created</th><th>Expires</th><th>Last used</th><th>Revoked</th><th></th></tr></thead>
+      <tbody id="icdclient-rows"></tbody>
+    </table>
+  </div>
+  <p id="icdclient-truncated" class="text-muted" hidden>Only the newest clients are shown.</p>
+  <dialog id="icdclient-dialog">
+    <h3 class="h5">New ICD-11 API token</h3>
+    <p>This token is shown once. Store it in the application's server-side secret store. It cannot be retrieved later.</p>
+    <p id="icdclient-token" class="font-monospace text-break user-select-all"></p>
+    <form method="dialog"><button type="button" id="icdclient-copy" class="btn btn-outline-secondary me-2">Copy</button><button class="btn btn-primary">Close</button></form>
+  </dialog>
+</div>
+<script>
+(function () {
+  'use strict';
+  const root = document.getElementById('icdclient-panel');
+  const el = id => root.querySelector('#icdclient-' + id);
+  const api = '/admin/api/icd11-api-clients';
+  const when = v => v ? new Date(v).toLocaleString() : '—';
+  function message(text, failed = false) { el('message').textContent = text; el('message').className = 'alert ' + (failed ? 'alert-danger' : 'alert-info'); }
+  async function request(path, body) {
+    const response = await fetch(api + path, body ? {method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRFToken': window._adminCsrf}, body: JSON.stringify(body)} : {});
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Request failed. Refresh and retry.');
+    return data;
+  }
+  function cell(text) { const td = document.createElement('td'); td.textContent = text; return td; }
+  function button(text, cls, action) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-sm ' + cls + ' ms-1'; b.textContent = text; b.onclick = () => action().catch(e => message(e.message, true)); return b; }
+  function prefill(client) {
+    el('name').value = client.name;
+    root.querySelectorAll('.icdclient-scope').forEach(box => { box.checked = client.scopes.includes(box.value); });
+    el('name').focus();
+    message('Form filled from ' + client.name + '. Issue the replacement, deploy it, then revoke the old token.');
+  }
+  async function revoke(client) {
+    if (!confirm('Revoke the token ' + client.key_id + ' of ' + client.name + '? The application is refused at once.')) return;
+    await request('/' + encodeURIComponent(client.id) + '/revoke', {});
+    message('Token revoked.');
+    await list();
+  }
+  async function list() {
+    const data = await request('');
+    const rows = data.clients.map(client => {
+      const tr = document.createElement('tr');
+      const key = cell(client.key_id); key.className = 'font-monospace';
+      tr.append(
+        cell(client.name), key, cell(client.scopes.join(', ')), cell(client.status),
+        cell(when(client.created_at) + (client.created_by ? ' by ' + client.created_by : '')),
+        cell(when(client.expires_at)), cell(when(client.last_used_at)),
+        cell(client.revoked_at ? when(client.revoked_at) + (client.revoked_by ? ' by ' + client.revoked_by : '') : '—'),
+      );
+      const actions = document.createElement('td');
+      actions.className = 'text-nowrap';
+      actions.append(button('Issue replacement', 'btn-outline-secondary', async () => prefill(client)));
+      if (client.status !== 'revoked') actions.append(button('Revoke', 'btn-outline-danger', () => revoke(client)));
+      tr.append(actions);
+      return tr;
+    });
+    el('rows').replaceChildren(...rows);
+    el('truncated').hidden = !data.truncated;
+  }
+  el('issue').onsubmit = async e => {
+    e.preventDefault();
+    const submit = e.target.querySelector('button');
+    submit.disabled = true;
+    try {
+      const scopes = Array.from(root.querySelectorAll('.icdclient-scope:checked'), box => box.value);
+      const result = await request('', {name: el('name').value, scopes, expires_in_days: Number(el('days').value)});
+      // The token goes straight into the dialog: no variable, storage or URL keeps it.
+      el('token').textContent = result.token;
+      el('dialog').showModal();
+      e.target.reset();
+      message('Token issued for ' + result.client.name + '.');
+      await list();
+    } catch (error) { message(error.message, true); } finally { submit.disabled = false; }
+  };
+  el('copy').onclick = () => navigator.clipboard.writeText(el('token').textContent).then(() => message('Token copied.'), () => message('Copy failed: select the token and copy it.', true));
+  el('dialog').addEventListener('close', () => { el('token').textContent = ''; });
+  list().catch(e => message(e.message, true));
+}());
+</script>

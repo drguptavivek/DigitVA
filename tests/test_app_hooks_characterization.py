@@ -72,6 +72,11 @@ class HookRegistrationTests(BaseTestCase):
                 "record_profile_deletion", "refresh_session",
                 "set_device_signing_key", "set_device_project", "end_session",
             )
+        } | {
+            # ICD-11 client API (digitva-ddpf): token-authenticated, cookie-blind.
+            f"app.routes.icd11_client_api.{name}" for name in (
+                "client_info", "search", "words", "lookup", "details", "axes", "values", "validate",
+            )
         })
         self.assertEqual({b.name for b in csrf._exempt_blueprints}, set())
         self.assertIs(self.app.config["WTF_CSRF_CHECK_DEFAULT"], False)

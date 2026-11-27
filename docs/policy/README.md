@@ -3,7 +3,7 @@ title: Policy Docs
 doc_type: policy
 status: active
 owner: engineering
-last_updated: 2026-10-22
+last_updated: 2026-11-27
 ---
 
 # Policy Docs
@@ -66,6 +66,7 @@ Current policy docs:
 - [WHO 2022 Age Derivation Policy](who-2022-age-derivation.md)
 - [WHO 2022 ICD-10 Coding Allowability Policy](who-2022-icd10-coding-allowability.md)
 - [ICD-10 to ICD-11 Transition for VA Cause Buckets](icd10-to-icd11-transition.md)
+- [ICD-11 Client API Tokens](icd11-client-api.md) — scoped, server-to-server tokens for approved applications to use the WHO ICD-11 container
 
 Use `docs/policy` when a change affects:
 

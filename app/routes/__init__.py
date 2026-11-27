@@ -16,6 +16,7 @@ from app.routes.area import area
 from app.routes.people_roles_page import people_roles_page
 from app.routes.translation_suggestions_page import translation_suggestions_page
 from app.routes.training_demo import training_demo
+from app.routes.icd11_client_api import bp as icd11_client_api
 # Extends the `admin` blueprint in place (like app/routes/admin_organization.py);
 # imported here so its rules are registered before the blueprint is.
 from app.routes import admin_translations  # noqa: F401
@@ -23,6 +24,7 @@ from app.routes import admin_ui_strings  # noqa: F401
 from app.routes import admin_va_definitions  # noqa: F401
 from app.routes import admin_coding_search_telemetry  # noqa: F401
 from app.routes import admin_devices  # noqa: F401
+from app.routes import admin_icd11_clients  # noqa: F401
 from app.routes import admin_xlsform  # noqa: F401
 # Extends the `data_management` blueprint in place, the same way.
 from app.routes import ai_questions  # noqa: F401
@@ -47,3 +49,4 @@ def register_blueprints(app):
     app.register_blueprint(people_roles_page)
     app.register_blueprint(translation_suggestions_page)
     app.register_blueprint(training_demo)
+    app.register_blueprint(icd11_client_api, url_prefix="/api/icd11-client/v1")

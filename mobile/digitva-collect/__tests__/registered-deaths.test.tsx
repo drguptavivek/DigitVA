@@ -1,6 +1,6 @@
 import React from "react";
 import { act, create } from "react-test-renderer";
-import { AppState } from "react-native";
+import { AppState, Linking } from "react-native";
 
 let mockUnlocked = true;
 let mockState: {
@@ -11,6 +11,7 @@ let mockState: {
 };
 const mockRouter = { replace: jest.fn(), push: jest.fn() };
 const mockLoad = jest.fn();
+const mockCaseDetail = jest.fn();
 
 jest.mock("expo-router", () => ({
   useRouter: () => mockRouter,
@@ -26,9 +27,15 @@ jest.mock("../src/AppState", () => ({ useAppState: () => mockState }));
 const mockSignOut = jest.fn(async (_userId: string) => undefined);
 jest.mock("../src/auth", () => ({ signOut: (userId: string) => mockSignOut(userId) }));
 jest.mock("../src/signOutConfirm", () => ({ confirmSignOut: async (_userId: string, onConfirmed: () => void) => onConfirmed() }));
-jest.mock("../src/deathRegistrationApi", () => ({ getNativeRegisteredDeaths: (...args: unknown[]) => mockLoad(...args) }));
+jest.mock("../src/deathRegistrationApi", () => ({
+  getNativeRegisteredDeaths: (...args: unknown[]) => mockLoad(...args),
+  getNativeRegistrationCase: (...args: unknown[]) => mockCaseDetail(...args),
+}));
 jest.mock("../src/interviewerDb", () => ({ isUnlocked: () => mockUnlocked }));
-jest.mock("../src/i18n", () => ({ t: (key: string) => key }));
+jest.mock("../src/i18n", () => ({
+  t: (key: string, params?: Record<string, unknown>) => (params ? `${key}:${Object.values(params).join(",")}` : key),
+  uiLanguageTag: () => "en",
+}));
 jest.mock("../src/ui", () => {
   const ReactActual = jest.requireActual("react") as typeof React;
   return {
@@ -179,6 +186,54 @@ describe("sign-out (reporter without collection access)", () => {
     expect(mockState.lockNow).toHaveBeenCalledTimes(1);
     expect(mockSignOut).not.toHaveBeenCalled();
     expect(JSON.stringify(tree.toJSON())).toContain("errGeneric");
+    await act(async () => tree.unmount());
+  });
+});
+
+describe("reported death cards", () => {
+  const death = (extra = {}) => ({
+    death_id: "d1", unique_id: "PHC01-000274_1", project_id: "P1", state: "registered", deceased_name: "Asha", age_years: 61,
+    deceased_sex: "female", date_of_death: "2026-07-01", unit_name: "SC-AAM 1", ...extra,
+  });
+  async function open(deaths: unknown[]) {
+    mockLoad.mockResolvedValue({ deaths, next_cursor: null });
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<RegisteredDeaths userId="u1" registeredMine={true} />); });
+    await act(async () => { await Promise.resolve(); });
+    return tree;
+  }
+  const icons = (tree: ReturnType<typeof create>, label: string) => tree.root.findAll((n) => n.props.accessibilityLabel === label && typeof n.props.onPress === "function");
+
+  it("shows the card with a copy icon, the area on the ID line, and no Lock now or My interviews button", async () => {
+    const tree = await open([death()]);
+    expect(tree.root.findAllByProps({ label: "newDeath" }).length).toBeGreaterThan(0); // the screen rendered
+    expect(JSON.stringify(tree.toJSON())).toContain("Asha");
+    expect(JSON.stringify(tree.toJSON())).toContain("queueCaseNumber:000274 · SC-AAM 1");
+    expect(icons(tree, "queueCopyDetails:queueCaseNumber:000274")).toHaveLength(1);
+    expect(tree.root.findAllByProps({ label: "lockNow" })).toHaveLength(0);
+    expect(tree.root.findAllByProps({ label: "worklistTitle" })).toHaveLength(0);
+    await act(async () => tree.unmount());
+  });
+
+  it("dials the row's own informant number (the reporter list's shape) without a fetch or showing it", async () => {
+    const openURL = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    const tree = await open([death({ informant_phone: "98765 43210" })]);
+    expect(icons(tree, "callInformant")).toHaveLength(1);
+    expect(JSON.stringify(tree.toJSON())).not.toContain("43210");
+    await act(async () => { icons(tree, "callInformant")[0].props.onPress(); });
+    expect(openURL).toHaveBeenCalledWith("tel:9876543210");
+    expect(mockCaseDetail).not.toHaveBeenCalled();
+    openURL.mockRestore();
+    await act(async () => tree.unmount());
+    const none = await open([death()]);
+    expect(icons(none, "queueCopyDetails:queueCaseNumber:000274")).toHaveLength(1);
+    expect(icons(none, "callInformant")).toHaveLength(0);
+    await act(async () => none.unmount());
+  });
+
+  it("shows only the year for a year-only date of death", async () => {
+    const tree = await open([death({ date_of_death_year_only: true })]);
+    expect(tree.root.findAllByProps({ testID: "case-fact-died" })[0].props.children).toBe("metaDied:2026");
     await act(async () => tree.unmount());
   });
 });

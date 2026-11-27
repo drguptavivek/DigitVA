@@ -4,7 +4,7 @@
  * primary action. The same items feed the Home dashboard counts, so the two screens never disagree.
  */
 import type { CaseDetail, CaseRow, Registration } from "../cases";
-import { canStartDeathInterview } from "../deathWorkflow";
+import { canStartDeathInterview, deathPhoneUrl } from "../deathWorkflow";
 import type { DraftRow } from "../drafts";
 import { revisionRefusalKey } from "../errorMessages";
 import { t, uiLanguageTag, type StringKey } from "../i18n";
@@ -13,6 +13,7 @@ import type { SendRefusal } from "../unsentWork";
 import type { RevisionRow, SubmittedRevisionSummary } from "../revisions";
 import { otherDraftWarning } from "./CaseCard";
 import { matchesSearch } from "./caseSearch";
+import type { CaseBadge } from "./CaseCard";
 
 export type InterviewKind = "drafts" | "todo" | "sent" | "revisions";
 export type InterviewFilter = "all" | InterviewKind;
@@ -39,6 +40,14 @@ export interface InterviewItem {
   sex?: string | null;
   dateOfDeath?: string | null;
   unit?: string;
+  /** The case behind the row, for the card's call icon and support text (absent for a local-only draft or registration). */
+  deathId?: string;
+  projectId?: string;
+  uniqueId?: string;
+  /** The card shows a call icon: a downloaded case with a dialable number, or a listed row that says it has one. */
+  hasPhone?: boolean;
+  /** The downloaded case's first dialable number, held in memory only; absent for a listed row (fetched on tap). */
+  phone?: string;
   badge: { label: string; tone?: "neutral" | "accent" | "warning" };
   /** Absent when nothing can be done with the row (a ready draft held by an upload issue). */
   action?: InterviewAction;
@@ -80,13 +89,35 @@ interface FlatCase {
   name?: string | null; sex?: string | null; age?: number | null; died?: string | null; village?: string | null;
   updated_at: string; other_draft_active?: boolean; other_draft_started_at?: string | null; other_draft_started_by?: string | null;
   other_complete_interview?: boolean; code_now?: boolean; my_draft_id: string | null;
+  /** The register stored only the year (1 July placeholder): show just the year. Absent from older servers. */
+  diedYearOnly?: boolean; hasPhone?: boolean; phone?: string;
 }
 
-const flatLocal = (row: CaseDetail): FlatCase => ({
-  ...row, name: row.deceased?.name, sex: row.deceased?.sex, age: row.deceased?.age_years,
-  died: row.deceased?.date_of_death, village: row.household_address?.village_ward,
+const yearOnlyFlag = (...sources: unknown[]): boolean =>
+  sources.some((source) => (source as { date_of_death_year_only?: unknown } | null | undefined)?.date_of_death_year_only === true);
+
+/** "2026" for a year-only date of death, else the formatted date. */
+export const diedText = (died: string | null | undefined, yearOnly: boolean | undefined): string | null =>
+  yearOnly && died ? died.slice(0, 4) : dateOnly(died);
+
+/** A Reported deaths card's badge (design board Deaths): Interviewed once finished, else Waiting for interview. */
+export function deathStateBadge(state: string, otherCompleteInterview?: boolean): CaseBadge {
+  const terminal = TERMINAL_CASE_STATES.has(state) || state === "refused" && otherCompleteInterview === true;
+  return terminal ? { label: t("badgeInterviewed"), tone: "neutral" } : { label: t("badgeWaitingInterview"), tone: "accent" };
+}
+
+const flatLocal = (row: CaseDetail): FlatCase => {
+  const phone = [row.informant?.phone, row.informant?.phone_2].find((p) => deathPhoneUrl(p)) ?? undefined;
+  return {
+    ...row, name: row.deceased?.name, sex: row.deceased?.sex, age: row.deceased?.age_years,
+    died: row.deceased?.date_of_death, village: row.household_address?.village_ward,
+    diedYearOnly: yearOnlyFlag(row, row.deceased), hasPhone: Boolean(phone), phone,
+  };
+};
+const flatOnline = (row: CaseRow): FlatCase => ({
+  ...row, name: row.deceased_name, sex: row.deceased_sex, age: row.age_years, died: row.date_of_death,
+  diedYearOnly: yearOnlyFlag(row), hasPhone: row.has_informant_phone === true || row.has_informant_phone_2 === true,
 });
-const flatOnline = (row: CaseRow): FlatCase => ({ ...row, name: row.deceased_name, sex: row.deceased_sex, age: row.age_years, died: row.date_of_death });
 
 /** "Asha started this on 5 Nov. Check with them before you start." in the phone's time zone; the undated line when the start time is unusable. */
 function otherDraftLine(startedAt: string | null | undefined, startedBy: string | null | undefined, sync?: { lastAt?: number }): string {
@@ -172,7 +203,9 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
       // "Untitled"; its short local id stays as the small muted line.
       title: known?.name || draft.deceased_name || draft.unique_id || t("untitledInterview"),
       caseId: known?.name ? known.unique_id : draft.deceased_name ? draft.unique_id ?? draft.id.slice(0, 8) : draft.unique_id ? undefined : draft.id.slice(0, 8),
-      ageYears: known?.age, sex: known?.sex, dateOfDeath: dateOnly(known?.died), unit: known?.unit_name ?? undefined,
+      ageYears: known?.age, sex: known?.sex, dateOfDeath: diedText(known?.died, known?.diedYearOnly), unit: known?.unit_name ?? undefined,
+      deathId: known?.death_id, projectId: known?.project_id ?? draft.project_id ?? undefined, uniqueId: known?.unique_id ?? draft.unique_id ?? undefined,
+      hasPhone: known?.hasPhone, phone: known?.phone,
       badge: ready ? { label: t("draftReady"), tone: "accent" } : { label: t("badgeDraft"), tone: "warning" },
       // Ready and unsent offers Reopen (back to draft, to be completed again); a held one has no action.
       action: !ready || draft.upload_issue === "consent_refused" || draft.upload_issue === "refusal_stale"
@@ -223,8 +256,9 @@ export function buildInterviewItems(src: InterviewSources): InterviewItem[] {
     const startable = !terminal && canStartDeathInterview(row.state);
     items.push({
       key: `case-${row.death_id}`, kind: terminal ? "sent" : "todo", title: row.name || row.unique_id,
-      caseId: row.name ? row.unique_id : undefined, ageYears: row.age, sex: row.sex, dateOfDeath: dateOnly(row.died),
+      caseId: row.name ? row.unique_id : undefined, ageYears: row.age, sex: row.sex, dateOfDeath: diedText(row.died, row.diedYearOnly),
       unit: row.unit_name ?? undefined,
+      deathId: row.death_id, projectId: row.project_id, uniqueId: row.unique_id, hasPhone: row.hasPhone, phone: row.phone,
       badge: terminal ? { label: t("badgeSent"), tone: "neutral" } : { label: t("badgeTodo"), tone: "accent" },
       action: { type: "case", deathId: row.death_id, projectId: row.project_id, label: startable ? t("actionStart") : t("viewDetails") },
       // Only a finished case has a key time: the server's last change is when it was accepted.

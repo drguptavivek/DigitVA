@@ -836,7 +836,15 @@ through `chrome.tsx` (`chrome.web.tsx` keeps the browser header and bottom bar).
   card on the workspace shown while collection is unavailable to the account
   (`NativePendingWorkspace` in `src/NativeCollectionGate.native.tsx`, for an
   account with online coding), never on Home
-  (`docs/policy/field-data-collection.md`). The Collect Plus "Local cases" row
+  (`docs/policy/field-data-collection.md`). Interviews cards and the phone's
+  Reported deaths cards (`src/nativeRoutes/RegisteredDeaths.tsx`, now the shared
+  `CaseCard`, badge Waiting for interview or Interviewed, no Lock now or My
+  interviews button: Lock now is in the account sheet) carry a copy icon that
+  shares the case's support text (`src/ui/caseSupport.ts`: full case id, place,
+  age, sex, status, app version; never name, phone or location) and, when the
+  row says the informant has a phone, a call icon (`src/nativeRoutes/callInformant.ts`:
+  the downloaded case's number, else one case-detail fetch; the number is never
+  shown or logged). The ID line reads "Case 000274 · SC-AAM 1". The Collect Plus "Local cases" row
   (`LocalCasesRow`) sits at the top of the Code tab (QueueScreen `topSlot`, coding mode, not the
   training or reviewing queue; `src/nativeRoutes/plusWorkspace.tsx`), gated
   `isPlusVariant() && canUseOfflineCoding(account)`. The mode banner

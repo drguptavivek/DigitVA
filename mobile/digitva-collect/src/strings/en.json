@@ -1374,6 +1374,8 @@
   "badgeDraft": "Draft",
   "badgeTodo": "To do",
   "badgeSent": "Sent",
+  "badgeInterviewed": "Interviewed",
+  "badgeWaitingInterview": "Waiting for interview",
   "badgeRevision": "Revision",
   "actionReopen": "Reopen",
   "reopenTitle": "Reopen this interview?",

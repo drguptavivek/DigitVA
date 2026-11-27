@@ -9,6 +9,7 @@ import { t, uiLanguageTag, type StringKey } from "../i18n";
 import { MapsPinButton } from "../web/LocationCapture";
 import { controlText, controls, radius, spacing, useTheme } from "../theme";
 import { useUiStyles } from "../ui";
+import { CallIcon, CopyIcon } from "./CardIcons";
 
 export function sexLabel(value: string | null | undefined): string {
   if (!value) return "";
@@ -122,6 +123,7 @@ function FactList({ facts, style, small = false }: { facts: CaseFact[]; style?: 
 export function CaseCard({
   title, titleTestID, caseId, ageYears, sex, dateOfDeath, area, lastContactAt, nextVisitAt,
   extra = [], badges, actions, latitude, longitude, testID, children, idBelowTitle = false,
+  copyText, copyLabel, onCall, callLabel, callBusy = false,
 }: {
   title: string;
   titleTestID?: string;
@@ -141,6 +143,12 @@ export function CaseCard({
   children?: ReactNode;
   /** The phone list puts the ID as a muted second line under the title; the browser keeps it at the foot of the card. */
   idBelowTitle?: boolean;
+  /** Phone lists: the copy icon (shares `copyText`) and the call icon, at the right end of the actions row. */
+  copyText?: string;
+  copyLabel?: string;
+  onCall?: () => void;
+  callLabel?: string;
+  callBusy?: boolean;
 }) {
   const styles = useUiStyles();
   const c = useCaseCardStyles();
@@ -149,9 +157,11 @@ export function CaseCard({
     ...(ageYears != null ? [{ key: "age", text: t("metaAgeYears", { value: ageYears }), a11y: t("metaAgeA11y", { value: ageYears }) }] : []),
     ...(sexText ? [{ key: "sex", text: sexText, a11y: t("metaSexA11y", { value: sexText }) }] : []),
   ];
+  // Phone list: the area joins the ID line ("Case 000274 · SC-AAM 1") instead of the "Died / Area" line.
+  const areaOnIdLine = idBelowTitle && Boolean(caseId) && Boolean(area);
   const death: CaseFact[] = [
     ...(dateOfDeath ? [{ key: "died", text: t("metaDied", { value: dateOfDeath }), a11y: t("metaDiedA11y", { value: dateOfDeath }) }] : []),
-    ...(area ? [{ key: "area", text: t("metaArea", { value: area }) }] : []),
+    ...(area && !areaOnIdLine ? [{ key: "area", text: t("metaArea", { value: area }) }] : []),
   ];
   const contact: CaseFact[] = [
     ...(lastContactAt ? [{ key: "lastContact", text: t("metaLastContact", { value: formatDisplayTimestamp(lastContactAt) }) }] : []),
@@ -169,7 +179,7 @@ export function CaseCard({
           {/* Phone list: name, date of death and area stay prominent; the ID, age and sex sit small under the name. */}
           {idBelowTitle && (caseId || identity.length > 0) ? (
             <View style={c.factList}>
-              {caseId ? <Text style={c.caseIdMuted} accessibilityLabel={t("metaCaseIdA11y", { value: caseId })} testID="case-id-line">{caseId}</Text> : null}
+              {caseId ? <Text style={c.caseIdMuted} accessibilityLabel={areaOnIdLine ? `${t("metaCaseIdA11y", { value: caseId })}, ${t("metaArea", { value: area ?? "" })}` : t("metaCaseIdA11y", { value: caseId })} testID="case-id-line">{areaOnIdLine ? `${caseId} · ${area}` : caseId}</Text> : null}
               <FactList facts={identity} small />
             </View>
           ) : null}
@@ -191,6 +201,8 @@ export function CaseCard({
         <View style={c.cardActions}>
           {actions}
           <MapsPinButton latitude={latitude} longitude={longitude} />
+          {onCall ? <CallIcon label={callLabel ?? t("callInformant")} onPress={onCall} busy={callBusy} /> : null}
+          {copyText ? <CopyIcon label={copyLabel ?? ""} message={copyText} /> : null}
         </View>
         {caseId && !idBelowTitle ? <FactList facts={[{ key: "caseId", text: caseId, a11y: t("metaCaseIdA11y", { value: caseId }) }]} style={{ marginLeft: "auto" }} /> : null}
       </View>

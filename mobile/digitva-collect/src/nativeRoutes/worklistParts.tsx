@@ -12,6 +12,7 @@ import { controls, radius, spacing, useTheme } from "../theme";
 import { Button, Card, ListRow, Notice as UiNotice, SectionLabel, Separator, TextField, TextLink, useUiStyles, type NoticeTone } from "../ui";
 import { Chevron } from "../web/Chevron";
 import { CaseCard } from "../ui/CaseCard";
+import { caseNumberLabel, caseSupportText } from "../ui/caseSupport";
 import { ChoiceSheet, type ChoiceList } from "../ui/ChoiceSheet";
 import {
   filterInterviews,
@@ -324,20 +325,28 @@ function FilterChips({ value, counts, onChange }: { value: InterviewFilter; coun
 
 
 /** One Interviews row: the shared CaseCard with the ID under the title, a status badge and one action. */
-export const InterviewCard = memo(function InterviewCard({ item, onAction, onRetryDemo, onDelete }: { item: InterviewItem; onAction(action: InterviewAction): void; onRetryDemo(item: InterviewItem): void; onDelete?(item: InterviewItem): void }) {
+export const InterviewCard = memo(function InterviewCard({ item, onAction, onRetryDemo, onDelete, onCall }: { item: InterviewItem; onAction(action: InterviewAction): void; onRetryDemo(item: InterviewItem): void; onDelete?(item: InterviewItem): void; onCall?(item: InterviewItem): Promise<void> }) {
   const { colors, typography } = useTheme();
   const styles = useUiStyles();
+  const [calling, setCalling] = useState(false);
+  // The copy text never carries the name: a local-only card with no case id shows no ID line at all.
+  const supportId = item.uniqueId ?? item.caseId;
   const card = (
     <CaseCard
       idBelowTitle
       testID={`interview-${item.key}`}
       title={item.title}
-      caseId={item.caseId}
+      // The server case id shows as "Case 000274", as on the queues; a local draft's short id stays as it is.
+      caseId={item.uniqueId && item.caseId === item.uniqueId ? caseNumberLabel(item.uniqueId) : item.caseId}
       ageYears={item.ageYears}
       sex={item.sex}
       dateOfDeath={item.dateOfDeath}
       area={item.unit}
       badges={[item.badge]}
+      copyText={caseSupportText({ caseId: supportId, projectId: item.projectId, unit: item.unit, ageYears: item.ageYears, sex: item.sex, status: item.badge.label })}
+      copyLabel={t("queueCopyDetails", { case: (item.uniqueId ? caseNumberLabel(item.uniqueId) : item.caseId) ?? t("untitledInterview") })}
+      onCall={item.hasPhone && onCall ? () => { setCalling(true); void onCall(item).finally(() => setCalling(false)); } : undefined}
+      callBusy={calling}
       actions={(
         <>
           {/* The main action is wide and one line; Delete draft follows it as a small secondary action. */}
@@ -380,6 +389,8 @@ export interface InterviewsViewProps {
   onAction(action: InterviewAction): void;
   onRetryDemo(item: InterviewItem): void;
   onDeleteDraft?(item: InterviewItem): void;
+  /** Dials the informant of a card with a call icon; resolves when done (it reports its own failures). */
+  onCall?(item: InterviewItem): Promise<void>;
   onRegister(): void;
   /** Pull-to-refresh; Send lives in the Sync sheet, so the list has no Send or Refresh button. */
   onRefresh(): void;
@@ -453,7 +464,7 @@ export function InterviewsView(p: InterviewsViewProps) {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ gap: spacing.xs, paddingBottom: spacing.md }}
         renderItem={({ item: entry }) => {
-          if (entry.item) return <InterviewCard item={entry.item} onAction={p.onAction} onRetryDemo={p.onRetryDemo} onDelete={p.onDeleteDraft} />;
+          if (entry.item) return <InterviewCard item={entry.item} onAction={p.onAction} onRetryDemo={p.onRetryDemo} onDelete={p.onDeleteDraft} onCall={p.onCall} />;
           if (entry.part === "empty") {
             if (!p.loaded) return <SkeletonCards count={3} />;
             // Register has its own tab: the empty state offers it (and Refresh, the tap for pull-down) as text links.

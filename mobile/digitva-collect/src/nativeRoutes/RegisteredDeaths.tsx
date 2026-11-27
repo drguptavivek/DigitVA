@@ -1,7 +1,7 @@
 /** A reporter's own registrations, loaded in bounded pages. */
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Text, View } from "react-native";
+import { AppState, Text } from "react-native";
 
 import { signOut } from "../auth";
 import { getNativeRegisteredDeaths } from "../deathRegistrationApi";
@@ -10,6 +10,11 @@ import { t } from "../i18n";
 import { confirmSignOut as confirmUnsentSignOut } from "../signOutConfirm";
 import type { CaseRow } from "../api";
 import { Button, Screen, useUiStyles } from "../ui";
+import { CaseCard } from "../ui/CaseCard";
+import { caseNumberLabel, caseSupportText } from "../ui/caseSupport";
+import { deathStateBadge, diedText } from "../ui/interviewRows";
+import { callInformant } from "./callInformant";
+import { deathPhoneUrl } from "../deathWorkflow";
 import { OfflineNotice, SkeletonCards, StateView } from "../ui/StateView";
 import { isUnlocked } from "../interviewerDb";
 
@@ -43,6 +48,7 @@ export default function RegisteredDeaths({
   const [cursor, setCursor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [callingId, setCallingId] = useState<string>();
   const pageCursorByDeath = useRef<Record<string, string | undefined>>({});
   const generation = useRef(0);
   const focused = useRef(false);
@@ -122,6 +128,27 @@ export default function RegisteredDeaths({
     }
   }
 
+  /**
+   * The reporter's own list (serialize_death) carries the informant's numbers, not the worklist's
+   * has_informant_phone flags: dial the row's first dialable number. The number is never rendered or logged.
+   */
+  function rowPhone(death: CaseRow): string | undefined {
+    const row = death as { informant_phone?: unknown; informant_phone_2?: unknown };
+    return [row.informant_phone, row.informant_phone_2].find((p): p is string => typeof p === "string" && Boolean(deathPhoneUrl(p)));
+  }
+
+  async function callDeath(death: CaseRow) {
+    if (callingId) return;
+    setCallingId(death.death_id);
+    try {
+      if (!(await callInformant(userId, death.death_id, death.project_id, rowPhone(death)))) setMessage(t("errGeneric"));
+    } catch {
+      setMessage(t("errGeneric"));
+    } finally {
+      setCallingId(undefined);
+    }
+  }
+
   function confirmSignOut() {
     void confirmUnsentSignOut(userId, () => void doSignOut());
   }
@@ -136,9 +163,6 @@ export default function RegisteredDeaths({
   return (
     <Screen title={t("reportedDeaths")}>
       <Text style={styles.muted}>{account?.name}</Text>
-      {account.collection_access ? (
-        <Button kind="secondary" label={t("worklistTitle")} onPress={() => router.replace({ pathname: "/worklist", params: { userId } })} />
-      ) : null}
       <Button label={t("newDeath")} onPress={() => router.push({ pathname: "/register", params: { userId } })} />
       {offline ? <OfflineNotice /> : null}
       <Button kind="secondary" label={t("refresh")} loading={busy} disabled={Boolean(offline)} onPress={() => void load()} />
@@ -146,27 +170,44 @@ export default function RegisteredDeaths({
       {message ? <StateView kind="error" title={t("stateErrorTitle")} hint={message} actionLabel={t("refresh")} onAction={() => void load()} /> : null}
       {visibleDeaths.length === 0 && busy && !message ? <SkeletonCards count={2} /> : null}
       {visibleDeaths.length === 0 && !busy && !message ? <StateView title={t("stateNoDeathsTitle")} hint={t("stateNoDeathsHint")} actionLabel={t("newDeath")} onAction={() => router.push({ pathname: "/register", params: { userId } })} /> : null}
-      {visibleDeaths.map((death) => (
-        <View key={death.death_id} style={styles.card}>
-          <Text style={styles.text}>{death.deceased_name ?? death.unique_id}</Text>
-          <Text style={styles.muted}>
-            {death.unique_id}{death.date_of_death ? ` · ${death.date_of_death}` : ""}
-            {death.unit_name || death.org_unit_name ? ` · ${death.unit_name ?? death.org_unit_name}` : ""}
-          </Text>
-          <Button kind="secondary" label={t("editRegistration")} onPress={() => router.push({
-            pathname: "/register",
-            params: {
-              userId,
-              deathId: death.death_id,
-              registrationSource: "mine",
-              ...(death.project_id ? { projectId: death.project_id } : {}),
-              ...(pageCursorByDeath.current[death.death_id] ? { registrationCursor: pageCursorByDeath.current[death.death_id] } : {}),
-            },
-          })} />
-        </View>
-      ))}
+      {visibleDeaths.map((death) => {
+        const area = death.unit_name ?? death.org_unit_name ?? undefined;
+        const badge = deathStateBadge(death.state ?? "", death.other_complete_interview);
+        const caseId = caseNumberLabel(death.unique_id);
+        const yearOnly = (death as { date_of_death_year_only?: unknown }).date_of_death_year_only === true;
+        return (
+          <CaseCard
+            key={death.death_id}
+            idBelowTitle
+            title={death.deceased_name ?? death.unique_id}
+            caseId={caseId}
+            ageYears={death.age_years}
+            sex={death.deceased_sex}
+            dateOfDeath={diedText(death.date_of_death, yearOnly)}
+            area={area}
+            latitude={death.latitude}
+            longitude={death.longitude}
+            badges={[badge]}
+            copyText={caseSupportText({ caseId: death.unique_id, projectId: death.project_id, unit: area, ageYears: death.age_years, sex: death.deceased_sex, status: badge.label })}
+            copyLabel={t("queueCopyDetails", { case: caseId })}
+            onCall={rowPhone(death) || death.has_informant_phone || death.has_informant_phone_2 ? () => void callDeath(death) : undefined}
+            callBusy={callingId === death.death_id}
+            actions={(
+              <Button kind="secondary" label={t("editRegistration")} onPress={() => router.push({
+                pathname: "/register",
+                params: {
+                  userId,
+                  deathId: death.death_id,
+                  registrationSource: "mine",
+                  ...(death.project_id ? { projectId: death.project_id } : {}),
+                  ...(pageCursorByDeath.current[death.death_id] ? { registrationCursor: pageCursorByDeath.current[death.death_id] } : {}),
+                },
+              })} />
+            )}
+          />
+        );
+      })}
       {visibleCursor ? <Button kind="secondary" label={t("loadMore")} loading={busy} onPress={() => void load(visibleCursor)} /> : null}
-      <Button kind="secondary" label={t("lockNow")} onPress={() => void lockNow()} />
       {!account.collection_access ? <Button kind="danger" label={t("signOut")} onPress={confirmSignOut} /> : null}
     </Screen>
   );

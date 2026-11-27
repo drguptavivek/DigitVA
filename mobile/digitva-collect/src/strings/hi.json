@@ -1374,6 +1374,8 @@
   "badgeDraft": "ड्राफ्ट",
   "badgeTodo": "करना है",
   "badgeSent": "भेजा गया",
+  "badgeInterviewed": "साक्षात्कार हो गया",
+  "badgeWaitingInterview": "साक्षात्कार की प्रतीक्षा",
   "badgeRevision": "संशोधन",
   "actionReopen": "फिर से खोलें",
   "reopenTitle": "इस इंटरव्यू को फिर से खोलें?",

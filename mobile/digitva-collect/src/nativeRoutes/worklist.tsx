@@ -68,6 +68,7 @@ import { homeSummary } from "../ui/homeSummary";
 import { readRecentTarget, writeRecentTarget, type RecentTarget } from "../recentTarget";
 import { chainLookup, type PickerTarget } from "../ui/sitePicker";
 import RegisteredDeaths from "./RegisteredDeaths";
+import { callInformant } from "./callInformant";
 import { SupervisionEntry } from "./supervisionEntry";
 import { TrainingCodingEntry, TrainingOnboarding } from "./trainingOnboarding";
 import { useOnlineCases } from "./worklistOnline";
@@ -724,6 +725,16 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     });
   }, [userId, db, router, setMessage]);
 
+  // A failed fetch or dial shows the screen's usual message; the number itself is never shown or logged.
+  const callItem = useCallback(async (item: InterviewItem) => {
+    if (!item.deathId) return;
+    try {
+      if (!(await callInformant(userId, item.deathId, item.projectId, item.phone))) setMessage(t("errGeneric"));
+    } catch (error) {
+      setMessage(errorText(error));
+    }
+  }, [userId, setMessage]);
+
   const openRegister = useCallback(() => {
     router.push({ pathname: "/register", params: { userId, projectId: selectedProject?.project.project_id ?? "" } });
   }, [router, userId, selectedProject]);
@@ -1119,6 +1130,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
           onAction={runAction}
           onRetryDemo={retryDemo}
           onDeleteDraft={deleteDraftRow}
+          onCall={callItem}
           onRegister={openRegister}
           onRefresh={() => void refresh()}
           onLoadMore={() => void loadOnlineMore()}

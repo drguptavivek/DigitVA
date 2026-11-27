@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Web Deaths: the "Add a Death to List" form shows the title-row Project
+  for a new death and narrows its site choices to that project
+  (`digitva-zxw0`, owner request, follow-up to `digitva-uee4`); the form
+  and the Reported deaths list share one selected project. Reviewed by the
+  independent reviewer; full Jest passed on main; `make check-web` passed.
 - Web: the project switcher sits in the page title row just left of the
   language switcher on Code, Review, Deaths and Interview, and is a dropdown
   even with one project (`digitva-uee4`, owner request). The phone keeps its

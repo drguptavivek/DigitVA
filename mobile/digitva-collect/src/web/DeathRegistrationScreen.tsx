@@ -406,6 +406,21 @@ export default function DeathRegistrationScreen() {
   const supervisorEditing = fromSupervision && Boolean(editingDeathId);
   const showRegisteredDeaths = (listMode || (canSupervise && !hasOwnDeaths && !supervisorEditing)) && canList;
   const privateUiReady = Boolean(bootstrap && privateBootstrap === bootstrap && isVisible && activeRef.current);
+  // The Add form follows the screen's Project (the same choice as the deaths list). All projects, or a project with
+  // no registration site for this user, offers every site.
+  const formContexts = useMemo(() => {
+    const all = intake?.context ?? [];
+    const scoped = deaths.project ? all.filter((entry) => entry.project_id === deaths.project) : all;
+    return scoped.length ? scoped : all;
+  }, [intake, deaths.project]);
+  const newDeathForm = !showRegisteredDeaths && !editingDeathId;
+  useEffect(() => {
+    if (!newDeathForm || !formContexts.length) return;
+    if (formContexts.some((entry) => entry.project_id === projectId && entry.site_id === siteId)) return;
+    setProjectId(formContexts[0].project_id);
+    setSiteId(formContexts[0].site_id);
+    setOrgUnitId("");
+  }, [newDeathForm, formContexts, projectId, siteId]);
 
   const ageDisplay = calculateRegistrationAge({
     date_of_death: fields.date_of_death ?? "",
@@ -881,7 +896,7 @@ export default function DeathRegistrationScreen() {
   return (
     <WebShell
       title={showRegisteredDeaths ? t("reportedDeaths") : editingDeathId ? t("editRegistration") : t("registrationTitle")}
-      headerProject={privateUiReady && showRegisteredDeaths && !supervisionView ? <DeathsProjectSelect list={deaths} /> : undefined}
+      headerProject={privateUiReady && !supervisionView && (showRegisteredDeaths || newDeathForm) ? <DeathsProjectSelect list={deaths} /> : undefined}
     >
       {privateUiReady ? <>
       <ContextualHelpBanner screen={showRegisteredDeaths ? (supervisionView ? "supervision" : "myRegisteredDeaths") : "deathRegistration"} />
@@ -955,7 +970,7 @@ export default function DeathRegistrationScreen() {
             <>
               <Text style={styles.fieldLabel}>{t("chooseSite")}</Text>
               <View style={styles.row} accessibilityRole="radiogroup">
-                {intake?.context.map((entry) => {
+                {formContexts.map((entry) => {
                   const rawSite = entry.site_name ?? entry.site_id;
                   const sitePart = /^sites_in_project_/i.test(rawSite) || /^sites_in_project_/i.test(entry.site_id) ? "" : ` · ${rawSite}`;
                   return (

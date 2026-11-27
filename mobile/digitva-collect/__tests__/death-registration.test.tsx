@@ -197,6 +197,41 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.unmount());
   });
 
+  it("the Add form follows the title row's Project: its sites narrow to that project and the save uses it", async () => {
+    const base = mockBootstrap.access.projects[0] as unknown as Record<string, unknown>;
+    const site = (id: string, name: string) => ({ site_id: id, site_name: name, web_intake_mode: "death_register", org_units: [] });
+    mockBootstrap.access.projects = [
+      base,
+      { ...base, project_id: "P2", project_name: "Second", actions: { interview: [], register_death: [site("S2", "Site Two")] } },
+    ] as never;
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    const sites = () => tree!.root.findAll((node) => typeof node.props["data-label"] === "string" && / · Site/.test(node.props["data-label"]) && node.type === "button").map((node) => node.props["data-label"]);
+    expect(sites()).toEqual(["Project · Site", "Second · Site Two"]);
+
+    const projectField = tree!.root.findAll((node) => node.props.accessibilityLabel === "filterProject: filterAllProjects" && typeof node.props.onPress === "function")[0];
+    expect(projectField).toBeDefined();
+    await act(async () => projectField.props.onPress());
+    await act(async () => tree!.root.findAll((node) => node.props.accessibilityLabel === "Second" && typeof node.props.onPress === "function")[0].props.onPress());
+    await settle();
+    expect(sites()).toEqual(["Second · Site Two"]);
+
+    const findField = (field: string) => tree!.root.findByProps({ "data-field": field });
+    await act(async () => {
+      findField("deceased_name").props.onClick("Asha");
+      findField("date_of_death").props.onClick("2026-09-30");
+      findField("date_of_birth").props.onClick("1987-04-12");
+    });
+    await act(async () => tree!.root.findByProps({ "data-label": "sexFemale" }).props.onClick());
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+    expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockRegisterDeath.mock.calls[0])).toContain("\"project_id\":\"P2\"");
+    expect(JSON.stringify(mockRegisterDeath.mock.calls[0])).toContain("\"site_id\":\"S2\"");
+    await act(async () => tree!.unmount());
+  });
+
   it("on a station, blocks saving informant details until consent is granted, then sends it", async () => {
     (globalThis as { __DIGITVA_LAUNCH_TOKEN__?: string }).__DIGITVA_LAUNCH_TOKEN__ = "tok";
     let tree: ReturnType<typeof create>;

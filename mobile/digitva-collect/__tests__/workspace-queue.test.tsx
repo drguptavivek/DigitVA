@@ -4,6 +4,7 @@ import { Alert, Modal, Platform, Share } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 import { ApiError } from "../src/api";
+import { setUiLocale } from "../src/i18n";
 import { DetailsChip, errorText } from "../src/ui";
 import { QueueCaseCard, QueueScreen, codedCaseSupportText, recodeDeadlineText, reviewedCaseSupportText } from "../src/workspace/QueueScreen";
 import { Select } from "../src/ui/Select";
@@ -210,6 +211,26 @@ describe("QueueScreen", () => {
     expect(api.recode).toHaveBeenCalledWith(coderRow.va_sid);
     expect(screen.onOpen).toHaveBeenLastCalledWith({ vaSid: coderRow.va_sid, mode: "coding" });
     await unmount(screen.renderer);
+  });
+
+  test("the coding queue reads in Hindi: tile, tab and card button", async () => {
+    setUiLocale("hi");
+    try {
+      const screen = await render("coding");
+      const texts = () => screen.renderer.root.findAll((n) => n.props.label !== undefined || typeof n.props.children === "string")
+        .flatMap((n) => [n.props.label, n.props.children])
+        .filter((v): v is string => typeof v === "string");
+      expect(texts()).toContain("रैंडम पूल");
+      expect(texts()).not.toContain("Random pool");
+      expect(button(screen.renderer.root, "रैंडम केस शुरू करें")).toBeDefined();
+      expect(button(screen.renderer.root, "Start a random case")).toBeUndefined();
+      await press(screen.renderer, "मेरे कोड किए मामले");
+      expect(button(screen.renderer.root, "केस देखें")).toBeDefined();
+      expect(button(screen.renderer.root, "View case")).toBeUndefined();
+      await unmount(screen.renderer);
+    } finally {
+      setUiLocale("en");
+    }
   });
 
   test("late coder project and page responses are discarded after their scope changes", async () => {

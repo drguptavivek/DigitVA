@@ -364,9 +364,9 @@ function RefreshIcon({ onPress, disabled, loading = false }: { onPress: () => vo
   const { colors } = useTheme();
   const q = useQueueStyles();
   // Loading shows in the icon's own spot: a spinner row above the cards pushed them down and back (a layout shift).
-  if (loading) return <View style={q.iconButton}><ActivityIndicator accessibilityLabel="Loading queue" /></View>;
+  if (loading) return <View style={q.iconButton}><ActivityIndicator accessibilityLabel={t("queueLoading")} /></View>;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel="Refresh cases" accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[q.iconButton, disabled && { opacity: 0.5 }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={t("queueRefresh")} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress} style={[q.iconButton, disabled && { opacity: 0.5 }]}>
       {/* Tabler "refresh": two arrows round a circle, like the chevrons (Chevron.tsx). */}
       <Svg width={22} height={22} viewBox="0 0 24 24">
         <Path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" stroke={colors.text} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
@@ -824,7 +824,7 @@ export function QueueScreen({
       else await api.releaseReviewer();
       if (!isCurrent(requestGeneration, requestScope)) return;
       actionError.current = null;
-      setMessage({ scope: requestScope, success: true, text: mode === "coding" ? "Coding case released." : "Review case released. Step 1 is kept; NQA and Social Autopsy are cleared." });
+      setMessage({ scope: requestScope, success: true, text: t(mode === "coding" ? "queueReleasedCoding" : "queueReleasedReview") });
       setBusy(false);
       actionInFlight.current = false;
       await load();
@@ -1095,11 +1095,11 @@ export function QueueScreen({
     return (
       <View style={q.filterBox}>
         {phone ? (
-          <TextField onCard accessibilityLabel="Filter cases" placeholder="Filter by ID, area, interviewer, or form..." value={searchQuery} onChangeText={setSearchQuery} />
+          <TextField onCard accessibilityLabel={t("queueFilterCases")} placeholder={t("queueFilterPlaceholder")} value={searchQuery} onChangeText={setSearchQuery} />
         ) : (
           <TextInput
-            accessibilityLabel="Filter cases"
-            placeholder="Filter by ID, area, interviewer, or form..."
+            accessibilityLabel={t("queueFilterCases")}
+            placeholder={t("queueFilterPlaceholder")}
             placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -1111,9 +1111,9 @@ export function QueueScreen({
             {hasGenderData ? (
               <>
                 {([
-                  { key: "all" as const, label: "All sexes" },
-                  { key: "female" as const, label: "Female" },
-                  { key: "male" as const, label: "Male" },
+                  { key: "all" as const, label: t("queueAllSexes") },
+                  { key: "female" as const, label: t("sexFemale") },
+                  { key: "male" as const, label: t("sexMale") },
                 ]).map((opt) => {
                   const active = genderFilter === opt.key;
                   return (
@@ -1121,7 +1121,7 @@ export function QueueScreen({
                       key={opt.key}
                       hitSlop={spacing.xs}
                       accessibilityRole="button"
-                      accessibilityLabel={`Filter sex: ${opt.label}`}
+                      accessibilityLabel={t("queueFilterSex", { sex: opt.label })}
                       accessibilityState={{ selected: active }}
                       onPress={() => setGenderFilter(opt.key)}
                       style={[q.chip, active && q.chipActive]}
@@ -1136,23 +1136,23 @@ export function QueueScreen({
               <Pressable
                 hitSlop={spacing.xs}
                 accessibilityRole="button"
-                accessibilityLabel="Filter recodeable only"
+                accessibilityLabel={t("queueFilterRecodeableOnly")}
                 accessibilityState={{ selected: recodeableOnly }}
                 onPress={() => setRecodeableOnly((prev) => !prev)}
                 style={[q.chip, recodeableOnly && q.chipActive]}
               >
-                <Text style={[q.chipText, recodeableOnly && q.chipTextActive]}>Recodeable only</Text>
+                <Text style={[q.chipText, recodeableOnly && q.chipTextActive]}>{t("queueRecodeableOnly")}</Text>
               </Pressable>
             ) : null}
           </View>
         ) : null}
         {hasActiveFilters ? (
           <View style={q.chipRow}>
-            <Text style={styles.muted}>Showing {filteredCount} of {activeItems.length} cases</Text>
+            <Text style={styles.muted}>{t("queueShowing", { shown: filteredCount, total: activeItems.length })}</Text>
             <Pressable
               hitSlop={spacing.xs}
               accessibilityRole="button"
-              accessibilityLabel="Clear filters"
+              accessibilityLabel={t("dataClearFilters")}
               onPress={() => {
                 setSearchQuery("");
                 setGenderFilter("all");
@@ -1160,7 +1160,7 @@ export function QueueScreen({
               }}
               style={q.chip}
             >
-              <Text style={q.chipText}>Clear filters</Text>
+              <Text style={q.chipText}>{t("dataClearFilters")}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -1216,14 +1216,14 @@ export function QueueScreen({
 
   /** Why the reviewer list is empty, in plain words; the counts alone do not say. */
   function reviewerEmptyText(): string {
-    if (showHistory) return "No reviewed cases yet.";
-    if (offset > 0) return "No more cases to review.";
-    const where = projectId === undefined ? "in your projects" : "in this project";
-    if (reviewerStats?.in_scope === 0) return `No cases ${where} yet.`;
+    if (showHistory) return t("queueEmptyReviewed");
+    if (offset > 0) return t("queueNoMoreReview");
+    const where = t(projectId === undefined ? "queueWhereProjects" : "queueWhereProject");
+    if (reviewerStats?.in_scope === 0) return t("queueNoCasesWhere", { where });
     if (reviewerStats && reviewerStats.available === 0) {
-      return `Nothing to review ${where} yet: cases appear here after a coder finalises them.`;
+      return t("queueNothingToReviewWhere", { where });
     }
-    return "No cases to review right now.";
+    return t("queueNoneToReview");
   }
 
   /** Phone: the header, tiles, tabs and filter share one card and each case is its own card; the browser nests all in one. */
@@ -1232,16 +1232,16 @@ export function QueueScreen({
   const showTab = (history: boolean) => { clearMessage(); setShowHistory(history); setOffset(0); };
   const tabs = (history: string) => (phone ? (
     <SegmentedControl
-      accessibilityLabel="Cases"
+      accessibilityLabel={t("queueTabCases")}
       disabled={busy}
       value={showHistory ? "history" : "available"}
-      options={[{ value: "available", label: "Available" }, { value: "history", label: history }]}
+      options={[{ value: "available", label: t("queueTabAvailable") }, { value: "history", label: history }]}
       onChange={(next) => showTab(next === "history")}
     />
   ) : (
     <View style={q.segmentedTrack}>
-      <Button label="Available" size="sm" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => showTab(false)} />
-      <Button label={history} size="sm" accessibilityLabel="History" kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => showTab(true)} />
+      <Button label={t("queueTabAvailable")} size="sm" kind={!showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => showTab(false)} />
+      <Button label={history} size="sm" accessibilityLabel={t("queueTabHistory")} kind={showHistory ? "primary" : "secondary"} style={q.actionBtn} disabled={busy} onPress={() => showTab(true)} />
     </View>
   ));
   /**
@@ -1310,26 +1310,26 @@ export function QueueScreen({
 
   return (
     <ActiveShell
-      title={mode === "coding" ? "Coding queue" : "Review queue"}
+      title={t(mode === "coding" ? "queueTitleCoding" : "queueTitleReview")}
       {...(projectInHeader ? { headerProject: projectSelect } : {})}
       // Phone: the bar has the back arrow and the shell Help sheet has the guide, so no Back or Help pill here.
-      headerAction={onExit && !phone ? <Button label="Back" kind="secondary" size="sm" onPress={onExit} /> : undefined}
+      headerAction={onExit && !phone ? <Button label={t("back")} kind="secondary" size="sm" onPress={onExit} /> : undefined}
     >
       {phone ? null : <ContextualHelpBanner screen={mode === "coding" ? "coding" : "reviewing"} />}
       {projectSelect && !projectInHeader ? <View style={q.topLine}>{projectSelect}</View> : null}
       {placeSelect}
       {/* First load only: once a card is drawn its refresh icon spins instead. */}
-      {loading && !stats ? <ActivityIndicator accessibilityLabel="Loading queue" /> : null}
+      {loading && !stats ? <ActivityIndicator accessibilityLabel={t("queueLoading")} /> : null}
       {currentMessage ? <Text accessibilityRole={message?.success ? "text" : "alert"} style={[styles.error, message?.success && { color: ui.success }]}>{currentMessage}</Text> : null}
 
       {allocation && !currentData?.cachedHistoryAt ? (
         <View style={styles.card}>
-          <Text style={styles.headline}>{`You have an active ${mode === "coding" ? "coding" : "review"} case`}</Text>
+          <Text style={styles.headline}>{t(mode === "coding" ? "queueActiveCoding" : "queueActiveReview")}</Text>
           {heldText ? <Text style={styles.text}>{heldText}</Text> : null}
-          <Text style={styles.muted}>Resume it, or release it, before you start another case.</Text>
+          <Text style={styles.muted}>{t("queueResumeOrRelease")}</Text>
           <View style={q.actions}>
-            <Button label="Resume case" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: allocation.va_sid, mode })} />
-            <Button label="Release case" kind="danger" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={askRelease} />
+            <Button label={t("queueResumeCase")} size="sm" style={q.actionBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: allocation.va_sid, mode })} />
+            <Button label={t("codeNowReleaseConfirmAction")} kind="danger" size="sm" style={q.actionBtn} disabled={busy || loading} onPress={askRelease} />
           </View>
         </View>
       ) : null}
@@ -1346,14 +1346,14 @@ export function QueueScreen({
           {renderTrainingQueues()}
           {coderStats ? (
             <View style={q.statsGrid}>
-              {randomMode && typeof coderStats.random_ready === "number" ? statTile(coderStats.random_ready, "Random pool") : null}
-              {pickMode && typeof coderStats.pick_ready === "number" ? statTile(coderStats.pick_ready, "Ready to pick", false) : null}
-              {typeof coderStats.completed === "number" ? statTile(coderStats.completed, "Coded", true) : null}
-              {typeof coderStats.not_codeable === "number" && coderStats.not_codeable > 0 ? statTile(coderStats.not_codeable, "Not codeable") : null}
+              {randomMode && typeof coderStats.random_ready === "number" ? statTile(coderStats.random_ready, t("queueTileRandomPool")) : null}
+              {pickMode && typeof coderStats.pick_ready === "number" ? statTile(coderStats.pick_ready, t("queueTileReadyToPick"), false) : null}
+              {typeof coderStats.completed === "number" ? statTile(coderStats.completed, t("queuePillCoded"), true) : null}
+              {typeof coderStats.not_codeable === "number" && coderStats.not_codeable > 0 ? statTile(coderStats.not_codeable, t("queuePillNotCodeable")) : null}
             </View>
           ) : null}
-          {randomMode && (pickMode || !showHistory) && !currentData?.cachedHistoryAt ? <Button label="Start a random case" size="sm" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
-          {pickMode || randomMode ? tabs("My coded cases") : <Text style={styles.muted}>My coded cases</Text>}
+          {randomMode && (pickMode || !showHistory) && !currentData?.cachedHistoryAt ? <Button label={t("queueStartRandom")} size="sm" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
+          {pickMode || randomMode ? tabs(t("myCodedCases")) : <Text style={styles.muted}>{t("myCodedCases")}</Text>}
           {currentData?.cachedHistoryAt ? <Text style={styles.muted} testID="cached-coding-history">Saved on this phone · last updated {formatDisplayTimestamp(currentData.cachedHistoryAt)} · read only</Text> : null}
           {showList ? renderFilterControls() : null}
           </>)}
@@ -1363,27 +1363,27 @@ export function QueueScreen({
               {item.server_status === "refused" ? <DetailsChip code={item.server_code} /> : null}
               <View style={q.cardActions}>
                 {!currentData?.cachedHistoryAt ? <>
-                  <Button label="View case" kind="secondary" size="sm" style={q.cardBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
+                  <Button label={t("queueViewCase")} kind="secondary" size="sm" style={q.cardBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
                   {item.recodeable ? <Button label={t("queueRecodeCase")} size="sm" style={q.cardBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void recodeCase(item.va_sid)} /> : null}
                 </> : null}
-                <CopyIcon label={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} message={codedCaseSupportText(item)} />
+                <CopyIcon label={t("queueCopyDetails", { case: caseTitle(item.va_uniqueid_masked) })} message={codedCaseSupportText(item)} />
               </View>
             </QueueCaseCard>
           )) : filteredCoderAvailable.map((item) => (
             <QueueCaseCard key={item.va_sid} item={item} kind="coding" allProjects={projectId === undefined}>
               <View style={q.cardActions}>
                 <Button label={t("queueCodeCase")} size="sm" style={q.cardBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation) || coderStats?.has_pick_mode !== true} loading={busy} onPress={() => void allocatePicked(item.va_sid)} />
-                <CopyIcon label={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} message={reviewedCaseSupportText(item)} />
+                <CopyIcon label={t("queueCopyDetails", { case: caseTitle(item.va_uniqueid_masked) })} message={reviewedCaseSupportText(item)} />
               </View>
             </QueueCaseCard>
           ))}
           {(projects as CoderProjects | undefined)?.station_coding_disabled ? <Text style={styles.muted} testID="coding-done-on-server">{t("codingDoneOnServer")}</Text> : null}
-          {showList && coderCount === 0 ? <Text style={styles.muted}>{showHistory ? "No coded cases yet." : pickMode ? "No cases to pick right now." : "No available cases on this page."}</Text> : null}
-          {(coderCount ?? 0) > 0 && filteredCount === 0 ? <Text style={styles.muted}>No cases match your filters.</Text> : null}
+          {showList && coderCount === 0 ? <Text style={styles.muted}>{t(showHistory ? "queueEmptyCoded" : pickMode ? "queueEmptyPick" : "queueEmptyPage")}</Text> : null}
+          {(coderCount ?? 0) > 0 && filteredCount === 0 ? <Text style={styles.muted}>{t("queueNoMatch")}</Text> : null}
           {showList && showPager ? <View style={q.pager}>
-            <Button label="Previous" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
-            <Text style={q.pageText}>Page {Math.floor(offset / PAGE_SIZE) + 1}</Text>
-            <Button label="Next" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
+            <Button label={t("dataPrevious")} kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
+            <Text style={q.pageText}>{t("queuePage", { n: Math.floor(offset / PAGE_SIZE) + 1 })}</Text>
+            <Button label={t("dataNext")} kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
           </View> : null}
         </View>
       ) : (
@@ -1396,37 +1396,37 @@ export function QueueScreen({
           </View>
           {reviewerStats ? (
             <View style={q.statsGrid}>
-              {statTile(String(reviewerStats.available ?? 0), "Available to review", false)}
+              {statTile(String(reviewerStats.available ?? 0), t("queueTileAvailableToReview"), false)}
               {/* Pending coding (owner 2026-11-27); an older server without it keeps In scope. */}
               {typeof reviewerStats.pending_coding === "number" ? statTile(reviewerStats.pending_coding, t("queuePendingCoding"))
-                : typeof reviewerStats.in_scope === "number" ? statTile(reviewerStats.in_scope, "In scope") : null}
+                : typeof reviewerStats.in_scope === "number" ? statTile(reviewerStats.in_scope, t("queueTileInScope")) : null}
               {statTile(String(reviewerStats.completed ?? 0), t("queueReviewedByMe"), true)}
             </View>
           ) : null}
-          {tabs("My reviewed cases")}
+          {tabs(t("queueTabMyReviewed"))}
           {renderFilterControls()}
           </>)}
           {filteredReviewerRows.map((item) => (
             <QueueCaseCard key={item.va_sid} item={item} kind={showHistory ? "reviewHistory" : "review"} allProjects={projectId === undefined}>
               {showHistory ? (
                 <View style={q.cardActions}>
-                  <Button label="View case" kind="secondary" size="sm" style={q.cardBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
-                  <CopyIcon label={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} message={reviewedCaseSupportText(item)} />
+                  <Button label={t("queueViewCase")} kind="secondary" size="sm" style={q.cardBtn} disabled={busy || loading} onPress={() => openCurrent({ vaSid: item.va_sid, mode: "view" })} />
+                  <CopyIcon label={t("queueCopyDetails", { case: caseTitle(item.va_uniqueid_masked) })} message={reviewedCaseSupportText(item)} />
                 </View>
               ) : (
                 <View style={q.cardActions}>
-                  <Button label="Review case" size="sm" style={q.cardBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void allocateReviewer(item.va_sid)} />
-                  <CopyIcon label={`Copy details of ${caseTitle(item.va_uniqueid_masked)}`} message={reviewedCaseSupportText(item)} />
+                  <Button label={t("queueReviewCase")} size="sm" style={q.cardBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation)} loading={busy} onPress={() => void allocateReviewer(item.va_sid)} />
+                  <CopyIcon label={t("queueCopyDetails", { case: caseTitle(item.va_uniqueid_masked) })} message={reviewedCaseSupportText(item)} />
                 </View>
               )}
             </QueueCaseCard>
           ))}
           {reviewerRows?.length === 0 ? <Text style={styles.muted}>{reviewerEmptyText()}</Text> : null}
-          {(reviewerRows?.length ?? 0) > 0 && filteredReviewerRows.length === 0 ? <Text style={styles.muted}>No cases match your filters.</Text> : null}
+          {(reviewerRows?.length ?? 0) > 0 && filteredReviewerRows.length === 0 ? <Text style={styles.muted}>{t("queueNoMatch")}</Text> : null}
           {showPager ? <View style={q.pager}>
-            <Button label="Previous" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
-            <Text style={q.pageText}>Page {Math.floor(offset / PAGE_SIZE) + 1}</Text>
-            <Button label="Next" kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
+            <Button label={t("dataPrevious")} kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
+            <Text style={q.pageText}>{t("queuePage", { n: Math.floor(offset / PAGE_SIZE) + 1 })}</Text>
+            <Button label={t("dataNext")} kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset >= MAX_OFFSET || !canGoNext} onPress={() => { clearMessage(); setOffset(Math.min(MAX_OFFSET, offset + PAGE_SIZE)); }} />
           </View> : null}
         </View>
       )}

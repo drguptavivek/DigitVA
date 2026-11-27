@@ -7,9 +7,10 @@ import { WebShell } from "./common";
 import LoadingScreen from "./LoadingScreen";
 
 /** A failed chunk download can be retried without reloading or touching saved interviews. */
-class DownloadBoundary extends Component<{ children: ReactNode; onRetry(): void }, { failed: boolean }> {
+class DownloadBoundary extends Component<{ children: ReactNode; onRetry(): void; onFailed(): void }, { failed: boolean }> {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onFailed(); }
   render() {
     return this.state.failed ? <DownloadRetry onRetry={this.props.onRetry} /> : this.props.children;
   }
@@ -35,7 +36,8 @@ export function DeferredScreen({ load }: { load: Loader }) {
     if (attempt > 0 || !lazyScreens.has(load)) lazyScreens.set(load, lazy(load));
     return lazyScreens.get(load)!;
   }, [load, attempt]);
-  return <DownloadBoundary key={attempt} onRetry={() => setAttempt((value) => value + 1)}>
+  // A failed download is forgotten, so a later visit tries again by itself (as before the shared lazy component).
+  return <DownloadBoundary key={attempt} onRetry={() => setAttempt((value) => value + 1)} onFailed={() => lazyScreens.delete(load)}>
     <Suspense fallback={<LoadingScreen />}><Screen /></Suspense>
   </DownloadBoundary>;
 }

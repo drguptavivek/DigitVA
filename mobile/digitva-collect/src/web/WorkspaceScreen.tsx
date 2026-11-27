@@ -20,7 +20,7 @@ import { AttachmentTrainingContext } from "../workspace/media/attachmentScope";
 import { browserErrorText, LoginLanding, WebShell } from "./common";
 import { Chevron, FoldButton } from "./Chevron";
 import { ContextualHelpBanner } from "./ContextualHelp";
-import { clearScreenCache, readCached, screenKey, writeCached } from "./screenCache";
+import { clearScreenCache, dropCached, readCached, screenKey, writeCached } from "./screenCache";
 import { KpiStrip } from "./KpiStrip";
 import { dataAccess, hasAnyRoleOrProject, openServerPage, statisticsAllowed } from "./roleHome";
 import {
@@ -276,6 +276,7 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
         if (mounted) setHome(summary as HomeSummary);
       })
       .catch(() => {
+        dropCached(homeKey);
         if (mounted) setHome(null);
       });
     return () => {

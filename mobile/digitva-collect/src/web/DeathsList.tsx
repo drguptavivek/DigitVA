@@ -22,7 +22,7 @@ import { AddIdentifierAction, IdentifierFacts } from "./CaseIdentifiers";
 import { RefreshIconButton } from "./DirectInterviewPanel";
 import { ProjectSelect, type ProjectChoice } from "../ui/ProjectSelect";
 import { rememberCasePreviews } from "./newCasePreview";
-import { readCached, screenKey, writeCached } from "./screenCache";
+import { dropCached, readCached, screenKey, writeCached } from "./screenCache";
 import { CaseCard, formatDisplayTimestamp, otherDraftWarning, sexLabel, useCaseCardStyles, type CaseBadge } from "../ui/CaseCard";
 import {
   TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE,
@@ -98,9 +98,10 @@ export type DeathCases = {
  */
 export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCases {
   const training = bootstrap?.scope === "training";
-  const [cases, setCases] = useState<CaseRow[]>(() => firstPage(bootstrap, undefined)?.cases ?? []);
-  const [counts, setCounts] = useState<Record<string, number>>(() => firstPage(bootstrap, undefined)?.counts ?? {});
-  const [nextCursor, setNextCursor] = useState<string | null>(() => firstPage(bootstrap, undefined)?.nextCursor ?? null);
+  const [seed] = useState(() => firstPage(bootstrap, undefined));
+  const [cases, setCases] = useState<CaseRow[]>(seed?.cases ?? []);
+  const [counts, setCounts] = useState<Record<string, number>>(seed?.counts ?? {});
+  const [nextCursor, setNextCursor] = useState<string | null>(seed?.nextCursor ?? null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [project, setProject] = useState<string | undefined>(undefined);
@@ -156,7 +157,16 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
       }
       return true;
     } catch (error) {
-      if (isCurrent()) setMessage(browserErrorText(error));
+      if (cursor === null) dropCached(screenKey(bootstrap.user.user_id, "deaths", training, requested));
+      if (isCurrent()) {
+        setMessage(browserErrorText(error));
+        // Refused or broken (not a network drop): the rows on screen, cached or earlier, come down.
+        if (cursor === null && !(error instanceof TypeError)) {
+          setCases([]);
+          setCounts({});
+          setNextCursor(null);
+        }
+      }
       return false;
     } finally {
       if (isCurrent()) setBusy(false);

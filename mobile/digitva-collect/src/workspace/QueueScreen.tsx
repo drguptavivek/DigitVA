@@ -20,7 +20,7 @@ import { sexLabel } from "../ui/CaseCard";
 import { codingLanguageLines, languageLabel, trainingQueueCounts } from "./codingLanguages";
 import { cardAge, formatCardDate, shortCaseNumber } from "./caseLabel";
 import type { QueueView } from "./viewState";
-import { readCached, screenKey, writeCached } from "../web/screenCache";
+import { dropCached, readCached, screenKey, writeCached } from "../web/screenCache";
 import type { CodingHistoryCache, CodingHistoryIdentity } from "../codingHistoryCache";
 import type {
   AllocationSnapshot,
@@ -640,6 +640,7 @@ export function QueueScreen({
           return;
         }
         setData(null);
+        dropCached(pageKey(requestScope));
         const previousError = actionError.current;
         if (!previousError || previousError.scope.api !== requestScope.api || previousError.scope.mode !== requestScope.mode
           || previousError.scope.projectId !== requestScope.projectId || previousError.scope.offset !== requestScope.offset

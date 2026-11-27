@@ -20,7 +20,7 @@ import { CaseFilterBar, EMPTY_ADVANCED, isInternalPlaceholderUnit, matchesAdvanc
 import {
   CaseCard, CaseToolbar, DeathsList, formatDisplayTimestamp, projectOptionsOf, useCaseCardStyles, useDeathCases, useProjectChoices,
 } from "./DeathsList";
-import { readCached, screenKey, writeCached } from "./screenCache";
+import { dropCached, readCached, screenKey, writeCached } from "./screenCache";
 import { DirectInterviewPanel } from "./DirectInterviewPanel";
 
 type InterviewStatusFilter = "all" | "in_progress" | "submitted";
@@ -211,7 +211,16 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
         writeCached(collectionKey, { intake: nextIntake, drafts: draftResult.drafts ?? [], submitted: submittedResult } satisfies CollectionSnapshot);
         return { success: deathsLoaded, revision };
       } catch (error) {
-        if (isCurrent()) setMessage(browserErrorText(error));
+        dropCached(collectionKey);
+        if (isCurrent()) {
+          setMessage(browserErrorText(error));
+          // Refused or broken (not a network drop): the rows on screen, cached or earlier, come down.
+          if (!(error instanceof TypeError)) {
+            setIntake(undefined);
+            setDrafts([]);
+            setSubmitted([]);
+          }
+        }
         return { success: false, revision };
       } finally {
         if (isCurrent()) setBusy(false);

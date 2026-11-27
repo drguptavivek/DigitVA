@@ -25,6 +25,11 @@ export function writeCached(key: string | undefined, value: unknown): void {
   if (entries.size > MAX_ENTRIES) entries.delete(entries.keys().next().value!);
 }
 
+/** A refused or failed refetch: the old answer must not come back on the next visit. */
+export function dropCached(key: string | undefined): void {
+  if (key !== undefined) entries.delete(key);
+}
+
 /** Sign-out or a different user: drop every screen's cached response (and Statistics' own cache). */
 export function clearScreenCache(): void {
   entries.clear();

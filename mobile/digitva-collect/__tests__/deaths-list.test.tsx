@@ -188,6 +188,36 @@ describe("DeathsList filter bar", () => {
     expect(titles(other)).not.toContain("Asha Devi");
   });
 
+  it("takes the cached rows down and forgets them when the refetch is refused", async () => {
+    const first = await render(<DeathsListPanel />);
+    expect(titles(first)).toContain("Asha Devi");
+    await act(async () => first.unmount());
+
+    let refuse!: (error: Error) => void;
+    mockGetCases.mockReturnValue(new Promise((_, reject) => { refuse = reject; }));
+    const again = await render(<DeathsListPanel />);
+    expect(titles(again)).toContain("Asha Devi");
+    await act(async () => refuse(new Error("forbidden")));
+    await settle();
+    expect(titles(again)).not.toContain("Asha Devi");
+    await act(async () => again.unmount());
+
+    // The next visit no longer flashes the refused rows.
+    mockGetCases.mockReturnValue(new Promise(() => undefined));
+    const later = await render(<DeathsListPanel />);
+    expect(titles(later)).not.toContain("Asha Devi");
+    await act(async () => later.unmount());
+  });
+
+  it("keeps the rows on screen when only the network dropped", async () => {
+    const first = await render(<DeathsListPanel />);
+    await act(async () => first.unmount());
+    mockGetCases.mockRejectedValue(new TypeError("Failed to fetch"));
+    const again = await render(<DeathsListPanel />);
+    expect(titles(again)).toContain("Asha Devi");
+    await act(async () => again.unmount());
+  });
+
   it("asks the server for the training scope only inside the Training screens", async () => {
     mockBootstrap = { ...makeBootstrap(["interviewer"], { intake: true }), scope: "training" } as typeof mockBootstrap;
     const tree = await render(<DeathsListPanel />);
@@ -409,6 +439,24 @@ describe("DeathsList registration editing", () => {
     const tree = await render(<DeathsListPanel />);
     expect(tree.root.findAll((n) => n.props["data-label"] === "editRegistration")).toHaveLength(1);
     await act(async () => tree.unmount());
+  });
+});
+
+describe("VA Interview cache", () => {
+  it("takes the cached drafts down when the refetch is refused", async () => {
+    (getDrafts as jest.Mock).mockResolvedValue({ drafts: [{ draft_id: "dr9", project_id: "P1", site_id: "S1", unique_id: "UID-9", deceased_name: "Ramesh Kumar", sections_saved: 2 }] });
+    const first = await render(<CollectionScreen />);
+    expect(text(first)).toContain("Ramesh Kumar");
+    await act(async () => first.unmount());
+
+    let refuse!: (error: Error) => void;
+    (getDrafts as jest.Mock).mockReturnValue(new Promise((_, reject) => { refuse = reject; }));
+    const again = await render(<CollectionScreen />);
+    expect(text(again)).toContain("Ramesh Kumar");
+    await act(async () => refuse(new Error("forbidden")));
+    await settle();
+    expect(text(again)).not.toContain("Ramesh Kumar");
+    await act(async () => again.unmount());
   });
 });
 

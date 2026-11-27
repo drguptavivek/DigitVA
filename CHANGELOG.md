@@ -3,6 +3,21 @@
 What landed, newest first. Details live in the commits and the linked docs;
 `handoff.md` holds only what is next.
 
+## 2026-11-27
+
+- Staging deployed to `eeb8e4815` on the owner's go (rglh token reply,
+  l2dg Social Autopsy split and layer mapping, public VA definitions).
+  Old-APK audit and the independent reviewer's read found nothing breaking.
+  In-flight count before the deploy: 0 WHO_2022_VA cases newly needing the
+  Social Autopsy analysis (the script reads `social_autopsy_collect_enabled`,
+  which exists only after `e7a4c2f9b1d3`; run pre-deploy without that line).
+  EBS snapshots `snap-063c4c027771c4d8d`, `snap-0a3bda4e867962ba5`,
+  `snap-0dbdf2e640d691811`, `snap-097ecb853ae096b79` (tag
+  `release=eeb8e4815`); pg_dump `pg_dump_minerva_20261127T042614Z.dump`.
+  Verified: migrations at head `f3c9d1a7b5e2`; app, worker and beat on the
+  new image; signed out, `/help/va-definitions.json` returns 200 with 63
+  definitions and `/help/va-definitions` points at it.
+
 ## 2026-11-26
 
 - KB: `docs/kb/icd11-postcoordination-axes.md`, all 41 postcoordination

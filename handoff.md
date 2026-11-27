@@ -2,14 +2,14 @@
 
 ## Start here
 
-Staging runs `5a3f994b3` (deployed 2026-11-26 on the owner's go; web
-`expo-web-v2026.11.26.2`; migrations at `b5e2c8d4a9f7`; rollback, no
-migration downgrade needed:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 634711950599b575b20387a9e805bc29adefc96c`;
-the demo stack runs the same commit as `digitva-demo-app:5a3f994b3`, its
-previous env saved at
+Staging runs `eeb8e4815` (deployed 2026-11-27 on the owner's go: rglh,
+l2dg, public VA definitions; migrations at `f3c9d1a7b5e2`; app, worker and
+beat recreated on the new image; rollback, schema changes are additive so no
+downgrade needed:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 5a3f994b3af6c00423e5de83d1fbcab4e1344d27`;
+the demo stack still runs `digitva-demo-app:5a3f994b3`, its previous env saved at
 `/data/digitva-demo.env.pre-5a3f994b3`;
-EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-26). The image carries 0.3.31
+EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-27). The image carries 0.3.31
 (`android-v0.3.31`, `collect-plus-v0.3.31-plus.1`; supersedes 0.3.30, which
 never reached phones); phones are offered 0.3.31 since 2026-11-26. Play AAB
 0.3.31 (run 45770414218, expires about 2026-12-10) awaits the owner's upload.
@@ -19,11 +19,6 @@ Owner decisions:
 - Homepage "DigitVA in use" counts only HMR001 (10 interviews): the owner
   will tick "Included in homepage KPIs" (Admin → Projects) for ICMR01,
   UNSW01, KEM001 and TELE01 themselves.
-- Staging deploy of `digitva-rglh` and `digitva-l2dg` (main `158e523a5`,
-  migrations `e7a4c2f9b1d3`, `f3c9d1a7b5e2`) needs the owner's go. Before
-  it: run `scripts/l2dg_inflight_social_autopsy.sql` on staging and tell
-  coders about cases that now need the Social Autopsy analysis; after it:
-  restart app, worker and beat (mapping caches are per process).
 - Redis outage 500s every request through the IP-ban check (`digitva-248z`):
   fail open or closed is the owner's call.
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer
@@ -36,8 +31,8 @@ Owner decisions:
 - Never re-run the ICD-10 CSV or policy import on staging: it re-enables the
   withdrawn R00-R94 codes (`1f037b4717e4`; R50 and R54 stay selectable by
   design).
-- The sixteen pre-deploy EBS snapshots (tags `release=0.3.30`,
-  `release=cb5c903c1`, `release=634711950` and `release=5a3f994b3`) never expire; delete them when no longer needed.
+- The twenty pre-deploy EBS snapshots (tags `release=0.3.30`,
+  `release=cb5c903c1`, `release=634711950`, `release=5a3f994b3` and `release=eeb8e4815`) never expire; delete them when no longer needed.
 
 Owner rules: coding works the same on the web, Collect online and Collect
 Plus online and offline (bd memory `coding-parity-all-surfaces`); Collect

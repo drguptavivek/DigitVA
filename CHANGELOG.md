@@ -5,6 +5,22 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Web Add a Death uses the phone's Register a death layout (`digitva-ctj2`,
+  owner request): section cards (Deceased, Place, Identifiers, Informant,
+  Notes), the phone's field order and spacing, stacked choice lists for Sex
+  and birth-date precision. Behaviour changes: the primary button is now
+  "Save" (saves only) and "Save and start interview" is secondary, the
+  reverse of before; the Required word hides once a field's error shows.
+  Field constants and ChoiceList moved verbatim from the phone's register
+  screen into `src/registrationFormLayout.tsx` (no APK behaviour change).
+  Open test gaps: edit mode, and address hidden while consent is closed.
+- Web Start an interview has no Project dropdown of its own: the title-row
+  Project is the only choice, with one "Site and unit" field built like Add
+  a Death (`digitva-oo77`). Inactive units and tree sites with no selectable
+  unit are no longer offered; the server already refused both. Owner rule
+  `place-picker-pattern` recorded in bd memories.
+- Both reviewed by the independent reviewer; full Jest 362 suites / 6637
+  passed on main; tsc clean.
 - Web Add a Death picks its place like the phone: one searchable "Site and
   unit" field instead of a site button row plus a unit dropdown
   (`digitva-vbr2`). In a project with a unit tree a web registration needs

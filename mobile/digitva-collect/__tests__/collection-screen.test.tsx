@@ -64,6 +64,7 @@ jest.mock("../src/i18n", () => ({
   t: (key: string, values: Record<string, string> = {}) => key + (values.date ? `:${values.date}` : "") + (values.label ? `:${values.label}` : "") + (values.value ? `:${values.value}` : "") + (values.id ? `:${values.id}` : ""),
 }));
 jest.mock("../src/ui", () => ({
+  FieldLabel: ({ label }: { label: string }) => <span data-field-label={label} />,
   Button: ({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) => <button data-label={label} disabled={disabled} onClick={onPress} />,
   stateLabel: (state: string) => state,
   useUiStyles: () => ({ error: {}, muted: {}, headline: {}, card: {}, text: {} })
@@ -214,13 +215,17 @@ describe("CollectionScreen refresh", () => {
       return tree!;
     }
 
-    it("replaces the per-unit buttons with one entry point and auto-selects a single project and site", async () => {
+    const place = (tree: ReturnType<typeof create>) =>
+      tree.root.findAll((node) => typeof node.props.accessibilityLabel === "string" && node.props.accessibilityLabel.startsWith("chooseSite") && typeof node.props.onPress === "function");
+
+    it("replaces the per-unit buttons with one Site and unit dropdown, no project field, auto-selecting a single site", async () => {
       const tree = await openPanel([
         { project_id: "P1", project_name: "Alpha", site_id: "S1", site_name: "Site One", web_intake_mode: "direct", org_units: [] },
       ]);
       expect(tree.root.findAll((node) => typeof node.props["data-label"] === "string" && node.props["data-label"].startsWith("newInterview"))).toHaveLength(0);
-      expect(pressable(tree, "interviewProject: Alpha")).toBeDefined();
-      expect(pressable(tree, "interviewPlace: Site One")).toBeDefined();
+      expect(tree.root.findAll((node) => typeof node.props.accessibilityLabel === "string" && node.props.accessibilityLabel.startsWith("interviewProject"))).toHaveLength(0);
+      expect(place(tree)).toHaveLength(1);
+      expect(pressable(tree, "chooseSite: Site One")).toBeDefined();
       const start = byLabel(tree, "startInterview")[0];
       expect(start.props.disabled).toBe(false);
       await act(async () => start.props.onClick());
@@ -228,7 +233,14 @@ describe("CollectionScreen refresh", () => {
       await act(async () => tree.unmount());
     });
 
-    it("requires a project then a unit, lists only that project's eligible units, and starts with the unit", async () => {
+    it("lists every project's eligible places with the project name under All projects, and starts with the unit", async () => {
+      mockCurrentBootstrap = {
+        ...mockTwoProjectBootstrap,
+        access: { ...mockTwoProjectBootstrap.access, projects: [
+          { ...mockTwoProjectBootstrap.access.projects[0], project_name: "Alpha", has_tree: true },
+          { ...mockTwoProjectBootstrap.access.projects[1], project_name: "Beta" },
+        ] },
+      };
       const tree = await openPanel([
         { project_id: "P1", project_name: "Alpha", site_id: "S1", site_name: "Site One", web_intake_mode: "both", org_units: [
           { org_unit_id: "U1", unit_name: "CHC 01" },
@@ -238,30 +250,20 @@ describe("CollectionScreen refresh", () => {
         { project_id: "P2", project_name: "Beta", site_id: "S2", site_name: "Beta Site", web_intake_mode: "direct", org_units: [] },
         { project_id: "P3", project_name: "Gamma", site_id: "S3", site_name: "Register only", web_intake_mode: "death_register", org_units: [] },
       ]);
-      expect(byLabel(tree, "startInterview")[0].props.disabled).toBe(true);
-      expect(pressable(tree, "interviewPlace: choosePlace")).toBeUndefined();
-
-      await act(async () => pressable(tree, "interviewProject: chooseProject").props.onPress());
-      expect(pressable(tree, "Alpha")).toBeDefined();
-      expect(pressable(tree, "Beta")).toBeDefined();
-      expect(pressable(tree, "Gamma")).toBeUndefined();
-      await act(async () => pressable(tree, "Alpha").props.onPress());
+      expect(place(tree)).toHaveLength(1);
       expect(byLabel(tree, "startInterview")[0].props.disabled).toBe(true);
 
-      await act(async () => pressable(tree, "interviewPlace").props.onPress());
-      expect(pressable(tree, "CHC 01")).toBeDefined();
-      expect(pressable(tree, "PHC 1")).toBeDefined();
-      expect(pressable(tree, "Closed unit")).toBeUndefined();
-      expect(pressable(tree, "Beta Site")).toBeUndefined();
-      await act(async () => pressable(tree, "PHC 1").props.onPress());
+      await act(async () => pressable(tree, "chooseSite").props.onPress());
+      expect(pressable(tree, "CHC 01, Alpha")).toBeDefined();
+      expect(pressable(tree, "PHC 1, Alpha")).toBeDefined();
+      expect(pressable(tree, "Beta Site, Beta")).toBeDefined();
+      expect(pressable(tree, "Closed unit, Alpha")).toBeUndefined();
+      expect(tree.root.findAll((node) => node.props.accessibilityLabel?.startsWith?.("Register only"))).toHaveLength(0);
+      await act(async () => pressable(tree, "PHC 1, Alpha").props.onPress());
       const start = byLabel(tree, "startInterview")[0];
       expect(start.props.disabled).toBe(false);
       await act(async () => start.props.onClick());
       expect(mockRouterPush).toHaveBeenCalledWith({ pathname: "/interview", params: { projectId: "P1", siteId: "S1", orgUnitId: "U2" } });
-
-      await act(async () => pressable(tree, "interviewProject: Alpha").props.onPress());
-      await act(async () => pressable(tree, "Beta").props.onPress());
-      expect(pressable(tree, "interviewPlace: Beta Site")).toBeDefined();
       await act(async () => tree.unmount());
     });
   });
@@ -925,6 +927,8 @@ describe("CollectionScreen tabs and filters", () => {
   });
 
   it("uses training routes for report death, direct interview, and resume when rendered in training mode", async () => {
+    // The training project rides on access.training, not access.projects, as the server sends it.
+    mockCurrentBootstrap = { ...mockBootstrap, access: { ...mockBootstrap.access, training: { ...(mockBootstrap.access as { training?: object }).training, project: { ...mockBootstrap.access.projects[0], project_id: "TRN01", has_tree: true } } } as typeof mockBootstrap.access };
     mockGetIntakeContext.mockResolvedValue({
       context: [{ project_id: "TRN01", site_id: "O005", web_intake_mode: "both", org_units: [{ org_unit_id: "u-1", unit_name: "Session 1", level_name: "District" }] }],
     });

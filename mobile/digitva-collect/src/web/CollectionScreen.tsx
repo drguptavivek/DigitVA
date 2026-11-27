@@ -12,6 +12,7 @@ import { t } from "../i18n";
 import { controls, spacing, typography, useTheme } from "../theme";
 import { TRAINING_CODING_CASE_ROUTE, TRAINING_INTERVIEW_FORM_ROUTE, TRAINING_REPORTING_ROUTE } from "../training";
 import { Button, useUiStyles } from "../ui";
+import { registrationTargets } from "../registrationTargets";
 import { ProjectSelect } from "../ui/ProjectSelect";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
@@ -19,7 +20,7 @@ import { CaseFilterBar, EMPTY_ADVANCED, isInternalPlaceholderUnit, matchesAdvanc
 import {
   CaseCard, CaseToolbar, DeathsList, formatDisplayTimestamp, projectOptionsOf, useCaseCardStyles, useDeathCases, useProjectChoices,
 } from "./DeathsList";
-import { DirectInterviewPanel, directInterviewTargets } from "./DirectInterviewPanel";
+import { DirectInterviewPanel } from "./DirectInterviewPanel";
 
 type InterviewStatusFilter = "all" | "in_progress" | "submitted";
 type CollectionTab = "interviews" | "deaths";
@@ -309,10 +310,18 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
   const projectOptions = useMemo(() => projectOptionsOf(intake?.context ?? []), [intake?.context]);
   const projectNames = useMemo(() => new Map(projectOptions.map((option) => [option.value, option.label])), [projectOptions]);
 
-  // Within the page's Project filter, so the panel does not ask for a project the page already chose.
+  // Within the page's Project filter (the only project choice), as on the Add a Death form: the panel asks for the place alone.
+  // The training project is not in access.projects; its tree (has_tree, units) is on access.training.project.
+  const accessProjects = useMemo(() => {
+    const access = bootstrap?.access;
+    return access ? [...access.projects, ...(access.training?.project ? [access.training.project] : [])] : [];
+  }, [bootstrap?.access]);
   const directTargets = useMemo(
-    () => directInterviewTargets(intake?.context ?? []).filter((target) => !projectFilter || target.projectId === projectFilter),
-    [intake?.context, projectFilter],
+    () => registrationTargets(
+      (intake?.context ?? []).filter((entry) => (entry.web_intake_mode === "direct" || entry.web_intake_mode === "both") && (!projectFilter || entry.project_id === projectFilter)),
+      accessProjects,
+    ),
+    [intake?.context, projectFilter, accessProjects],
   );
   const [directOpen, setDirectOpen] = useState(false);
 
@@ -414,8 +423,7 @@ export function CollectionPanel({ training: trainingProp = false }: { training?:
             {directOpen && directTargets.length > 0 ? (
               <DirectInterviewPanel
                 targets={directTargets}
-                context={intake?.context}
-                projectFixed={Boolean(projectFilter)}
+                projects={accessProjects}
                 onStart={(target) => router.push({ pathname: interviewFormPath as never, params: { projectId: target.projectId, siteId: target.siteId, ...(target.orgUnitId ? { orgUnitId: target.orgUnitId } : {}) } })}
               />
             ) : null}

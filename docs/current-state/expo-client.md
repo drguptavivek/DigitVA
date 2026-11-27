@@ -250,10 +250,12 @@ The VA interview screen `/collection` (`src/web/CollectionScreen.tsx`) has
 two actions and an icon-only Refresh: Record death (`/death-registration`,
 shown for `death_register` or `both` sites) and Direct VA interview (shown for
 `direct` or `both` sites). Direct VA interview opens an inline panel
-(`src/web/DirectInterviewPanel.tsx`) with a Project picker and then a Site or
-unit picker for that project, built from the intake context (selectable units
-only; one entry per unit when a site has several, otherwise the site). A
-single project or place is picked automatically; Start interview opens
+(`src/web/DirectInterviewPanel.tsx`) with one searchable "Site and unit" dropdown
+(`chooseSite`). The title-row Project is the only project choice; under All projects the
+options name their project, as on Add a Death. The places are `registrationTargets` of
+the `direct`/`both` intake entries (a site without a unit tree, otherwise one per active
+selectable unit, with its lineage) rendered by `placeOptions`. A single option is picked
+automatically; Start interview opens
 `/interview` with the project, site and, when known, unit.
 
 An interview linked to a reported death shows a case strip

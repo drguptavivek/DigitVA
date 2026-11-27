@@ -468,7 +468,7 @@ const navigationStyles = StyleSheet.create({
 
 const languageStyles = StyleSheet.create({
   anchor: { position: "relative", zIndex: 20 },
-  trigger: { minWidth: 48, minHeight: 48, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  trigger: { minWidth: 48, minHeight: 44, borderWidth: 1, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
   triggerText: { fontSize: 16, fontWeight: "700" },
-  popover: { position: "absolute", right: 0, top: 56, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: radius.lg, gap: 4, zIndex: 21, elevation: 4 },
+  popover: { position: "absolute", right: 0, top: 52, minWidth: 192, padding: 8, borderWidth: 1, borderRadius: radius.lg, gap: 4, zIndex: 21, elevation: 4 },
 });

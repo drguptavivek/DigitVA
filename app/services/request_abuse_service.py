@@ -63,14 +63,25 @@ def get_temporary_ban(ip_address: str | None) -> dict[str, Any] | None:
     if not normalized_ip or not is_method_not_allowed_ban_enabled():
         return None
 
-    payload = cache.get(_ban_key(normalized_ip))
+    # Fails open (owner 2026-11-27, digitva-248z): this runs on every request,
+    # and Flask-Caching get/set/delete raise when Redis is down, so a cache
+    # outage must not refuse the whole app. The ban is a best-effort control.
+    # ponytail: logs every request during an outage; throttle if it floods.
+    try:
+        payload = cache.get(_ban_key(normalized_ip))
+    except Exception:
+        current_app.logger.warning("ip_ban_check_skipped: cache unavailable")
+        return None
     if not payload:
         return None
 
     now = int(time.time())
     expires_at = int(payload.get("expires_at", 0))
     if expires_at <= now:
-        cache.delete(_ban_key(normalized_ip))
+        try:
+            cache.delete(_ban_key(normalized_ip))
+        except Exception:
+            current_app.logger.warning("ip_ban_check_skipped: cache unavailable")
         return None
 
     remaining_seconds = max(expires_at - now, 1)

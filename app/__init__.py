@@ -306,6 +306,9 @@ def create_app(config_class=None, register_routes=True):
 
     # Initialize rate limiter with Redis storage
     app.config.setdefault("RATELIMIT_STORAGE_URI", app.config.get("REDIS_URL", "redis://localhost:6379/0"))
+    # Fail open (owner 2026-11-27, digitva-248z): without this the limiter raises
+    # on every request when Redis is down and the whole app returns 500.
+    app.config.setdefault("RATELIMIT_SWALLOW_ERRORS", True)
     limiter.init_app(app)
 
     # Initialize cache (Redis backend, 5-minute default TTL)

@@ -116,3 +116,24 @@ class RequestMethodAbuseControlTests(BaseTestCase):
         # through the same before_request ban check and is public by design.
         follow_up = self._request_from_ip("GET", "/help", ip_address)
         self.assertEqual(follow_up.status_code, 200)
+
+    def test_cache_outage_fails_open_on_every_path(self):
+        # digitva-248z: Flask-Caching raises when Redis is down; the ban check
+        # runs on every request and the 405 recorder on every 405.
+        from unittest import mock
+
+        with mock.patch(
+            "app.services.request_abuse_service.cache.get",
+            side_effect=ConnectionError("redis down"),
+        ):
+            ok = self._request_from_ip("GET", "/health", "203.0.113.20")
+            page = self._request_from_ip("GET", "/", "203.0.113.20")
+            wrong_method = self._request_from_ip("POST", "/", "203.0.113.20")
+
+        self.assertEqual(ok.status_code, 200)
+        self.assertNotEqual(page.status_code, 500)
+        self.assertEqual(wrong_method.status_code, 405)
+
+    def test_rate_limiter_swallows_storage_errors(self):
+        # digitva-248z: Flask-Limiter uses Redis too; it must not 500 the app.
+        self.assertTrue(self.app.config["RATELIMIT_SWALLOW_ERRORS"])

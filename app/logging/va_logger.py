@@ -461,11 +461,16 @@ def va_logging(app):
                     record_method_not_allowed_abuse,
                 )
 
-                record_method_not_allowed_abuse(
-                    request.remote_addr,
-                    method=request.method,
-                    path=request.path,
-                )
+                try:
+                    record_method_not_allowed_abuse(
+                        request.remote_addr,
+                        method=request.method,
+                        path=request.path,
+                    )
+                except Exception:
+                    # Fails open like get_temporary_ban (digitva-248z): a cache
+                    # outage must not turn a 405 into a 500.
+                    error_logger.warning("ip_ban_record_skipped: cache unavailable")
             log_method = error_logger.warning if status_code < 500 else error_logger.error
             log_method(
                 "http_exception method=%s path=%s ip=%s user=%s status=%s",

@@ -3,7 +3,7 @@ title: Web Intake Policy (WHO VA 2022 questionnaire in DigitVA)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-25
+last_updated: 2026-11-27
 ---
 
 # Web Intake Policy
@@ -150,6 +150,12 @@ submission enters the workflow. Plan:
   (`Site`, `unique_id`, `survey_state`, `survey_district`,
   `org_<level>_code`, submitter metadata) are injected by the server at
   submission, never typed by the interviewer.
+
+- Web death registration (owner, 2026-11-27): in a project with an organization
+  unit tree, a web death registration needs a unit, as on the phone. The place
+  is one "Site and unit" field listing units only (sites in a project without
+  a tree) with nothing preselected unless there is exactly one choice; the
+  death cannot be saved until one is chosen.
 
 ## Death-site GPS location (owner, Vivek Gupta, 2026-10-13)
 

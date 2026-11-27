@@ -94,6 +94,7 @@ import {
 import { announce, Button, Card, ChoiceRow, errorText, FieldHint, FieldLabel, Notice, Row, Screen, SectionLabel, SegmentedControl, Separator, TextLink, useUiStyles } from "../ui";
 import { radius, spacing, useTheme } from "../theme";
 import { useWhoFormTheme } from "../whoWebTheme";
+import { registrationTargets } from "../registrationTargets";
 import { chainLookup, rowLabel, type ChainOf } from "../ui/sitePicker";
 import { Icon, icons } from "../Icon";
 import { SitePickerSheet } from "./worklistParts";
@@ -405,26 +406,7 @@ export const SEX_LABELS: Record<(typeof SEX_VALUES)[number], StringKey> = {
 };
 
 function registrationTargetsFromAccess(access: AccessSummary): Target[] {
-  return intakeContextFromAccess(access, "register_death").flatMap((entry) => {
-    const project = access.projects.find((item) => item.project_id === entry.project_id);
-    const units = (entry.org_units ?? []).filter((unit) => unit.is_active !== false && unit.selectable !== false);
-    if (!project?.has_tree) return [{
-      key: `${entry.project_id}:${entry.site_id}`,
-      label: entry.site_name ?? entry.site_id,
-      projectId: entry.project_id,
-      siteId: entry.site_id,
-      siteName: entry.site_name ?? entry.site_id,
-    }];
-    return units.map((unit) => ({
-      key: `${entry.project_id}:${entry.site_id}:${unit.org_unit_id}`,
-      label: `${entry.site_name ?? entry.site_id} · ${unit.unit_name ?? unit.org_unit_id}`,
-      projectId: entry.project_id,
-      siteId: entry.site_id,
-      orgUnitId: unit.org_unit_id,
-      siteName: entry.site_name ?? entry.site_id,
-      unitName: unit.unit_name ?? unit.org_unit_id,
-    }));
-  });
+  return registrationTargets(intakeContextFromAccess(access, "register_death"), access.projects);
 }
 
 export default function Register() {

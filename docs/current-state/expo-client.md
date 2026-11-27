@@ -3,7 +3,7 @@ title: Expo Client Hosting And Access
 doc_type: current-state
 status: active
 owner: engineering
-last_updated: 2026-11-26
+last_updated: 2026-11-27
 ---
 
 # Expo Client Hosting And Access
@@ -186,6 +186,15 @@ when the export is present (`VaUsers.landing_url()`, policy
   as the detail. On the phone the site/unit sheets (worklist, Register a
   death) keep `ChoiceSheet` (rows take a `detail`) and get the trail through
   `sitePicker`'s `chainLookup`; the Register field shows it muted after the name.
+- The web Add a Death form (new death only) picks its place like the phone's
+  Register: one "Site and unit" `Select` (`chooseSite`, placeholder "Choose a
+  unit") built by `src/web/placeOptions.ts` from `registrationTargets`
+  (`src/registrationTargets.ts`, shared with the phone: no tree gives one
+  target per site, a tree one per active selectable unit). In a tree project a
+  unit is required and none is preselected; only one choice is taken at once.
+  A pick sets project, site and unit together; the detail adds the site when a
+  unit sits under several sites and the project when choices span projects.
+  The title-row Project still narrows the choices.
 - For a user with roles or project grants, it fetches `GET /api/v1/me/activity`
   and displays:
   1. Overall personal activity counts (forms filled / submitted interviews,

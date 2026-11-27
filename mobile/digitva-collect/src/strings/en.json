@@ -957,6 +957,7 @@
   "consentRecordedRefused": "Consent recorded: the respondent refused. Their name, phone and address are not saved.",
   "consentChange": "Change decision",
   "consentInformantClosed": "The informant's name, phone and address open once the respondent's consent decision is recorded.",
+  "choosePlaceFirst": "Choose the site and unit first.",
   "navUsers": "Users",
   "usersTitle": "Users",
   "usersSearchLabel": "Search users",

@@ -5,6 +5,16 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Web Add a Death picks its place like the phone: one searchable "Site and
+  unit" field instead of a site button row plus a unit dropdown
+  (`digitva-vbr2`). In a project with a unit tree a web registration needs
+  a unit (owner, 2026-11-27, `docs/policy/web-intake.md`); the server rule
+  is unchanged, so older APKs are unaffected. Consent and informant fields
+  stay closed until a place is chosen. The phone's target rule moved
+  verbatim into `src/registrationTargets.ts`. Reviewed by the independent
+  reviewer; full Jest 362 suites passed after the coordinator routed the two
+  new files' type imports through `src/api.ts` (api-entry-point guard).
+  Follow-up `digitva-ctj2` not started.
 - Web Deaths: the "Add a Death to List" form shows the title-row Project
   for a new death and narrows its site choices to that project
   (`digitva-zxw0`, owner request, follow-up to `digitva-uee4`); the form

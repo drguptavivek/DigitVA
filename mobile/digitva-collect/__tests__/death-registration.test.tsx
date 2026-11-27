@@ -157,47 +157,114 @@ describe("DeathRegistrationScreen", () => {
     await act(async () => tree!.unmount());
   });
 
-  it("lists the units in a searchable dropdown labelled with the ancestor names, not codes", async () => {
-    const unit = (id: string, code: string, name: string, path: string, selectable: boolean) =>
-      ({ org_unit_id: id, unit_code: code, unit_name: name, path, selectable, is_active: true, roles: [] });
-    const units = [unit("o1", "CMO", "CMO Office", "CMO", false), unit("o2", "CHC1", "Hamirpur CHC 1", "CMO.CHC1", false), unit("o3", "AAM01", "AAM01", "CMO.CHC1.AAM01", true)];
-    const project = mockBootstrap.access.projects[0] as unknown as { units: unknown[]; actions: { register_death: Array<{ org_units: unknown[] }> } };
-    project.units = units;
+  const unit = (id: string, code: string, name: string, path: string, selectable: boolean) =>
+    ({ org_unit_id: id, unit_code: code, unit_name: name, path, selectable, is_active: true, roles: [] });
+  const treeProject = (units: unknown[], over: Record<string, unknown> = {}) => {
+    const base = mockBootstrap.access.projects[0] as unknown as Record<string, unknown>;
+    return { ...base, has_tree: true, units, ...over };
+  };
+  const placeField = (tree: ReturnType<typeof create>) =>
+    tree.root.findAll((node) => typeof node.props.accessibilityLabel === "string" && node.props.accessibilityLabel.startsWith("chooseSite") && node.props.accessibilityRole === "button")[0];
+  const placeRows = (tree: ReturnType<typeof create>) =>
+    [...new Set(tree.root.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel as string))];
+  const pickPlace = async (tree: ReturnType<typeof create>, name: string) => {
+    await act(async () => placeField(tree).props.onPress());
+    await act(async () => tree.root.findAll((node) => node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === name)[0].props.onPress());
+  };
+  const fillAndSave = async (tree: ReturnType<typeof create>) => {
+    const findField = (field: string) => tree.root.findByProps({ "data-field": field });
+    await act(async () => {
+      findField("deceased_name").props.onClick("Asha");
+      findField("date_of_death").props.onClick("2026-09-30");
+      findField("date_of_birth").props.onClick("1987-04-12");
+    });
+    await act(async () => tree.root.findByProps({ "data-label": "sexFemale" }).props.onClick());
+    await act(async () => tree.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+  };
+  const alertShown = (tree: ReturnType<typeof create>) => tree.root.findAll((node) => node.props.accessibilityRole === "alert").length;
+
+  it("in a tree project offers units only, preselects none, blocks saving until one is chosen, then posts project, site and unit", async () => {
+    const units = [unit("o1", "CMO", "CMO Office", "CMO", false), unit("o2", "CHC1", "Hamirpur CHC 1", "CMO.CHC1", false), unit("o3", "AAM01", "AAM01", "CMO.CHC1.AAM01", true), unit("o4", "AAM02", "AAM02", "CMO.CHC1.AAM02", true)];
+    mockBootstrap.access.projects = [treeProject(units)] as never;
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
     await settle();
+    expect(placeField(tree!).props.accessibilityLabel).toBe("chooseSite");
+    await act(async () => placeField(tree!).props.onPress());
+    // Only selectable units; each names its ancestors by name, not codes.
+    expect(placeRows(tree!)).toEqual(["AAM01, Hamirpur CHC 1 < CMO Office", "AAM02, Hamirpur CHC 1 < CMO Office"]);
+    await act(async () => tree!.root.findAll((node) => node.props.accessibilityLabel === "closeList")[0].props.onPress());
 
-    const field = tree!.root.findAll((node) => node.props.accessibilityLabel === "chooseUnit" && node.props.accessibilityRole === "button")[0];
-    expect(field).toBeDefined();
-    await act(async () => field.props.onPress());
-    const rows = tree!.root.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel);
-    // Only the selectable unit is an option; its label walks the ancestors by name.
-    expect([...new Set(rows)]).toEqual(["AAM01, Hamirpur CHC 1 < CMO Office"]);
-    await act(async () => tree!.root.findAll((node) => node.props.accessibilityRole === "radio")[0].props.onPress());
-    expect(tree!.root.findAll((node) => node.props.accessibilityLabel === "chooseUnit: AAM01, Hamirpur CHC 1 < CMO Office")[0]).toBeDefined();
+    await fillAndSave(tree!);
+    expect(mockRegisterDeath).not.toHaveBeenCalled();
+    expect(alertShown(tree!)).toBeGreaterThan(0);
+
+    await pickPlace(tree!, "AAM02, Hamirpur CHC 1 < CMO Office");
+    expect(placeField(tree!).props.accessibilityLabel).toBe("chooseSite: AAM02, Hamirpur CHC 1 < CMO Office");
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+    const body = JSON.stringify(mockRegisterDeath.mock.calls[0]);
+    expect(body).toContain("\"project_id\":\"P1\"");
+    expect(body).toContain("\"site_id\":\"S1\"");
+    expect(body).toContain("\"org_unit_id\":\"o4\"");
     await act(async () => tree!.unmount());
   });
 
-  it("labels each unit with its own name when two projects share a unit code", async () => {
-    const unit = (id: string, name: string) =>
-      ({ org_unit_id: id, unit_code: "X1", unit_name: name, path: `ROOT.X1`, selectable: true, is_active: true, roles: [] });
-    const root = { org_unit_id: "r", unit_code: "ROOT", unit_name: "Root Office", path: "ROOT", selectable: false, is_active: true, roles: [] };
+  it("preselects the place when there is exactly one choice", async () => {
+    mockBootstrap.access.projects = [treeProject([unit("o3", "AAM01", "AAM01", "CMO.AAM01", true)])] as never;
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    expect(placeField(tree!).props.accessibilityLabel).toBe("chooseSite: AAM01");
+    await fillAndSave(tree!);
+    expect(JSON.stringify(mockRegisterDeath.mock.calls[0])).toContain("\"org_unit_id\":\"o3\"");
+    await act(async () => tree!.unmount());
+  });
+
+  it("with All projects, names the project on each option and a pick sets that project", async () => {
     const base = mockBootstrap.access.projects[0] as unknown as Record<string, unknown>;
+    const site = (id: string, name: string) => ({ site_id: id, site_name: name, web_intake_mode: "death_register", org_units: [] });
     mockBootstrap.access.projects = [
-      { ...base, units: [root, unit("u1", "Alpha Unit")] },
-      { ...base, project_id: "P2", value: "P2", label: "P2", units: [root, unit("u2", "Beta Unit")] },
+      treeProject([unit("a1", "A1", "Alpha Unit", "ROOT.A1", true)], { project_id: "P1", project_name: "First" }),
+      { ...base, project_id: "P2", project_name: "Second", has_tree: true, units: [unit("b1", "B1", "Beta Unit", "ROOT.B1", true)], actions: { interview: [], register_death: [site("S2", "Site Two")] } },
     ] as never;
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
     await settle();
-    const field = tree!.root.findAll((node) => node.props.accessibilityLabel === "chooseUnit" && node.props.accessibilityRole === "button")[0];
-    await act(async () => field.props.onPress());
-    const rows = [...new Set(tree!.root.findAll((node) => node.props.accessibilityRole === "radio").map((node) => node.props.accessibilityLabel as string))];
-    expect(rows).toContain("Alpha Unit, Root Office");
+    await act(async () => placeField(tree!).props.onPress());
+    expect(placeRows(tree!)).toEqual(["Alpha Unit, First", "Beta Unit, Second"]);
+    await act(async () => tree!.root.findAll((node) => node.props.accessibilityLabel === "closeList")[0].props.onPress());
+    await pickPlace(tree!, "Beta Unit, Second");
+    await fillAndSave(tree!);
+    const body = JSON.stringify(mockRegisterDeath.mock.calls[0]);
+    expect(body).toContain("\"project_id\":\"P2\"");
+    expect(body).toContain("\"site_id\":\"S2\"");
+    expect(body).toContain("\"org_unit_id\":\"b1\"");
     await act(async () => tree!.unmount());
   });
 
-  it("the Add form follows the title row's Project: its sites narrow to that project and the save uses it", async () => {
+  it("in a project without a tree lists its sites and saves without a unit", async () => {
+    const base = mockBootstrap.access.projects[0] as unknown as { actions: { register_death: unknown[] } };
+    base.actions.register_death.push({ site_id: "S2", site_name: "Site Two", web_intake_mode: "death_register", org_units: [] });
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    await act(async () => placeField(tree!).props.onPress());
+    expect(placeRows(tree!)).toEqual(["Site", "Site Two"]);
+    await act(async () => tree!.root.findAll((node) => node.props.accessibilityLabel === "closeList")[0].props.onPress());
+    await fillAndSave(tree!);
+    expect(mockRegisterDeath).not.toHaveBeenCalled();
+    await pickPlace(tree!, "Site Two");
+    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    await settle();
+    const body = JSON.stringify(mockRegisterDeath.mock.calls[0]);
+    expect(body).toContain("\"site_id\":\"S2\"");
+    expect(body).not.toContain("org_unit_id");
+    await act(async () => tree!.unmount());
+  });
+
+  it("the Add form follows the title row's Project: its places narrow to that project and the save uses it", async () => {
     const base = mockBootstrap.access.projects[0] as unknown as Record<string, unknown>;
     const site = (id: string, name: string) => ({ site_id: id, site_name: name, web_intake_mode: "death_register", org_units: [] });
     mockBootstrap.access.projects = [
@@ -207,16 +274,67 @@ describe("DeathRegistrationScreen", () => {
     let tree: ReturnType<typeof create>;
     await act(async () => { tree = create(<DeathRegistrationScreen />); });
     await settle();
-    const sites = () => tree!.root.findAll((node) => typeof node.props["data-label"] === "string" && / · Site/.test(node.props["data-label"]) && node.type === "button").map((node) => node.props["data-label"]);
-    expect(sites()).toEqual(["Project · Site", "Second · Site Two"]);
+    await act(async () => placeField(tree!).props.onPress());
+    expect(placeRows(tree!)).toEqual(["Site, Project", "Site Two, Second"]);
+    await act(async () => tree!.root.findAll((node) => node.props.accessibilityLabel === "closeList")[0].props.onPress());
 
     const projectField = tree!.root.findAll((node) => node.props.accessibilityLabel === "filterProject: filterAllProjects" && typeof node.props.onPress === "function")[0];
     expect(projectField).toBeDefined();
     await act(async () => projectField.props.onPress());
     await act(async () => tree!.root.findAll((node) => node.props.accessibilityLabel === "Second" && typeof node.props.onPress === "function")[0].props.onPress());
     await settle();
-    expect(sites()).toEqual(["Second · Site Two"]);
+    // One choice left: taken at once, and the project name is no longer needed.
+    expect(placeField(tree!).props.accessibilityLabel).toBe("chooseSite: Site Two");
 
+    await fillAndSave(tree!);
+    expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(mockRegisterDeath.mock.calls[0])).toContain("\"project_id\":\"P2\"");
+    expect(JSON.stringify(mockRegisterDeath.mock.calls[0])).toContain("\"site_id\":\"S2\"");
+    await act(async () => tree!.unmount());
+  });
+
+  const addSite = (id: string, name: string) => {
+    const base = mockBootstrap.access.projects[0] as unknown as { actions: { register_death: unknown[] } };
+    base.actions.register_death.push({ site_id: id, site_name: name, web_intake_mode: "death_register", org_units: [] });
+  };
+
+  it("with several places and consent required: no consent panel or informant fields before a pick; a refusal then saves with the picked site", async () => {
+    mockFetchConsentConfig.mockResolvedValue({ project_id: "P1", consent_required: true, notice_versions: [] });
+    const request = jest.spyOn(sharedApi, "requestClientJson").mockImplementation(async (_path, options) => ({ client_draft_id: (options?.json as { client_draft_id: string }).client_draft_id }) as never);
+    addSite("S2", "Site Two");
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    expect(tree!.root.findAllByProps({ "data-web-consent": "en" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ "data-field": "informant_name" })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ testID: "informant-place-first" }).length).toBeGreaterThan(0);
+    expect(tree!.root.findAllByProps({ testID: "informant-closed" })).toHaveLength(0);
+
+    await pickPlace(tree!, "Site Two");
+    await settle();
+    expect(tree!.root.findAllByProps({ testID: "informant-place-first" })).toHaveLength(0);
+    expect(tree!.root.findByProps({ "data-web-consent": "en" })).toBeDefined();
+    await act(async () => tree!.root.findByProps({ "data-web-decision": "refused" }).props.onClick());
+    await act(async () => tree!.root.findByProps({ "data-label": "Save refusal" }).props.onClick());
+    const [, options] = request.mock.calls.find(([url]) => url === "/api/v1/intake/refusals")!;
+    expect(options?.json).toMatchObject({ project_id: "P1", site_id: "S2", consent: { decision: "refused" } });
+    await act(async () => tree!.unmount());
+  });
+
+  it("auto-selects the one real site beside a placeholder site", async () => {
+    addSite("sites_in_project_P1", "sites_in_project_P1");
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    expect(placeField(tree!).props.accessibilityLabel).toBe("chooseSite: Site");
+    await act(async () => tree!.unmount());
+  });
+
+  it("Save with no place shows the place error and sends nothing", async () => {
+    addSite("S2", "Site Two");
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
     const findField = (field: string) => tree!.root.findByProps({ "data-field": field });
     await act(async () => {
       findField("deceased_name").props.onClick("Asha");
@@ -224,11 +342,31 @@ describe("DeathRegistrationScreen", () => {
       findField("date_of_birth").props.onClick("1987-04-12");
     });
     await act(async () => tree!.root.findByProps({ "data-label": "sexFemale" }).props.onClick());
-    await act(async () => tree!.root.findByProps({ "data-label": "registerSaveStart" }).props.onClick());
+    const before = alertShown(tree!);
+    await act(async () => tree!.root.findByProps({ "data-label": "save" }).props.onClick());
     await settle();
-    expect(mockRegisterDeath).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(mockRegisterDeath.mock.calls[0])).toContain("\"project_id\":\"P2\"");
-    expect(JSON.stringify(mockRegisterDeath.mock.calls[0])).toContain("\"site_id\":\"S2\"");
+    expect(mockRegisterDeath).not.toHaveBeenCalled();
+    expect(alertShown(tree!)).toBeGreaterThan(before);
+    await act(async () => tree!.unmount());
+  });
+
+  it("keeps a picked place across a title-row Project switch while it is still in scope", async () => {
+    const base = mockBootstrap.access.projects[0] as unknown as Record<string, unknown>;
+    const site = (id: string, name: string) => ({ site_id: id, site_name: name, web_intake_mode: "death_register", org_units: [] });
+    mockBootstrap.access.projects = [
+      { ...base, actions: { interview: [], register_death: [site("S1", "Site"), site("S3", "Site Three")] } },
+      { ...base, project_id: "P2", project_name: "Second", actions: { interview: [], register_death: [site("S2", "Site Two")] } },
+    ] as never;
+    let tree: ReturnType<typeof create>;
+    await act(async () => { tree = create(<DeathRegistrationScreen />); });
+    await settle();
+    await pickPlace(tree!, "Site Three, Project");
+    expect(placeField(tree!).props.accessibilityLabel).toBe("chooseSite: Site Three, Project");
+    const projectField = tree!.root.findAll((node) => node.props.accessibilityLabel === "filterProject: filterAllProjects" && typeof node.props.onPress === "function")[0];
+    await act(async () => projectField.props.onPress());
+    await act(async () => tree!.root.findAll((node) => node.props.accessibilityLabel === "Project" && typeof node.props.onPress === "function")[0].props.onPress());
+    await settle();
+    expect(placeField(tree!).props.accessibilityLabel).toBe("chooseSite: Site Three");
     await act(async () => tree!.unmount());
   });
 

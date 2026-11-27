@@ -14,7 +14,10 @@ import { t, uiLocale, type StringKey } from "../i18n";
 import { calculateRegistrationAge } from "../registrationAgeDisplay";
 import { formatRegistrationAge } from "../registrationAgeText";
 import { Button, FieldLabel, useUiStyles } from "../ui";
-import { OrgUnitSelect } from "../ui/OrgUnitSelect";
+import { Select } from "../ui/Select";
+import { registrationTargets } from "../registrationTargets";
+import { placeOptions } from "./placeOptions";
+import { spacing } from "../theme";
 import { browserErrorText, WebShell } from "./common";
 import { ContextualHelpBanner } from "./ContextualHelp";
 import { DeathsListPanel, DeathsProjectSelect, useDeathCases } from "./DeathsList";
@@ -164,6 +167,7 @@ export default function DeathRegistrationScreen() {
   const [projectId, setProjectId] = useState("");
   const [siteId, setSiteId] = useState("");
   const [orgUnitId, setOrgUnitId] = useState("");
+  const [placeIssue, setPlaceIssue] = useState(false);
   const [sex, setSex] = useState("");
   const [fields, setFields] = useState<Partial<RegistrationInput>>({});
   const [location, setLocation] = useState<GpsFix | null>(null);
@@ -271,11 +275,7 @@ export default function DeathRegistrationScreen() {
       .filter((entry) => entry.web_intake_mode === "death_register" || entry.web_intake_mode === "both");
     const scoped = { user: bootstrap.user, context: contexts };
     setIntake(scoped);
-    const first = scoped.context[0];
-    if (first) {
-      setProjectId(first.project_id);
-      setSiteId(first.site_id);
-    }
+    // The place is chosen on the form (one choice is taken at once); nothing is preselected here.
     return () => {
       active = false;
     };
@@ -398,10 +398,6 @@ export default function DeathRegistrationScreen() {
     if (bootstrap && listMode && !canList) setListMode(false);
   }, [bootstrap, listMode, canList]);
 
-  const context = useMemo(
-    () => intake?.context.find((entry) => entry.project_id === projectId && entry.site_id === siteId),
-    [intake, projectId, siteId]
-  );
   // A supervisor-only user lands on the list, except when the supervision case opened one death's edit form.
   const supervisorEditing = fromSupervision && Boolean(editingDeathId);
   const showRegisteredDeaths = (listMode || (canSupervise && !hasOwnDeaths && !supervisorEditing)) && canList;
@@ -414,13 +410,23 @@ export default function DeathRegistrationScreen() {
     return scoped.length ? scoped : all;
   }, [intake, deaths.project]);
   const newDeathForm = !showRegisteredDeaths && !editingDeathId;
+  // The Site and unit choices: one target per site (no unit tree) or per unit (tree), as on the phone.
+  const targets = useMemo(
+    () => (bootstrap && newDeathForm ? registrationTargets(formContexts, bootstrap.access.projects) : []),
+    [bootstrap, newDeathForm, formContexts]
+  );
+  const placeChoices = useMemo(() => (bootstrap ? placeOptions(targets, bootstrap.access.projects) : []), [bootstrap, targets]);
+  const chosenPlace = targets.find((entry) => entry.projectId === projectId && entry.siteId === siteId && (entry.orgUnitId ?? "") === orgUnitId);
   useEffect(() => {
-    if (!newDeathForm || !formContexts.length) return;
-    if (formContexts.some((entry) => entry.project_id === projectId && entry.site_id === siteId)) return;
-    setProjectId(formContexts[0].project_id);
-    setSiteId(formContexts[0].site_id);
-    setOrgUnitId("");
-  }, [newDeathForm, formContexts, projectId, siteId]);
+    if (!newDeathForm || !targets.length || chosenPlace) return;
+    // Exactly one choice is taken; otherwise the place is left for the user, keeping a project only when all choices share it.
+    // "One choice" counts what the user sees (placeholder-named sites are not offered).
+    const only = placeChoices.length === 1 ? targets.find((entry) => entry.key === placeChoices[0].value) : undefined;
+    const sharedProject = targets.every((entry) => entry.projectId === targets[0].projectId) ? targets[0].projectId : "";
+    setProjectId(only ? only.projectId : sharedProject);
+    setSiteId(only ? only.siteId : "");
+    setOrgUnitId(only?.orgUnitId ?? "");
+  }, [newDeathForm, targets, placeChoices, chosenPlace]);
 
   const ageDisplay = calculateRegistrationAge({
     date_of_death: fields.date_of_death ?? "",
@@ -620,13 +626,15 @@ export default function DeathRegistrationScreen() {
     void fetchProjectConsentConfig(projectId, bootstrap.csrf).then((config) => { if (live) setConsentConfig(config); });
     return () => { live = false; };
   }, [station, projectId, bootstrap, consentCheck]);
-  const webConsentRequired = !station && consentConfig?.consent_required === true;
+  // Until a place is chosen the project's consent rule is unknown: no consent panel, informant details closed.
+  const noPlace = !editingDeathId && !chosenPlace;
+  const webConsentRequired = !station && !noPlace && consentConfig?.consent_required === true;
   const informantChanged = INFORMANT_PII_FIELDS.some((key) => {
     const next = String(fields[key] ?? "").trim();
     return next !== "" && (!editingDeathId || next !== String(registrationBase.current?.[key] ?? "").trim());
   });
   const webConsentNeeded = webConsentRequired && (!editingDeathId || informantChanged || webConsent !== null);
-  const informantClosed = webConsentRequired && !editingDeathId && webConsent?.decision !== "granted";
+  const informantClosed = noPlace || (webConsentRequired && !editingDeathId && webConsent?.decision !== "granted");
   const webConsentBlocked = webConsentNeeded && (!webConsent || (webConsent.decision === "refused" && informantChanged));
   const consentToSend = informantNeedsConsent && consent ? consent : webConsentNeeded ? webConsent : null;
 
@@ -646,7 +654,7 @@ export default function DeathRegistrationScreen() {
       onValidity={(key, valid) => updateFieldIssue(key, valid || phoneUnchanged(key) ? undefined : t("errPhone"))}
     />
   ) : (
-    <View key={field.key}>
+    <View key={field.key} style={{ gap: spacing.xxs }}>
       {/* Required fields carry the grey "Required" word, never an asterisk. */}
       <FieldLabel label={t(field.label)} required={field.key === "deceased_name" || field.key === "date_of_death"} />
       <RegistrationFieldControl
@@ -667,7 +675,7 @@ export default function DeathRegistrationScreen() {
 
   async function submit(confirmAge = false, saveOnly = false) {
     const editing = Boolean(editingDeathId);
-    if (!bootstrap || (!editing && (!intake || !context)) || editingReadOnly) return;
+    if (!bootstrap || (!editing && !intake) || editingReadOnly) return;
     if (webConsent?.decision === "refused") return;
     pendingSaveOnly.current = saveOnly;
     setMessage("");
@@ -695,10 +703,12 @@ export default function DeathRegistrationScreen() {
     }
     Object.assign(nextIssues, missingAgeInfoIssue(validationFields));
     setValidationIssues(nextIssues);
+    const placeMissing = !editing && !chosenPlace;
+    setPlaceIssue(placeMissing);
     // Advice from the type's own rules; a number the rules refuse would only come back as a 422.
     const idIssues = idShown ? identifierIssues(idTypes, typed, !editing) : {};
     setIdErrors(Object.fromEntries(idTypes.filter((type) => idIssues[type.code]).map((type) => [type.code, identifierIssueText(type, idIssues[type.code])])));
-    if (Object.values(nextIssues).some(Boolean) || Object.values(draftIssues).some(Boolean) || Object.keys(idIssues).length) {
+    if (placeMissing || Object.values(nextIssues).some(Boolean) || Object.values(draftIssues).some(Boolean) || Object.keys(idIssues).length) {
       setAgeConfirmationPending(false);
       setMessage(t("registerFixErrors"));
       return;
@@ -880,7 +890,12 @@ export default function DeathRegistrationScreen() {
 
   if (webConsent?.decision === "refused") {
     const saveRefusal = async () => {
-      if (!bootstrap || !projectId || !siteId) return;
+      if (!bootstrap) return;
+      if (!projectId || !siteId) {
+        setPlaceIssue(true);
+        setMessage(t("errRequired"));
+        return;
+      }
       setBusy(true);
       try {
         const receipt = await requestClientJson<{ client_draft_id?: unknown }>(`${INTAKE_API}/refusals`, { method: "POST", csrf: bootstrap.csrf,
@@ -967,41 +982,31 @@ export default function DeathRegistrationScreen() {
           {editingDeathId ? (
             <Text style={styles.muted}>{/^sites_in_project_/i.test(siteId) ? projectId : `${projectId} · ${siteId}`}</Text>
           ) : (
-            <>
-              <Text style={styles.fieldLabel}>{t("chooseSite")}</Text>
-              <View style={styles.row} accessibilityRole="radiogroup">
-                {formContexts.map((entry) => {
-                  const rawSite = entry.site_name ?? entry.site_id;
-                  const sitePart = /^sites_in_project_/i.test(rawSite) || /^sites_in_project_/i.test(entry.site_id) ? "" : ` · ${rawSite}`;
-                  return (
-                    <Button
-                      key={`${entry.project_id}:${entry.site_id}`}
-                      kind={entry.project_id === projectId && entry.site_id === siteId ? "primary" : "secondary"}
-                      label={`${entry.project_name ?? entry.project_id}${sitePart}`}
-                      onPress={() => {
-                        setProjectId(entry.project_id);
-                        setSiteId(entry.site_id);
-                        setOrgUnitId("");
-                      }}
-                    />
-                  );
-                })}
-              </View>
-            </>
-          )}
-          {!editingDeathId && context?.org_units?.filter((unit) => unit.selectable !== false).length ? (
-            <View>
-              <Text style={styles.fieldLabel}>{t("chooseUnit")}</Text>
-              <OrgUnitSelect
-                units={context.org_units}
-                value={orgUnitId}
-                onChange={setOrgUnitId}
+            <View style={{ gap: spacing.xxs }}>
+              <FieldLabel label={t("chooseSite")} required />
+              {targets.length === 0 ? <Text style={styles.muted}>{t("noSites")}</Text> : null}
+              <Select
+                label={t("chooseSite")}
+                placeholder={t("siteUnitNotChosen")}
+                searchLabel={t("filterUnitSearch")}
+                searchable
+                options={placeChoices}
+                value={chosenPlace?.key ?? ""}
+                onChange={(key) => {
+                  const pick = targets.find((entry) => entry.key === key);
+                  if (!pick) return;
+                  setProjectId(pick.projectId);
+                  setSiteId(pick.siteId);
+                  setOrgUnitId(pick.orgUnitId ?? "");
+                  setPlaceIssue(false);
+                }}
               />
+              {placeIssue ? <Text style={styles.error} accessibilityRole="alert">{t("errRequired")}</Text> : null}
             </View>
-          ) : null}
+          )}
           {renderField(FIELD_DEFINITIONS[0])}
           {renderField(FIELD_DEFINITIONS[1])}
-          <View onBlur={birthBlur}>
+          <View onBlur={birthBlur} style={{ gap: spacing.xs }}>
           <FieldLabel label={t("fieldDateOfBirth")} required={birthMode !== "unknown"} />
           <Text style={styles.muted}>{t("dobPrecision")}</Text>
           <View style={styles.row} accessibilityRole="radiogroup">
@@ -1061,6 +1066,7 @@ export default function DeathRegistrationScreen() {
             ) : null}
           </View>
           </View>
+          <View style={{ gap: spacing.xxs }}>
           <FieldLabel label={t("fieldSex")} required />
           <View style={styles.row} accessibilityRole="radiogroup">
             {(["male", "female", "undetermined", "unknown"] as const).map((value) => (
@@ -1080,6 +1086,7 @@ export default function DeathRegistrationScreen() {
           {issueMessage("deceased_sex") ? (
             <Text style={styles.error} accessibilityRole="alert">{issueMessage("deceased_sex")}</Text>
           ) : null}
+          </View>
           {webConsentNeeded && !webConsent ? (
             <RespondentConsentPanel config={consentConfig} language={uiLocale()} clientDraftId={null} busy={busy} onDecision={recordWebConsent} />
           ) : null}
@@ -1089,18 +1096,19 @@ export default function DeathRegistrationScreen() {
               <Button size="sm" kind="secondary" label={t("consentChange")} disabled={busy} onPress={() => setWebConsent(null)} />
             </View>
           ) : null}
-          {informantClosed && !webConsent ? <Text style={styles.muted} testID="informant-closed">{t("consentInformantClosed")}</Text> : null}
+          {noPlace ? <Text style={styles.muted} testID="informant-place-first">{t("choosePlaceFirst")}</Text> : null}
+          {!noPlace && informantClosed && !webConsent ? <Text style={styles.muted} testID="informant-closed">{t("consentInformantClosed")}</Text> : null}
           {FIELD_DEFINITIONS.slice(2).map((field) => {
             const closed = informantClosed && (INFORMANT_PII_FIELDS as readonly string[]).includes(field.key);
             if (field.key === "address") return (
-              <View key={field.key}>
+              <View key={field.key} style={{ gap: spacing.xs }}>
                 {closed ? null : renderField(field)}
                 <LocationCapture value={location} onChange={(fix) => { dirtyRef.current = true; setLocation(fix); }} />
               </View>
             );
             return closed ? null : renderField(field);
           })}
-          {informantNeedsConsent && bootstrap ? (
+          {informantNeedsConsent && !noPlace && bootstrap ? (
             <StationConsentPanel projectId={projectId} csrf={bootstrap.csrf} onChange={setConsent} />
           ) : null}
           {informantNeedsConsent && !consent ? <Text style={styles.error} accessibilityRole="alert" testID="station-consent-blocked">{t("stationConsentBlocked")}</Text> : null}

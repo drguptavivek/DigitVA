@@ -52,6 +52,8 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
       backgroundColor: colors.surface, paddingHorizontal: spacing.sm, color: colors.text, ...typography.subhead, fontFamily: controls.fontFamily,
     },
     none: { padding: spacing.sm, ...typography.subhead, color: colors.textMuted, fontFamily: controls.fontFamily },
+    // Fills the field so the chevron sits at its right edge when there is no detail line.
+    fieldGrow: { flexGrow: 1 },
     detail: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
     menu: { width: Math.min(MENU_WIDTH, Math.max(0, width - 2 * spacing.xs)) },
   }), [colors, typography, width]);
@@ -89,7 +91,7 @@ export function Select({ label, placeholder, options, value, onChange, searchabl
             <Text numberOfLines={1} ellipsizeMode="tail" style={extra.detail}>{selected.detail}</Text>
           </View>
         ) : (
-          <Text numberOfLines={1} ellipsizeMode="tail" style={[s.fieldText, !selected && { color: colors.textMuted }]}>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={[s.fieldText, extra.fieldGrow, !selected && { color: colors.textMuted }]}>
             {selected ? selected.label : placeholder}
           </Text>
         )}

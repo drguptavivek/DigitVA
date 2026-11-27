@@ -17,6 +17,13 @@ What landed, newest first. Details live in the commits and the linked docs;
   Verified: migrations at head `f3c9d1a7b5e2`; app, worker and beat on the
   new image; signed out, `/help/va-definitions.json` returns 200 with 63
   definitions and `/help/va-definitions` points at it.
+- Demo upgraded to `eeb8e4815` on the owner's go (runbook
+  `docs/current-state/public-demo-deployment.md` §9): demo dump first, image
+  revision label checked, previous env at
+  `/data/digitva-demo.env.pre-eeb8e4815`. Verified: demo migrations at
+  `f3c9d1a7b5e2`; app, worker, beat and public DORIS on the new image; home
+  page 200 with both signup links, `/help/va-definitions.json` 200, public
+  DORIS codeinfo 200.
 
 ## 2026-11-26
 

@@ -7,8 +7,8 @@ l2dg, public VA definitions; migrations at `f3c9d1a7b5e2`; app, worker and
 beat recreated on the new image; rollback, schema changes are additive so no
 downgrade needed:
 `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh 5a3f994b3af6c00423e5de83d1fbcab4e1344d27`;
-the demo stack still runs `digitva-demo-app:5a3f994b3`, its previous env saved at
-`/data/digitva-demo.env.pre-5a3f994b3`;
+the demo stack runs the same commit as `digitva-demo-app:eeb8e4815`, its
+previous env saved at `/data/digitva-demo.env.pre-eeb8e4815`;
 EBS snapshots and pg_dump in `CHANGELOG.md` 2026-11-27). The image carries 0.3.31
 (`android-v0.3.31`, `collect-plus-v0.3.31-plus.1`; supersedes 0.3.30, which
 never reached phones); phones are offered 0.3.31 since 2026-11-26. Play AAB

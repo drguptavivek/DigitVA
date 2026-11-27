@@ -338,6 +338,8 @@ export interface CoderQueue {
   limit: number;
   offset: number;
   has_more: boolean;
+  /** The filtered list's size (additive, 2026-11-27); absent from older servers. */
+  total?: number;
 }
 
 export interface CoderAvailableCase extends QueueCardKeys {
@@ -385,6 +387,8 @@ export interface CoderHistory {
   limit: number;
   offset: number;
   has_more: boolean;
+  /** The filtered list's size (additive, 2026-11-27); absent from older servers. */
+  total?: number;
 }
 
 export interface ProjectOptions {
@@ -418,6 +422,8 @@ export interface ReviewerQueue {
   limit: number;
   offset: number;
   has_more: boolean;
+  /** The filtered list's size (additive, 2026-11-27); absent from older servers. */
+  total?: number;
 }
 
 export interface ReviewerHistory {
@@ -426,6 +432,8 @@ export interface ReviewerHistory {
   limit: number;
   offset: number;
   has_more: boolean;
+  /** The filtered list's size (additive, 2026-11-27); absent from older servers. */
+  total?: number;
 }
 
 export interface AllocationReply {
@@ -865,6 +873,11 @@ export function parseCodingStats(value: unknown): CodingStats {
   return parsed;
 }
 
+/** A list's `total`: a display count, kept when it is a whole number, else left out (never a refusal of the page). */
+function pageTotal(source: Record<string, unknown>): { total?: number } {
+  return typeof source.total === "number" && Number.isInteger(source.total) && source.total >= 0 ? { total: source.total } : {};
+}
+
 export function parseCoderQueue(value: unknown, expectedLimit: number, expectedOffset: number): CoderQueue {
   const source = record(value, "coding.available");
   if (Array.isArray(source.forms) && source.forms.length > expectedLimit) throw new WorkspaceContractError("coding.available.paging");
@@ -874,7 +887,7 @@ export function parseCoderQueue(value: unknown, expectedLimit: number, expectedO
   const offset = number(source.offset, "coding.available.offset");
   const has_more = boolean(source.has_more, "coding.available.has_more");
   if (!Number.isInteger(count) || count !== forms.length || limit !== expectedLimit || offset !== expectedOffset) throw new WorkspaceContractError("coding.available.paging");
-  return { forms, count, limit, offset, has_more };
+  return { forms, count, limit, offset, has_more, ...pageTotal(source) };
 }
 
 export function parseCoderHistory(value: unknown, expectedLimit: number, expectedOffset: number): CoderHistory {
@@ -886,7 +899,7 @@ export function parseCoderHistory(value: unknown, expectedLimit: number, expecte
   const offset = number(source.offset, "coding.history.offset");
   const has_more = boolean(source.has_more, "coding.history.has_more");
   if (!Number.isInteger(count) || count !== history.length || limit !== expectedLimit || offset !== expectedOffset) throw new WorkspaceContractError("coding.history.paging");
-  return { history, count, limit, offset, has_more };
+  return { history, count, limit, offset, has_more, ...pageTotal(source) };
 }
 
 function parseProjectOptions(source: Record<string, unknown>, field: string): ProjectOptions {
@@ -931,7 +944,7 @@ export function parseReviewerQueue(value: unknown, expectedLimit: number, expect
   const offset = number(source.offset, "reviewing.available.offset");
   const has_more = boolean(source.has_more, "reviewing.available.has_more");
   if (!Number.isInteger(count) || count !== cases.length || limit !== expectedLimit || offset !== expectedOffset) throw new WorkspaceContractError("reviewing.available.paging");
-  return { cases, count, limit, offset, has_more };
+  return { cases, count, limit, offset, has_more, ...pageTotal(source) };
 }
 
 export function parseReviewerHistory(value: unknown, expectedLimit: number, expectedOffset: number): ReviewerHistory {
@@ -943,7 +956,7 @@ export function parseReviewerHistory(value: unknown, expectedLimit: number, expe
   const offset = number(source.offset, "reviewing.history.offset");
   const has_more = boolean(source.has_more, "reviewing.history.has_more");
   if (!Number.isInteger(count) || count !== history.length || limit !== expectedLimit || offset !== expectedOffset) throw new WorkspaceContractError("reviewing.history.paging");
-  return { history, count, limit, offset, has_more };
+  return { history, count, limit, offset, has_more, ...pageTotal(source) };
 }
 
 export function parseAllocation(value: unknown): AllocationReply {

@@ -6,7 +6,6 @@ import { radius, useTheme } from "../theme";
 
 const box = StyleSheet.create({ icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: radius.md } });
 
-// ponytail: QueueScreen's private CopyIcon should switch to this one once the screen-cache branch lands.
 /** Shares the card's support text (Copy, WhatsApp, email); a failed or cancelled share is ignored. */
 export function CopyIcon({ label, message }: { label: string; message: string }) {
   const { colors } = useTheme();

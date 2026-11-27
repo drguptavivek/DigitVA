@@ -903,7 +903,7 @@ describe("queue layout", () => {
     await settle();
     await press(e.renderer, "My coded cases");
     await settle();
-    expect(e.renderer.root.findAll((n) => n.props.accessibilityLabel === "Filter cases").length).toBeGreaterThan(0);
+    expect(e.renderer.root.findAll((n) => n.props.accessibilityLabel === "Search cases").length).toBeGreaterThan(0);
     await unmount(e.renderer);
   });
 
@@ -1024,7 +1024,7 @@ describe("queue layout", () => {
     await unmount(available.renderer);
   });
 
-  test("renders rich case card metadata and filters queue cases by search, sex, and recodeable status", async () => {
+  test("renders rich case card metadata; the sex chip asks the server, never filters rows", async () => {
     const api = makeApi({
       getCodingStats: jest.fn().mockResolvedValue({
         random_ready: 3,
@@ -1113,39 +1113,27 @@ describe("queue layout", () => {
     // The card has no Form chip and no status or Recodeable pill any more (owner 2026-11-27).
     expect(text).not.toContain("Form: WHO2022_ADULT");
 
-    // Filter by sex: Female
-    await press(screen.renderer, "Filter sex: Female");
+    // Filters go to the server (owner 2026-11-27): the phone's Female quick chip asks for female cases, never hides rows itself.
+    await press(screen.renderer, "Female");
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: undefined, sex: "female", limit: 50, offset: 0 });
     text = JSON.stringify(screen.renderer.toJSON());
-    expect(text).toContain("UID-FEM-1");
-    expect(text).not.toContain("UID-MALE-2");
-
-    // Clear filters
-    await press(screen.renderer, "Clear filters");
-    text = JSON.stringify(screen.renderer.toJSON());
-    expect(text).toContain("UID-FEM-1");
     expect(text).toContain("UID-MALE-2");
+    await press(screen.renderer, "Female");
+    await settle();
+    expect(api.getCodingAvailable).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 0 });
 
     // The page's own sites are no longer chips: the place filter is the server-side "Site and unit" field.
     expect(button(screen.renderer.root, "Filter area: S2")).toBeUndefined();
 
-    // Filter by text search that matches nothing
-    const filterInput = screen.renderer.root.findByProps({ accessibilityLabel: "Filter cases" });
-    await act(async () => { filterInput.props.onChangeText("no-such-case"); });
-    text = JSON.stringify(screen.renderer.toJSON());
-    expect(text).toContain("No cases match your filters.");
-
-    // Switch to History tab (resets filters automatically) and test Recodeable filter
+    // History shows the server's rows as they come; there is no client-side Recodeable filter any more.
     await press(screen.renderer, "History");
     await settle();
     text = JSON.stringify(screen.renderer.toJSON());
     expect(text).toContain("UID-HIST-1");
     expect(text).toContain("UID-HIST-2");
     expect(text).toContain("Coded: 09-Oct-2026");
-
-    await press(screen.renderer, "Filter recodeable only");
-    text = JSON.stringify(screen.renderer.toJSON());
-    expect(text).toContain("UID-HIST-1");
-    expect(text).not.toContain("UID-HIST-2");
+    expect(button(screen.renderer.root, "Filter recodeable only")).toBeUndefined();
 
     await unmount(screen.renderer);
   });
@@ -1297,10 +1285,30 @@ async function renderPlaces(mode: "coding" | "reviewing", api = makeApi(), acces
   return { renderer, api };
 }
 
-const placeSelect = (renderer: ReactTestRenderer) => renderer.root.findAllByType(Select)[0];
+/** Opens the Sort and filter panel when the list shows its toolbar and the panel is closed. */
+function openFilters(renderer: ReactTestRenderer) {
+  const toggle = renderer.root.findAll((n) => n.props.testID === "queue-filters" && typeof n.props.onPress === "function")[0];
+  if (toggle && !toggle.props.accessibilityState?.expanded) act(() => { toggle.props.onPress(); });
+}
 
+/** The panel's "Site and unit" fields (the place moved into Sort and filter, owner 2026-11-27); opens the panel. */
+function placeFields(renderer: ReactTestRenderer) {
+  openFilters(renderer);
+  return renderer.root.findAllByType(Select).filter((n) => n.props.label === "Site and unit");
+}
+
+const placeSelect = (renderer: ReactTestRenderer) => placeFields(renderer)[0];
+
+/** The panel's primary button: "Show N cases", or "Show cases" before the count is in. */
+function showCasesButton(renderer: ReactTestRenderer) {
+  return renderer.root.findAll((n) => n.props.accessibilityRole === "button" && typeof n.props.onPress === "function" && /^Show (\d+ )?cases$/.test(String(n.props.accessibilityLabel ?? n.props.label ?? "")))[0];
+}
+
+/** Choose a place in the panel and apply it with "Show cases". */
 async function choosePlace(renderer: ReactTestRenderer, value: string) {
-  await act(async () => { placeSelect(renderer).props.onChange(value); });
+  const field = placeSelect(renderer);
+  await act(async () => { field.props.onChange(value); });
+  await act(async () => { showCasesButton(renderer).props.onPress(); });
   await settle();
 }
 
@@ -1362,11 +1370,11 @@ describe("QueueScreen Site and unit filter", () => {
     const api = makeApi({ getCodingStats: jest.fn().mockResolvedValue({ random_ready: 2, has_random_mode: true, has_pick_mode: false }) });
     const { renderer } = await renderPlaces("coding", api);
     expect(button(renderer.root, "Start a random case")).toBeDefined();
-    expect(renderer.root.findAllByType(Select)).toHaveLength(0);
+    expect(placeFields(renderer)).toHaveLength(0);
     await press(renderer, "History");
     await settle();
     expect(api.getCodingHistory).toHaveBeenLastCalledWith({ projectId: undefined, limit: 50, offset: 0 });
-    expect(renderer.root.findAllByType(Select)).toHaveLength(0);
+    expect(placeFields(renderer)).toHaveLength(0);
     await press(renderer, "Available");
     await settle();
     await press(renderer, "Start a random case");
@@ -1399,7 +1407,7 @@ describe("QueueScreen Site and unit filter", () => {
       { value: "P1:S1", label: "Site One" },
     ]);
     await choosePlace(renderer, "P1:S1");
-    expect(renderer.root.findAllByType(Select)[0].props.value).toBe("P1:S1");
+    expect(placeSelect(renderer).props.value).toBe("P1:S1");
     await unmount(renderer);
   });
 
@@ -1491,16 +1499,16 @@ describe("QueueScreen Site and unit filter", () => {
     const access = parseAccessSummary({ user: { user_id: "u1", name: "W" }, is_admin: false, roles: ["coder"], demo_coding: { available: false, project_ids: [] },
       projects: [{ ...project, actions: { ...project.actions, code: { project: "yes", site_ids: [], org_unit_ids: [] } } }] });
     const { renderer } = await renderPlaces("coding", makeApi(), access.projects);
-    expect(renderer.root.findAllByType(Select)).toHaveLength(0);
+    expect(placeFields(renderer)).toHaveLength(0);
     await unmount(renderer);
   });
 
   test("without access projects, or with no reach for the action, there is no place choice", async () => {
     const none = await renderPlaces("coding", makeApi(), null);
-    expect(none.renderer.root.findAllByType(Select)).toHaveLength(0);
+    expect(placeFields(none.renderer)).toHaveLength(0);
     await unmount(none.renderer);
     const noReach = await renderPlaces("reviewing", makeApi(), [placeAccess[1]]);
-    expect(noReach.renderer.root.findAllByType(Select)).toHaveLength(0);
+    expect(placeFields(noReach.renderer)).toHaveLength(0);
     await unmount(noReach.renderer);
   });
 });
@@ -1624,6 +1632,9 @@ describe("queue counts, pager, tiles and cards (owner 2026-11-27)", () => {
     for (let i = 0; i < 4; i += 1) await settle();
     expect(stats).toHaveBeenLastCalledWith("P2", { siteId: "S7", orgUnitId: undefined });
     expect(placeSelect(renderer)?.props.value).toBe("P2:S7");
+    // The panel is open on a random-only Available tab: its count never asks the pick list (load never does either).
+    await act(async () => { await new Promise((done) => setTimeout(done, 350)); });
+    expect(api.getCodingAvailable).not.toHaveBeenCalledWith(expect.objectContaining({ limit: 1 }));
     await choosePlace(renderer, "");
     for (let i = 0; i < 4; i += 1) await settle();
     // Back on All areas the All-projects modes return: the pick list and its tile.
@@ -1842,10 +1853,10 @@ describe("no place without personal-data access; a year-only date of death (owne
     const noPii = placeAccess.map((project) => ({ ...project, pii_visible: false })) as AccessProject[];
     for (const mode of ["coding", "reviewing"] as const) {
       const shown = await renderPlaces(mode, makeApi(), placeAccess.map((project) => ({ ...project, pii_visible: true })) as AccessProject[]);
-      expect(shown.renderer.root.findAllByType(Select)).toHaveLength(1);
+      expect(placeFields(shown.renderer)).toHaveLength(1);
       await unmount(shown.renderer);
       const hidden = await renderPlaces(mode, makeApi(), noPii);
-      expect(hidden.renderer.root.findAllByType(Select)).toHaveLength(0);
+      expect(placeFields(hidden.renderer)).toHaveLength(0);
       await unmount(hidden.renderer);
     }
     // One project without access drops only its own places.

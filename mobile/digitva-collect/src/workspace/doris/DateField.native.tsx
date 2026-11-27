@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Platform, View } from "react-native";
 
 import { Icon, icons } from "../../Icon";
+import { t } from "../../i18n";
 import { useTheme } from "../../theme";
 import { ControlText, FieldButton, useLayout } from "./ui";
 import { DateFieldShell, isFullIso, isoFromLocal, localDate, todayIso, type DateFieldProps } from "./dateFieldShared";
@@ -33,8 +34,8 @@ export function DateField(props: DateFieldProps) {
       const Picker = open ? (require("@react-native-community/datetimepicker") as typeof import("@react-native-community/datetimepicker")).default : null;
       return (
         <View style={{ gap: 4, flexGrow: 1, flexBasis: 150 }}>
-          <FieldButton accessibilityLabel={props.label} accessibilityValue={{ text: value || "Not set" }} onPress={show}>
-            <ControlText>{value ? value : "Select date"}</ControlText>
+          <FieldButton accessibilityLabel={props.label} accessibilityValue={{ text: value || t("dateNotSet") }} onPress={show}>
+            <ControlText>{value ? value : t("dateSelect")}</ControlText>
             <Icon name={icons.calendar} color={ui.mutedForeground} size={20} />
           </FieldButton>
           {Picker ? <Picker value={current} mode="date" display="inline" onChange={(_event, date) => { setOpen(false); if (date) pick(date); }} /> : null}

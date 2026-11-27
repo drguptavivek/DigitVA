@@ -1,20 +1,22 @@
 import { ErrorCode } from "../errorCodes";
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { ActivityIndicator, Alert, AppState, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
 import { APP_VERSION } from "../appVersion";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { controls, radius, spacing, typography, useTheme } from "../theme";
-import { Button, Card, DetailsChip, FieldLabel, Screen, SegmentedControl, TextField, errorText as uiErrorText, useUiStyles } from "../ui";
+import { Button, Card, DetailsChip, Screen, SegmentedControl, TextField, errorText as uiErrorText, useUiStyles } from "../ui";
 import { t, type StringKey } from "../i18n";
 import { dateOnly } from "../ui/interviewRows";
 import { ProjectSelect } from "../ui/ProjectSelect";
-import { Select } from "../ui/Select";
+import { CopyIcon } from "../ui/CardIcons";
 import { ContextualHelpBanner } from "../web/ContextualHelp";
 import { formatDisplayTimestamp } from "../web/DeathsList";
+import { AppliedChips } from "../web/caseFilters";
 import { queuePlaceOptions } from "../web/placeOptions";
-import type { QueuePlaceFilter, TrainingQueue, WorkspaceApi } from "./api";
+import type { QueueFilterParams, QueuePageOptions, QueuePlaceFilter, TrainingQueue, WorkspaceApi } from "./api";
+import { AGE_GROUPS, EMPTY_FILTERS, NoLanguages, QueueFilterPanel, filterChips, filterParams, fitFilters, myLanguages, queueStates, type QueueFilters } from "./queueFilters";
 import { ApiError, type AccessProject } from "../api";
 import { sexLabel } from "../ui/CaseCard";
 import { codingLanguageLines, languageLabel, trainingQueueCounts } from "./codingLanguages";
@@ -41,18 +43,12 @@ import type {
 const PAGE_SIZE = 50;
 const MAX_OFFSET = 1_000_000;
 
-/** *place*: the chosen "Site and unit" key ("" for none); a page answer belongs to the place it was asked for. */
-type QueueScope = { api: WorkspaceApi; mode: "coding" | "reviewing"; projectId?: string; offset: number; showHistory: boolean; place: string };
-type GenderFilter = "all" | "female" | "male";
+/**
+ * *place*: the chosen "Site and unit" key ("" for none); *filters*: the Sort and filter panel's server parameters and
+ * the search, as one canonical string ("" for none). A page answer belongs to the place and filters it was asked for.
+ */
+type QueueScope = { api: WorkspaceApi; mode: "coding" | "reviewing"; projectId?: string; offset: number; showHistory: boolean; place: string; filters: string };
 type AnyQueueCase = CoderAvailableCase | CoderHistoryCase | QueueCase;
-
-function normalizeGenderKey(raw: string | null | undefined): "female" | "male" | "other" | null {
-  if (!raw) return null;
-  const lower = raw.trim().toLowerCase();
-  if (lower === "f" || lower === "female") return "female";
-  if (lower === "m" || lower === "male") return "male";
-  return "other";
-}
 
 type QueueData = {
   api: WorkspaceApi;
@@ -61,11 +57,14 @@ type QueueData = {
   offset: number;
   showHistory: boolean;
   place: string;
+  filters: string;
   stats?: CodingStats | ReviewerStats;
   coderAvailable?: CoderQueue;
   coderHistory?: CoderHistory;
   available?: ReviewerQueue;
   history?: ReviewerHistory;
+  /** With filters on: the same list's size without them (place kept), for "3 of 14 cases". */
+  allTotal?: number;
   cachedHistoryAt?: string;
 };
 
@@ -96,6 +95,13 @@ function useQueueStyles() {
     statLabel: { ...typography.caption, color: colors.textMuted, fontFamily: controls.fontFamily },
     statTileActive: { borderColor: colors.accent },
     filterBox: { gap: spacing.xs, padding: spacing.xs, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceMuted },
+    toolbar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: spacing.xs },
+    // The Sort and Filters buttons: 44px targets; the phone's Filters is the icon alone with its count badge.
+    toolButton: { flexDirection: "row", alignItems: "center", gap: spacing.xxs, minHeight: 44, minWidth: 44, justifyContent: "center", paddingHorizontal: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+    iconOnly: { paddingHorizontal: 0, width: 44 },
+    toolText: { ...typography.subhead, fontWeight: "600", color: colors.text, fontFamily: controls.fontFamily },
+    countBadge: { position: "absolute", top: 2, right: 2, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: radius.full, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
+    countBadgeText: { ...typography.caption, fontWeight: "700", color: colors.onAccent, fontFamily: controls.fontFamily },
     searchInput: { minHeight: controls.minHeight, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, backgroundColor: colors.surface, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs, ...typography.subhead, color: colors.text, fontFamily: controls.fontFamily },
     chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xxs, alignItems: "center" },
     chip: { paddingVertical: spacing.xxs, paddingHorizontal: spacing.sm, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
@@ -346,21 +352,6 @@ export function QueueCaseCard({ item, kind, allProjects, children }: { item: Any
   );
 }
 
-/** The 44px copy icon on every queue card (owner 2026-11-27): shares the case's support text (Copy, WhatsApp, email). */
-function CopyIcon({ label, message }: { label: string; message: string }) {
-  const { colors } = useTheme();
-  const q = useQueueStyles();
-  return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => void Share.share({ message }).catch(() => undefined)} style={q.iconButton}>
-      {/* Tabler "copy": two overlapping sheets. */}
-      <Svg width={22} height={22} viewBox="0 0 24 24">
-        <Path d="M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667z" stroke={colors.text} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        <Path d="M4.012 16.737a2 2 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1" stroke={colors.text} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </Svg>
-    </Pressable>
-  );
-}
-
 function RefreshIcon({ onPress, disabled, loading = false }: { onPress: () => void; disabled: boolean; loading?: boolean }) {
   const { colors } = useTheme();
   const q = useQueueStyles();
@@ -381,6 +372,12 @@ function RefreshIcon({ onPress, disabled, loading = false }: { onPress: () => vo
  * Load and operate the coder or reviewer queue without reading the unbounded
  * coder pick/history routes. Requests are discarded when scope or app state changes.
  */
+/** One page of the list a tab shows (coding or review, Available or the history), with its `total`. */
+function listPage(api: WorkspaceApi, mode: "coding" | "reviewing", history: boolean, options: QueuePageOptions): Promise<{ total?: number }> {
+  if (mode === "coding") return history ? api.getCodingHistory(options) : api.getCodingAvailable(options);
+  return history ? api.getReviewerHistory(options) : api.getReviewerAvailable(options);
+}
+
 /** Coder queue modes last seen per project, kept across remounts of the queue. */
 const knownCoderModes = new Map<string, { pick: boolean; random: boolean }>();
 
@@ -445,12 +442,13 @@ export function QueueScreen({
   const [showHistory, setShowHistory] = useState(initialView?.showHistory ?? false);
   const startedOnAll = useRef(initialView?.allProjects === true);
   const startedOnProject = useRef(initialView?.projectId !== undefined);
-  const pageKey = (scope: QueueScope) => screenKey(cacheScope, "page", scope.mode, scope.projectId, scope.offset, scope.showHistory, scope.place);
+  // Every server parameter that changes the answer is in the key (place and filters too), so a revisit never seeds another filter's rows.
+  const pageKey = (scope: QueueScope) => screenKey(cacheScope, "page", scope.mode, scope.projectId, scope.offset, scope.showHistory, scope.place, scope.filters);
   const cachedPage = (scope: QueueScope): QueueData | null => {
     const hit = readCached<Omit<QueueData, "api">>(pageKey(scope));
     return hit ? { ...hit, api } : null;
   };
-  const [data, setData] = useState<QueueData | null>(() => cachedPage({ api, mode, projectId, offset: initialView?.offset ?? 0, showHistory: initialView?.showHistory ?? false, place: "" }));
+  const [data, setData] = useState<QueueData | null>(() => cachedPage({ api, mode, projectId, offset: initialView?.offset ?? 0, showHistory: initialView?.showHistory ?? false, place: "", filters: "" }));
   const [allocationData, setAllocationData] = useState<AllocationData | null>(null);
   const [catalog, setCatalog] = useState<{ api: WorkspaceApi; mode: "coding" | "reviewing"; projects?: ProjectOptions } | null>(
     cachedCatalog ? { api, mode, projects: cachedCatalog.projects } : null,
@@ -460,10 +458,12 @@ export function QueueScreen({
   const [confirmRelease, setConfirmRelease] = useState<{ warning: string; proceed: () => void } | null>(null);
   const [message, setMessage] = useState<QueueMessage | null>(null);
   const [refresh, setRefresh] = useState(0);
+  // The search box as typed, and the search sent (trimmed, 300 ms after the last keystroke).
+  const [searchText, setSearchText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [genderFilter, setGenderFilter] = useState<GenderFilter>("all");
+  const [filters, setFilters] = useState<QueueFilters>(EMPTY_FILTERS);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [placeKey, setPlaceKey] = useState("");
-  const [recodeableOnly, setRecodeableOnly] = useState(false);
   const generation = useRef(0);
   // null until the first coder stats answer; load() uses it to pick the tab before fetching a page.
   const lastPickMode = useRef<boolean | null>(null);
@@ -485,8 +485,24 @@ export function QueueScreen({
   const placeProjectId = placeFilter?.projectId;
   const placeSiteId = placeFilter?.siteId;
   const placeUnitId = placeFilter?.orgUnitId;
-  const scopeRef = useRef<QueueScope>({ api, mode, projectId, offset, showHistory, place });
-  scopeRef.current = { api, mode, projectId, offset, showHistory, place };
+  // Interviewer: web only, and only where the user sees personal data (the server matches nothing elsewhere anyway).
+  const scopeProjects = projectId ? [projectId] : catalog?.api === api && catalog.mode === mode ? catalog.projects?.project_options.map((option) => option.project_id) ?? [] : [];
+  const interviewerOffered = !phone && Boolean(accessProjects?.some((project) => scopeProjects.includes(project.project_id) && project.pii_visible === true));
+  // The coding languages are the user's own (any stats answer of this queue names them); none known yet keeps the choice.
+  // Kept across loads (a null `data` while one runs), so the Language section does not blink out.
+  const knownLanguages = useRef<string[] | undefined>(undefined);
+  const languages = myLanguages(data?.api === api && data.mode === mode ? data.stats : undefined) ?? knownLanguages.current;
+  knownLanguages.current = languages;
+  const fittedFilters = fitFilters(filters, { states: queueStates(mode, showHistory), languages, interviewer: interviewerOffered });
+  const fittedJson = JSON.stringify(fittedFilters);
+  const params = filterParams(fittedFilters, searchQuery);
+  const filterKey = Object.keys(params).length ? JSON.stringify(params) : "";
+  // A tab, project or languages change drops the values the list no longer accepts, so chips and badge match what is sent.
+  useEffect(() => {
+    if (fittedJson !== JSON.stringify(filters)) setFilters(JSON.parse(fittedJson) as QueueFilters);
+  }, [fittedJson]);
+  const scopeRef = useRef<QueueScope>({ api, mode, projectId, offset, showHistory, place, filters: filterKey });
+  scopeRef.current = { api, mode, projectId, offset, showHistory, place, filters: filterKey };
   const activeRef = useRef(AppState.currentState !== "background" && AppState.currentState !== "inactive" && (typeof document === "undefined" || document.visibilityState !== "hidden"));
 
   // A training queue the caller may not use answers 400/403 (training_scope.resolve_queue).
@@ -499,10 +515,15 @@ export function QueueScreen({
   }
 
   useEffect(() => {
-    setSearchQuery("");
-    setGenderFilter("all");
-    setRecodeableOnly(false);
-  }, [projectId, showHistory, offset, mode]);
+    const next = searchText.trim();
+    if (next === searchQuery) return undefined;
+    const timer = setTimeout(() => {
+      clearMessage();
+      setOffset(0);
+      setSearchQuery(next);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchText, searchQuery]);
 
   function isCurrent(requestGeneration: number, requestScope: typeof scopeRef.current) {
     const current = scopeRef.current;
@@ -516,17 +537,24 @@ export function QueueScreen({
       && current.projectId === requestScope.projectId
       && current.offset === requestScope.offset
       && current.showHistory === requestScope.showHistory
-      && current.place === requestScope.place;
+      && current.place === requestScope.place
+      && current.filters === requestScope.filters;
   }
 
   // The queue waits for the project catalogue, so the first load already uses the last project.
   const catalogReady = catalog?.api === api && catalog.mode === mode;
 
   const load = useCallback(async () => {
-    const requestScope = { api, mode, projectId, offset, showHistory, place };
+    const requestScope = { api, mode, projectId, offset, showHistory, place, filters: filterKey };
     if (!isCurrent(generation.current, requestScope) || !catalogReady) return;
     // A place on All projects also names its project: a site id alone may sit in two projects.
-    const pageFilter = { projectId: projectId ?? placeProjectId, siteId: placeSiteId, orgUnitId: placeUnitId };
+    const placeOnly = { projectId: projectId ?? placeProjectId, siteId: placeSiteId, orgUnitId: placeUnitId };
+    const pageFilter: QueuePageOptions = { ...placeOnly, ...(filterKey ? JSON.parse(filterKey) as QueueFilterParams : {}) };
+    // Filters on: the same list without them, one row, for "3 of 14 cases" (the tiles count other things). Asked first,
+    // so the page itself stays the list method's last call.
+    const allTotal = (): Promise<number | undefined> => (filterKey
+      ? listPage(api, mode, showHistory, { ...placeOnly, limit: 1, offset: 0 }).then((page) => page.total, () => undefined)
+      : Promise.resolve(undefined));
     // The counts follow the place too (owner 2026-11-27); without one the stats call is exactly as before.
     const statsArgs: [string | undefined, QueuePlaceFilter?] = place ? [pageFilter.projectId, { siteId: placeSiteId, orgUnitId: placeUnitId }] : [projectId];
     const requestGeneration = ++generation.current;
@@ -562,9 +590,10 @@ export function QueueScreen({
         }
         if (!showHistory && lastPickMode.current === false) {
           // Random-only: the Available segment is the random panel, so there is no pick list to fetch (and no place).
-          next = { api, mode, projectId, offset, showHistory, place, stats: await api.getCodingStats(projectId) };
+          next = { api, mode, projectId, offset, showHistory, place, filters: filterKey, stats: await api.getCodingStats(projectId) };
         } else {
-          const [stats, page] = await Promise.all([
+          const [all, stats, page] = await Promise.all([
+            allTotal(),
             api.getCodingStats(...statsArgs),
             showHistory
               ? api.getCodingHistory({ ...pageFilter, limit: PAGE_SIZE, offset })
@@ -577,12 +606,15 @@ export function QueueScreen({
             offset,
             showHistory,
             place,
+            filters: filterKey,
             stats,
+            allTotal: all,
             ...(showHistory ? { coderHistory: page as CoderHistory } : { coderAvailable: page as CoderQueue }),
           };
         }
       } else {
-        const [stats, page] = await Promise.all([
+        const [all, stats, page] = await Promise.all([
+          allTotal(),
           api.getReviewerStats(...statsArgs),
           showHistory
             ? api.getReviewerHistory({ ...pageFilter, limit: PAGE_SIZE, offset })
@@ -595,7 +627,9 @@ export function QueueScreen({
           offset,
           showHistory,
           place,
+          filters: filterKey,
           stats,
+          allTotal: all,
           ...(showHistory ? { history: page as ReviewerHistory } : { available: page as ReviewerQueue }),
         };
       }
@@ -603,8 +637,8 @@ export function QueueScreen({
         setData(next);
         const { api: _api, ...page } = next;
         writeCached(pageKey(requestScope), page);
-        // A place-filtered page is not the project's history: never saved as it.
-        if (mode === "coding" && showHistory && projectId && !place && historyCache && historyIdentity) {
+        // A place- or filter-narrowed page is not the project's history: never saved as it.
+        if (mode === "coding" && showHistory && projectId && !place && !filterKey && historyCache && historyIdentity) {
           const fingerprint = historyCache.fingerprintForProject(projectId);
           if (fingerprint) void historyCache.writePage(historyIdentity, projectId, next.coderHistory!, fingerprint).catch(() => undefined);
         }
@@ -612,9 +646,9 @@ export function QueueScreen({
     } catch (error) {
       if (isCurrent(requestGeneration, requestScope)) {
         let cached: Awaited<ReturnType<CodingHistoryCache["readPage"]>> = null;
-        // The cache holds whole-project pages: a place-filtered load never reads, writes or clears it, and a network
-        // failure (TypeError) never clears it.
-        const cacheable = mode === "coding" && projectId && !place && historyCache && historyIdentity;
+        // The cache holds whole-project pages: a place- or filter-narrowed load never reads, writes or clears it, and a
+        // network failure (TypeError) never clears it.
+        const cacheable = mode === "coding" && projectId && !place && !filterKey && historyCache && historyIdentity;
         if (error instanceof TypeError) {
           if (cacheable && showHistory) {
             try {
@@ -629,11 +663,8 @@ export function QueueScreen({
         }
         if (cached && isCurrent(requestGeneration, requestScope)) {
           cachedHistoryOnly.current = true;
-          setSearchQuery("");
-          setGenderFilter("all");
-          setRecodeableOnly(false);
           setData({
-            api, mode, projectId, offset, showHistory, place, coderHistory: cached.page,
+            api, mode, projectId, offset, showHistory, place, filters: filterKey, coderHistory: cached.page,
             cachedHistoryAt: cached.fetchedAt,
           });
           setMessage(null);
@@ -644,7 +675,8 @@ export function QueueScreen({
         const previousError = actionError.current;
         if (!previousError || previousError.scope.api !== requestScope.api || previousError.scope.mode !== requestScope.mode
           || previousError.scope.projectId !== requestScope.projectId || previousError.scope.offset !== requestScope.offset
-          || previousError.scope.showHistory !== requestScope.showHistory || previousError.scope.place !== requestScope.place) {
+          || previousError.scope.showHistory !== requestScope.showHistory || previousError.scope.place !== requestScope.place
+          || previousError.scope.filters !== requestScope.filters) {
           actionError.current = null;
           setMessage({ scope: requestScope, text: errorText(error) });
         }
@@ -652,7 +684,7 @@ export function QueueScreen({
     } finally {
       if (isCurrent(requestGeneration, requestScope)) setLoading(false);
     }
-  }, [api, catalogReady, historyCache, historyIdentity, mode, offset, place, placeProjectId, placeSiteId, placeUnitId, projectId, showHistory]);
+  }, [api, catalogReady, filterKey, historyCache, historyIdentity, mode, offset, place, placeProjectId, placeSiteId, placeUnitId, projectId, showHistory]);
 
   // Load the project catalogue once per api and mode. Default: the URL's project, else the last project
   // when still offered, else (reviewers) the first project with cases to review, else All projects.
@@ -769,15 +801,15 @@ export function QueueScreen({
   const currentData = activeRef.current && AppState.currentState !== "background" && AppState.currentState !== "inactive"
     && (typeof document === "undefined" || document.visibilityState !== "hidden")
     && data?.api === api && data.mode === mode && data.projectId === projectId
-    && data.offset === offset && data.showHistory === showHistory && data.place === place ? data : null;
+    && data.offset === offset && data.showHistory === showHistory && data.place === place && data.filters === filterKey ? data : null;
   const currentMessage = activeRef.current && AppState.currentState !== "background" && AppState.currentState !== "inactive"
     && (typeof document === "undefined" || document.visibilityState !== "hidden")
     && message?.scope.api === api && message.scope.mode === mode
     && message.scope.projectId === projectId && message.scope.offset === offset
-    && message.scope.showHistory === showHistory && message.scope.place === place ? message.text : "";
+    && message.scope.showHistory === showHistory && message.scope.place === place && message.scope.filters === filterKey ? message.text : "";
 
   function openCurrent(identity: WorkspaceIdentity) {
-    const requestScope = { api, mode, projectId, offset, showHistory, place };
+    const requestScope = { api, mode, projectId, offset, showHistory, place, filters: filterKey };
     if (isCurrent(generation.current, requestScope)) onOpen(identity);
   }
 
@@ -800,7 +832,7 @@ export function QueueScreen({
   }, [load]);
 
   async function allocateRandom() {
-    const requestScope = { api, mode, projectId, offset, showHistory, place };
+    const requestScope = { api, mode, projectId, offset, showHistory, place, filters: filterKey };
     if (busy || actionInFlight.current || mode !== "coding" || !allocationVerified || !isCurrent(generation.current, requestScope)) return;
     const requestGeneration = generation.current;
     actionInFlight.current = true;
@@ -821,7 +853,7 @@ export function QueueScreen({
   }
 
   async function allocateReviewer(vaSid: string) {
-    const requestScope = { api, mode, projectId, offset, showHistory, place };
+    const requestScope = { api, mode, projectId, offset, showHistory, place, filters: filterKey };
     if (busy || actionInFlight.current || mode !== "reviewing" || !allocationVerified || !isCurrent(generation.current, requestScope)) return;
     const requestGeneration = generation.current;
     actionInFlight.current = true;
@@ -872,7 +904,7 @@ export function QueueScreen({
 
   function askRelease() {
     const requestGeneration = generation.current;
-    const requestScope = { api, mode, projectId, offset, showHistory, place };
+    const requestScope = { api, mode, projectId, offset, showHistory, place, filters: filterKey };
     if (!isCurrent(requestGeneration, requestScope)) return;
     // Name the case being given up, so the coder sees what is lost.
     const name = heldCase?.formId;
@@ -1018,71 +1050,38 @@ export function QueueScreen({
     setProjectId(next);
   }, [catalogReady, urlProject]);
 
-  const activeItems = useMemo<AnyQueueCase[]>(() => {
-    if (mode === "coding") {
-      return showHistory
-        ? (currentData?.coderHistory?.history ?? [])
-        : (currentData?.coderAvailable?.forms ?? []);
-    }
-    return reviewerRows ?? [];
-  }, [currentData, mode, reviewerRows, showHistory]);
+  const pageTotal = mode === "coding"
+    ? showHistory ? currentData?.coderHistory?.total : currentData?.coderAvailable?.total
+    : showHistory ? currentData?.history?.total : currentData?.available?.total;
+  const filtersOn = filterKey !== "";
 
-  const hasGenderData = useMemo(
-    () => activeItems.some((item) => Boolean(item.va_deceased_gender)),
-    [activeItems],
-  );
+  /** Apply the panel's choices (or a chip's removal): the list starts again on page one. */
+  function applyFilters(next: QueueFilters, nextPlace: string = place) {
+    clearMessage();
+    setOffset(0);
+    setFilters(next);
+    setPlaceKey(nextPlace);
+  }
+  // One chip per applied filter, the place first; the badge counts them (project and sort never count).
+  const placeLabel = place ? placeChoices?.options.find((option) => option.value === place)?.label : undefined;
+  const chips = [
+    ...(placeLabel ? [{ key: "place", label: placeLabel, clear: () => applyFilters(fittedFilters, "") }] : []),
+    ...filterChips(fittedFilters, (next) => applyFilters(next)),
+  ];
+  const clearAllFilters = () => applyFilters(EMPTY_FILTERS, "");
+  /** "3 of 14 cases" with filters on (14: the same list without them), "14 cases" without; nothing before a total. */
+  const resultText = pageTotal === undefined ? ""
+    : filtersOn && currentData?.allTotal !== undefined ? t("queueResultOf", { shown: pageTotal, total: currentData.allTotal })
+      : pageTotal === 1 ? t("queueResultCountOne") : t("queueResultCount", { n: pageTotal });
+  const sortText = fittedFilters.sort ? t(`queueSort_${fittedFilters.sort}`) : "";
 
-  const hasRecodeableData = useMemo(
-    () => mode === "coding" && showHistory && activeItems.some((item) => "recodeable" in item && item.recodeable === true),
-    [activeItems, mode, showHistory],
-  );
-
-  const matchesCase = useCallback((item: AnyQueueCase): boolean => {
-    if (genderFilter !== "all" && normalizeGenderKey(item.va_deceased_gender) !== genderFilter) return false;
-    if (recodeableOnly && mode === "coding" && showHistory) {
-      if (!("recodeable" in item && item.recodeable === true)) return false;
-    }
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return true;
-    const haystack = [
-      item.va_uniqueid_masked,
-      "deceased_name" in item ? item.deceased_name : undefined,
-      item.va_form_id,
-      item.project_id,
-      item.site_id,
-      item.va_submission_date,
-      "va_data_collector" in item ? item.va_data_collector : undefined,
-      "va_code_status" in item ? item.va_code_status : undefined,
-      "va_narration_language" in item ? item.va_narration_language : undefined,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(query);
-  }, [genderFilter, mode, recodeableOnly, searchQuery, showHistory]);
-
-  const filteredCoderHistory = useMemo(
-    () => (currentData?.coderHistory?.history ?? []).filter(matchesCase),
-    [currentData?.coderHistory?.history, matchesCase],
-  );
-  const filteredCoderAvailable = useMemo(
-    () => (currentData?.coderAvailable?.forms ?? []).filter(matchesCase),
-    [currentData?.coderAvailable?.forms, matchesCase],
-  );
-  const filteredReviewerRows = useMemo(
-    () => (reviewerRows ?? []).filter(matchesCase),
-    [matchesCase, reviewerRows],
-  );
-
-  const hasActiveFilters = searchQuery.trim().length > 0 || genderFilter !== "all" || recodeableOnly;
-  const filteredCount = mode === "coding"
-    ? (showHistory ? filteredCoderHistory.length : filteredCoderAvailable.length)
-    : filteredReviewerRows.length;
-
-  /** "My languages ✎" (both queues filter on them) and, on Coding, "Forms pending coding". */
+  /** "My languages ✎" (both queues filter on them) and, on Coding, "Forms pending coding". No languages: a way to choose them. */
   function renderLanguageLines() {
     const lines = codingLanguageLines(coderStats ?? reviewerStats);
     if (!lines) return null;
+    if (myLanguages(coderStats ?? reviewerStats)?.length === 0) {
+      return <View testID="coding-languages"><NoLanguages onChoose={onEditLanguages} /></View>;
+    }
     return (
       <View testID="coding-languages">
         <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.xs }}>
@@ -1118,87 +1117,88 @@ export function QueueScreen({
     );
   }
 
+  /**
+   * The search and the Sort and filter toolbar. Web: search, the Sort button (opens the panel), the Filters button
+   * (icon and count), then the applied chips and the result line. Phone: search and the Filters icon with its badge,
+   * the quick chips (Female, Male, Neonate, Child, Adult), then one summary line. All of it goes to the server.
+   */
   function renderFilterControls() {
-    if (activeItems.length === 0 && !(mode === "coding" && showHistory)) return null;
+    const count = chips.length;
+    const filtersButton = (
+      <Pressable accessibilityRole="button" accessibilityLabel={t("queueFiltersButton", { n: count })} accessibilityState={{ expanded: panelOpen }}
+        onPress={() => setPanelOpen(true)} style={[q.toolButton, phone && q.iconOnly]} testID="queue-filters">
+        <Svg width={18} height={18} viewBox="0 0 24 24">
+          <Path d="M4 6h16M7 12h10M10 18h4" stroke={colors.text} strokeWidth={2} fill="none" strokeLinecap="round" />
+        </Svg>
+        {phone ? (count ? <View style={q.countBadge}><Text style={q.countBadgeText}>{count}</Text></View> : null)
+          : <Text style={q.toolText}>{count ? t("queueFiltersCount", { n: count }) : t("queueFilters")}</Text>}
+      </Pressable>
+    );
+    const search = phone ? (
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <TextField onCard accessibilityLabel={t("queueSearchLabel")} placeholder={t("queueSearchPlaceholder")} maxLength={128} value={searchText} onChangeText={setSearchText} />
+      </View>
+    ) : (
+      <TextInput accessibilityLabel={t("queueSearchLabel")} placeholder={t("queueSearchPlaceholder")} placeholderTextColor={colors.textMuted}
+        maxLength={128} value={searchText} onChangeText={setSearchText} style={[q.searchInput, { flex: 1, minWidth: 160 }]} />
+    );
+    const quick = (key: string, label: string, on: boolean, toggle: () => void) => (
+      <Pressable key={key} hitSlop={spacing.xs} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ selected: on }}
+        onPress={toggle} style={[q.chip, on && q.chipActive]} testID={`queue-quick-${key}`}>
+        <Text style={[q.chipText, on && q.chipTextActive]}>{label}</Text>
+      </Pressable>
+    );
+    const summary = [placeLabel, resultText, sortText].filter(Boolean).join(" · ");
     return (
       <View style={q.filterBox}>
-        {phone ? (
-          <TextField onCard accessibilityLabel={t("queueFilterCases")} placeholder={t("queueFilterPlaceholder")} value={searchQuery} onChangeText={setSearchQuery} />
-        ) : (
-          <TextInput
-            accessibilityLabel={t("queueFilterCases")}
-            placeholder={t("queueFilterPlaceholder")}
-            placeholderTextColor={colors.textMuted}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={q.searchInput}
-          />
-        )}
-        {(hasGenderData || hasRecodeableData) ? (
-          <View style={q.chipRow}>
-            {hasGenderData ? (
-              <>
-                {([
-                  { key: "all" as const, label: t("queueAllSexes") },
-                  { key: "female" as const, label: t("sexFemale") },
-                  { key: "male" as const, label: t("sexMale") },
-                ]).map((opt) => {
-                  const active = genderFilter === opt.key;
-                  return (
-                    <Pressable
-                      key={opt.key}
-                      hitSlop={spacing.xs}
-                      accessibilityRole="button"
-                      accessibilityLabel={t("queueFilterSex", { sex: opt.label })}
-                      accessibilityState={{ selected: active }}
-                      onPress={() => setGenderFilter(opt.key)}
-                      style={[q.chip, active && q.chipActive]}
-                    >
-                      <Text style={[q.chipText, active && q.chipTextActive]}>{opt.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </>
-            ) : null}
-            {hasRecodeableData ? (
-              <Pressable
-                hitSlop={spacing.xs}
-                accessibilityRole="button"
-                accessibilityLabel={t("queueFilterRecodeableOnly")}
-                accessibilityState={{ selected: recodeableOnly }}
-                onPress={() => setRecodeableOnly((prev) => !prev)}
-                style={[q.chip, recodeableOnly && q.chipActive]}
-              >
-                <Text style={[q.chipText, recodeableOnly && q.chipTextActive]}>{t("queueRecodeableOnly")}</Text>
-              </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-        {hasActiveFilters ? (
-          <View style={q.chipRow}>
-            <Text style={styles.muted}>{t("queueShowing", { shown: filteredCount, total: activeItems.length })}</Text>
-            <Pressable
-              hitSlop={spacing.xs}
-              accessibilityRole="button"
-              accessibilityLabel={t("dataClearFilters")}
-              onPress={() => {
-                setSearchQuery("");
-                setGenderFilter("all");
-                setRecodeableOnly(false);
-              }}
-              style={q.chip}
-            >
-              <Text style={q.chipText}>{t("dataClearFilters")}</Text>
+        <View style={q.toolbar}>
+          {search}
+          {phone ? null : (
+            <Pressable accessibilityRole="button" accessibilityLabel={fittedFilters.sort ? t("queueSortButton", { sort: t(`queueSortShort_${fittedFilters.sort}`) }) : t("queueSortNone")}
+              onPress={() => setPanelOpen(true)} style={q.toolButton} testID="queue-sort">
+              <Text style={q.toolText}>{fittedFilters.sort ? t("queueSortButton", { sort: t(`queueSortShort_${fittedFilters.sort}`) }) : t("queueSortNone")} ▾</Text>
             </Pressable>
-          </View>
-        ) : null}
+          )}
+          {filtersButton}
+        </View>
+        {phone ? (
+          <>
+            <View style={q.chipRow}>
+              {(["female", "male"] as const).map((sex) => quick(sex, t(sex === "female" ? "sexFemale" : "sexMale"), fittedFilters.sex === sex,
+                () => applyFilters({ ...fittedFilters, sex: fittedFilters.sex === sex ? undefined : sex })))}
+              {AGE_GROUPS.map((group) => quick(group, t(`queueAgeShort_${group}`), fittedFilters.ageGroup.includes(group), () => applyFilters({
+                ...fittedFilters,
+                ageGroup: fittedFilters.ageGroup.includes(group) ? fittedFilters.ageGroup.filter((item) => item !== group) : [...fittedFilters.ageGroup, group],
+              })))}
+            </View>
+            {summary ? <Text style={styles.muted} testID="queue-result">{summary}</Text> : null}
+          </>
+        ) : (
+          <>
+            {chips.length ? <AppliedChips chips={chips} onClearAll={clearAllFilters} /> : null}
+            {resultText ? <Text style={styles.muted} testID="queue-result">{resultText}</Text> : null}
+          </>
+        )}
       </View>
     );
   }
 
+  /** The count on "Show N cases": the draft's filtered total for the shown list, one row asked. */
+  async function countCases(draft: QueueFilters, draftPlace: string): Promise<number | undefined> {
+    // Random-only Available (coding only) has no list (a place on All projects can show the panel there): nothing to count.
+    if (mode === "coding" && !showList) return undefined;
+    const chosen = placeChoices?.options.some((option) => option.value === draftPlace) ? placeChoices.places.get(draftPlace) : undefined;
+    const fitted = fitFilters(draft, { states: queueStates(mode, showHistory), languages, interviewer: interviewerOffered });
+    const page = await listPage(api, mode, showHistory, {
+      projectId: projectId ?? chosen?.projectId, siteId: chosen?.siteId, orgUnitId: chosen?.orgUnitId,
+      ...filterParams(fitted, searchQuery), limit: 1, offset: 0,
+    });
+    return page.total;
+  }
+
   /** Allocate a SID from the current server page; mismatches fail and action errors survive refresh. */
   async function allocatePicked(vaSid: string) {
-    const requestScope = { api, mode, projectId, offset, showHistory, place };
+    const requestScope = { api, mode, projectId, offset, showHistory, place, filters: filterKey };
     if (busy || actionInFlight.current || mode !== "coding" || showHistory || !allocationVerified || allocation || !isCurrent(generation.current, requestScope)) return;
     const requestGeneration = generation.current;
     actionInFlight.current = true;
@@ -1221,7 +1221,7 @@ export function QueueScreen({
 
   /** Recode a server-marked history SID; mismatches fail and action errors survive refresh. */
   async function recodeCase(vaSid: string) {
-    const requestScope = { api, mode, projectId, offset, showHistory, place };
+    const requestScope = { api, mode, projectId, offset, showHistory, place, filters: filterKey };
     if (busy || actionInFlight.current || mode !== "coding" || !showHistory || !allocationVerified || allocation || !isCurrent(generation.current, requestScope)) return;
     const requestGeneration = generation.current;
     actionInFlight.current = true;
@@ -1297,44 +1297,47 @@ export function QueueScreen({
 
   // On the web shell the project switcher joins the title row (left of the language button); the phone and a bare Screen keep a line of their own.
   const projectInHeader = !phone && Boolean(Shell);
-  const projectSelect = projects?.project_options.length ? (
+  /** The global project setting, from the header picker or the panel's Project (the same control). */
+  function changeProject(next: string[]) {
+    clearMessage();
+    setOffset(0);
+    // A new project starts on its default segment; its pick mode is not known until its stats arrive.
+    setShowHistory(initialView?.showHistory ?? false);
+    lastPickMode.current = null;
+    // Choosing the project already shown keeps its place; another project starts on All areas.
+    if (next[0] !== projectId) setPlaceKey("");
+    setProjectId(next[0]);
+  }
+  const projectPicker = (fieldRow: boolean) => projects?.project_options.length ? (
     <ProjectSelect
       projects={projects.project_options.map((option) => ({ id: option.project_id, name: option.project_name }))}
       value={projectId ? [projectId] : []}
       disabled={busy}
-      onChange={(next) => {
-        clearMessage();
-        setOffset(0);
-        // A new project starts on its default segment; its pick mode is not known until its stats arrive.
-        setShowHistory(initialView?.showHistory ?? false);
-        lastPickMode.current = null;
-        // Choosing the project already shown keeps its place; another project starts on All areas.
-        if (next[0] !== projectId) setPlaceKey("");
-        setProjectId(next[0]);
-      }}
-      fieldRow={phone}
+      onChange={changeProject}
+      fieldRow={fieldRow}
     />
   ) : null;
-  // One "Site and unit" choice under the project (owner rule 2026-11-27); the server narrows every page to it.
-  const placeSelect = placeChoices?.options.length && !placeHidden ? (
-    <View style={{ gap: spacing.xxs }} testID="queue-place">
-      <FieldLabel label={t("chooseSite")} />
-      <Select
-        label={t("chooseSite")}
-        placeholder={t("filterAllAreas")}
-        searchLabel={t("filterUnitSearch")}
-        searchable
-        options={[{ value: "", label: t("filterAllAreas") }, ...placeChoices.options]}
-        value={place}
-        onChange={(next) => {
-          if (next === place) return;
-          clearMessage();
-          setOffset(0);
-          setPlaceKey(next);
-        }}
-      />
-    </View>
-  ) : null;
+  const projectSelect = projectPicker(phone);
+  // "Site and unit" lives in the panel (owner rule 2026-11-27); the server narrows every page to it. None on random-only coding.
+  const filterPanel = (
+    <QueueFilterPanel
+      open={panelOpen}
+      onClose={() => setPanelOpen(false)}
+      value={fittedFilters}
+      place={place}
+      projectId={projectId}
+      projectControl={projectPicker(false)}
+      placeOptions={placeHidden ? undefined : placeChoices?.options}
+      states={queueStates(mode, showHistory)}
+      languages={languages}
+      onEditLanguages={onEditLanguages}
+      interviewer={interviewerOffered}
+      phone={phone}
+      countKey={JSON.stringify([mode, projectId, showHistory, searchQuery])}
+      countCases={countCases}
+      onApply={(next, nextPlace) => applyFilters(next, nextPlace)}
+    />
+  );
 
   return (
     <ActiveShell
@@ -1346,7 +1349,6 @@ export function QueueScreen({
       {topSlot}
       {phone ? null : <ContextualHelpBanner screen={mode === "coding" ? "coding" : "reviewing"} />}
       {projectSelect && !projectInHeader ? <View style={q.topLine}>{projectSelect}</View> : null}
-      {placeSelect}
       {/* First load only: once a card is drawn its refresh icon spins instead. */}
       {loading && !stats ? <ActivityIndicator accessibilityLabel={t("queueLoading")} /> : null}
       {currentMessage ? <Text accessibilityRole={message?.success ? "text" : "alert"} style={[styles.error, message?.success && { color: ui.success }]}>{currentMessage}</Text> : null}
@@ -1384,9 +1386,10 @@ export function QueueScreen({
           {randomMode && (pickMode || !showHistory) && !currentData?.cachedHistoryAt ? <Button label={t("queueStartRandom")} size="sm" disabled={busy || loading || !canAllocateRandom || Boolean(allocation)} loading={busy} onPress={() => void allocateRandom()} /> : null}
           {pickMode || randomMode ? tabs(t("myCodedCases")) : <Text style={styles.muted}>{t("myCodedCases")}</Text>}
           {currentData?.cachedHistoryAt ? <Text style={styles.muted} testID="cached-coding-history">Saved on this phone · last updated {formatDisplayTimestamp(currentData.cachedHistoryAt)} · read only</Text> : null}
-          {showList ? renderFilterControls() : null}
+          {/* A place on All projects can make the Available tab random-only: keep the way back to it. */}
+          {showList || place ? renderFilterControls() : null}
           </>)}
-          {!showList ? null : showHistory ? filteredCoderHistory.map((item) => (
+          {!showList ? null : showHistory ? (currentData?.coderHistory?.history ?? []).map((item) => (
             <QueueCaseCard key={item.va_sid} item={item} kind="codingHistory" allProjects={projectId === undefined}>
               {codingServerStatusText(item) ? <Text style={styles.muted} testID={`coding-server-status-${item.va_sid}`}>{codingServerStatusText(item)}</Text> : null}
               {item.server_status === "refused" ? <DetailsChip code={item.server_code} /> : null}
@@ -1398,7 +1401,7 @@ export function QueueScreen({
                 <CopyIcon label={t("queueCopyDetails", { case: caseTitle(item.va_uniqueid_masked) })} message={codedCaseSupportText(item)} />
               </View>
             </QueueCaseCard>
-          )) : filteredCoderAvailable.map((item) => (
+          )) : (currentData?.coderAvailable?.forms ?? []).map((item) => (
             <QueueCaseCard key={item.va_sid} item={item} kind="coding" allProjects={projectId === undefined}>
               <View style={q.cardActions}>
                 <Button label={t("queueCodeCase")} size="sm" style={q.cardBtn} disabled={busy || loading || !allocationVerified || Boolean(allocation) || coderStats?.has_pick_mode !== true} loading={busy} onPress={() => void allocatePicked(item.va_sid)} />
@@ -1407,8 +1410,7 @@ export function QueueScreen({
             </QueueCaseCard>
           ))}
           {(projects as CoderProjects | undefined)?.station_coding_disabled ? <Text style={styles.muted} testID="coding-done-on-server">{t("codingDoneOnServer")}</Text> : null}
-          {showList && coderCount === 0 ? <Text style={styles.muted}>{t(showHistory ? "queueEmptyCoded" : pickMode ? "queueEmptyPick" : "queueEmptyPage")}</Text> : null}
-          {(coderCount ?? 0) > 0 && filteredCount === 0 ? <Text style={styles.muted}>{t("queueNoMatch")}</Text> : null}
+          {showList && coderCount === 0 ? <Text style={styles.muted}>{t(filtersOn ? "queueNoMatch" : showHistory ? "queueEmptyCoded" : pickMode ? "queueEmptyPick" : "queueEmptyPage")}</Text> : null}
           {showList && showPager ? <View style={q.pager}>
             <Button label={t("dataPrevious")} kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
             <Text style={q.pageText}>{t("queuePage", { n: Math.floor(offset / PAGE_SIZE) + 1 })}</Text>
@@ -1435,7 +1437,7 @@ export function QueueScreen({
           {tabs(t("queueTabMyReviewed"))}
           {renderFilterControls()}
           </>)}
-          {filteredReviewerRows.map((item) => (
+          {(reviewerRows ?? []).map((item) => (
             <QueueCaseCard key={item.va_sid} item={item} kind={showHistory ? "reviewHistory" : "review"} allProjects={projectId === undefined}>
               {showHistory ? (
                 <View style={q.cardActions}>
@@ -1450,8 +1452,7 @@ export function QueueScreen({
               )}
             </QueueCaseCard>
           ))}
-          {reviewerRows?.length === 0 ? <Text style={styles.muted}>{reviewerEmptyText()}</Text> : null}
-          {(reviewerRows?.length ?? 0) > 0 && filteredReviewerRows.length === 0 ? <Text style={styles.muted}>{t("queueNoMatch")}</Text> : null}
+          {reviewerRows?.length === 0 ? <Text style={styles.muted}>{filtersOn ? t("queueNoMatch") : reviewerEmptyText()}</Text> : null}
           {showPager ? <View style={q.pager}>
             <Button label={t("dataPrevious")} kind="secondary" size="sm" style={q.pagerBtn} disabled={busy || loading || offset === 0} onPress={() => { clearMessage(); setOffset(Math.max(0, offset - PAGE_SIZE)); }} />
             <Text style={q.pageText}>{t("queuePage", { n: Math.floor(offset / PAGE_SIZE) + 1 })}</Text>
@@ -1459,6 +1460,7 @@ export function QueueScreen({
           </View> : null}
         </View>
       )}
+      {filterPanel}
       {confirmRelease ? <ConfirmDialog
         destructive
         title={t("releaseCaseTitle")}

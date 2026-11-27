@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { t } from "../../i18n";
 import { View } from "react-native";
 
 import { FieldError, FieldHint, Input, MenuSelect, useLayout } from "./ui";
@@ -99,7 +100,7 @@ function yearOptions(trigger: string, selected: string) {
 /** A year dropdown instead of a typed four-digit field. `trigger` names it: the field's label when it is the whole field (Year
  * precision), "<label> year" beside a month list. */
 function YearSelect({ trigger, value, onSelect, grow }: { trigger: string; value: string; onSelect: (year: string) => void; grow?: boolean }) {
-  return <MenuSelect triggerLabel={trigger} valueText={value || "Year"} accessibilityValue={{ text: value || "Not set" }} selected={value} options={yearOptions(trigger, value)} onSelect={onSelect} style={grow ? { flexGrow: 1, flexBasis: 90, minWidth: 90 } : { minWidth: 100 }} />;
+  return <MenuSelect triggerLabel={trigger} valueText={value || "Year"} accessibilityValue={{ text: value || t("dateNotSet") }} selected={value} options={yearOptions(trigger, value)} onSelect={onSelect} style={grow ? { flexGrow: 1, flexBasis: 90, minWidth: 90 } : { minWidth: 100 }} />;
 }
 
 /** Year-Month for builds without a native month input: a month list and a four-digit year. */

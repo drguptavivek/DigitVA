@@ -244,9 +244,9 @@ when the export is present (`VaUsers.landing_url()`, policy
   `project=<id|all>` stays in the URL with its default chain, and a project
   change pushes a history entry (`queueUrlStep`, `src/workspace/viewState.ts`),
   so Back and Forward follow it.
-  Under the project both queues (`src/workspace/QueueScreen.tsx`, web and
-  phone) show one "Site and unit" `Select` (`chooseSite`, first choice "All
-  areas"), built by `queuePlaceOptions` (`src/web/placeOptions.ts`) from the
+  Both queues (`src/workspace/QueueScreen.tsx`, web and phone) offer one
+  "Site and unit" `Select` (`chooseSite`, first choice "All
+  areas") in the Sort and filter panel (below), built by `queuePlaceOptions` (`src/web/placeOptions.ts`) from the
   `accessProjects` prop: `/me/access` `actions.code` (Code) or
   `actions.review` (Review), limited to the queue's projects. Project-wide
   reach offers every listed site (no tree) or every active selectable unit
@@ -266,6 +266,36 @@ when the export is present (`VaUsers.landing_url()`, policy
   neither, and the random allocation request never carries it. A place-filtered coder history load never reads, writes or
   clears the phone's history cache, and a network failure never clears it. The page-local area chips ("Within
   Area", "All", per-site) are gone.
+  Sort and filter (owner 2026-11-27; docs/policy/case-list-views.md "Code and
+  Review queue sort and filter"): under the tabs the web shows a search box
+  ("Search case ID or interviewer"), a Sort button naming the current order
+  and a Filters button (icon and count), then the applied filters as removable
+  chips with Clear all, and "3 of 14 cases"; the phone shows the search, a
+  Filters icon with its count badge, quick chips Female, Male, Neonate, Child,
+  Adult, and one summary line (place · result · sort). Both open one panel
+  (`QueueFilterPanel`, `src/workspace/queueFilters.tsx`, on the shared
+  `FilterPanel`: a right side panel from 768 px, a bottom sheet narrower):
+  Sort by, Project (the global picker itself; a change clears Site and unit),
+  Site and unit, Workflow state (only My coded cases and Available to review;
+  a state the shown tab does not accept is dropped on a tab change), Sex, Age
+  group, Language (the user's `languages.mine`; a user with none sees "No
+  languages configured" and "Choose languages", which opens
+  `onEditLanguages`, as the languages line does, and `language` is never
+  sent), Interviewed between, and Interviewer (web only, projects with
+  `pii_visible`). Edits are a draft until "Show N cases" (N: the draft's
+  `total` from a one-row request 300 ms after the last edit); chips and Clear
+  all apply at once, and Clear all keeps the project. Every choice is a server
+  parameter (`QueueFilterParams` in `src/workspace/api.ts`: `sort`, repeated
+  `state`, `sex`, repeated `age_group` and `language`, `interviewed_from`,
+  `interviewed_to`, `interviewer`, `q`; the search 300 ms after typing); none
+  filters loaded rows, and any change returns to page one. With filters on, a
+  one-row unfiltered request gives the "of 14". The badge counts the chips;
+  project and sort never count. The web screen cache's page key
+  (`screenKey`, `src/web/screenCache.ts`) holds the place and the canonical
+  filter string with every other part, so a revisit never seeds another
+  filter's rows; a refused or failed refetch still drops its entry. A filtered
+  coder history page is never written to, read from or cleared in the phone's
+  history cache. The client-side "Recodeable only" and sex chips are gone.
   Queue layout (owner 2026-11-27, both queues, web and phone): no summary line
   beside the page title and no card title on Coding (the refresh icon keeps the
   card's top right). Count tiles: Coding "Random pool", "Ready to pick",

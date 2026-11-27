@@ -69,7 +69,28 @@ export type JsonRequester = (path: string, init?: WorkspaceRequestInit) => Promi
  * One page of a queue list. `siteId` / `orgUnitId` (the "Site and unit" filter) narrow it on the server to that site,
  * or that unit and its subtree; absent, the list is the whole queue as before.
  */
-export type QueuePageOptions = { projectId?: string; siteId?: string; orgUnitId?: string; limit?: number; offset?: number };
+export type QueuePageOptions = { projectId?: string; siteId?: string; orgUnitId?: string; limit?: number; offset?: number } & QueueFilterParams;
+
+/** The queue lists' order: interview date or normalized age, each way; absent keeps the list's own order. */
+export type QueueSort = "interviewed_asc" | "interviewed_desc" | "age_asc" | "age_desc";
+export type QueueAgeGroup = "neonate" | "child" | "adult";
+
+/**
+ * The "Sort and filter" panel's server parameters (docs/current-state/api-v1.md "Queue sort and filter"). Each is sent
+ * only when set (an empty list or "" sends nothing); the repeatable ones repeat their key. `state` is only for the
+ * lists that have states (My coded cases, Available to review): the caller never sends it elsewhere.
+ */
+export type QueueFilterParams = {
+  sort?: QueueSort;
+  state?: string[];
+  sex?: "female" | "male";
+  ageGroup?: QueueAgeGroup[];
+  language?: string[];
+  interviewedFrom?: string;
+  interviewedTo?: string;
+  interviewer?: string;
+  q?: string;
+};
 
 /** The "Site and unit" filter alone: the queue counts follow it as the lists do. */
 export type QueuePlaceFilter = { siteId?: string; orgUnitId?: string };
@@ -148,6 +169,15 @@ function pagingQuery(options: QueuePageOptions = {}): string {
   if (options.projectId) params.set("project_id", options.projectId);
   if (options.siteId) params.set("site_id", options.siteId);
   if (options.orgUnitId) params.set("org_unit_id", options.orgUnitId);
+  if (options.sort) params.set("sort", options.sort);
+  for (const state of options.state ?? []) params.append("state", state);
+  if (options.sex) params.set("sex", options.sex);
+  for (const group of options.ageGroup ?? []) params.append("age_group", group);
+  for (const language of options.language ?? []) params.append("language", language);
+  if (options.interviewedFrom) params.set("interviewed_from", options.interviewedFrom);
+  if (options.interviewedTo) params.set("interviewed_to", options.interviewedTo);
+  if (options.interviewer) params.set("interviewer", options.interviewer);
+  if (options.q) params.set("q", options.q);
   if (options.limit !== undefined) {
     if (!Number.isInteger(options.limit) || options.limit < 1 || options.limit > 200) throw new WorkspaceContractError("request.limit");
     params.set("limit", String(options.limit));

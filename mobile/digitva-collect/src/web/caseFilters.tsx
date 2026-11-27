@@ -149,7 +149,8 @@ function sexFilterLabel(sex: AdvancedFilters["sex"]): string {
   return t("sexOtherUnknown");
 }
 
-function useFilterStyles() {
+/** The styles every filter surface shares (chips, sections, the panel); the queue's Sort and filter panel uses them too. */
+export function useFilterStyles() {
   const { colors, ui } = useTheme();
   const controlHeight = useControlHeight();
   return useMemo(() => StyleSheet.create({

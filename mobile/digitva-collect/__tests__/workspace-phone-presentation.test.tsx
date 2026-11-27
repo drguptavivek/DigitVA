@@ -41,7 +41,7 @@ describe("coding queue presentation", () => {
     // The project row is Home's plain row (digitva-zyei): the project button, no "Project" label above it.
     expect(r.root.findAll((n) => n.props.accessibilityRole === "button" && String(n.props.accessibilityLabel).startsWith("Project:")).length).toBeGreaterThan(0);
     expect(r.root.findAll((n) => n.type === Text && n.props.children === "Project")).toHaveLength(0);
-    expect(r.root.findAll((n) => n.type === TextInput && n.props.accessibilityLabel === "Filter cases").length).toBeGreaterThan(0);
+    expect(r.root.findAll((n) => n.type === TextInput && n.props.accessibilityLabel === "Search cases").length).toBeGreaterThan(0);
   });
 
   test("web: Back button and Help banner stay, tabs stay buttons", async () => {

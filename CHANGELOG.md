@@ -12,7 +12,9 @@ What landed, newest first. Details live in the commits and the linked docs;
   was not running), picked unchanged onto main. Verified: full Jest 369
   suites, check-web, and dev web at 375x812: project menu below the field
   inside the edges, searchable unit picker flips above near the bottom. Not
-  checked on a device (`digitva-wlfr`; the emulator has only Expo Go).
+  checked on a device (`digitva-wlfr`). Later the same day, Collect Plus
+  debug on the emulator: Code queue project menu fine; the searchable unit
+  dropdown in Sort and filter is hidden by the keyboard (`digitva-jhc5`).
 - Staging offers 0.3.33 to phones (owner go 2026-11-27): Collect and
   Collect Plus 0.3.33 copied from the `c7b1ac797` image into
   `private/android-hosted` after checksum checks; `/api/v1/app/android/latest`

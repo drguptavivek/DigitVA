@@ -17,14 +17,14 @@ No device check of 0.3.30 or 0.3.31.
 
 Owner decisions:
 - No staging deploy until the sessions finish their in-flight work (owner
-  2026-11-27): `digitva-pav3` web Loading flash (Flashing screens bug
-  session); from the Shared Unit selector session, owner go 2026-11-27,
+  2026-11-27): from the Shared Unit selector session, owner go 2026-11-27,
   one branch each: `digitva-gzmp` docs, `digitva-xmlw` year-only death
   (migration), phone Interviews and Reported deaths cards, server-side
   queue sort and filter (policy baseline first), then the sort-and-filter
-  flyout after pav3 lands; and each piece reviewed by
+  flyout (pav3 has landed); and each piece reviewed by
   the INDEPENDENT CODE REVIEWER session before it lands. Main is ahead of
-  staging `eeb8e4815` with uee4, zxw0, a2yf, vbr2, oo77, ctj2, lqmo, 5cqm.
+  staging `eeb8e4815` with uee4, zxw0, a2yf, vbr2, oo77, ctj2, lqmo,
+  5cqm, gzmp, pav3.
 - Homepage "DigitVA in use" counts only HMR001 (10 interviews): the owner
   will tick "Included in homepage KPIs" (Admin → Projects) for ICMR01,
   UNSW01, KEM001 and TELE01 themselves.

@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Web screens show their last answer at once on a sidebar revisit and
+  refresh behind it, instead of flashing Loading (`digitva-pav3`): an
+  in-memory cache keyed by user (never stored on disk), cleared on sign-out
+  and user switch. A refused or failed refetch (401, 403, 5xx) takes the
+  cached rows down and drops the entry; only a network failure keeps the
+  rows already on screen. Web only, the phone app is unchanged. Reviewed by
+  the independent reviewer (one block fixed); full Jest 366 suites / 6699
+  passed and check-web passed on main.
 - docs/current-state/expo-client.md says where the coding case lists
   render (only NativePendingWorkspace), replacing a stale card-location
   line (`digitva-gzmp`, docs only, reviewed).

@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Web: the project switcher sits in the page title row just left of the
+  language switcher on Code, Review, Deaths and Interview, and is a dropdown
+  even with one project (`digitva-uee4`, owner request). The phone keeps its
+  plain one-project line. The deaths list no longer flashes "No reported
+  deaths" while it reloads. Two review rounds by the independent reviewer;
+  full Jest 361 suites / 6623 passed on main; `make check-web` passed. The
+  one-project dropdown is covered by Jest only (no dev account has exactly
+  one project).
 - Web profile nudge: the "My Profile" link renders in the app font instead
   of the browser's serif (`digitva-a2yf`); the link text is an RN Text
   inside the same `<a>`. Reviewed by the independent reviewer; Jest

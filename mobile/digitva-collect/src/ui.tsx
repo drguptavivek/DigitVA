@@ -884,6 +884,7 @@ export function errorText(error: unknown): string {
   if (error instanceof AccountStoreCollisionError) return t("accountStoreCollision");
   if (error instanceof NotInSlotError) return t("errSlotChanged");
   if (error instanceof Error && error.message === "workspace_stale") return t("workspaceStale");
+  if (error instanceof Error && error.message === "offline_case_access_revoked") return t("offlineCaseAccessRevoked");
   if (error instanceof ApiError) {
     const { key, ref } = errorKeyFor({ code: error.code, status: error.status, platform: "phone" });
     return ref ? `${t(key)}\n${errorReference(error)}` : t(key);

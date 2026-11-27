@@ -17,7 +17,10 @@ import { useAppState } from "../AppState";
 import { isUnlocked, openInterviewerDb } from "../interviewerDb";
 import { accessSummaryForDisplay, loadActiveSlot, loadDevice } from "../auth";
 import { t } from "../i18n";
-import { Button, Screen, useUiStyles } from "../ui";
+import { Button, Card, Screen, useUiStyles } from "../ui";
+import { LocalCasesRow } from "../ui/CodingCaseChips";
+import { isPlusVariant } from "../appVariant";
+import { canUseOfflineCoding } from "../codingCapabilities";
 import { getBundledVaDefinition } from "../coding/bundledVaDefinitions";
 import { createWorkspaceApi, type TrainingQueue } from "../workspace/api";
 import type { AccessProject } from "../api";
@@ -210,6 +213,7 @@ function Workspace({ mode, vaSid, training = false }: { mode: WorkspaceMode; vaS
     reloadKey={returns + languagesSaved}
     initialView={first(initialHistory) === "1" ? { allProjects: false, showHistory: true, offset: 0 } : undefined}
     {...(training ? { trainingQueue, onTrainingQueue: setTrainingQueue } : {})}
+    topSlot={isPlusVariant() && !training && mode === "coding" && canUseOfflineCoding(account) ? <Card grouped testID="local-cases-row"><LocalCasesRow userId={userId} /></Card> : undefined}
     historyCache={historyContext?.cache}
     historyIdentity={historyContext?.identity}
     accessProjects={accessProjects}

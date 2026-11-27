@@ -396,7 +396,8 @@ describe("the offline coding screen", () => {
     mockParams.caseId = "draft-7";
     mockDb.getFirstAsync.mockResolvedValueOnce({ project_id: "OTHER" });
     const root = await render(<OfflineCoding />);
-    expect(alerts(root)).toContain("offline_case_access_revoked");
+    expect(alerts(root)).toContain("offlineCaseAccessRevoked");
+    expect(alerts(root)).not.toContain("offline_case_access_revoked");
     expect(mockEngineInit).not.toHaveBeenCalled();
     expect(mockEditorSave).not.toHaveBeenCalled();
   });

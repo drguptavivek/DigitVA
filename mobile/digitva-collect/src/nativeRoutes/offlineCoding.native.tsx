@@ -484,7 +484,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
         if (releaseLease.current) return;
         const draft = await db.getFirstAsync<{ project_id: string | null; site_id: string }>("SELECT project_id, site_id FROM drafts WHERE id = ?", [clientDraftId]);
         if (!draft?.project_id || !canUseOfflineCoding(accountRef.current, draft.project_id)) {
-          if (live) setFailed("offline_case_access_revoked");
+          if (live) setFailed(t("offlineCaseAccessRevoked"));
           return;
         }
         await assertNotRefused();
@@ -778,7 +778,7 @@ function OfflineCase({ db, userId, clientDraftId, account, onDone }: { db: Db; u
         {busy ? <>
           <Text style={styles.muted}>This case is being sent.</Text>
           <Button kind="secondary" label="Retry" onPress={() => setRetry((value) => value + 1)} />
-        </> : <Text style={styles.muted}>{failed ? "This case is not available for offline coding." : "Opening the case…"}</Text>}
+        </> : <Text style={styles.muted}>{t("openingCase")}</Text>}
       </Screen>
     );
   }

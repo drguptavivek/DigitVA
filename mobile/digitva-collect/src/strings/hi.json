@@ -907,6 +907,8 @@
   "codingRefused_self_coding_required": "यह प्रोजेक्ट आपको वह इंटरव्यू कोड करने नहीं देता जो आपने खुद लिया हो। इंटरव्यू भेज दिया गया; कोई और कोडर इसे कोड करेगा",
   "codingStaleRecode": "इंटरव्यू का डेटा बदल गया है। नए डेटा के साथ इस केस को फिर से कोड करें।",
   "workspaceStale": "यह केस बदल गया है: इसे वापस भेजा गया है या इसमें नया डेटा है। इसे बंद करके दोबारा खोलें।",
+  "offlineCaseAccessRevoked": "यह केस अब इस फ़ोन पर ऑफ़लाइन कोडिंग के लिए उपलब्ध नहीं है।",
+  "openingCase": "केस खुल रहा है…",
   "icdNoMatchingConditions": "कोई मिलती-जुलती बीमारी नहीं मिली।",
   "icdNoMatchesInAxis": "इस अक्ष में कोई मिलान नहीं मिला।",
   "icd11Citation": "International Classification of Diseases, Eleventh Revision (ICD-11), World Health Organization (WHO) 2019/2021 https://icd.who.int/browse11. Licensed under Creative Commons Attribution-NoDerivatives 3.0 IGO licence (CC BY-ND 3.0 IGO).",

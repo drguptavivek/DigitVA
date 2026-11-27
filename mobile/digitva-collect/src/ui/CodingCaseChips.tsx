@@ -6,6 +6,20 @@ import { t } from "../i18n";
 import { useIcd11DorisPreference } from "../icd11DorisPreference";
 import { Card, ListRow, Separator } from "../ui";
 
+/** The Plus "Local cases" navigation row (offline coding); off while the ICD-11/DORIS preference is off. */
+export function LocalCasesRow({ userId }: { userId: string }) {
+  const router = useRouter();
+  const preference = useIcd11DorisPreference();
+  return (
+    <ListRow
+      icon={icons.localCases}
+      label={t("localCases")}
+      disabled={!preference.enabled}
+      onPress={() => router.push({ pathname: "/offline-coding", params: { userId } })}
+    />
+  );
+}
+
 /**
  * The coding case lists as rows of one grouped card (design sheet 01): each opens its list screen, so they are
  * navigation rows with chevrons, never buttons or a filter. Online is the only row that follows connectivity.
@@ -14,18 +28,12 @@ import { Card, ListRow, Separator } from "../ui";
  */
 export function CodingCaseChips({ userId, canLocal, offline, leading }: { userId: string; canLocal: boolean; offline?: boolean; leading?: ReactNode }) {
   const router = useRouter();
-  const preference = useIcd11DorisPreference();
   return (
     <Card grouped testID="coding-case-lists">
       {leading}
       {canLocal ? (
         <>
-          <ListRow
-            icon={icons.localCases}
-            label={t("localCases")}
-            disabled={!preference.enabled}
-            onPress={() => router.push({ pathname: "/offline-coding", params: { userId } })}
-          />
+          <LocalCasesRow userId={userId} />
           <Separator icon />
         </>
       ) : null}

@@ -907,6 +907,8 @@
   "codingRefused_self_coding_required": "this project does not let you code an interview you collected yourself. The interview was sent; another coder will code it",
   "codingStaleRecode": "The interview data changed. Code this case again with the new data.",
   "workspaceStale": "This case changed: it was sent back or has new data. Close it and open it again.",
+  "offlineCaseAccessRevoked": "This case is no longer available for offline coding on this phone.",
+  "openingCase": "Opening the case…",
   "icdNoMatchingConditions": "No matching conditions.",
   "icdNoMatchesInAxis": "No matches in this axis.",
   "icd11Citation": "International Classification of Diseases, Eleventh Revision (ICD-11), World Health Organization (WHO) 2019/2021 https://icd.who.int/browse11. Licensed under Creative Commons Attribution-NoDerivatives 3.0 IGO licence (CC BY-ND 3.0 IGO).",

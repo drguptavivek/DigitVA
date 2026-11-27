@@ -62,6 +62,9 @@ import { useToast } from "../toast";
 import { dropWorklist, heldWorklist, holdWorklist } from "../worklistCache";
 import { icons } from "../Icon";
 import { displayProjectName } from "../projectName";
+import { isPlusVariant } from "../appVariant";
+import { canUseOfflineCoding } from "../codingCapabilities";
+import { LocalCasesRow } from "../ui/CodingCaseChips";
 import { Button, Card, DetailsChip, errorText, ListRow, Screen, Separator } from "../ui";
 import { buildInterviewItems, interviewCounts, type InterviewAction, type InterviewItem, type ListedDraft } from "../ui/interviewRows";
 import { homeSummary } from "../ui/homeSummary";
@@ -920,6 +923,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
     account.registered_deaths_access ? (
       <ListRow key="mine" icon={icons.interviews} label={t("myRegisteredDeaths")} onPress={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, registeredMine: "1", ...(trainingMode && selectedProjectId ? { projectId: selectedProjectId } : {}) } })} />
     ) : null,
+    isPlusVariant() && canUseOfflineCoding(account) ? <LocalCasesRow key="local" userId={account.user_id} /> : null,
   ].filter((row) => row !== null);
   // Each row is followed by a separator when another row comes after it in the same card.
   const homeRows = goRows.length ? goRows.flatMap((row, index) => (index < goRows.length - 1 ? [row, <Separator key={`sep-${index}`} icon />] : [row])) : undefined;
@@ -1149,7 +1153,7 @@ function InterviewWorklist({ interviews, filter }: { interviews: boolean; filter
         onViewTodo={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, view: "interviews", filter: "todo" } })}
         onViewDrafts={() => router.push({ pathname: "/worklist", params: { userId: account.user_id, view: "interviews", filter: "drafts" } })}
       >
-        {/* One card of "go somewhere" rows: Register a death and My registered deaths. Coder lists live in the Code tab. */}
+        {/* One card of "go somewhere" rows: Register a death, My registered deaths and (Plus, offline coding) Local cases. Coder lists live in the Code tab. */}
         {homeRows ? <Card grouped testID="home-go-rows">{homeRows}</Card> : null}
         {notices}
       </HomeView>

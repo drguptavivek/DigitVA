@@ -398,6 +398,7 @@ export function QueueScreen({
   onTrainingQueue,
   onEditLanguages,
   accessProjects,
+  topSlot,
 }: {
   api: WorkspaceApi;
   mode: "coding" | "reviewing";
@@ -421,6 +422,8 @@ export function QueueScreen({
   onEditLanguages?: () => void;
   /** The signed-in user's /me/access projects: their code/review reach builds the "Site and unit" filter. Unset: no filter. */
   accessProjects?: AccessProject[];
+  /** Rendered first inside the shell, above the queue (native Plus: the Local cases row). */
+  topSlot?: ReactNode;
 }) {
   const ActiveShell = Shell ?? Screen;
   // Phone presentation only (round-6 Q1-Q8); the browser keeps its own look.
@@ -1315,6 +1318,7 @@ export function QueueScreen({
       // Phone: the bar has the back arrow and the shell Help sheet has the guide, so no Back or Help pill here.
       headerAction={onExit && !phone ? <Button label={t("back")} kind="secondary" size="sm" onPress={onExit} /> : undefined}
     >
+      {topSlot}
       {phone ? null : <ContextualHelpBanner screen={mode === "coding" ? "coding" : "reviewing"} />}
       {projectSelect && !projectInHeader ? <View style={q.topLine}>{projectSelect}</View> : null}
       {placeSelect}

@@ -49,11 +49,11 @@ Owner decisions waiting:
 1. ICD-11 client tokens landed on main (`f09e6ec6f`, migration
    `a4d7e2c9b1f6`); staging deploy and the first live token each need the
    owner's go. Follow-up `digitva-zcmg`.
-2. Fix `digitva-jhc5` before the next APK: on Android the keyboard hides
-   the searchable dropdown landed by `digitva-329t` (`c7cd883bb`); screens
-   in private/screenshots/dropdown-329t-2026-11-27. Then re-check
-   (`digitva-wlfr`). Collect Plus debug is installed and enrolled (Test
-   Admin, HP2026) on emulator-5588.
+2. Dropdowns: `digitva-329t` (`c7cd883bb`) and its keyboard fix
+   `digitva-jhc5` (`ec9503bd5`) are on main for the next APK; emulator
+   checked (screens private/screenshots/dropdown-329t-2026-11-27).
+   Flip-above on Android not yet seen (`digitva-wlfr`). Collect Plus debug
+   is enrolled (Test Admin, HP2026) on emulator-5588.
 3. Device-check 0.3.33 (now offered on staging): Local cases
    row (`5cqm`), phone cards (`2b7d`), Sort and filter sheet and Recodeable
    (`znbm`), Reported deaths chips and Refused badge (`aunm`), tab-return

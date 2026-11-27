@@ -5,6 +5,15 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Filter dropdowns scroll their field to the top before opening
+  (`digitva-jhc5`, `ec9503bd5`, owner's design): on the phone the keyboard
+  hid the Sort and filter Site and unit menu. Opt-in via the panel that owns
+  the scroll view (`src/ui/revealField.tsx`); other dropdowns unchanged.
+  Reviewer subagent LAND after one fix round (pre-scroll anchoring, stale
+  offset on reopen, web scroll on every dropdown). Verified: full Jest 370
+  suites, check-web, Collect Plus debug on the emulator (menu at full height
+  under the field, visible above the keyboard, reopen fine). Web branch not
+  checked live.
 - Dropdowns open at the field (`digitva-329t`, `c7cd883bb`): ProjectSelect
   and Select (org-unit pickers) anchor their menu below the field, or above
   when there is no room, on every width; the bottom sheet is gone. Reviewer

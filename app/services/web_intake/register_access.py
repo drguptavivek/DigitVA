@@ -13,6 +13,7 @@ import sqlalchemy as sa
 
 from app import db
 from app.models import (
+    MasOrgUnit,
     VaAccessRoles,
     VaDeathRegister,
     VaUsers,
@@ -189,7 +190,8 @@ def reported_deaths_page(user: VaUsers, args) -> dict:
     narrowing; one the caller has no reach in is 403), ``limit`` (clamped to
     1..200, default 50), ``cursor`` (from ``next_cursor``; malformed is 400).
     Rows are ``serialize_death`` without the submission id (a reporter has no
-    business with the interview) plus ``identifiers``
+    business with the interview) plus ``unit_name`` (the case's unit, one
+    query for the page; null when unrouted, digitva-grf9) and ``identifiers``
     (``death_identifier_service.identifier_payloads``, one query for the page). Each row is the caller's own registration,
     so each carries its GPS fix (``shows_gps``).
     """
@@ -221,7 +223,12 @@ def reported_deaths_page(user: VaUsers, args) -> dict:
     identifiers = death_identifiers.identifier_payloads(user, page)
     editable = can_edit_identifiers(user, page)
     opened = register_pii_accessor.open_register_pii(page)
-    return {"deaths": [dict(serialize_death(d, show_gps=True, register=opened[d.death_id]), va_sid=None, identifiers=identifiers[d.death_id],
+    unit_ids = {d.org_unit_id for d in page if d.org_unit_id}
+    unit_names = dict(db.session.execute(
+        sa.select(MasOrgUnit.org_unit_id, MasOrgUnit.unit_name).where(MasOrgUnit.org_unit_id.in_(unit_ids))
+    ).all()) if unit_ids else {}
+    return {"deaths": [dict(serialize_death(d, show_gps=True, register=opened[d.death_id]), va_sid=None,
+                            unit_name=unit_names.get(d.org_unit_id), identifiers=identifiers[d.death_id],
                             can_edit_identifiers=editable[d.death_id])
                        for d in page],
             "next_cursor": next_cursor}

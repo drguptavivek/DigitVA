@@ -638,6 +638,8 @@ class DeathReporterTests(BaseTestCase):
         body = response.get_json()
         # The reporter's reach is SCA only, so the SCB death is not listed (present first: SCA is).
         self.assertEqual([d["death_id"] for d in body["deaths"]], [reported])
+        # The card's place (digitva-grf9): the case's unit name.
+        self.assertEqual(body["deaths"][0]["unit_name"], self.sca.unit_name)
         self.assertIn("next_cursor", body)
         self.assertNotEqual(reported, interviewed)
         self.assertEqual(self.client.get(f"{API}/deaths?registered=all").status_code, 400)

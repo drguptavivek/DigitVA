@@ -100,10 +100,21 @@ const yearOnlyFlag = (...sources: unknown[]): boolean =>
 export const diedText = (died: string | null | undefined, yearOnly: boolean | undefined): string | null =>
   yearOnly && died ? died.slice(0, 4) : dateOnly(died);
 
-/** A Reported deaths card's badge (design board Deaths): Interviewed once finished, else Waiting for interview. */
-export function deathStateBadge(state: string, otherCompleteInterview?: boolean): CaseBadge {
-  const terminal = TERMINAL_CASE_STATES.has(state) || state === "refused" && otherCompleteInterview === true;
-  return terminal ? { label: t("badgeInterviewed"), tone: "neutral" } : { label: t("badgeWaitingInterview"), tone: "accent" };
+/**
+ * Register statuses of the Reported deaths groups; the server's `REPORTED_INTERVIEWED_STATUSES` and
+ * `REPORTED_CLOSED_STATUSES` and `REPORTED_REFUSED_STATUSES` (app/services/web_intake/register_access.py). The card badge below follows these
+ * sets, so a chip and its cards agree; every other status is Waiting.
+ */
+export const REPORTED_INTERVIEWED_STATES: ReadonlySet<string> = new Set(["submitted"]);
+export const REPORTED_CLOSED_STATES: ReadonlySet<string> = new Set(["cancelled", "duplicate"]);
+export const REPORTED_REFUSED_STATES: ReadonlySet<string> = new Set(["refused"]);
+
+/** A Reported deaths card's badge (design board Deaths): Interviewed, Closed (cancelled or duplicate), Refused, else Waiting for interview. */
+export function deathStateBadge(state: string): CaseBadge {
+  if (REPORTED_INTERVIEWED_STATES.has(state)) return { label: t("badgeInterviewed"), tone: "neutral" };
+  if (REPORTED_CLOSED_STATES.has(state)) return { label: t("badgeClosed"), tone: "neutral" };
+  if (REPORTED_REFUSED_STATES.has(state)) return { label: t("state_refused"), tone: "neutral" };
+  return { label: t("badgeWaitingInterview"), tone: "accent" };
 }
 
 const flatLocal = (row: CaseDetail): FlatCase => {

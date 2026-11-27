@@ -493,6 +493,57 @@ class DeathReporterTests(BaseTestCase):
         self.assertNotIn("latitude", rows[death])
         self.assertNotIn("longitude", rows[death])
 
+    def _filter_cases(self):
+        """The reporter's own deaths: one waiting, one interviewed, one cancelled, one
+        duplicate (closed) and one refused (both under All only), with literal-wildcard case ids."""
+        waiting = self._register(self.reporter, self.sca, deceased_name="Zed Findable")
+        done = self._register(self.reporter, self.sca)
+        closed = self._register(self.reporter, self.sca)
+        dup = self._register(self.reporter, self.sca)
+        refused = self._register(self.reporter, self.sca)
+        self._complete_interview(done["death_id"])
+        for case, unique_id, status in ((waiting, "ZQ_1", None), (done, "ZQ%2", None), (closed, "ZQX3", "cancelled"),
+                                        (dup, "ZQX4", "duplicate"), (refused, "ZQX5", "refused")):
+            death = db.session.get(VaDeathRegister, uuid.UUID(case["death_id"]))
+            death.unique_id = unique_id
+            if status:
+                death.status = status
+        db.session.commit()
+        return waiting["death_id"], done["death_id"], closed["death_id"], dup["death_id"], refused["death_id"]
+
+    def _ids(self, query):
+        response = self._list(self.reporter, query)
+        self.assertEqual(response.status_code, 200, response.get_json())
+        return [d["death_id"] for d in response.get_json()["deaths"]]
+
+    def test_the_list_filters_by_stage_and_counts_ignore_the_filters(self):
+        waiting, done, closed, dup, refused = self._filter_cases()
+        self.assertEqual(sorted(self._ids("")), sorted([waiting, done, closed, dup, refused]))  # subject present first
+        self.assertEqual(self._ids("?stage=waiting"), [waiting])
+        self.assertEqual(self._ids("?stage=interviewed"), [done])  # closed and refused rows are in neither stage
+        for query in ("", "?stage=waiting", "?stage=interviewed&q=ZQ_"):
+            self.assertEqual(self._list(self.reporter, query).get_json()["counts"],
+                             {"all": 5, "waiting": 1, "interviewed": 1}, query)
+        self.assertEqual(self._list(self.reporter, "?stage=done").status_code, 400)
+
+    def test_the_list_searches_the_case_id_with_literal_wildcards_and_not_the_name(self):
+        waiting, done, closed, dup, refused = self._filter_cases()
+        self.assertEqual(sorted(self._ids("?q=zq")), sorted([waiting, done, closed, dup, refused]))  # case-insensitive
+        self.assertEqual(self._ids("?q=ZQ_"), [waiting])  # _ is not "any one character"
+        self.assertEqual(self._ids("?q=Q%252"), [done])  # %25 is a literal % after URL decoding
+        self.assertEqual(self._ids("?q=" + "Z" * 128), [])
+        self.assertEqual(self._list(self.reporter, "?q=" + "Z" * 129).status_code, 400)  # refused, not truncated
+        self.assertEqual(self._ids("?q=Findable"), [])  # the name is not searched
+
+    def test_a_filtered_list_pages_within_the_filter(self):
+        waiting, done, closed, dup, refused = self._filter_cases()
+        first = self._list(self.reporter, "?q=ZQ&limit=3").get_json()
+        self.assertEqual(len(first["deaths"]), 3)
+        second = self._list(self.reporter, f"?q=ZQ&limit=3&cursor={first['next_cursor']}").get_json()
+        self.assertIsNone(second["next_cursor"])
+        self.assertEqual(sorted(d["death_id"] for d in first["deaths"] + second["deaths"]),
+                         sorted([waiting, done, closed, dup, refused]))
+
     def test_an_interviewer_keeps_the_register_list_unchanged(self):
         case = self._register(self.reporter, self.sca)
         self._login(str(self.interviewer.user_id))
@@ -500,6 +551,9 @@ class DeathReporterTests(BaseTestCase):
         body = self.client.get(f"{API}/deaths?project_id={PROJECT}&site_id={SITE}").get_json()
         self.assertIn(case["death_id"], {d["death_id"] for d in body["deaths"]})
         self.assertNotIn("next_cursor", body)
+        self.assertNotIn("counts", body)
+        filtered = self.client.get(f"{API}/deaths?project_id={PROJECT}&site_id={SITE}&stage=waiting&q=zzz").get_json()
+        self.assertIn(case["death_id"], {d["death_id"] for d in filtered["deaths"]})  # params ignored
 
     def test_the_reporters_list_query_is_index_backed(self):
         # On a near-empty table the planner may prefer the unfiltered ordered

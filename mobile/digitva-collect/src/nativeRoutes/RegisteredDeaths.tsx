@@ -1,15 +1,15 @@
 /** A reporter's own registrations, loaded in bounded pages. */
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, Text } from "react-native";
+import { AppState, Text, TextInput } from "react-native";
 
 import { signOut } from "../auth";
 import { getNativeRegisteredDeaths } from "../deathRegistrationApi";
 import { useAppState } from "../AppState";
 import { t } from "../i18n";
 import { confirmSignOut as confirmUnsentSignOut } from "../signOutConfirm";
-import type { CaseRow } from "../api";
-import { Button, Screen, useUiStyles } from "../ui";
+import type { CaseRow, RegisteredDeathCounts } from "../api";
+import { Button, Row, Screen, useUiStyles } from "../ui";
 import { CaseCard } from "../ui/CaseCard";
 import { caseNumberLabel, caseSupportText } from "../ui/caseSupport";
 import { deathStateBadge, diedText } from "../ui/interviewRows";
@@ -17,6 +17,10 @@ import { callInformant } from "./callInformant";
 import { deathPhoneUrl } from "../deathWorkflow";
 import { OfflineNotice, SkeletonCards, StateView } from "../ui/StateView";
 import { isUnlocked } from "../interviewerDb";
+
+type Stage = "all" | "waiting" | "interviewed";
+/** Delay before a typed case id is sent: the list is read on the server. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 export default function RegisteredDeaths({
   userId,
@@ -45,6 +49,10 @@ export default function RegisteredDeaths({
   };
   const [deaths, setDeaths] = useState<CaseRow[]>([]);
   const [deathsOwner, setDeathsOwner] = useState<string>();
+  const [stage, setStage] = useState<Stage>("all");
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [counts, setCounts] = useState<RegisteredDeathCounts>();
   const [cursor, setCursor] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -65,7 +73,10 @@ export default function RegisteredDeaths({
     setBusy(true);
     setMessage("");
     try {
-      const page = await getNativeRegisteredDeaths(userId, registeredMine, nextCursor, projectId);
+      const page = await getNativeRegisteredDeaths(userId, registeredMine, nextCursor, projectId, {
+        ...(stage === "all" ? {} : { stage }),
+        ...(query ? { q: query } : {}),
+      });
       if (request !== generation.current || !current(ownerKey)) return;
       pageCursorByDeath.current = {
         ...pageCursorByDeath.current,
@@ -74,12 +85,22 @@ export default function RegisteredDeaths({
       setDeaths((rows) => nextCursor ? [...rows, ...page.deaths] : page.deaths);
       setDeathsOwner(ownerKey);
       setCursor(page.next_cursor);
+      setCounts(page.counts);
     } catch {
       if (request === generation.current && current(ownerKey)) setMessage(t("errGeneric"));
     } finally {
       if (request === generation.current) setBusy(false);
     }
-  }, [current, ownerKey, projectId, registeredMine, userId]);
+  }, [current, ownerKey, projectId, query, registeredMine, stage, userId]);
+
+  // A new chip or search changes `load`, so the focus effect below reloads from the first page; the generation
+  // guard drops a slower answer of the earlier filter.
+  useEffect(() => {
+    const next = search.trim();
+    if (next === query) return;
+    const timer = setTimeout(() => setQuery(next), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query, search]);
 
   useFocusEffect(useCallback(() => {
     focused.current = true;
@@ -99,6 +120,7 @@ export default function RegisteredDeaths({
       setDeathsOwner(undefined);
       pageCursorByDeath.current = {};
       setCursor(null);
+      setCounts(undefined);
     }
   }, [account?.registered_deaths_access, lockVersion, userId]);
 
@@ -167,12 +189,38 @@ export default function RegisteredDeaths({
       {offline ? <OfflineNotice /> : null}
       <Button kind="secondary" label={t("refresh")} loading={busy} disabled={Boolean(offline)} onPress={() => void load()} />
       {offline ? <Text style={styles.muted}>{t("refreshNeedsConnection")}</Text> : null}
+      <TextInput
+        style={styles.input}
+        value={search}
+        onChangeText={setSearch}
+        placeholder={t("searchCaseId")}
+        accessibilityLabel={t("searchCaseId")}
+        autoCapitalize="characters"
+        autoCorrect={false}
+        maxLength={128}
+        returnKeyType="search"
+      />
+      <Row>
+        {(["all", "waiting", "interviewed"] as const).map((chip) => {
+          const label = chip === "all" ? t("deathsChipAll") : t(chip === "waiting" ? "badgeWaitingInterview" : "badgeInterviewed");
+          return (
+            <Button
+              key={chip}
+              kind={stage === chip ? "primary" : "secondary"}
+              label={counts ? `${label} · ${counts[chip]}` : label}
+              onPress={() => setStage(chip)}
+            />
+          );
+        })}
+      </Row>
       {message ? <StateView kind="error" title={t("stateErrorTitle")} hint={message} actionLabel={t("refresh")} onAction={() => void load()} /> : null}
       {visibleDeaths.length === 0 && busy && !message ? <SkeletonCards count={2} /> : null}
-      {visibleDeaths.length === 0 && !busy && !message ? <StateView title={t("stateNoDeathsTitle")} hint={t("stateNoDeathsHint")} actionLabel={t("newDeath")} onAction={() => router.push({ pathname: "/register", params: { userId } })} /> : null}
+      {visibleDeaths.length === 0 && !busy && !message && (stage !== "all" || query)
+        ? <StateView title={t("stateNoDeathsMatchTitle")} hint={t("stateNoDeathsMatchHint")} /> : null}
+      {visibleDeaths.length === 0 && !busy && !message && stage === "all" && !query ? <StateView title={t("stateNoDeathsTitle")} hint={t("stateNoDeathsHint")} actionLabel={t("newDeath")} onAction={() => router.push({ pathname: "/register", params: { userId } })} /> : null}
       {visibleDeaths.map((death) => {
         const area = death.unit_name ?? death.org_unit_name ?? undefined;
-        const badge = deathStateBadge(death.state ?? "", death.other_complete_interview);
+        const badge = deathStateBadge(death.status ?? death.state ?? "");
         const caseId = caseNumberLabel(death.unique_id);
         const yearOnly = (death as { date_of_death_year_only?: unknown }).date_of_death_year_only === true;
         return (

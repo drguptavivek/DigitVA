@@ -464,9 +464,13 @@ export interface CaseRow {
   [key: string]: unknown;
 }
 
+/** The reporter's chip numbers over the whole own list, ignoring the search and chip (absent from older servers). */
+export interface RegisteredDeathCounts { all: number; waiting: number; interviewed: number }
+
 export interface RegisteredDeathPage {
   deaths: CaseRow[];
   next_cursor: string | null;
+  counts?: RegisteredDeathCounts;
 }
 
 /** Validate the server-owned shape used by the own-registration list. */
@@ -492,7 +496,14 @@ export function parseRegisteredDeathPage(value: unknown): RegisteredDeathPage {
     }
     deathIds.add(death.death_id);
   }
-  return { deaths: value.deaths as CaseRow[], next_cursor: value.next_cursor as string | null };
+  const counts = value.counts;
+  const count = (key: string) => record(counts) && typeof counts[key] === "number" && Number.isInteger(counts[key]) && (counts[key] as number) >= 0;
+  if (counts !== undefined && !["all", "waiting", "interviewed"].every(count)) throw new ApiError(200, "malformed_response");
+  return {
+    deaths: value.deaths as CaseRow[],
+    next_cursor: value.next_cursor as string | null,
+    ...(counts === undefined ? {} : { counts: counts as RegisteredDeathCounts }),
+  };
 }
 
 export interface CaseDetailDeceased {

@@ -839,7 +839,9 @@ through `chrome.tsx` (`chrome.web.tsx` keeps the browser header and bottom bar).
   (`docs/policy/field-data-collection.md`). Interviews cards and the phone's
   Reported deaths cards (`src/nativeRoutes/RegisteredDeaths.tsx`, now the shared
   `CaseCard`, badge Waiting for interview or Interviewed, no Lock now or My
-  interviews button: Lock now is in the account sheet) carry a copy icon that
+  interviews button: Lock now is in the account sheet; the screen has a case-id
+  search box and three chips with counts, All, Waiting for interview and
+  Interviewed (cancelled and duplicate cards read Closed and refused ones Refused, under All only), sent to the server as `q` and `stage`, digitva-aunm) carry a copy icon that
   shares the case's support text (`src/ui/caseSupport.ts`: full case id, place,
   age, sex, status, app version; never name, phone or location) and, when the
   row says the informant has a phone, a call icon (`src/nativeRoutes/callInformant.ts`:

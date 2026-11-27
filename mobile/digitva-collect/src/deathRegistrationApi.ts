@@ -58,10 +58,14 @@ export async function getNativeRegisteredDeaths(
   cursor?: string | null,
   /** The project the list is for: the training project asks for the training scope (auth.ts). */
   projectId?: string,
+  /** The chip (absent: all) and the case-id search, both applied by the server before paging. */
+  filter?: { stage?: "waiting" | "interviewed"; q?: string },
 ): Promise<RegisteredDeathPage> {
   const params = new URLSearchParams({ limit: "50" });
   if (registeredMine) params.set("registered", "mine");
   if (cursor) params.set("cursor", cursor);
+  if (filter?.stage) params.set("stage", filter.stage);
+  if (filter?.q) params.set("q", filter.q);
   const { body } = await authedRequest<unknown>(userId, `${INTAKE_API}/deaths?${params}`, projectId ? { projectId } : undefined);
   return parseRegisteredDeathPage(body);
 }

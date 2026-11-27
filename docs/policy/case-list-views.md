@@ -557,6 +557,14 @@ Draft, Ready to send, Revision, Sent (Refused is not offered; the owner's list
 leaves it out). The quick chips are shortcuts: To do covers To do, Scheduled,
 Not reachable and Paused; Drafts, Revisions and Sent one state each.
 
+## Reported deaths (phone) search and chips (owner, 2026-11-27)
+
+The phone's Reported deaths screen (a death reporter's own registrations, paged, `GET /intake/deaths`) gets a search box and three chips with counts: All, Waiting for interview, Interviewed. The list is paged, so both run on the server, only on the reporter's own list (the interviewer's register list is unchanged).
+
+- `stage=waiting|interviewed` (absent: all; anything else is 400 `invalid_request`). Three groups of register statuses: Interviewed is `submitted` only (`REPORTED_INTERVIEWED_STATUSES`); Closed is `cancelled` and `duplicate` (`REPORTED_CLOSED_STATUSES`; never interviewed, so badge Closed, shown under All only, no Closed chip); Refused is `refused` (the informant declined at consent; owner answer, 2026-11-27: neither waiting nor interviewed; `REPORTED_REFUSED_STATUSES`, badge Refused, under All only, no chip). Waiting is every other status. `stage=waiting` and `stage=interviewed` return neither closed nor refused rows. The card badge uses the same sets, so a chip and its cards agree.
+- `q`: case id only (`unique_id`), case-insensitive substring, `%` and `_` literal, at most 128 characters (longer is 400 `invalid_request`, as the queue `q`, not truncated). Names are not searched: the name can be sealed at rest (as for the queues above).
+- The reply gains `counts` `{all, waiting, interviewed}` over the caller's own list in scope, ignoring `stage` and `q` (stable chip numbers), from one grouped query; `all` also counts the closed and refused rows. Keyset paging is unchanged and applies within the filtered set.
+
 ## Non-goals
 
 

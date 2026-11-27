@@ -179,6 +179,22 @@ REPORTED_PAGE_DEFAULT = 50
 
 REPORTED_PAGE_MAX = 200
 
+#: Longest ``q`` a reporter's list takes (a case id is far shorter).
+REPORTED_SEARCH_MAX = 128
+
+#: The reporter's groups of register statuses: Interviewed (the interview
+#: is done), Closed (never interviewed: cancelled or a confirmed duplicate),
+#: Refused (below), the last two under "All" only with no chip, and Waiting for
+#: interview (every other status). Mirrored by ``REPORTED_INTERVIEWED_STATES``,
+#: ``REPORTED_CLOSED_STATES`` and ``REPORTED_REFUSED_STATES`` in
+#: mobile/digitva-collect/src/ui/interviewRows.ts (the card badge), so a chip
+#: and its cards always agree.
+REPORTED_INTERVIEWED_STATUSES = frozenset({"submitted"})
+REPORTED_CLOSED_STATUSES = frozenset({"cancelled", "duplicate"})
+#: Refused (the informant declined at consent; owner 2026-11-27): neither waiting nor
+#: interviewed, under "All" only, with its own badge.
+REPORTED_REFUSED_STATUSES = frozenset({"refused"})
+
 
 def reported_deaths_page(user: VaUsers, args) -> dict:
     """``GET /api/v1/intake/deaths`` for a death_reporter: the deaths *user*
@@ -188,7 +204,13 @@ def reported_deaths_page(user: VaUsers, args) -> dict:
 
     *args* is the query string: ``project_id`` and ``site_id`` (optional
     narrowing; one the caller has no reach in is 403), ``limit`` (clamped to
-    1..200, default 50), ``cursor`` (from ``next_cursor``; malformed is 400).
+    1..200, default 50), ``cursor`` (from ``next_cursor``; malformed is 400),
+    ``stage`` (``waiting`` | ``interviewed``, see ``REPORTED_INTERVIEWED_STATUSES``
+    ``REPORTED_CLOSED_STATUSES`` and ``REPORTED_REFUSED_STATUSES``: closed and refused
+    rows are in neither stage; else 400) and ``q`` (case id substring,
+    case-insensitive, wildcards literal, at most 128 characters else 400; never the name, which may be sealed at rest). The reply also
+    carries ``counts`` (``all``, ``waiting``, ``interviewed``) of the caller's
+    list ignoring ``stage`` and ``q``, from one grouped query.
     Rows are ``serialize_death`` without the submission id (a reporter has no
     business with the interview) plus ``unit_name`` (the case's unit, one
     query for the page; null when unrouted, digitva-grf9) and ``identifiers``
@@ -205,10 +227,27 @@ def reported_deaths_page(user: VaUsers, args) -> dict:
         context = [e for e in context if project_id in (None, e["project_id"]) and site_id in (None, e["site_id"])]
         if not context:
             raise WebIntakeError("You do not have access to that project and site.", 403)
+    stage = args.get("stage") or None
+    if stage not in (None, "waiting", "interviewed"):
+        raise WebIntakeError("stage must be waiting or interviewed.", 400, "invalid_request")
     scope = _worklist_scope(user, context, _DEATH_REPORTER)
     if scope is None:
-        return {"deaths": [], "next_cursor": None}
-    stmt = sa.select(VaDeathRegister).where(scope, VaDeathRegister.registered_by == user.user_id)
+        return {"deaths": [], "next_cursor": None, "counts": {"all": 0, "waiting": 0, "interviewed": 0}}
+    mine = sa.and_(scope, VaDeathRegister.registered_by == user.user_id)
+    interviewed = VaDeathRegister.status.in_(REPORTED_INTERVIEWED_STATUSES)
+    settled = VaDeathRegister.status.in_(
+        REPORTED_INTERVIEWED_STATUSES | REPORTED_CLOSED_STATUSES | REPORTED_REFUSED_STATUSES)
+    total, done, other = db.session.execute(sa.select(
+        sa.func.count(), sa.func.count().filter(interviewed), sa.func.count().filter(settled)).where(mine)).one()
+    counts = {"all": total, "waiting": total - other, "interviewed": done}
+    stmt = sa.select(VaDeathRegister).where(mine)
+    if stage:
+        stmt = stmt.where(interviewed if stage == "interviewed" else sa.not_(settled))
+    term = (args.get("q") or "").strip()
+    if len(term) > REPORTED_SEARCH_MAX:
+        raise WebIntakeError(f"q must be at most {REPORTED_SEARCH_MAX} characters.", 400, "invalid_request")
+    if term:
+        stmt = stmt.where(VaDeathRegister.unique_id.icontains(term, autoescape=True))
     if args.get("cursor"):
         at, death_id = _decode_cursor(args["cursor"])
         stmt = stmt.where(sa.tuple_(VaDeathRegister.updated_at, VaDeathRegister.death_id) < (at, death_id))
@@ -231,7 +270,7 @@ def reported_deaths_page(user: VaUsers, args) -> dict:
                             unit_name=unit_names.get(d.org_unit_id), identifiers=identifiers[d.death_id],
                             can_edit_identifiers=editable[d.death_id])
                        for d in page],
-            "next_cursor": next_cursor}
+            "next_cursor": next_cursor, "counts": counts}
 
 
 def flag_death(user: VaUsers, death_id: object, *, kind: str, reason: str | None = None,

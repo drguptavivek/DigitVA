@@ -41,12 +41,15 @@ jest.mock("../src/ui", () => {
   return {
     Button: ({ label, onPress }: { label: string; onPress: () => void }) =>
       ReactActual.createElement("button", { label, onPress }),
+    Row: ({ children }: { children: React.ReactNode }) => ReactActual.createElement("row", null, children),
     Screen: ({ children }: { children: React.ReactNode }) => ReactActual.createElement("screen", null, children),
     useUiStyles: () => ({ text: {}, muted: {}, error: {}, card: {} }),
   };
 });
 
 import RegisteredDeaths from "../src/nativeRoutes/RegisteredDeaths";
+import { deathStateBadge, REPORTED_CLOSED_STATES, REPORTED_INTERVIEWED_STATES, REPORTED_REFUSED_STATES } from "../src/ui/interviewRows";
+import { parseRegisteredDeathPage } from "../src/api";
 
 beforeEach(() => {
   Object.defineProperty(AppState, "currentState", { configurable: true, value: "active" });
@@ -235,5 +238,92 @@ describe("reported death cards", () => {
     const tree = await open([death({ date_of_death_year_only: true })]);
     expect(tree.root.findAllByProps({ testID: "case-fact-died" })[0].props.children).toBe("metaDied:2026");
     await act(async () => tree.unmount());
+  });
+});
+
+describe("search and chips (digitva-aunm)", () => {
+  const row = (id: string, status = "registered") => ({ death_id: id, unique_id: id.toUpperCase(), status });
+  const counts = { all: 5, waiting: 3, interviewed: 2 };
+  const text = (tree: ReturnType<typeof create>) => JSON.stringify(tree.toJSON());
+
+  beforeEach(() => { jest.useFakeTimers(); });
+  afterEach(() => { jest.useRealTimers(); });
+
+  it("shows counts on the chips and sends the stage, from the first page, keeping it for load more", async () => {
+    mockLoad.mockImplementation(async (_user, _mine, cursor) => ({ deaths: [row(cursor ? "d2" : "d1")], next_cursor: "c1", counts }));
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<RegisteredDeaths userId="u1" registeredMine={true} />); });
+    expect(mockLoad).toHaveBeenLastCalledWith("u1", true, undefined, undefined, {});
+    for (const label of ["deathsChipAll · 5", "badgeWaitingInterview · 3", "badgeInterviewed · 2"]) {
+      expect(tree.root.findAllByProps({ label })).not.toHaveLength(0);
+    }
+    await act(async () => tree.root.findByProps({ label: "loadMore" }).props.onPress());
+    expect(mockLoad).toHaveBeenLastCalledWith("u1", true, "c1", undefined, {});
+    await act(async () => tree.root.findByProps({ label: "badgeInterviewed · 2" }).props.onPress());
+    expect(mockLoad).toHaveBeenLastCalledWith("u1", true, undefined, undefined, { stage: "interviewed" });
+    await act(async () => tree.root.findByProps({ label: "loadMore" }).props.onPress());
+    expect(mockLoad).toHaveBeenLastCalledWith("u1", true, "c1", undefined, { stage: "interviewed" });
+    await act(async () => tree.unmount());
+  });
+
+  it("sends the search after the debounce, from the first page, and shows the no-match message", async () => {
+    mockLoad.mockResolvedValueOnce({ deaths: [row("d1")], next_cursor: "c1", counts })
+      .mockResolvedValue({ deaths: [], next_cursor: null, counts });
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<RegisteredDeaths userId="u1" registeredMine={true} />); });
+    const input = tree.root.findByProps({ placeholder: "searchCaseId" });
+    await act(async () => input.props.onChangeText("  zz9 "));
+    expect(mockLoad).toHaveBeenCalledTimes(1);  // not yet
+    await act(async () => { jest.advanceTimersByTime(300); });
+    expect(mockLoad).toHaveBeenCalledTimes(2);
+    expect(mockLoad).toHaveBeenLastCalledWith("u1", true, undefined, undefined, { q: "zz9" });
+    expect(text(tree)).toContain("stateNoDeathsMatchTitle");
+    expect(text(tree)).not.toContain("stateNoDeathsTitle");
+    await act(async () => tree.unmount());
+  });
+
+  it("shows no counts for an older server that sends none", async () => {
+    mockLoad.mockResolvedValue({ deaths: [row("d1")], next_cursor: null });
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<RegisteredDeaths userId="u1" registeredMine={true} />); });
+    expect(tree.root.findAllByProps({ label: "badgeInterviewed" })).not.toHaveLength(0);
+    await act(async () => tree.unmount());
+  });
+
+  it("drops a slower answer of an earlier filter", async () => {
+    let resolveAll!: (page: unknown) => void;
+    let resolveFresh!: (page: unknown) => void;
+    mockLoad.mockReturnValueOnce(new Promise((resolve) => { resolveAll = resolve; }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveFresh = resolve; }));
+    let tree!: ReturnType<typeof create>;
+    await act(async () => { tree = create(<RegisteredDeaths userId="u1" registeredMine={true} />); });
+    await act(async () => tree.root.findByProps({ label: "badgeInterviewed" }).props.onPress());
+    expect(mockLoad).toHaveBeenCalledTimes(2);  // both loads in flight
+    await act(async () => { resolveFresh({ deaths: [row("fresh", "submitted")], next_cursor: null, counts }); await Promise.resolve(); });
+    await act(async () => { resolveAll({ deaths: [row("stale")], next_cursor: "old", counts }); await Promise.resolve(); });
+    expect(text(tree)).toContain("FRESH");
+    expect(text(tree)).not.toContain("STALE");
+    expect(tree.root.findAllByProps({ label: "loadMore" })).toHaveLength(0);
+    await act(async () => tree.unmount());
+  });
+
+  it("badges exactly the statuses the Interviewed chip holds, the server's set", () => {
+    expect([...REPORTED_INTERVIEWED_STATES]).toEqual(["submitted"]);
+    expect([...REPORTED_CLOSED_STATES].sort()).toEqual(["cancelled", "duplicate"]);
+    expect(deathStateBadge("submitted").label).toBe("badgeInterviewed");
+    for (const status of ["duplicate", "cancelled"]) expect(deathStateBadge(status).label).toBe("badgeClosed");
+    expect([...REPORTED_REFUSED_STATES]).toEqual(["refused"]);
+    expect(deathStateBadge("refused").label).toBe("state_refused");
+    for (const status of ["registered", "scheduled", "in_progress", "paused", "not_reachable", ""]) {
+      expect(deathStateBadge(status).label).toBe("badgeWaitingInterview");
+    }
+  });
+
+  it("validates counts: kept when numeric, absent is fine, malformed is refused", () => {
+    const page = { deaths: [], next_cursor: null };
+    expect(parseRegisteredDeathPage({ ...page, counts }).counts).toEqual(counts);
+    expect(parseRegisteredDeathPage(page).counts).toBeUndefined();
+    expect(() => parseRegisteredDeathPage({ ...page, counts: { all: "1", waiting: 0, interviewed: 0 } })).toThrow();
+    expect(() => parseRegisteredDeathPage({ ...page, counts: { all: 1, waiting: 0 } })).toThrow();
   });
 });

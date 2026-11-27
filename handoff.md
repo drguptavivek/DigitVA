@@ -54,14 +54,20 @@ and maps stay in the browser).
   `.claude/worktrees/agent-aa48d1112a502ab3d`). Flip-above on Android not
   device-checked (`digitva-wlfr`, P3).
 - On hold (owner 2026-11-27, "wait on .32"; approved 2026-11-26): do not
-  build until the owner says go. The l2dg emulator offline-coding check did
-  not finish (2026-11-27): the Local cases case would not open
-  (`digitva-5cqm`, undiagnosed, phone side), so the offline Social Autopsy
-  display is unverified. The next APK (0.3.32): version bump, web release,
-  Collect, Plus and Play bundle, gates, verification, pin commit; report
-  version and CI links to the l2dg session. It also carries the
-  case-definition line-break fix (`6070c5c65`). Staging and the phone
-  offer need separate goes.
+  build until the owner says go. The offline Social Autopsy display passed
+  the l2dg emulator rerun (2026-11-27, debug APK with the pinned engine
+  `icd11-engine-v2026.10.29.1`): SA question text and answer labels show, no
+  SA analysis form offline, final COD not blocked by SA. The earlier
+  load_failed was a stale local engine, not an app bug. Found there: an
+  online Collect Plus coder has no Local cases entry row on the Code tab
+  since `d024b5ad0` (shipped 0.3.28-0.3.31; the row survives only in
+  NativeCollectionGate's fallback), plus the raw code at
+  offlineCoding.native.tsx:487 (`digitva-5cqm`, owner asked by the Role with
+  report access session whether to fix before 0.3.32). The next APK
+  (0.3.32): version bump, web release, Collect, Plus and Play bundle, gates,
+  verification, pin commit; report version and CI links to the l2dg
+  session. It also carries the case-definition line-break fix
+  (`6070c5c65`). Staging and the phone offer need separate goes.
 - Device-check 0.3.31 (now offered to phones; adds the org-unit lineage
   pickers): re-enrol from Sign in again (`digitva-dbcw`), DORIS
   interview/report death dates, case summary, Reset DORIS dialog, COD form

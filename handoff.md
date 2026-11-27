@@ -7,10 +7,10 @@ ranked step 1."
 
 ## Start here
 
-Staging runs `c7b1ac797` (deployed 2026-11-27, owner go; migrations at
-`a40477e55b72`; rollback, the one new column is nullable:
-`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh eeb8e48158dc3073013d9580237e22fdcced6ff6`;
-snapshots and pg_dump in `CHANGELOG.md` 2026-11-27). The demo stack runs
+Staging runs `19fc01be4` (deployed 2026-11-27, owner go; migrations at
+`a4d7e2c9b1f6`; rollback, the new table is additive:
+`sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh c7b1ac797bc4fa4d45a33f6dfb6a85d2c774f54d`;
+backup and checks in `CHANGELOG.md` 2026-11-27). The demo stack runs
 `eeb8e4815` (`digitva-demo-app:eeb8e4815`, env backup
 `/data/digitva-demo.env.pre-eeb8e4815`). The image carries 0.3.33
 (`android-v0.3.33`, `collect-plus-v0.3.33-plus.1`, web
@@ -19,16 +19,16 @@ snapshots and pg_dump in `CHANGELOG.md` 2026-11-27). The demo stack runs
 46014411448 (expires about 2026-12-11). No device check of 0.3.31 or 0.3.33.
 
 Owner decisions waiting:
-- Each its own go: upgrade the demo, upload the Play AAB, deploy the ICD-11 client tokens (landed
-  `f09e6ec6f`) and issue the first token.
+- Each its own go: upgrade the demo, upload the Play AAB, issue the first
+  ICD-11 client token (the code is on staging since `19fc01be4`).
 - Homepage KPIs: the owner ticks "Included in homepage KPIs" for ICMR01,
   UNSW01, KEM001, TELE01 (only HMR001 counts now).
-- On main, not deployed (each needs the owner's go for staging): Redis
-  fail-open (`6d3cbed61`, `digitva-248z` closed), ingress gzip (`329a75b05`,
-  `digitva-qq5l`: after deploy run the curl checks in its notes), web error
-  text and closed-draft guard (`0ad457383`, `digitva-k34z` closed;
-  `digitva-y96b` open: PATCH on load of an open draft unconfirmed).
-  `digitva-6sty` heap: needs a device measurement (ranked causes in its notes).
+- Deployed to staging 2026-11-27 (`19fc01be4`), checks left: gzip service
+  worker second load and PNG/MP3 unencoded (`digitva-qq5l`), PATCH rate per
+  draft in the app log (`digitva-y96b`, `digitva-3ko3`). A new ingress
+  config needs `docker restart digitva-digitva_ingress-1` on the host (the
+  single-file bind mount keeps the old inode). `digitva-6sty` heap: needs a
+  device measurement (ranked causes in its notes).
 - Rerun training setup on staging (`digitva-veq5`); until then a reviewer
   trainee at a sub-centre may get `grant_not_allowed`.
 - Signed-in staging pages are unchecked since the deploys (queues with the

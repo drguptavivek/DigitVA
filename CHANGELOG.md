@@ -5,6 +5,25 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Staging runs `19fc01be4` (deployed 2026-11-27 evening, owner go; migrations
+  at `a4d7e2c9b1f6`, DB backup `pg_dump_minerva_20261127T184715Z.dump`;
+  rollback: `sudo -Hu ubuntu env SKIP_BACKUP=1 bash scripts/deploy-server.sh c7b1ac797bc4fa4d45a33f6dfb6a85d2c774f54d`).
+  Web export `expo-web-v2026.11.27.4` (pinned in `19fc01be4`). It carries:
+  the Redis fail-open (`6d3cbed61`, `digitva-248z`: ban check, 405 recorder
+  and Flask-Limiter no longer 500 every request when Redis is down), ingress
+  gzip (`329a75b05`, `digitva-qq5l`), the web network-error mapper and
+  closed-draft guard (`0ad457383`, `digitva-k34z`, `digitva-y96b`) and the
+  ICD-11 client tokens (`f09e6ec6f`, no token issued). The ingress container
+  did not pick up the new config on its own (single-file bind mount keeps the
+  old inode), so `digitva-digitva_ingress-1` was restarted. Checked on
+  staging: ui-strings/hi 476,747 to 72,263 B and the app entry bundle
+  3,012,881 to 765,847 B with gzip, `Vary` and `immutable` kept, the new web
+  build is served (its network-error text is in the bundle), health 200,
+  `/api/icd11-client/` answers JSON, no errors in the app or worker log for 20
+  minutes. Not checked: the service worker second load, PNG and MP3 staying
+  unencoded, the translations endpoint (needs a session), PATCH rate per
+  draft (`digitva-3ko3`, `digitva-y96b`), a Redis outage (not simulated on
+  staging).
 - Filter dropdowns scroll their field to the top before opening
   (`digitva-jhc5`, `ec9503bd5`, owner's design): on the phone the keyboard
   hid the Sort and filter Site and unit menu. Opt-in via the panel that owns

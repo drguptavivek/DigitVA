@@ -35,11 +35,17 @@ page's size:
 
 The keys are always set afresh (a cached row never keeps an old value); the
 pick list's own ``deceased_name`` is left as it is (it is not asked for names).
+
+The queues' "Sort and filter" panel (owner 2026-11-27) is ``QueueFilters``
+(parsed by ``request_helpers.queue_filter_args``); its ``state`` values follow
+the same pill rule through ``recoded_condition``, the SQL twin of ``recoded``.
 """
+from dataclasses import dataclass, field
 from datetime import UTC
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import aggregate_order_by, array_agg
+from sqlalchemy.orm import aliased
 
 from app import db
 from app.models import (
@@ -164,3 +170,83 @@ def add_card_keys(user, rows: list[dict], *, names: bool = False, coder_id=None)
         elif names:
             row.pop("deceased_name", None)
     return rows
+
+
+@dataclass(frozen=True)
+class QueueFilters:
+    """The parsed "Sort and filter" choices of one queue list request.
+
+    *conditions* are SQL on ``VaSubmissions`` / ``VaForms`` (correlated
+    EXISTS for anything else) that only narrow the caller's authorized query;
+    *sort* is a ``QUEUE_SORTS`` key or None (the list's own order); *states*
+    the asked pill states (empty: every row)."""
+
+    conditions: tuple = ()
+    sort: str | None = None
+    states: frozenset = field(default_factory=frozenset)
+
+    @property
+    def any(self) -> bool:
+        """Whether any choice was made (else the list answers as before)."""
+        return bool(self.conditions or self.sort or self.states)
+
+
+NO_FILTERS = QueueFilters()
+
+#: ``sort`` values: interview date or normalized age; unknown age sorts last.
+QUEUE_SORTS = ("interviewed_asc", "interviewed_desc", "age_asc", "age_desc")
+
+
+def sort_order(sort: str, *, interviewed, age, sid) -> list:
+    """ORDER BY of *sort* over the given columns, ties by *sid* so a page
+    boundary never falls between equal rows."""
+    if sort.startswith("interviewed"):
+        key = interviewed.desc() if sort.endswith("desc") else interviewed.asc()
+    else:
+        key = (age.desc() if sort.endswith("desc") else age.asc()).nulls_last()
+    return [key, sid]
+
+
+def recoded_condition(coder_id=None) -> sa.ColumnElement:
+    """SQL twin of ``add_card_keys``'s ``recoded`` for the outer
+    ``VaSubmissions`` row: the coder has more than one final COD on the case
+    (any status; tester and demo output excluded). The coder is *coder_id*,
+    else the author of the case's active final, else the latest coder (one
+    coder's tie between two such is not ordered, as in ``add_card_keys``)."""
+    own = aliased(VaFinalAssessments)
+    if coder_id is None:
+        pick = aliased(VaFinalAssessments)
+        coder_id = (
+            sa.select(pick.va_finassess_by)
+            .where(pick.va_sid == VaSubmissions.va_sid, pick.is_tester.is_(False), pick.demo_expires_at.is_(None))
+            .group_by(pick.va_finassess_by)
+            .order_by(
+                sa.func.bool_or(pick.va_finassess_status == VaStatuses.active).desc(),
+                sa.func.max(pick.va_finassess_createdat).desc(),
+            )
+            .limit(1)
+            .correlate(VaSubmissions)
+            .scalar_subquery()
+        )
+    count = (
+        sa.select(sa.func.count())
+        .where(
+            own.va_sid == VaSubmissions.va_sid,
+            own.va_finassess_by == coder_id,
+            own.is_tester.is_(False),
+            own.demo_expires_at.is_(None),
+        )
+        .correlate(VaSubmissions)
+        .scalar_subquery()
+    )
+    return count > 1
+
+
+def coded_state_condition(states, coder_id=None) -> sa.ColumnElement | None:
+    """The Coded / Recoded pill choice in *states* as SQL, None when it
+    narrows nothing (both or neither asked)."""
+    coded, recoded = "coded" in states, "recoded" in states
+    if coded == recoded:
+        return None
+    condition = recoded_condition(coder_id)
+    return condition if recoded else ~condition

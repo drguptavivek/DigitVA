@@ -46,7 +46,7 @@ PICK_C = f"PC{_SUFFIX}"
 DEMO = f"PD{_SUFFIX}"
 SUBMITTED = datetime(2026, 1, 1, tzinfo=timezone.utc)
 TIED_AT = datetime(2026, 5, 1, 12, 0, 0)  # naive, as the columns are
-PAGE_FIELDS = {"count", "limit", "offset", "has_more"}
+PAGE_FIELDS = {"count", "limit", "offset", "has_more", "total"}
 
 
 class _QueryCounter:

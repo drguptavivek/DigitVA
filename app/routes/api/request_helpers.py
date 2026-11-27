@@ -6,7 +6,9 @@ request, never taken from the device's enrolment.
 
 import re
 import uuid
+from datetime import date
 
+import sqlalchemy as sa
 from flask import current_app, jsonify, request
 from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
@@ -16,8 +18,10 @@ from app.models import VaAccessRoles, VaForms, VaSubmissions
 from app.services import device_auth_service as devices
 from app.services import web_intake_service as intake_svc
 from app.services.authz import subtree_select
-from app.services.viewer_pii_service import pii_scope
 from app.services.authz.actions import DEATH_REGISTERING_ROLES
+from app.services.queue_card_service import QUEUE_SORTS, QueueFilters
+from app.services.viewer_pii_service import pii_scope
+from app.utils import va_local_date, va_user_timezone_name
 
 #: Interviewer reach alone, the default of every intake route; the register
 #: routes pass ``authz.actions.DEATH_REGISTERING_ROLES`` (a death_reporter
@@ -167,6 +171,129 @@ def place_filter_arg() -> list:
     if conditions:
         conditions.append(pii_scope(current_user).condition(VaForms.project_id))
     return conditions
+
+
+#: ``state`` values per queue list: each list's own pill words (owner
+#: 2026-11-27, docs/policy/case-list-views.md, "Code and Review queue sort and
+#: filter"). A list whose rows all show one pill offers none (Coding,
+#: Available; Reviewed by me), so any value there is refused.
+QUEUE_STATES = {
+    "coding_available": frozenset(),
+    "coding_history": frozenset({"coded", "recoded", "not_codeable"}),
+    "review_available": frozenset({"coded", "recoded"}),
+    "review_history": frozenset(),
+}
+_SEXES = ("female", "male")
+#: Age groups by normalized days, the WHO 2022 boundaries of
+#: ``icd_coding_policy.coding_age_group_for_submission`` (infant inside child).
+_CHILD_FROM_DAYS, _ADULT_FROM_DAYS = 28, 12 * 365.25
+_AGE_GROUPS = ("neonate", "child", "adult")
+_LANGUAGE = re.compile(r"[A-Za-z0-9_-]{1,32}")
+_MAX_REPEATS = 20
+_MAX_TEXT = 128
+
+
+def _one_of(name: str, allowed) -> str | None:
+    value = (request.args.get(name) or "").strip().lower() or None
+    if value is not None and value not in allowed:
+        raise BadQuery(f"{name} must be one of: {', '.join(allowed)}.")
+    return value
+
+
+def _many_of(name: str, allowed=None, pattern=None) -> list[str]:
+    values = [v.strip().lower() for v in request.args.getlist(name) if v.strip()]
+    if len(values) > _MAX_REPEATS:
+        raise BadQuery(f"{name} is given too many times.")
+    for value in values:
+        if (allowed is not None and value not in allowed) or (pattern is not None and not pattern.fullmatch(value)):
+            raise BadQuery(f"{name} has an unknown value.")
+    return list(dict.fromkeys(values))
+
+
+def _date_arg(name: str) -> date | None:
+    raw = (request.args.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        raise BadQuery(f"{name} must be an ISO date (YYYY-MM-DD).") from None
+
+
+def _text_arg(name: str) -> str | None:
+    value = (request.args.get(name) or "").strip() or None
+    if value is not None and len(value) > _MAX_TEXT:
+        raise BadQuery(f"{name} is too long.")
+    return value
+
+
+def queue_filter_args(list_kind: str) -> QueueFilters:
+    """The optional "Sort and filter" parameters of one queue list
+    (*list_kind*, a ``QUEUE_STATES`` key) as ``QueueFilters``.
+
+    Every condition is SQL on ``VaSubmissions`` / ``VaForms`` ANDed onto the
+    caller's own authorized query, so it only narrows. Absent or blank
+    parameters add nothing (the list answers as before). Raises ``BadQuery``.
+
+    - ``sex``, ``age_group`` (repeatable; unknown age matches none),
+      ``interviewed_from`` / ``interviewed_to`` (inclusive ISO dates of the
+      interview in the caller's time zone, the date the card shows).
+    - ``language`` (repeatable): the narration language, intersected with the
+      caller's coding languages; one outside them matches nothing.
+    - ``interviewer`` and the interviewer part of ``q`` match only in projects
+      where the caller sees personal data (``pii_scope``), else nothing, so
+      narrowing never reveals a hidden interviewer. The case-id part of ``q``
+      (``va_uniqueid_masked``) matches for everyone. The deceased's name is
+      not searched (owner 2026-11-27): it can be sealed at rest
+      (``REGISTER_PII_SPLIT_ENABLED``), so SQL cannot match it.
+    - ``state`` (repeatable): the list's own pill words (``QUEUE_STATES``);
+      the list's service turns them into SQL.
+    """
+    sort = _one_of("sort", QUEUE_SORTS)
+    states = frozenset(_many_of("state", QUEUE_STATES[list_kind]))
+    sex = _one_of("sex", _SEXES)
+    age_groups = _many_of("age_group", _AGE_GROUPS)
+    languages = _many_of("language", pattern=_LANGUAGE)
+    interviewed_from = _date_arg("interviewed_from")
+    interviewed_to = _date_arg("interviewed_to")
+    if interviewed_from and interviewed_to and interviewed_from > interviewed_to:
+        raise BadQuery("interviewed_from must not be after interviewed_to.")
+    interviewer = _text_arg("interviewer")
+    q = _text_arg("q")
+
+    conditions = []
+    if sex:
+        conditions.append(sa.func.lower(VaSubmissions.va_deceased_gender) == sex)
+    if age_groups:
+        days = VaSubmissions.va_deceased_age_normalized_days
+        bands = {
+            "neonate": days < _CHILD_FROM_DAYS,
+            "child": sa.and_(days >= _CHILD_FROM_DAYS, days < _ADULT_FROM_DAYS),
+            "adult": days >= _ADULT_FROM_DAYS,
+        }
+        conditions.append(sa.or_(*(bands[group] for group in age_groups)))
+    if languages:
+        mine = {str(code).strip().lower() for code in (current_user.vacode_language or [])}
+        allowed = sorted(set(languages) & mine)
+        conditions.append(
+            sa.func.lower(VaSubmissions.va_narration_language).in_(allowed) if allowed else sa.false()
+        )
+    if interviewed_from or interviewed_to:
+        local_day = va_local_date(VaSubmissions.va_submission_date, va_user_timezone_name(current_user))
+        if interviewed_from:
+            conditions.append(local_day >= interviewed_from)
+        if interviewed_to:
+            conditions.append(local_day <= interviewed_to)
+    if interviewer or q:
+        sees_staff = pii_scope(current_user).condition(VaForms.project_id)
+        if interviewer:
+            conditions.append(sa.and_(sees_staff, VaSubmissions.va_data_collector.icontains(interviewer, autoescape=True)))
+        if q:
+            conditions.append(sa.or_(
+                VaSubmissions.va_uniqueid_masked.icontains(q, autoescape=True),
+                sa.and_(sees_staff, VaSubmissions.va_data_collector.icontains(q, autoescape=True)),
+            ))
+    return QueueFilters(conditions=tuple(conditions), sort=sort, states=states)
 
 
 def identifier_rate_limit(carries, *, search=False):

@@ -108,7 +108,7 @@ class CodingNamesTests(SelfCodingFixture, BaseTestCase):
 
     def test_allocation_and_page_carry_the_name(self):
         self._case("csc-mine", "Asha Rao", owner=self.submitter)
-        forms, _ = get_pick_available_page(
+        forms, _, _ = get_pick_available_page(
             self.submitter, list(self.submitter.get_coder_va_forms()), limit=10, offset=0)
         self.assertEqual(forms[0]["deceased_name"], "Asha Rao")
         self._hold("csc-mine", self.submitter)

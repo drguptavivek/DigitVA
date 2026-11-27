@@ -560,17 +560,25 @@ may name (`coding_names`, the coding screens' PII rule); it is absent otherwise,
 | `site_id` | Optional, 1 to 64 of `A-Z a-z 0-9 _ -` (else 400). Narrows to cases of that site, within the caller's reach as `project_id` does. `/history` takes it with `limit` only (400 without: the unpaged history is the cached whole list). |
 | `org_unit_id` | Optional UUID (else 400). Narrows to cases routed to that unit or any active unit under it (`authz.subtree_select`, the ltree path), within the caller's reach. Same `limit` rule as `site_id` on `/history`. With `site_id` both must hold. |
 
-With `limit` the body is `{forms|history, count, limit, offset, has_more}`;
-`count` is the page's size and `has_more` is answered by fetching one extra
-row, so there is no total. A bad parameter is 400 `invalid_request`.
-Same rows, same keys and the same authorization as the unpaged body.
+With `limit` the body is `{forms|history, count, limit, offset, has_more,
+total}`; `count` is the page's size and `has_more` is answered by fetching one
+extra row; `total` (additive, 2026-11-27) is the size of the whole filtered
+list, one count query (the unpaged bodies stay as they were: their `count`
+is the whole list). A
+bad parameter is 400 `invalid_request`. Same rows, same keys and the same
+authorization as the unpaged body. Both lists also take the queue sort and
+filter parameters below; `/history` only with `limit` (400 without, as the
+place).
 
 - `/available` order is project, site, submission date, masked id, `va_sid`
   (the last added, so a page boundary never splits equal rows). The pool is
   live: a case another coder takes between two pages shifts the later pages
   by one, so a client that must not miss a case refetches from `offset=0`.
 - `/history` is the demo rows first (`is_demo`, unexpired), then the caller's
-  own finals and not-codeable reviews on cases they may still view, newest
+  own finals and not-codeable reviews on cases they may still view and that
+  are not a confirmed duplicate (`not_confirmed_duplicate_condition`, also
+  in `/coding/stats` `completed` and `not_codeable`; owner 2026-11-27; the
+  unpaged list and those counts are cached up to five minutes), newest
   coding date first, ties broken by submission date, status (completed
   before not-codeable), `va_sid` and row id, so pages never gap or repeat.
 - Every `/history` row (paged or not) carries `recode_until`: on a final
@@ -587,6 +595,35 @@ Same rows, same keys and the same authorization as the unpaged body.
   whatever the size; the history sort reads only the caller's own rows
   (`va_finassess_by` index), the pick query the caller's pick-mode forms
   (`va_form_id` index). No migration.
+
+## Queue sort and filter (`/coding/available|history`, `/reviewing/available|history`)
+
+The "Sort and filter" panel's parameters (owner 2026-11-27;
+docs/policy/case-list-views.md, "Code and Review queue sort and filter"),
+parsed by `request_helpers.queue_filter_args`. All optional and additive: a
+request without them (or with them blank) answers exactly as before. Each is
+SQL ANDed onto the list's own authorized query, so it only narrows (scope,
+ODK retirement, training scope and the confirmed-duplicate rule stay as
+they are). Malformed is 400 `invalid_request`. The stats routes
+(`/coding/stats`, `/reviewing/stats`) do not read them: the tiles keep
+project and place only. Every list answers the filtered `total`.
+
+| Parameter | Rule |
+| --- | --- |
+| `sort` | `interviewed_asc`, `interviewed_desc` (`va_submission_date`), `age_asc`, `age_desc` (`va_deceased_age_normalized_days`, unknown age last both ways); ties by `va_sid` (then the row id on a history). Absent: each list's own order (Available: project, site, interview date, masked id, `va_sid`; coding history: demo rows, then newest coding; review history: newest review). On `/coding/history` the demo rows stay first and each part is sorted by itself. |
+| `state` | Repeatable. The card's own pill (owner 2026-11-27): `/coding/history` `coded`, `recoded`, `not_codeable`; `/reviewing/available` `coded`, `recoded`; `/coding/available` and `/reviewing/history` none (any value is 400: every row shows one pill). `not_codeable` is a Not Codeable row; `recoded` is the card key `recoded` in SQL (`queue_card_service.recoded_condition`: more than one non-tester, non-demo final by the caller on `/coding/history`, by the active final's author, else the latest coder, on `/reviewing/available`); `coded` the other finals. Any other value is 400. |
+| `sex` | `female` or `male`, against `lower(va_deceased_gender)`. |
+| `age_group` | Repeatable: `neonate` (under 28 days), `child` (28 days to under 12 years of 365.25 days), `adult` (12 years and over), on the normalized age; unknown age matches none. |
+| `language` | Repeatable codes (`A-Z a-z 0-9 _ -`, at most 32), case-insensitive, intersected with the caller's coding languages: a language outside them matches nothing. |
+| `interviewed_from`, `interviewed_to` | ISO dates, inclusive, of the interview date in the caller's time zone (the date the card shows); `from` after `to` is 400. |
+| `interviewer` | Text (at most 128), a case-insensitive substring of `va_data_collector`, LIKE wildcards literal, **only on rows of projects where the caller sees personal data** (`pii_scope`); elsewhere it matches nothing. |
+| `q` | Text (at most 128): a case-insensitive substring of the case id (`va_uniqueid_masked`) for everyone, or of the interviewer under the `interviewer` rule. The deceased's name is not searched (owner 2026-11-27): it can be sealed at rest (`REGISTER_PII_SPLIT_ENABLED`), so SQL cannot match it. |
+
+Repeatable parameters take at most 20 values. Cost: the conditions are
+columns of the rows already read (the history lists add none of their own
+joins); `recoded` is a correlated count on the `va_final_assessments.va_sid`
+index; text search is an `ILIKE` over the caller's already-scoped rows (no
+trigram index). No migration.
 
 ## Workflow events (`GET /api/v1/workflow/events/<va_sid>`, `app/routes/api/workflow.py`)
 
@@ -617,17 +654,20 @@ them too and narrows every count. Without them every reply is unchanged.
 On both queues a place filter also keeps only projects where the caller sees
 personal data (`pii_scope`), so a caller without it gets no rows and zero
 counts for any place (docs/policy/case-list-views.md, queue cards section).
+`/available` and `/history` take the queue sort and filter parameters and
+answer `total` (additive, 2026-11-27; "Queue sort and filter" above).
 
 | Route | Reply |
 | --- | --- |
-| `GET /stats` | `{in_scope, completed, available, pending_coding, languages, allocation}`. `in_scope` and `completed` are the web page's counts (cases in review scope in any state; the caller's active reviewer finals, any scope); `available` is the size of `/available`; `allocation` is `{va_sid}` or `null`, as `GET /allocation`. Additive (2026-11-27): `pending_coding` is the `in_scope` cases still before the coder's final COD, workflow state one of `screening_pending`, `attachment_sync_pending`, `smartva_pending`, `ready_for_coding`, `coding_in_progress`, `coder_step1_saved` (`PENDING_STATES`); `languages` is `{mine: [codes]}`, the caller's languages these counts filter on (the list `/coding/stats` sends). |
-| `GET /available` | `{cases, count, limit, offset, has_more}`. Exactly the cases `POST /allocation/<va_sid>` accepts: `reviewer_eligible`, REVIEW scope, narration language in the caller's profile, in ODK (not retired), not a confirmed duplicate, no active reviewer final, active project-site. A row is `va_sid`, `va_uniqueid_masked`, `va_form_id`, `project_id`, `site_id`, `va_submission_date`, `va_data_collector`, `va_deceased_age`, `va_deceased_gender`, `va_narration_language`. Ordered by project, site, submission date, masked id, `va_sid`. |
+| `GET /stats` | `{in_scope, completed, available, pending_coding, languages, allocation}`. `in_scope` and `completed` are the web page's counts (cases in review scope in any state; the caller's active reviewer finals, any scope, not a confirmed duplicate); `available` is the size of `/available`; `allocation` is `{va_sid}` or `null`, as `GET /allocation`. Additive (2026-11-27): `pending_coding` is the `in_scope` cases still before the coder's final COD, workflow state one of `screening_pending`, `attachment_sync_pending`, `smartva_pending`, `ready_for_coding`, `coding_in_progress`, `coder_step1_saved` (`PENDING_STATES`); `languages` is `{mine: [codes]}`, the caller's languages these counts filter on (the list `/coding/stats` sends). |
+| `GET /available` | `{cases, count, limit, offset, has_more, total}`. Exactly the cases `POST /allocation/<va_sid>` accepts: `reviewer_eligible`, REVIEW scope, narration language in the caller's profile, in ODK (not retired), not a confirmed duplicate, no active reviewer final, active project-site. A row is `va_sid`, `va_uniqueid_masked`, `va_form_id`, `project_id`, `site_id`, `va_submission_date`, `va_data_collector`, `va_deceased_age`, `va_deceased_gender`, `va_narration_language`. Ordered by project, site, submission date, masked id, `va_sid`. |
 | `GET /projects` | `{project_options: [{project_id, project_name}], last_project_id}`. `project_options` are the projects the queue reaches, the scope of `/stats` and `/available`. `last_project_id` is the project of the caller's most recent reviewing allocation (any status), or `null` when there is none or it is not in `project_options` (`digitva-umc4`). |
-| `GET /history` | `{history, count, limit, offset, has_more}`. The caller's own active reviewer finals on cases they may still view, newest first. A row is the `/available` keys plus `va_reviewed_at` (UTC ISO timestamp of the final, with `+00:00`). |
+| `GET /history` | `{history, count, limit, offset, has_more, total}`. The caller's own active reviewer finals on cases they may still view and that are not a confirmed duplicate (owner 2026-11-27; `/stats` `completed` leaves them out too), newest first. A row is the `/available` keys plus `va_reviewed_at` (UTC ISO timestamp of the final, with `+00:00`). |
 
 `limit` is 1 to 200 (default 50) and `offset` 0 to 1,000,000; anything else is
 400 `invalid_request`. `count` is the page's size and `has_more` is answered by
-fetching one extra row. One query per route (plus one count on `/stats`).
+fetching one extra row; `total` is one more count. One query per route plus
+that count (and the counts on `/stats`).
 
 ## Reviewer release (`POST /api/v1/reviewing/allocation/release`, `app/routes/api/reviewing.py`)
 

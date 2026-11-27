@@ -475,6 +475,88 @@ above (no unit to a row reached by non-PII coding alone), per project:
   Both filters are new with these cards, so no older client sends them.
 - The deceased's name stays on its own gate (`coding_names`).
 
+## Code and Review queue sort and filter (owner, 2026-11-27)
+
+The owner approved one "Sort and filter" panel for the Code and Review
+queues (a right flyout on the web, a bottom sheet on the phone; design canvas
+boards Filters, PhoneFilters, PhoneSheet). Every choice runs on the server,
+so a filtered list never shows "0 of 14" because the matching cases are on a
+page not yet loaded. All parameters are optional and new; a request without
+them answers exactly as before, so older clients are unchanged. A malformed
+value is 400 `invalid_request`, as for the place filter.
+
+Lists: `GET /coding/available`, `GET /coding/history`, the reviewer's
+available and history lists. Panel order: Sort by, Project (the same setting
+as the global project picker), Site and unit, Workflow state, Sex, Age group,
+Language, Interviewed between, Interviewer.
+
+| Parameter | Values | Meaning |
+| --- | --- | --- |
+| `sort` | `interviewed_asc`, `interviewed_desc`, `age_asc`, `age_desc` | interview date (`va_submission_date`), or age by `va_deceased_age_normalized_days` (unknown age last); ties by `va_sid`. Absent, each list keeps its own order (as built: no list was in interview order; Available is project, site, interview date, case id; My coded cases is demo rows, then newest coding; Reviewed by me newest review) |
+| `state` | repeatable; per list, below | the card's own state pill words |
+| `sex` | `female`, `male` | `va_deceased_gender` |
+| `age_group` | repeatable: `neonate` (under 28 days), `child` (28 days to 11 years), `adult` (12 years and over) | from the normalized age; unknown age matches none |
+| `language` | repeatable language codes | narration language, intersected with the caller's coding languages; one outside them matches nothing |
+| `interviewed_from`, `interviewed_to` | ISO dates, inclusive | interview date, in the caller's time zone |
+| `interviewer` | text | part of the interviewer name, case-insensitive, **only in projects where the caller sees personal data** |
+| `q` | text | search: part of the case id for everyone; the interviewer only where visible (below). Not the deceased's name (owner decision, below) |
+
+Workflow state options per list (owner decision 2026-11-27, superseding the
+earlier list that also named In progress, Reviewed and In review): only the
+pills a card shows; a list whose rows are all one state has no option, and
+any `state` on it is 400:
+
+| List | `state` values |
+| --- | --- |
+| Coding, Available | none (every row is ready for coding) |
+| Coding, My coded cases | `coded`, `recoded`, `not_codeable` (marked by this coder) |
+| Review, Available to review | `coded`, `recoded` |
+| Review, Reviewed by me | none (every row is Reviewed) |
+
+The server maps each value with the same rule that picks the card's pill
+(`queue_card_service`: the row's source for Not codeable, the `recoded` card
+key for Coded and Recoded), so a filter always matches what the cards say.
+
+Personal-data rules (same class as the place filter above):
+
+- **`interviewer` and `q` on an interviewer** match only rows in projects
+  where the caller sees that field, through `pii_scope` (the card already
+  hides `va_data_collector` elsewhere). Elsewhere such a term matches
+  nothing, without saying why, so narrowing cannot reveal a hidden
+  interviewer. The case id part of `q` matches everywhere.
+- **The deceased's name is not searched** (owner decision 2026-11-27): the
+  name can be sealed at rest (`REGISTER_PII_SPLIT_ENABLED`), so SQL cannot
+  match it. The search box reads "Search case ID or interviewer".
+- Filters other than the place apply on My coded cases only to a page (with
+  `limit`), as the place does: the unpaged list is the cached whole history.
+- The Interviewer section is offered only for a project with `pii_visible`.
+
+Counts: the tiles (Ready to pick, Random pool, Coded, Available to review,
+Pending coding, Reviewed by me) keep their current scope, project and place
+only, and ignore the other filters. Each list answers the filtered `total`,
+so the client can say "3 of 14 cases".
+
+Confirmed duplicates (owner decision 2026-11-27): a case confirmed as a
+duplicate (and, through the same predicate, a consent-withdrawn or held
+case) leaves all four lists, not only the Available ones: My coded cases
+(`coder_dashboard_service._history_selects`, its demo rows and the unpaged
+cached history) and Reviewed by me (`reviewer_dashboard_service._history_stmt`,
+so `list_history` and `count_history`), through
+`not_confirmed_duplicate_condition`. The tiles that count those lists follow:
+the coder's Coded and Not codeable (`get_coder_output_summary`) and the
+reviewer's Reviewed by me (`count_completed`, which the web reviewer
+dashboard's count also reads). A reopen brings the rows back. The unpaged
+history and the coder tiles are cached per coder for up to five minutes
+(`CODER_DASHBOARD_CACHE_TTL`), which a confirmation does not clear, so they
+can lag a confirmation by that long; pages and the reviewer counts are not
+cached.
+
+Interviews (phone) filters its own local rows, which the phone already holds
+in full; its state options are To do, Scheduled, Not reachable, Paused,
+Draft, Ready to send, Revision, Sent (Refused is not offered; the owner's list
+leaves it out). The quick chips are shortcuts: To do covers To do, Scheduled,
+Not reachable and Paused; Drafts, Revisions and Sent one state each.
+
 ## Non-goals
 
 

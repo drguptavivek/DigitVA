@@ -45,7 +45,7 @@ class CollectorRedactionTests(CodingScopeFixtureMixin, BaseTestCase):
         user = self.base_coder_user
         forms = list(user.get_coder_va_forms())
         listed = get_pick_available_forms(user, forms)
-        paged, _ = get_pick_available_page(user, forms, limit=10, offset=0)
+        paged, _, _ = get_pick_available_page(user, forms, limit=10, offset=0)
         return [r["va_data_collector"] for r in listed], [r["va_data_collector"] for r in paged]
 
     def test_tier3_coder_sees_the_collector(self):

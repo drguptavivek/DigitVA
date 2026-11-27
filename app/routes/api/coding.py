@@ -41,6 +41,7 @@ from app.routes.api.request_helpers import (
     parse_body,
     place_filter_arg,
     project_filter_arg,
+    queue_filter_args,
 )
 from app.routes.api.request_helpers import (
     error as api_error,
@@ -623,7 +624,10 @@ def available_forms():
     ``offset`` without ``limit`` included. On the training side ``queue``
     (standard, the default, or own) picks the training queue
     (``training_scope.resolve_queue``). Rows carry the queue card keys
-    (``queue_card_service.add_card_keys``).
+    (``queue_card_service.add_card_keys``). The "Sort and filter" parameters
+    (``request_helpers.queue_filter_args``; no ``state`` here, every row is
+    ready for coding) narrow and order either form; a page adds ``total``,
+    the filtered list's size (the unpaged body is unchanged: ``count`` is it).
     """
     training_scope.resolve("coding")
     training_scope.resolve_queue()
@@ -631,20 +635,26 @@ def available_forms():
         limit, offset = optional_page_args()
         project_id = project_filter_arg()
         place = place_filter_arg()
+        filters = queue_filter_args("coding_available")
     except BadQuery as exc:
         return api_error(str(exc), "invalid_request", 400)
+    narrow = [*place, *filters.conditions]
     va_form_access = current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
     _, pick_form_ids = split_form_ids_by_coding_intake_mode(va_form_access or [])
     if limit is None:
-        forms = add_card_keys(current_user, get_pick_available_forms(current_user, pick_form_ids, project_id, place=place))
+        forms = add_card_keys(current_user, get_pick_available_forms(
+            current_user, pick_form_ids, project_id, place=narrow, sort=filters.sort
+        ))
         return jsonify({"forms": forms, "count": len(forms)})
-    forms, has_more = get_pick_available_page(
-        current_user, pick_form_ids, limit=limit, offset=offset, project_id=project_id, place=place
+    forms, has_more, total = get_pick_available_page(
+        current_user, pick_form_ids, limit=limit, offset=offset, project_id=project_id, place=narrow,
+        sort=filters.sort,
     )
     add_card_keys(current_user, forms)
     return jsonify({
         "forms": forms, "count": len(forms), "limit": limit, "offset": offset,
         "has_more": has_more,
+        "total": total,
     })
 
 
@@ -710,27 +720,35 @@ def history():
     included. Rows carry the queue card keys, set after the cache read
     (``queue_card_service.add_card_keys``); a page also carries the
     deceased's name where the caller may see it (the unpaged list does not).
+    The "Sort and filter" parameters (``request_helpers.queue_filter_args``;
+    ``state`` one of ``coded``, ``recoded``, ``not_codeable``, the card's
+    pill) narrow and order a page, and are refused unpaged as the place is;
+    a page adds ``total``, the filtered list's size.
     """
     training_scope.resolve("coding")
     try:
         limit, offset = optional_page_args()
         project_id = project_filter_arg()
         place = place_filter_arg()
+        filters = queue_filter_args("coding_history")
         if place and limit is None:
             raise BadQuery("site_id and org_unit_id require limit.")
+        if filters.any and limit is None:
+            raise BadQuery("Sort and filter parameters require limit.")
     except BadQuery as exc:
         return api_error(str(exc), "invalid_request", 400)
     va_form_access = list(training_scope.filter_form_ids(
         current_user.get_coder_va_forms() | current_user.get_coding_tester_va_forms()
     ))
     if limit is not None:
-        rows, has_more = get_coder_history_page(
-            current_user, va_form_access, limit=limit, offset=offset, project_id=project_id, place=place
+        rows, has_more, total = get_coder_history_page(
+            current_user, va_form_access, limit=limit, offset=offset, project_id=project_id, place=place,
+            filters=filters,
         )
         add_card_keys(current_user, rows, names=True, coder_id=current_user.user_id)
         return jsonify({
             "history": rows, "count": len(rows), "limit": limit, "offset": offset,
-            "has_more": has_more,
+            "has_more": has_more, "total": total,
         })
     rows = get_coder_completed_history(current_user, va_form_access)
     recodeable_sids = set(get_coder_recodeable_sids(current_user, va_form_access))

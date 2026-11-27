@@ -26,6 +26,7 @@ from app.services import dm_dashboard_cache, training_scope
 from app.services.demo_project_service import get_coder_demo_project_form_ids
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
+from app.services.queue_card_service import NO_FILTERS, QueueFilters, coded_state_condition, sort_order
 from app.services.workflow.definition import (
     WORKFLOW_CODER_FINALIZED,
     WORKFLOW_FINALIZED_UPSTREAM_CHANGED,
@@ -123,8 +124,10 @@ def bust_coder_dashboard_cache(user_id) -> int:
 def get_coder_output_summary(user_id, project_id: str | None = None, place=()) -> dict[str, int]:
     """Return cached authored-output KPIs, excluding demo-training projects.
 
-    *place* (conditions on ``VaForms`` / ``VaSubmissions``) narrows both
-    counts; a place-narrowed answer is computed fresh, never cached.
+    A confirmed duplicate counts in neither, as it is not in the history the
+    counts describe (``_history_selects``). *place* (conditions on
+    ``VaForms`` / ``VaSubmissions``) narrows both counts; a place-narrowed
+    answer is computed fresh, never cached.
     """
 
     def compute():
@@ -157,8 +160,8 @@ def get_coder_output_summary(user_id, project_id: str | None = None, place=()) -
         # The request's training scope also decides an explicit project_id.
         final_filters += training_scope.conditions(VaForms.project_id)
         review_filters += training_scope.conditions(VaForms.project_id)
-        final_filters += place
-        review_filters += place
+        final_filters += [*place, not_confirmed_duplicate_condition(VaSubmissions.va_sid)]
+        review_filters += [*place, not_confirmed_duplicate_condition(VaSubmissions.va_sid)]
 
         completed = db.session.scalar(
             sa.select(sa.func.count(sa.distinct(VaFinalAssessments.va_sid)))
@@ -212,9 +215,11 @@ def _history_selects(user, scoped_form_ids, project_id: str | None = None, place
 
     Only submissions *user* may still VIEW (what the history's view link
     opens): authoring an outcome grants nothing once the case is rerouted
-    out of the user's unit, even on a form they still hold. *project_id* and
-    *place* (conditions on ``VaForms`` / ``VaSubmissions``) only narrow what
-    that scope already allows.
+    out of the user's unit, even on a form they still hold. A confirmed
+    duplicate (and a withdrawn or held case) leaves the history, as it
+    leaves the pick list (owner 2026-11-27). *project_id* and *place*
+    (conditions on ``VaForms`` / ``VaSubmissions``) only narrow what that
+    scope already allows.
     """
     from app.services.authz import Action, scope_filter
 
@@ -249,6 +254,7 @@ def _history_selects(user, scoped_form_ids, project_id: str | None = None, place
             ),
             VaSubmissions.va_form_id.in_(scoped_form_ids),
             view_scope,
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
         )
     )
     review_sel = (
@@ -277,6 +283,7 @@ def _history_selects(user, scoped_form_ids, project_id: str | None = None, place
             ),
             VaSubmissions.va_form_id.in_(scoped_form_ids),
             view_scope,
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
         )
     )
     if project_id:
@@ -356,6 +363,7 @@ def _demo_history_stmt(user_id, project_id: str | None = None, tz_name: str = "A
             VaFinalAssessments.va_finassess_status == VaStatuses.active,
             VaFinalAssessments.demo_expires_at > now,
             VaProjectMaster.demo_training_enabled.is_(True),
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
             *training_scope.conditions(VaForms.project_id),
             *place,
         )
@@ -383,8 +391,9 @@ def get_coder_history_page(
     offset: int,
     project_id: str | None = None,
     place=(),
-) -> tuple[list[dict], bool]:
-    """One page of the coder's history and whether more follow.
+    filters: QueueFilters = NO_FILTERS,
+) -> tuple[list[dict], bool, int]:
+    """One page of the coder's history, whether more follow, and the total.
 
     The list ``GET /coding/history`` serves whole: demo rows first, then the
     authored outputs newest first. Ordered by coding date, submission date,
@@ -392,46 +401,79 @@ def get_coder_history_page(
     page boundary never falls between ties. Bounds go into SQL, a constant
     number of queries whatever the history's size; the cached full list is not
     read. ``recodeable`` is set on each row. ``limit + 1`` rows answer
-    ``has_more`` without a count. *place* narrows both parts (see
+    ``has_more``; the total is two counts. *place* narrows both parts (see
     ``_history_selects``).
+
+    *filters* (``queue_card_service.QueueFilters``) narrow both parts too; a
+    ``sort`` orders each part by itself (demo rows stay first). ``state`` is
+    the card's pill: ``not_codeable`` the coder's Not Codeable rows,
+    ``coded`` / ``recoded`` their finals by ``recoded_condition`` (the coder's
+    own finals, as ``add_card_keys`` with ``coder_id``).
     """
     user_id = user.user_id
-    demo_stmt = _demo_history_stmt(user_id, project_id, va_user_timezone_name(user), place)
+    narrow = [*place, *filters.conditions]
+    states = filters.states
+    want_finals = not states or bool(states & {"coded", "recoded"})
+    want_reviews = not states or "not_codeable" in states
+    final_condition = coded_state_condition(states, user_id)
+    final_extra = [final_condition] if final_condition is not None else []
+
+    demo_stmt = _demo_history_stmt(user_id, project_id, va_user_timezone_name(user), [*narrow, *final_extra])
+    if not want_finals:
+        demo_stmt = demo_stmt.where(sa.false())
     demo_total = db.session.scalar(
         sa.select(sa.func.count()).select_from(demo_stmt.order_by(None).subquery())
     )
+    demo_order = (
+        [*sort_order(filters.sort, interviewed=VaSubmissions.va_submission_date,
+                     age=VaSubmissions.va_deceased_age_normalized_days, sid=VaSubmissions.va_sid),
+         VaFinalAssessments.va_finassess_id.desc()]
+        if filters.sort
+        else [VaFinalAssessments.va_finassess_createdat.desc(), VaFinalAssessments.va_finassess_id.desc()]
+    )
     demo_rows = db.session.execute(
-        demo_stmt.order_by(VaFinalAssessments.va_finassess_createdat.desc(), VaFinalAssessments.va_finassess_id.desc())
-        .limit(limit + 1)
-        .offset(offset)
+        demo_stmt.order_by(*demo_order).limit(limit + 1).offset(offset)
     ).mappings().all()
     rows = [_demo_history_row(row) for row in demo_rows]
     for row in rows:
         row["recodeable"] = False
 
     real_rows: list[dict] = []
+    real_total = 0
     need = limit + 1 - len(rows)
     scoped_form_ids = _exclude_demo_form_ids(accessible_form_ids)
-    if need > 0 and scoped_form_ids:
-        final_sel, review_sel = _history_selects(user, scoped_form_ids, project_id, place)
-        union = sa.union_all(
-            final_sel.add_columns(VaFinalAssessments.va_finassess_id.label("row_id")),
-            review_sel.add_columns(VaCoderReview.va_creview_id.label("row_id")),
-        ).subquery()
-        page = db.session.execute(
-            sa.select(union)
-            .order_by(
+    if scoped_form_ids and (want_finals or want_reviews):
+        final_sel, review_sel = _history_selects(user, scoped_form_ids, project_id, narrow)
+        # The sort's own columns ride along and are stripped, as ``row_id``.
+        extra = (
+            VaSubmissions.va_submission_date.label("_interviewed_at"),
+            VaSubmissions.va_deceased_age_normalized_days.label("_age_days"),
+        )
+        parts = []
+        if want_finals:
+            parts.append(final_sel.where(*final_extra).add_columns(
+                VaFinalAssessments.va_finassess_id.label("row_id"), *extra))
+        if want_reviews:
+            parts.append(review_sel.add_columns(VaCoderReview.va_creview_id.label("row_id"), *extra))
+        union = (sa.union_all(*parts) if len(parts) > 1 else parts[0]).subquery()
+        real_total = db.session.scalar(sa.select(sa.func.count()).select_from(union))
+        if filters.sort:
+            order = [*sort_order(filters.sort, interviewed=union.c._interviewed_at, age=union.c._age_days,
+                                 sid=union.c.va_sid), union.c.va_code_status.desc(), union.c.row_id.desc()]
+        else:
+            order = [
                 union.c.va_coding_date.desc(),
                 union.c.va_submission_date.desc().nulls_last(),
                 union.c.va_code_status.desc(),
                 union.c.va_sid.desc(),
                 union.c.row_id.desc(),
-            )
-            .limit(need)
-            .offset(max(0, offset - demo_total))
-        ).mappings().all()
+            ]
+        page = db.session.execute(
+            sa.select(union).order_by(*order).limit(need).offset(max(0, offset - demo_total))
+        ).mappings().all() if need > 0 else []
+        hidden = {"row_id", "_interviewed_at", "_age_days"}
         for row in page:
-            item = _history_row({k: v for k, v in row.items() if k != "row_id"})
+            item = _history_row({k: v for k, v in row.items() if k not in hidden})
             real_rows.append(item)
         recodeable = set(
             get_coder_recodeable_sids(
@@ -448,7 +490,7 @@ def get_coder_history_page(
         row["recode_until"] = None
         row["needs_recode"] = False
     rows.extend(real_rows)
-    return rows[:limit], len(rows) > limit
+    return rows[:limit], len(rows) > limit, demo_total + real_total
 
 
 def set_recode_until(rows: list[dict], user_id) -> None:

@@ -7,14 +7,19 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from app.decorators import role_required
 from app.models import VaAllocation
 from app.routes.api.cod_request import BODY_CAP, json_object, parse_final_cod_body, too_long
-from app.routes.api.request_helpers import BadQuery, other_conditions_list, place_filter_arg
+from app.routes.api.request_helpers import (
+    BadQuery,
+    other_conditions_list,
+    place_filter_arg,
+    queue_filter_args,
+)
 from app.services import coding_search_telemetry_service, training_scope
 from app.services import reviewer_dashboard_service as _svc
 from app.services.authz import Action, can
 from app.services.cod_entry_mode import project_mode
 from app.services.coder_dashboard_service import last_allocated_project_id
 from app.services.coding_service import get_project_for_submission
-from app.services.queue_card_service import add_card_keys
+from app.services.queue_card_service import add_card_keys, coded_state_condition
 from app.services.reviewer_coding_service import (
     ReviewerCodingError,
     get_active_reviewing_allocation,
@@ -195,21 +200,27 @@ def available():
     limit, offset, has_more}`` (``count`` is the page's size). ``site_id`` and
     ``org_unit_id`` narrow it to one place (``place_filter_arg``). Rows carry
     the queue card keys, the name only where the caller may see it
-    (``queue_card_service.add_card_keys``)."""
+    (``queue_card_service.add_card_keys``). The "Sort and filter" parameters
+    (``request_helpers.queue_filter_args``; ``state`` ``coded`` or
+    ``recoded``, the card's pill) narrow and order it; ``total`` (additive)
+    is the filtered list's size."""
     training_scope.resolve("review")
     try:
         limit, offset = _page_args()
         project_id = _project_arg()
         place = place_filter_arg()
+        filters = queue_filter_args("review_available")
     except (_BadQuery, BadQuery) as exc:
         return _error(str(exc), 400, code="invalid_request")
+    state = coded_state_condition(filters.states)
+    narrow = [*place, *filters.conditions, *([state] if state is not None else [])]
     cases, has_more = _svc.list_available(
-        current_user, limit=limit, offset=offset, project_id=project_id, place=place
+        current_user, limit=limit, offset=offset, project_id=project_id, place=narrow, sort=filters.sort
     )
     add_card_keys(current_user, cases, names=True)
     return _private(jsonify({
         "cases": cases, "count": len(cases), "limit": limit, "offset": offset,
-        "has_more": has_more,
+        "has_more": has_more, "total": _svc.count_available(current_user, project_id, narrow),
     }))
 
 
@@ -219,21 +230,26 @@ def history():
     """The caller's own finished reviews, newest first, paged: ``{history,
     count, limit, offset, has_more}``. Only cases they may still view.
     ``site_id`` and ``org_unit_id`` narrow it to one place. Rows carry the
-    queue card keys, as ``/available``."""
+    queue card keys, as ``/available``. The "Sort and filter" parameters
+    narrow and order it as there (no ``state``: every row is Reviewed);
+    ``total`` (additive) is the filtered list's size. A confirmed duplicate
+    is left out (``not_confirmed_duplicate_condition``), as on ``/available``."""
     training_scope.resolve("review")
     try:
         limit, offset = _page_args()
         project_id = _project_arg()
         place = place_filter_arg()
+        filters = queue_filter_args("review_history")
     except (_BadQuery, BadQuery) as exc:
         return _error(str(exc), 400, code="invalid_request")
+    narrow = [*place, *filters.conditions]
     rows, has_more = _svc.list_history(
-        current_user, limit=limit, offset=offset, project_id=project_id, place=place
+        current_user, limit=limit, offset=offset, project_id=project_id, place=narrow, sort=filters.sort
     )
     add_card_keys(current_user, rows, names=True)
     return _private(jsonify({
         "history": rows, "count": len(rows), "limit": limit, "offset": offset,
-        "has_more": has_more,
+        "has_more": has_more, "total": _svc.count_history(current_user, project_id, narrow),
     }))
 
 

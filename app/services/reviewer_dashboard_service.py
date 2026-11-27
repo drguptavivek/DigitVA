@@ -23,6 +23,7 @@ from app.services import training_scope
 from app.services.authz import Action, can, scope_filter
 from app.services.duplicate_exclusion import not_confirmed_duplicate_condition
 from app.services.odk_retirement_service import submission_is_in_odk
+from app.services.queue_card_service import sort_order
 from app.services.viewer_pii_service import pii_scope
 from app.services.workflow.definition import (
     PENDING_STATES,
@@ -123,13 +124,15 @@ def count_completed(user, project_id: str | None = None, place=()) -> int:
     # "Completed" = this reviewer has submitted a final COD
     # (reviewer_finalized state). NQA and Social Autopsy are supporting
     # artifacts filled during the session — they are not terminal actions
-    # and do not count as "completed".
+    # and do not count as "completed". A confirmed duplicate is not counted,
+    # as Reviewed by me (``list_history``) leaves it out.
     stmt = (
         sa.select(sa.func.count())
         .select_from(VaReviewerFinalAssessments)
         .where(
             VaReviewerFinalAssessments.va_rfinassess_by == user.user_id,
             VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
+            not_confirmed_duplicate_condition(VaReviewerFinalAssessments.va_sid),
         )
     )
     if project_id or place or training_scope.conditions(VaForms.project_id):
@@ -315,15 +318,28 @@ def count_available(user, project_id: str | None = None, place=()) -> int:
 
 
 def list_available(
-    user, *, limit: int, offset: int, project_id: str | None = None, place=()
+    user, *, limit: int, offset: int, project_id: str | None = None, place=(), sort=None,
 ) -> tuple[list[dict], bool]:
     """One page of the cases the reviewer may start, and whether more follow.
 
     Fetches ``limit + 1`` rows to answer ``has_more`` without a count. Order is
     project, site, submission date, masked id, then ``va_sid`` so paging is
-    stable.
+    stable; *sort* (a ``queue_card_service.QUEUE_SORTS`` key) replaces it.
+    *place* is any narrowing conditions (``count_available`` takes the same).
     """
     tz_name = va_user_timezone_name(user)
+    order = (
+        sort_order(sort, interviewed=VaSubmissions.va_submission_date,
+                   age=VaSubmissions.va_deceased_age_normalized_days, sid=VaSubmissions.va_sid)
+        if sort
+        else [
+            VaForms.project_id,
+            VaForms.site_id,
+            VaSubmissions.va_submission_date,
+            VaSubmissions.va_uniqueid_masked,
+            VaSubmissions.va_sid,
+        ]
+    )
     rows = (
         db.session.execute(
             sa.select(
@@ -348,13 +364,7 @@ def list_available(
                 VaSubmissionWorkflow.va_sid == VaSubmissions.va_sid,
             )
             .where(*_available_where(user, project_id, place))
-            .order_by(
-                VaForms.project_id,
-                VaForms.site_id,
-                VaSubmissions.va_submission_date,
-                VaSubmissions.va_uniqueid_masked,
-                VaSubmissions.va_sid,
-            )
+            .order_by(*order)
             .limit(limit + 1)
             .offset(offset)
         )
@@ -369,16 +379,8 @@ def list_available(
     )
 
 
-def list_history(
-    user, *, limit: int, offset: int, project_id: str | None = None, place=()
-) -> tuple[list[dict], bool]:
-    """One page of the reviewer's own active final CODs, newest first.
-
-    Only submissions the reviewer may still VIEW (what the history's view link
-    opens): authoring a final grants nothing once the case is rerouted out of
-    the reviewer's unit. ``va_reviewed_at`` is the final's UTC timestamp, ISO with ``+00:00``.
-    *place* (conditions on ``VaForms`` / ``VaSubmissions``) only narrows it.
-    """
+def _history_stmt(user, project_id: str | None, place) -> sa.Select:
+    """``list_history``'s rows, unordered and unbounded (``count_history`` counts it)."""
     tz_name = va_user_timezone_name(user)
     stmt = (
         sa.select(
@@ -401,17 +403,43 @@ def list_history(
             VaReviewerFinalAssessments.va_rfinassess_by == user.user_id,
             VaReviewerFinalAssessments.va_rfinassess_status == VaStatuses.active,
             scope_filter(user, Action.VIEW),
+            not_confirmed_duplicate_condition(VaSubmissions.va_sid),
         )
-        .order_by(
-            VaReviewerFinalAssessments.va_rfinassess_createdat.desc(),
-            VaReviewerFinalAssessments.va_rfinassess_id.desc(),
-        )
-        .limit(limit + 1)
-        .offset(offset)
     )
     if project_id:
         stmt = stmt.where(VaForms.project_id == project_id)
-    stmt = stmt.where(*training_scope.conditions(VaForms.project_id), *place)
+    return stmt.where(*training_scope.conditions(VaForms.project_id), *place)
+
+
+def count_history(user, project_id: str | None = None, place=()) -> int:
+    """Size of ``list_history`` with the same narrowing."""
+    stmt = _history_stmt(user, project_id, place).subquery()
+    return db.session.scalar(sa.select(sa.func.count()).select_from(stmt))
+
+
+def list_history(
+    user, *, limit: int, offset: int, project_id: str | None = None, place=(), sort=None,
+) -> tuple[list[dict], bool]:
+    """One page of the reviewer's own active final CODs, newest first.
+
+    Only submissions the reviewer may still VIEW (what the history's view link
+    opens): authoring a final grants nothing once the case is rerouted out of
+    the reviewer's unit; a confirmed duplicate is left out, as on Available.
+    ``va_reviewed_at`` is the final's UTC timestamp, ISO with ``+00:00``.
+    *place* (conditions on ``VaForms`` / ``VaSubmissions``) only narrows it;
+    *sort* (a ``queue_card_service.QUEUE_SORTS`` key) replaces the order.
+    """
+    order = (
+        [*sort_order(sort, interviewed=VaSubmissions.va_submission_date,
+                     age=VaSubmissions.va_deceased_age_normalized_days, sid=VaSubmissions.va_sid),
+         VaReviewerFinalAssessments.va_rfinassess_id.desc()]
+        if sort
+        else [
+            VaReviewerFinalAssessments.va_rfinassess_createdat.desc(),
+            VaReviewerFinalAssessments.va_rfinassess_id.desc(),
+        ]
+    )
+    stmt = _history_stmt(user, project_id, place).order_by(*order).limit(limit + 1).offset(offset)
     rows = db.session.execute(stmt).mappings().all()
     history = []
     for row in rows[:limit]:

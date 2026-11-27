@@ -70,6 +70,7 @@ from app.services.odk_retirement_service import (
     submission_is_in_odk,
 )
 from app.services.project_clock import project_days
+from app.services.queue_card_service import sort_order
 from app.services.workflow.definition import (
     CODER_READY_POOL_STATES,
     WORKFLOW_ATTACHMENT_SYNC_PENDING,
@@ -1617,12 +1618,14 @@ def start_demo_allocation(user, project_id: str | None = None) -> AllocationResu
     return AllocationResult(va_sid=va_new_sid, actiontype="vademo_start_coding")
 
 
-def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None = None, place=()):
+def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None = None, place=(), sort=None):
     """The pick list's query: ordered for display, ``va_sid`` last so a page
     boundary never falls between equal rows. Callers add the page's bounds.
     *place* is extra conditions on ``VaForms`` / ``VaSubmissions`` that only
-    narrow the list (``request_helpers.place_filter_arg``)."""
-    return (
+    narrow the list (``request_helpers.place_filter_arg``, and the queue
+    filters' conditions). *sort* (a ``queue_card_service.QUEUE_SORTS`` key)
+    replaces the display order; None keeps it."""
+    stmt = (
         sa.select(
             VaSubmissions.va_sid,
             VaSubmissions.va_uniqueid_masked,
@@ -1646,13 +1649,18 @@ def _pick_available_stmt(user, pick_form_ids: list[str], project_id: str | None 
             *_coding_gate_filters(pick_form_ids, user),
             *place,
         ))
-        .order_by(
-            VaForms.project_id,
-            VaForms.site_id,
-            VaSubmissions.va_submission_date,
-            VaSubmissions.va_uniqueid_masked,
-            VaSubmissions.va_sid,
-        )
+    )
+    if sort:
+        return stmt.order_by(*sort_order(
+            sort, interviewed=VaSubmissions.va_submission_date,
+            age=VaSubmissions.va_deceased_age_normalized_days, sid=VaSubmissions.va_sid,
+        ))
+    return stmt.order_by(
+        VaForms.project_id,
+        VaForms.site_id,
+        VaSubmissions.va_submission_date,
+        VaSubmissions.va_uniqueid_masked,
+        VaSubmissions.va_sid,
     )
 
 
@@ -1678,7 +1686,7 @@ def _with_names(user, forms: list[dict], *, names: bool = True) -> list[dict]:
 
 def get_pick_available_forms(
     user, pick_form_ids: list[str], project_id: str | None = None,
-    with_names: bool = True, place=(),
+    with_names: bool = True, place=(), sort=None,
 ) -> list[dict]:
     """Return submissions available for pick-mode coding, ordered for display.
 
@@ -1693,7 +1701,7 @@ def get_pick_available_forms(
     forms = [
         va_render_serialisedates(row, ["va_submission_date"])
         for row in db.session.execute(
-            _pick_available_stmt(user, pick_form_ids, project_id, place)
+            _pick_available_stmt(user, pick_form_ids, project_id, place, sort)
         ).mappings().all()
     ]
     return _with_names(user, forms, names=with_names)
@@ -1716,8 +1724,9 @@ def get_pick_available_page(
     offset: int,
     project_id: str | None = None,
     place=(),
-) -> tuple[list[dict], bool]:
-    """One page of the pick list and whether more follow.
+    sort=None,
+) -> tuple[list[dict], bool, int]:
+    """One page of the pick list, whether more follow, and the list's total.
 
     Same rows and order as ``get_pick_available_forms``; ``limit + 1`` rows are
     fetched to answer ``has_more`` without a count. OFFSET is a position in a
@@ -1725,14 +1734,15 @@ def get_pick_available_page(
     ones by one, so a client that must not skip refetches the first page.
     """
     if not pick_form_ids:
-        return [], False
+        return [], False, 0
     from app.utils import va_render_serialisedates
-    rows = db.session.execute(
-        _pick_available_stmt(user, pick_form_ids, project_id, place).limit(limit + 1).offset(offset)
-    ).mappings().all()
+    stmt = _pick_available_stmt(user, pick_form_ids, project_id, place, sort)
+    rows = db.session.execute(stmt.limit(limit + 1).offset(offset)).mappings().all()
+    total = db.session.scalar(sa.select(sa.func.count()).select_from(stmt.order_by(None).subquery())) or 0
     return (
         _with_names(user, [va_render_serialisedates(row, ["va_submission_date"]) for row in rows[:limit]]),
         len(rows) > limit,
+        total,
     )
 
 

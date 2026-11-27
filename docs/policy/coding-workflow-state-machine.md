@@ -53,7 +53,10 @@ brings it back as a reopen does.
   expression) or `is_confirmed_duplicate` (one submission named in a request).
   Readers are: random allocation, pick-and-choose list and pick, recode offer
   and start, admin override to recode, reviewer queue and reviewer start,
-  coder and reviewer dashboard counts, the recode-window sweep to
+  coder and reviewer dashboard counts, the coder's and the reviewer's own
+  history lists (My coded cases, Reviewed by me) and the Coded, Not codeable
+  and Reviewed by me counts of them (owner 2026-11-27; the coder's cached
+  history and counts can lag a confirmation by up to five minutes), the recode-window sweep to
   `reviewer_eligible`, SmartVA generation (skipped like a protected state
   unless forced), the data-manager grid and every export built on it,
   data-manager and area-dashboard counts over the analytics materialized

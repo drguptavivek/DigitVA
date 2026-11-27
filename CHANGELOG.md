@@ -5,6 +5,37 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- The queue and cards set landed together (owner 2026-11-27: finish every
+  bead of the work first), each piece reviewed by the independent reviewer:
+  - Code and Review queues sort and filter on the server (`digitva-wqz7`):
+    search and the interviewer filter follow the per-project collector
+    redaction rule, the deceased's name is never searched, values are
+    bound and allow-listed, a search over 128 characters is a 400. History
+    lists and Coded/Reviewed counts now leave out confirmed duplicates,
+    consent-withdrawn and held cases (owner decision,
+    docs/policy/case-list-views.md). Additive `total` on the lists. No
+    index for the search yet.
+  - A Sort and filter panel on the web and phone queues (`digitva-znbm`):
+    Site and unit moves into it; "Recodeable" in My coded cases' workflow
+    state is a server filter on the same rule as the Recode button (owner);
+    the old client-side form/project/site search is retired (owner). Every
+    filter joins the web screen-cache key.
+  - Phone Reported deaths search and filter on the server (`digitva-aunm`);
+    a refused case shows under All only with its own Refused badge (owner).
+    Fixes the reporter cards reading Waiting for every case.
+  - Phone Interviews and Reported deaths use the shared case card with copy
+    and call icons (`digitva-2b7d`): copy text carries no name, phone,
+    address or GPS; the call icon dials the row's own informant number
+    without showing it. Lock now and My interviews come off Reported deaths.
+  - The reporter's own list sends the unit name (`digitva-grf9`).
+  - A year-only date of death is marked (`digitva-xmlw`): migration
+    `a40477e55b72` adds nullable `va_death_register.date_of_death_year_only`
+    (no default, no backfill; old rows stay unknown), set by every
+    date_of_death writer; keys omitted while unknown. Dev upgraded.
+  - Old-APK audit of `eeb8e4815..` this tree: safe; only additive keys and
+    optional params old APKs never send; no sync, submit, upload or device
+    route changed. Full Jest 368 suites / 6732 passed and check-web passed
+    on main; full backend on main 8494 passed, 0 failed.
 - Web screens show their last answer at once on a sidebar revisit and
   refresh behind it, instead of flashing Loading (`digitva-pav3`): an
   in-memory cache keyed by user (never stored on disk), cleared on sign-out

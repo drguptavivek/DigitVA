@@ -16,16 +16,11 @@ never reached phones); phones are offered 0.3.31 since 2026-11-26. Play AAB
 No device check of 0.3.30 or 0.3.31.
 
 Owner decisions:
-- No staging deploy until the sessions finish their in-flight work (owner
-  2026-11-27): the queue and cards set from the Shared Unit selector
-  session, held together on local `hold/queue-cards` until every bead of
-  it is done (owner): 2b7d, xmlw (migration `a40477e55b72`), grf9, wqz7,
-  aunm, then the sort-and-filter panel `digitva-znbm`; the `Scoped ICD-11
-  API client tokens` session (owner-requested, new `auth_*` table and
-  migration, own worktree); and each piece reviewed by
-  the INDEPENDENT CODE REVIEWER session before it lands. Main is ahead of
-  staging `eeb8e4815` with uee4, zxw0, a2yf, vbr2, oo77, ctj2, lqmo,
-  5cqm, gzmp, pav3.
+- Staging deploy and 0.3.32 build: owner go 2026-11-27 ("if all needed
+  components are built ... commit, land, build expo, server, apks, aabs ...
+  deploy to staging"). Excluded: the `Scoped ICD-11 API client tokens`
+  session (not on main) and `digitva-hre5` (own branch). The phone offer
+  of 0.3.32, the demo upgrade and the Play upload need separate goes.
 - Homepage "DigitVA in use" counts only HMR001 (10 interviews): the owner
   will tick "Included in homepage KPIs" (Admin → Projects) for ICMR01,
   UNSW01, KEM001 and TELE01 themselves.

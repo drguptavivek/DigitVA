@@ -2,24 +2,25 @@ import { Component, Suspense, lazy, useMemo, useState, type ComponentType, type 
 import { Text, View } from "react-native";
 
 import { t } from "../i18n";
-import { Button, useUiStyles } from "../ui";
+import { isFetchFailure } from "../network";
+import { Button, errorReference, useUiStyles } from "../ui";
 import { WebShell } from "./common";
 import LoadingScreen from "./LoadingScreen";
 
 /** A failed chunk download can be retried without reloading or touching saved interviews. */
-class DownloadBoundary extends Component<{ children: ReactNode; onRetry(): void; onFailed(): void }, { failed: boolean }> {
-  state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
+class DownloadBoundary extends Component<{ children: ReactNode; onRetry(): void; onFailed(): void }, { failed: boolean; error?: unknown }> {
+  state: { failed: boolean; error?: unknown } = { failed: false };
+  static getDerivedStateFromError(error: unknown) { return { failed: true, error }; }
   componentDidCatch() { this.props.onFailed(); }
   render() {
-    return this.state.failed ? <DownloadRetry onRetry={this.props.onRetry} /> : this.props.children;
+    return this.state.failed ? <DownloadRetry error={this.state.error} onRetry={this.props.onRetry} /> : this.props.children;
   }
 }
 
-function DownloadRetry({ onRetry }: { onRetry(): void }) {
+function DownloadRetry({ error, onRetry }: { error: unknown; onRetry(): void }) {
   const styles = useUiStyles();
   return <WebShell title={t("appName")}><View style={styles.card} accessibilityRole="alert">
-    <Text style={styles.text}>{t("errNetwork")}</Text>
+    <Text style={styles.text}>{isFetchFailure(error) ? t("errNetwork") : `${t("errGeneric")}\n${errorReference(error)}`}</Text>
     <Button label={t("retry")} onPress={onRetry} />
   </View></WebShell>;
 }

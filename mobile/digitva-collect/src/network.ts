@@ -26,6 +26,16 @@ export class NetworkError extends TypeError {
   }
 }
 
+// The messages fetch rejects with when no response arrived: Chrome and Android, Safari, Firefox, React Native, and a
+// lazy chunk that could not download. A TypeError matching none of them is a code bug, not a connection problem.
+const FETCH_FAILURE = /failed to fetch|load failed|network ?error|network request (failed|timed out)|network connection was lost|internet connection appears to be offline|fetch failed|dynamically imported module|importing a module script/i;
+
+/** True only for a request that never got a response; any other TypeError is a bug and must not read as "offline". */
+export function isFetchFailure(error: unknown): boolean {
+  if (error instanceof OfflineError || error instanceof NetworkError) return true;
+  return error instanceof TypeError && FETCH_FAILURE.test(error.message);
+}
+
 /** fetch whose transport failures are always TypeErrors; an abort (timeout or caller) rejects as it did. */
 export async function serverFetch(url: string, init: RequestInit): Promise<Response> {
   try {

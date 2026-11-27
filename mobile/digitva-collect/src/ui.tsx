@@ -12,6 +12,7 @@ import { AccountStoreCollisionError, AlreadyEnrolledError, NotInSlotError, Sessi
 import { errorKeyFor } from "./errorMessages";
 import { describeError, recordError } from "./errorLog";
 import { Icon, icons, type IconName } from "./Icon";
+import { isFetchFailure } from "./network";
 import { isStorageFull } from "./storageErrors";
 import { t, type StringKey } from "./i18n";
 import { useShell } from "./nativeShell/shellContext";
@@ -889,7 +890,7 @@ export function errorText(error: unknown): string {
     const { key, ref } = errorKeyFor({ code: error.code, status: error.status, platform: "phone" });
     return ref ? `${t(key)}\n${errorReference(error)}` : t(key);
   }
-  if (error instanceof TypeError) return t("errNetwork");
+  if (isFetchFailure(error)) return t("errNetwork");
   return `${t("errGeneric")}\n${errorReference(error)}`;
 }
 

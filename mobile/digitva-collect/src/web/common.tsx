@@ -7,6 +7,7 @@ import { useAppState } from "../AppState";
 import { ClientApiError } from "../client/api";
 import { errorKeyFor } from "../errorMessages";
 import { t } from "../i18n";
+import { isFetchFailure } from "../network";
 import { useUiLanguages } from "../uiPacks";
 import { radius, spacing, useTheme } from "../theme";
 import { Button, errorReference, Screen, useUiStyles } from "../ui";
@@ -26,7 +27,7 @@ export function browserErrorText(error: unknown): string {
     const { key, ref } = errorKeyFor({ code: error.code, status: error.status, platform: "web" });
     return ref ? `${t(key)}\n${errorReference(error)}` : t(key);
   }
-  if (error instanceof TypeError) return t("errNetwork");
+  if (isFetchFailure(error)) return t("errNetwork");
   return `${t("serverError")}\n${errorReference(error)}`;
 }
 

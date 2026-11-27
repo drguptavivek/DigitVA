@@ -117,6 +117,7 @@ describe("errorText (phone) for other errors", () => {
     ["workspace stale", new Error("workspace_stale"), "workspaceStale", false, "Error workspace_stale"],
     ["TypeError", new TypeError("Network request failed"), "errNetwork", false, "network"],
     ["offline", new OfflineError(), "errNetwork", false, "offline"],
+    ["code-bug TypeError", new TypeError("Cannot read properties of undefined (reading 'x')"), G, true, "TypeError Cannot read properties of undefined (reading 'x')"],
     ["plain Error", new Error("boom"), G, true, "Error boom"],
     ["string", "boom", G, true, "unknown"],
     ["undefined", undefined, G, true, "unknown"],
@@ -131,6 +132,11 @@ describe("browserErrorText (web) for other errors", () => {
   it.each<[string, unknown, StringKey, boolean]>([
     ["TypeError", new TypeError("Failed to fetch"), "errNetwork", false],
     ["offline", new OfflineError(), "errNetwork", false],
+    ["Chrome body read died", new TypeError("network error"), "errNetwork", false],
+    ["RN request timed out", new TypeError("Network request timed out"), "errNetwork", false],
+    ["Safari connection lost", new TypeError("The network connection was lost."), "errNetwork", false],
+    ["Safari offline", new TypeError("The Internet connection appears to be offline."), "errNetwork", false],
+    ["code-bug TypeError", new TypeError("Cannot read properties of undefined (reading 'x')"), "serverError", true],
     ["plain Error", new Error("boom"), "serverError", true],
     ["session revoked", new SessionRevokedError(true), "serverError", true],
     ["workspace stale", new Error("workspace_stale"), "serverError", true],
@@ -217,7 +223,7 @@ describe("revision messages", () => {
         expect(text.split("\n")[1]).toMatch(/^Ref: /);
       }
       // A TypeError and a storage-full error have no Ref line, so the retry text sits over their own text.
-      expect(loadFailureMessage(new TypeError("x"))).toBe(`${t("revisionRetry")}\n${t("errNetwork")}`);
+      expect(loadFailureMessage(new TypeError("Network request failed"))).toBe(`${t("revisionRetry")}\n${t("errNetwork")}`);
       expect(loadFailureMessage(new Error("disk is full"))).toBe(`${t("revisionRetry")}\n${t("phoneStorageFull")}`);
       expect(recordError).toHaveBeenCalledTimes(5);
     });

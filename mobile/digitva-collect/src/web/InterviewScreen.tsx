@@ -451,6 +451,12 @@ export default function InterviewScreen() {
     let adopted = false;
     const nextDraft = nextRevision ?? await getDraft(bootstrap.links.intakeDrafts, nextDraftId, requestCsrf);
     if (!isCurrent()) return;
+    // A draft that is not open (submitted, discarded, superseded or replaced) is no longer editable: every save would be refused 409. Go to the list its case
+    // sits in, with no form and no save. A server that sends no status means an open draft.
+    if (!nextRevision && nextDraft.draft.status !== undefined && nextDraft.draft.status !== "draft") {
+      router.replace({ pathname: (isTrainingProject(bootstrap.access, nextDraft.draft.project_id) ? TRAINING_INTERVIEW_HOME : "/collection") as never });
+      return;
+    }
     options ??= await getProjectFormOptions(nextDraft.draft.project_id, requestCsrf);
     if (!isCurrent()) return;
     instrumentCode(options);

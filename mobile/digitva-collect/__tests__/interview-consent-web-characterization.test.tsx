@@ -262,6 +262,16 @@ it("opens a saved draft in order: intake context, draft, form options, store, st
   await act(async () => tree.unmount());
 });
 
+it("a submitted draft opened by URL routes to the list with no form, no store and no save (digitva-y96b)", async () => {
+  (getDraft as jest.Mock).mockResolvedValue({...draftWith({}), draft: {project_id: "P", updated_at: "revision-1", status: "submitted"}});
+  const tree = await render();
+  expect(mockRouter.replace).toHaveBeenCalledWith({pathname: "/collection"});
+  expect(tree.root.findAllByType(WhoVaForm)).toHaveLength(0);
+  expect(ServerDraftStore).not.toHaveBeenCalled();
+  expect(requestClientJson).not.toHaveBeenCalled();
+  await act(async () => tree.unmount());
+});
+
 describe("refusal after the WHO consent question was answered No", () => {
   const SAVED = {Id10013: "no", Id10007: "Name", refusal_age_group: "child", refusal_sex: "male"};
 

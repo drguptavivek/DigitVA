@@ -8,6 +8,7 @@ jest.mock("../src/web/common", () => ({
 }));
 jest.mock("../src/ui", () => ({
   useUiStyles: () => ({ card: {}, text: {} }),
+  errorReference: () => "Ref: test",
   Button: (props: object) => require("react").createElement("button", props),
 }));
 
@@ -30,7 +31,7 @@ test("pending route downloads keep a themed shell and visible loading status", a
 
 test("interview downloads only on use and a failed download can retry without page reload", async () => {
   const load = jest.fn()
-    .mockRejectedValueOnce(new TypeError("offline chunk"))
+    .mockRejectedValueOnce(new TypeError("Failed to fetch dynamically imported module"))
     .mockResolvedValue({ default: () => React.createElement("interview-ready") });
   expect(load).not.toHaveBeenCalled();
   const errors = jest.spyOn(console, "error").mockImplementation(() => undefined);
@@ -62,4 +63,19 @@ test("a screen whose code already downloaded remounts without the loading fallba
   expect(again.root.findAll((node) => node.props?.testID === "web-route-loading")).toHaveLength(0);
   expect(load).toHaveBeenCalledTimes(1);
   await act(async () => { again.unmount(); });
+});
+
+test("a render bug in the screen is not reported as a connection problem", async () => {
+  const load = jest.fn().mockResolvedValue({ default: () => { throw new TypeError("Cannot read properties of undefined (reading 'x')"); } });
+  const errors = jest.spyOn(console, "error").mockImplementation(() => undefined);
+  let renderer!: ReactTestRenderer;
+  try {
+    await act(async () => { renderer = create(<DeferredScreen load={load} />); });
+    const out = JSON.stringify(renderer.toJSON());
+    expect(out).toContain("errGeneric");
+    expect(out).not.toContain("errNetwork");
+  } finally {
+    await act(async () => { renderer?.unmount(); });
+    errors.mockRestore();
+  }
 });

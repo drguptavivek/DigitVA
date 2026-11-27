@@ -9,7 +9,7 @@ import { Platform } from "react-native";
 import { ApiError } from "./api";
 import { APP_VERSION } from "./appVersion";
 import { uiTextKnown } from "./i18n";
-import { networkSpell, OfflineError } from "./network";
+import { isFetchFailure, networkSpell, OfflineError } from "./network";
 import { deviceFamilyLabel } from "./platformFamily";
 
 export interface ErrorEntry {
@@ -98,7 +98,7 @@ export function describeError(error: unknown): string {
     return [`HTTP ${error.status}`, error.code, error.path && `${error.method ?? "GET"} ${error.path}`].filter(Boolean).join(" ");
   }
   if (error instanceof OfflineError) return "offline";
-  if (error instanceof TypeError) return "network";
+  if (isFetchFailure(error)) return "network";
   if (error instanceof Error) {
     const msg = error.message
       .replace(/(["'`])(.*?)\1/g, (_, q, body) => (/^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$/.test(body) && body.length <= 60 ? q + body + q : `${q}…${q}`))

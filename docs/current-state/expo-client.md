@@ -284,10 +284,15 @@ when the export is present (`VaUsers.landing_url()`, policy
      "Coded" / "Recoded" / "Not codeable"; Review history "Reviewed";
   2. the place line: the case id (only under a name), the unit name (tree) or
      site name (no codes; a placeholder site hidden), and the project nickname
-     on All projects; each part on one line, wrapping only between parts;
+     on All projects; each part on one line, wrapping only between parts.
+     Without personal-data access in the project the server sends none of the
+     three and the project offers no "Site and unit" choice (`pii_visible`
+     false on `/me/access`), so a non-PII card has no place line;
   3. the dates line, dd-mmm-yyyy (`formatCardDate`), each pair only where its
      value exists: Died, Interviewed, Coded (first final), Recoded (latest,
-     when recoded), then Not codeable or Reviewed;
+     when recoded), then Not codeable or Reviewed. A `death_date_year_only`
+     item shows "Died: <year>"; no server sends that flag yet (no reliable
+     marker of a year-only date is stored);
   4. pills: age with its unit (`cardAge`: days under a month, whole months
      under a year, else years), sex, interviewer (absent when the server nulls
      it), and on the phone's coding history "Sync: Pending / Failed / Done"

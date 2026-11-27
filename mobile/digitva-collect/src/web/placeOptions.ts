@@ -39,14 +39,15 @@ export type QueuePlace = { projectId: string; siteId?: string; orgUnitId?: strin
  * - site reach: those sites (the server's `site_id` filter), tree or not;
  * - unit reach (tree): the active, selectable units under a reached unit.
  * Labelled and sorted as placeOptions (unit lineage as the detail, the project when several). The server re-checks
- * reach on every list call; the filter only narrows it.
+ * reach on every list call; the filter only narrows it. A project where the user has no personal-data access
+ * (`pii_visible` false) offers none (owner 2026-11-27): its places stay off their cards too.
  */
 export function queuePlaceOptions(projects: AccessProject[], action: "code" | "review", projectIds: string[]): { options: SelectOption[]; places: Map<string, QueuePlace> } {
   const targets: Target[] = [];
   const places = new Map<string, QueuePlace>();
   for (const project of projects) {
     const reach = project.actions[action];
-    if (!reach || !projectIds.includes(project.project_id)) continue;
+    if (!reach || !projectIds.includes(project.project_id) || project.pii_visible === false) continue;
     const projectId = project.project_id;
     const wholeSites = reach.project && !project.has_tree;
     for (const site of project.sites) {

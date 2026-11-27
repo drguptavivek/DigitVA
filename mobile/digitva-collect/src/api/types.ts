@@ -33,6 +33,12 @@ export interface AccessProject {
    * keys the server sends are not read here.
    */
   actions: { interview: AccessActionContext[]; register_death: AccessActionContext[]; code?: ActionReach; review?: ActionReach };
+  /**
+   * Personal-data access in this project (`pii_scope`, additive 2026-11-27): false hides the queues' "Site and unit"
+   * filter, as the server leaves the cards' place keys out. Absent from older servers (no change there); a
+   * non-boolean is dropped by the parser.
+   */
+  pii_visible?: boolean;
   /** Exact SmartVA snapshot for authorized interview site/unit targets. */
   smartva_targets?: SmartVaTarget[];
   /** Project-owned self-coding setting; absent on older servers/fixtures. */
@@ -191,6 +197,7 @@ export function parseAccessSummary(value: unknown): AccessSummary {
         delete project.actions[key];
       }
     }
+    if (project.pii_visible !== undefined && typeof project.pii_visible !== "boolean") delete project.pii_visible;
     for (const site of project.sites) {
       if (!record(site) || typeof site.site_id !== "string" || typeof site.site_name !== "string" || !strings(site.roles)) throw new ApiError(200, "malformed_response");
     }

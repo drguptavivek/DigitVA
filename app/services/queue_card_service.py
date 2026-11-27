@@ -6,7 +6,10 @@ page's size:
 
 - ``unit_name`` (the submission's org unit; null without one), ``site_name``
   (the form's site) and ``project_nickname`` (``project_nickname``, else
-  ``project_name``): the card's place line, never a code.
+  ``project_name``): the card's place line, never a code. Only on a row of a
+  project where the caller has personal-data access (``pii_scope``, owner
+  2026-11-27; docs/policy/case-list-views.md); absent otherwise, so the card
+  draws no place line.
 - ``va_deceased_age_normalized_days`` (a number or null): the age chip.
 - ``date_of_death`` (ISO date or null): the earliest date of death of the
   case's live register rows (not duplicate, not cancelled), the rule of
@@ -44,8 +47,10 @@ from app.models import (
     VaStatuses,
     VaSubmissions,
 )
+from app.services.viewer_pii_service import pii_scope
 
 _DEAD_CASE_STATES = ("duplicate", "cancelled")
+_PLACE_KEYS = ("unit_name", "site_name", "project_nickname")
 
 
 def _utc_iso(value):
@@ -113,6 +118,7 @@ def add_card_keys(user, rows: list[dict], *, names: bool = False, coder_id=None)
             .where(VaSubmissions.va_sid.in_(sids))
         )
     }
+    pii = pii_scope(user)
     if names:
         from app.services.case_list_service import coding_names
 
@@ -120,9 +126,13 @@ def add_card_keys(user, rows: list[dict], *, names: bool = False, coder_id=None)
     for row in rows:
         sid = row["va_sid"]
         found_row = found.get(sid)
-        row["unit_name"] = found_row.unit_name if found_row else None
-        row["site_name"] = found_row.site_name if found_row else None
-        row["project_nickname"] = found_row.project_nickname if found_row else None
+        if pii.sees(row.get("project_id")):
+            row["unit_name"] = found_row.unit_name if found_row else None
+            row["site_name"] = found_row.site_name if found_row else None
+            row["project_nickname"] = found_row.project_nickname if found_row else None
+        else:
+            for key in _PLACE_KEYS:
+                row.pop(key, None)
         row["va_deceased_age_normalized_days"] = found_row.age_days if found_row else None
         row["date_of_death"] = found_row.died.isoformat() if found_row and found_row.died else None
         first, last, count = coding_of.get(sid, (None, None, 0))[:3]

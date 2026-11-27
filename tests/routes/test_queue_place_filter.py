@@ -236,6 +236,11 @@ class _PlaceFilterBase(AuthzFixtureMixin, BaseTestCase):
         plain = self._rows(nonpii_key, self.HISTORY)["ta-p1"]
         self.assertEqual(plain["date_of_death"], "2026-04-20")
         self.assertNotIn("deceased_name", plain)
+        # Nor any place key (owner 2026-11-27): no unit, site or project name without personal-data access.
+        for item in (plain, *self._rows(nonpii_key, self.AVAILABLE).values()):
+            for key in ("unit_name", "site_name", "project_nickname"):
+                self.assertNotIn(key, item)
+            self.assertIn("date_of_death", item)
 
     def _assert_malformed_values_are_400(self, user_key):
         self._login(str(self.users[user_key].user_id))
@@ -431,6 +436,11 @@ class ReviewingPlaceFilterTests(_PlaceFilterBase):
         project = next(p for p in body["projects"] if p["project_id"] == "AZTA01")
         self.assertEqual(project["actions"]["review"],
                          {"project": False, "site_ids": [], "org_unit_ids": [self._unit("P1")]})
+        # Personal-data access per project: a unit (in-system) grant has it, a project-wide one does not.
+        self.assertIs(project["pii_visible"], True)
+        self._login(str(self.users["reviewer_ta"].user_id))
+        body = self.client.get("/api/v1/me/access").get_json()
+        self.assertIs(next(p for p in body["projects"] if p["project_id"] == "AZTA01")["pii_visible"], False)
 
     def test_a_unit_filter_matches_the_unit_and_its_subtree(self):
         everything = self._sids("reviewer_p1", self.AVAILABLE)

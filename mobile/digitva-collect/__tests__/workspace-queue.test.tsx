@@ -1809,3 +1809,50 @@ describe("additive queue keys are parsed leniently", () => {
     expect(parseCoderHistory(history, 50, 0).history[0].va_narration_language).toBe("odia");
   });
 });
+
+describe("no place without personal-data access; a year-only date of death (owner 2026-11-27)", () => {
+  const texts = (node: ReactTestInstance) => node.findAll((n) => (n.type as unknown) === "Text")
+    .map((n) => n.children.filter((c) => typeof c === "string").join(""));
+
+  test("a project without pii_visible offers no Site and unit choice, on both queues", async () => {
+    const noPii = placeAccess.map((project) => ({ ...project, pii_visible: false })) as AccessProject[];
+    for (const mode of ["coding", "reviewing"] as const) {
+      const shown = await renderPlaces(mode, makeApi(), placeAccess.map((project) => ({ ...project, pii_visible: true })) as AccessProject[]);
+      expect(shown.renderer.root.findAllByType(Select)).toHaveLength(1);
+      await unmount(shown.renderer);
+      const hidden = await renderPlaces(mode, makeApi(), noPii);
+      expect(hidden.renderer.root.findAllByType(Select)).toHaveLength(0);
+      await unmount(hidden.renderer);
+    }
+    // One project without access drops only its own places.
+    const mixed = await renderPlaces("coding", makeApi(), [{ ...placeAccess[0], pii_visible: false }, placeAccess[1]] as AccessProject[]);
+    expect(placeSelect(mixed.renderer).props.options.map((option: { value: string }) => option.value)).toEqual(["", "P2:S7"]);
+    await unmount(mixed.renderer);
+  });
+
+  test("a card without the place keys (no personal-data access) has no place line, on both queues", async () => {
+    const coding = await render("coding", makeApi({
+      getCodingAvailable: jest.fn().mockResolvedValue({ forms: [{ ...coderRow, date_of_death: "2026-09-30" }], count: 1, limit: 50, offset: 0, has_more: false }),
+    }));
+    const card = coding.renderer.root.findAllByType(QueueCaseCard)[0];
+    expect(card.findAll((n) => typeof n.type === "string" && n.props.testID === `queue-case-place-${coderRow.va_sid}`)).toHaveLength(0);
+    expect(texts(card).slice(0, 3)).toEqual(["CODER-MASKED-1", "Interviewed", "Died: 30-Sep-2026"]);
+    await unmount(coding.renderer);
+    const review = await render("reviewing");
+    expect(review.renderer.root.findAll((n) => typeof n.type === "string" && n.props.testID === `queue-case-place-${row.va_sid}`)).toHaveLength(0);
+    await unmount(review.renderer);
+  });
+
+  test("a year-only date of death shows its year alone", async () => {
+    const { renderer } = await render("coding", makeApi({
+      getCodingAvailable: jest.fn().mockResolvedValue({ forms: [
+        { ...coderRow, date_of_death: "2026-07-01", death_date_year_only: true },
+        { ...coderRow, va_sid: "c-exact", date_of_death: "2026-07-01", death_date_year_only: false },
+      ], count: 2, limit: 50, offset: 0, has_more: false }),
+    }));
+    const dates = (index: number, sid: string) => texts(renderer.root.findAllByType(QueueCaseCard)[index].findAll((n) => n.props.testID === `queue-case-dates-${sid}`)[0]);
+    expect(dates(0, coderRow.va_sid)[0]).toBe("Died: 2026");
+    expect(dates(1, "c-exact")[0]).toBe("Died: 01-Jul-2026");
+    await unmount(renderer);
+  });
+});

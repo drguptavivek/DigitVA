@@ -465,7 +465,8 @@ class CodingPagingTests(BaseTestCase):
         )
         self.assertEqual(
             set(demo[0]),
-            (set(real[0]) - {"is_tester"}) | {"demo_expires_at", "is_demo"},
+            # The demo project grants this coder no personal-data access: no place keys there.
+            (set(real[0]) - {"is_tester", "unit_name", "site_name", "project_nickname"}) | {"demo_expires_at", "is_demo"},
         )
 
     def test_history_pages_equal_the_full_list_without_gap_or_repeat(self):

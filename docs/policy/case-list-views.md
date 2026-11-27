@@ -3,7 +3,7 @@ title: Case List Views Policy
 doc_type: policy
 status: proposed
 owner: Vivek Gupta
-last_updated: 2026-11-23
+last_updated: 2026-11-27
 ---
 
 # Case List Views Policy
@@ -456,7 +456,22 @@ carries the overdue thresholds. The area summary keeps its own counts
   not offered there (the Statistics page takes its projects from the area
   API).
 
-## Non-goals
+## Code and Review queue cards: place only with personal-data access (owner, 2026-11-27)
+
+The Code and Review queues' case cards follow the same rule as `can_unit`
+above (no unit to a row reached by non-PII coding alone), per project:
+
+- A caller without personal-data access in the case's project (`pii_scope`)
+  gets no place on the card: the queue items carry no `unit_name`,
+  `site_name` or `project_nickname` (`queue_card_service.add_card_keys`), so
+  the card shows the case id title, dates, pills and buttons only.
+- The queues' "Site and unit" filter is hidden for such a project:
+  `/me/access` sends `pii_visible` per project, and a project with
+  `pii_visible` false offers no place choice. The server's `site_id` /
+  `org_unit_id` list filter itself is unchanged (older clients still send it;
+  it only narrows what the caller may already list).
+- The deceased's name stays on its own gate (`coding_names`).
+
 
 - No change to who may start an interview, code, review or supervise; the
   list only shows, links and calls existing endpoints.

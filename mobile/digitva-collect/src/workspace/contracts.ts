@@ -308,6 +308,8 @@ export interface QueueCardKeys {
   first_coded_at?: string | null;
   last_coded_at?: string | null;
   recoded?: boolean;
+  /** `date_of_death` holds only the year of death (shown as the year); no server sends it yet (2026-11-27). */
+  death_date_year_only?: boolean;
   deceased_name?: string | null;
 }
 
@@ -826,6 +828,7 @@ function cardKeys(source: Record<string, unknown>): QueueCardKeys {
   const days = source.va_deceased_age_normalized_days;
   if (days === null || (typeof days === "number" && Number.isFinite(days) && days >= 0)) keys.va_deceased_age_normalized_days = days;
   if (typeof source.recoded === "boolean") keys.recoded = source.recoded;
+  if (typeof source.death_date_year_only === "boolean") keys.death_date_year_only = source.death_date_year_only;
   return keys;
 }
 

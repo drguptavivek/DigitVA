@@ -539,7 +539,8 @@ and the queue card keys below).
 **Queue card keys** (additive, 2026-11-27; `app/services/queue_card_service.py` `add_card_keys`, one query per page
 plus `coding_names`): on `/coding/available` and `/coding/history` (paged, unpaged and cached, demo rows included)
 and on `/reviewing/available` and `/reviewing/history`, every row also carries `unit_name` (the submission's org
-unit, null without one), `site_name`, `project_nickname` (`project_nickname`, else `project_name`),
+unit, null without one), `site_name`, `project_nickname` (`project_nickname`, else `project_name`; these three only
+on a row of a project where the caller has personal-data access, `pii_scope`, else absent: docs/policy/case-list-views.md),
 `va_deceased_age_normalized_days` (number or null), `date_of_death` (ISO date or null: the earliest date of death
 of the case's register rows that are not duplicate or cancelled; an ODK submission has one only when the sync made
 its case, and a year-only answer is stored there as 1 July of that year), `first_coded_at` / `last_coded_at`
@@ -1601,7 +1602,10 @@ site or unit.
     sign-in are both available; there is no factor-enrolment gate.
   - `pii_visible`: `viewer_pii_service.sees_pii_in_any_project(user)`: PII in
     at least one project. An account-level hint only; every case decides per
-    project (`should_redact_pii(user, project_id=...)`, digitva-ssg7.3).
+    project (`should_redact_pii(user, project_id=...)`, digitva-ssg7.3). Each
+    `projects[]` entry also carries `pii_visible` (additive, 2026-11-27): that
+    project's `pii_scope(user).sees(project_id)`; the Code and Review queues
+    hide their "Site and unit" filter where it is false.
   - `device_access`: `device_auth_service.has_device_access`, the sign-in and
     refresh check: an interviewing context in some project, or an open
     explicit coder, coding_tester or reviewer gate, or an explicit

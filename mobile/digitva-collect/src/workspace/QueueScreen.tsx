@@ -240,7 +240,8 @@ function lastActionLabel(item: AnyQueueCase, kind: QueueCardKind): string {
 /**
  * The dates line's "label: date" pairs, each only where its value exists: Died, Interviewed, Coded (the case's first
  * final COD; a history row's own coding date when the server sends none, e.g. tester output), Recoded (the latest,
- * only when recoded), then Not codeable or Reviewed (that action's date).
+ * only when recoded), then Not codeable or Reviewed (that action's date). A year-only date of death
+ * (`death_date_year_only`) shows its year alone, never the stored day.
  */
 function cardDates(item: AnyQueueCase, kind: QueueCardKind): string[] {
   const notCodeable = kind === "codingHistory" && "va_code_status" in item && item.va_code_status === "Not Codeable";
@@ -254,7 +255,8 @@ function cardDates(item: AnyQueueCase, kind: QueueCardKind): string[] {
     ["queueDateReviewed", kind === "reviewHistory" && "va_reviewed_at" in item ? item.va_reviewed_at : null],
   ];
   return pairs.flatMap(([key, raw]) => {
-    const date = formatCardDate(raw);
+    const year = key === "queueDateDied" && item.death_date_year_only ? /^(\d{4})-/.exec(raw ?? "")?.[1] : undefined;
+    const date = year ?? formatCardDate(raw);
     return date ? [t(key, { date })] : [];
   });
 }

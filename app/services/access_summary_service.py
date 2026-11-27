@@ -42,7 +42,7 @@ from app.services.authz.actions import ADMIN_BYPASS, DEMO_VIRTUAL_ROLES
 from app.services.authz.consulted import mark_consulted
 from app.services.case_content_service import social_autopsy_enabled
 from app.services.cod_entry_mode import project_mode
-from app.services.viewer_pii_service import sees_pii_in_any_project
+from app.services.viewer_pii_service import pii_scope, sees_pii_in_any_project
 
 _PS = VaAccessScopeTypes.project_site
 _U = VaAccessScopeTypes.org_unit
@@ -130,6 +130,11 @@ def build_access_summary(user, *, native: bool | None = None) -> dict:
                              project_id in self_coding, registering.get(project_id, []))
         for project_id, grants in sorted(by_project.items())
     }
+    # Additive (owner 2026-11-27): personal-data access in this project (``pii_scope``), the gate the queue cards'
+    # place keys and the queues' "Site and unit" filter follow.
+    pii = pii_scope(user, _grants=resolved)
+    for project_id, project in built.items():
+        project["pii_visible"] = pii.sees(project_id)
     from app.services.smartva_access_projection_service import build_smartva_targets
 
     target_keys = []

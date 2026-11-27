@@ -3,7 +3,7 @@ title: Android Release Builds
 doc_type: runbook
 status: active
 owner: engineering
-last_updated: 2026-11-26
+last_updated: 2026-11-27
 ---
 
 # Android release builds
@@ -16,6 +16,29 @@ pending and must not be implied. Local release builds are authorized in this
 session. The normal package remains the default download.
 Version 0.3.13 introduces the manual Settings server compatibility/build check
 (`digitva-hs7e.18`); the server contract and deployed commit are distinct values.
+
+## Public 0.3.33 APKs and Play bundle (2026-11-27)
+
+Supersedes 0.3.31 on phones; 0.3.32 (`android-v0.3.32`, built from
+`197551ff1`) was published before the queue tab-return and web screen stack
+fixes landed and is never pinned or offered, and its Collect Plus build was
+cancelled before publishing. 0.3.33 adds the queue and cards work (server
+sort and filter, the Sort and filter panel, phone case cards, year-only
+death dates), the Collect Plus Local cases row on the Code tab and the
+queue tab-return fix. Collect (run 46014399596), Collect Plus (run
+46014404642), web release `expo-web-v2026.11.27.3`
+(`9e67d0cc5d2d1e3bcde4f44acf0f4c053d4f6ec2b21335cdc7580957681db4cf`, run
+46014394366) and the Play bundle (run 46014411448, artifact only; the Play
+upload is the owner's) were all built on CI from `724a310f9`. Release
+certificate `6d94718a…6d361767`, versionCode 3332 (arm64), staging API
+origin, checked with `scripts/verify-android-release.sh`; checksums verified
+after download against each release's `.sha256`. Not yet offered to phones
+(`private/android-hosted` still serves 0.3.31) and not device-checked.
+
+| Variant | Public release | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| Collect | `android-v0.3.33` | 70,058,884 | `371a165f45dfe1db19e4cbc1776f874f276cd114ef106b9491799f49fef59f74` |
+| Collect Plus | `collect-plus-v0.3.33-plus.1` (prerelease) | 150,998,020 | `c4073d06df64d15d241d0c7a0247569047e21ff4122fab575a8701dd2497428f` |
 
 ## Public 0.3.31 APKs and Play bundle (2026-11-26)
 

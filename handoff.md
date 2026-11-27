@@ -62,8 +62,9 @@ and maps stay in the browser).
   online Collect Plus coder has no Local cases entry row on the Code tab
   since `d024b5ad0` (shipped 0.3.28-0.3.31; the row survives only in
   NativeCollectionGate's fallback), plus the raw code at
-  offlineCoding.native.tsx:487 (`digitva-5cqm`, owner asked by the Role with
-  report access session whether to fix before 0.3.32). The next APK
+  offlineCoding.native.tsx:487 (`digitva-5cqm`; the owner sent the fix to the
+  Shared Unit selector session, which is redesigning the cards; its branch
+  comes to the coordinator for review and landing). The next APK
   (0.3.32): version bump, web release, Collect, Plus and Play bundle, gates,
   verification, pin commit; report version and CI links to the l2dg
   session. It also carries the case-definition line-break fix

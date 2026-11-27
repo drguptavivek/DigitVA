@@ -5,6 +5,9 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- docs/current-state/expo-client.md says where the coding case lists
+  render (only NativePendingWorkspace), replacing a stale card-location
+  line (`digitva-gzmp`, docs only, reviewed).
 - Collect Plus coders have their Local cases row again, at the top of the
   Code tab (`digitva-5cqm`); `d024b5ad0` had removed it, so Plus builds
   0.3.20-0.3.31 reached offline cases only from the coding fallback screen

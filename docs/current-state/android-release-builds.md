@@ -32,8 +32,12 @@ queue tab-return fix. Collect (run 46014399596), Collect Plus (run
 upload is the owner's) were all built on CI from `724a310f9`. Release
 certificate `6d94718a…6d361767`, versionCode 3332 (arm64), staging API
 origin, checked with `scripts/verify-android-release.sh`; checksums verified
-after download against each release's `.sha256`. Not yet offered to phones
-(`private/android-hosted` still serves 0.3.31) and not device-checked.
+after download against each release's `.sha256`. Copied into staging's
+`private/android-hosted` on the owner's go (2026-11-27, image hashes and
+both copies checksum OK, 0.3.31 and older kept): `/api/v1/app/android/latest`
+and the `plus` variant report 0.3.33 and both downloads match the hashes
+below. Same commands as 0.3.31 below with the 0.3.33 names. Not
+device-checked.
 
 | Variant | Public release | Bytes | SHA-256 |
 | --- | --- | ---: | --- |

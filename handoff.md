@@ -14,14 +14,12 @@ snapshots and pg_dump in `CHANGELOG.md` 2026-11-27). The demo stack runs
 `eeb8e4815` (`digitva-demo-app:eeb8e4815`, env backup
 `/data/digitva-demo.env.pre-eeb8e4815`). The image carries 0.3.33
 (`android-v0.3.33`, `collect-plus-v0.3.33-plus.1`, web
-`expo-web-v2026.11.27.3`; 0.3.32 never pinned), but phones are still offered
-0.3.31: the copy into `private/android-hosted` is in
-docs/current-state/android-release-builds.md. Play AAB 0.3.33 is run
+`expo-web-v2026.11.27.3`; 0.3.32 never pinned), and phones are offered
+0.3.33 since 2026-11-27 (owner go; 0.3.31 kept in `private/android-hosted`). Play AAB 0.3.33 is run
 46014411448 (expires about 2026-12-11). No device check of 0.3.31 or 0.3.33.
 
 Owner decisions waiting:
-- Each its own go: offer 0.3.33 to phones (after a device check), upgrade
-  the demo, upload the Play AAB, deploy the ICD-11 client tokens (landed
+- Each its own go: upgrade the demo, upload the Play AAB, deploy the ICD-11 client tokens (landed
   `f09e6ec6f`) and issue the first token.
 - Homepage KPIs: the owner ticks "Included in homepage KPIs" for ICMR01,
   UNSW01, KEM001, TELE01 (only HMR001 counts now).
@@ -56,7 +54,7 @@ Owner decisions waiting:
    not trivial (shared `anchorMenu` now places both menus): needs the
    reviewer's LAND, then rebase (no file overlap with main), Jest, check-web. Flip-above not
    device-checked (`digitva-wlfr`).
-3. Device-check 0.3.33 from the CI APKs, then ask to offer it: Local cases
+3. Device-check 0.3.33 (now offered on staging): Local cases
    row (`5cqm`), phone cards (`2b7d`), Sort and filter sheet and Recodeable
    (`znbm`), Reported deaths chips and Refused badge (`aunm`), tab-return
    (`1xof`), offline Social Autopsy, re-enrol from Sign in again (`dbcw`),

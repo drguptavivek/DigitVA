@@ -5,6 +5,11 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Staging offers 0.3.33 to phones (owner go 2026-11-27): Collect and
+  Collect Plus 0.3.33 copied from the `c7b1ac797` image into
+  `private/android-hosted` after checksum checks; `/api/v1/app/android/latest`
+  (both variants) reports 0.3.33 and the public downloads match the release
+  hashes. 0.3.31 stays in the folder. Not device-checked.
 - ICD-11 API client tokens (`digitva-ddpf`, `f09e6ec6f`, reviewer LAND on
   `caeb70638`, cherry-picked unchanged onto the handoff commits): admin-issued,
   scoped, expiring, revocable bearer tokens for `/api/icd11-client/v1/`

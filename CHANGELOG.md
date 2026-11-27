@@ -12,8 +12,11 @@ What landed, newest first. Details live in the commits and the linked docs;
   Reviewer subagent LAND after one fix round (pre-scroll anchoring, stale
   offset on reopen, web scroll on every dropdown). Verified: full Jest 370
   suites, check-web, Collect Plus debug on the emulator (menu at full height
-  under the field, visible above the keyboard, reopen fine). Web branch not
-  checked live.
+  under the field, visible above the keyboard, reopen fine), and dev web at
+  390x700: the queue filter sheet scrolls the field up without moving the
+  page; the death registration unit dropdown (no panel) stays put and opens
+  above the field. Opening above cannot happen on the phone today
+  (`digitva-wlfr`).
 - Dropdowns open at the field (`digitva-329t`, `c7cd883bb`): ProjectSelect
   and Select (org-unit pickers) anchor their menu below the field, or above
   when there is no room, on every width; the bottom sheet is gone. Reviewer

@@ -417,7 +417,7 @@ export function QueueScreen({
   /** Training coding only: the queue *api* was made for; the queue buttons report the next one (the route makes a new api). */
   trainingQueue?: TrainingQueue;
   onTrainingQueue?: (queue: TrainingQueue) => void;
-  /** Opens the in-app coding languages editor (the ✎ after "Your languages"). */
+  /** Opens the in-app coding languages editor (the ✎ after "My languages"). */
   onEditLanguages?: () => void;
   /** The signed-in user's /me/access projects: their code/review reach builds the "Site and unit" filter. Unset: no filter. */
   accessProjects?: AccessProject[];
@@ -1051,7 +1051,7 @@ export function QueueScreen({
     ? (showHistory ? filteredCoderHistory.length : filteredCoderAvailable.length)
     : filteredReviewerRows.length;
 
-  /** "Your languages ✎" (both queues filter on them) and, on Coding, "Forms pending coding". */
+  /** "My languages ✎" (both queues filter on them) and, on Coding, "Forms pending coding". */
   function renderLanguageLines() {
     const lines = codingLanguageLines(coderStats ?? reviewerStats);
     if (!lines) return null;

@@ -1,5 +1,5 @@
 /**
- * "Your languages" (Coding and Review queues) and "Forms pending coding" (Coding), and the training queues' "X of Y"
+ * "My languages" (Coding and Review queues) and "Forms pending coding" (Coding), and the training queues' "X of Y"
  * (docs/policy/training-session-types.md). Read from `/coding/stats` (and `languages.mine` from `/reviewing/stats`), whose keys are additive: an older server
  * sends none of them and these helpers then answer nothing, so the screen looks as it did.
  */

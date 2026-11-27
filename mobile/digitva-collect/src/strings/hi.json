@@ -1129,7 +1129,7 @@
   "trainingReportDeath": "मृत्यु दर्ज करें",
   "trainingReadReport": "प्रशिक्षण रिपोर्ट पढ़ें (प्रगति और सहमति)",
   "trainingOnlyHere": "इस पृष्ठ पर सब कुछ प्रशिक्षण परियोजना का है। आपका असली काम दूसरे मेनू में है।",
-  "queueYourLanguages": "आपकी भाषाएँ: {languages}",
+  "queueYourLanguages": "मेरी भाषाएँ: {languages}",
   "queueLanguagesNone": "कोई नहीं चुनी गई",
   "queueLanguagesEdit": "अपनी भाषाएँ बदलें",
   "queuePendingByLanguage": "कोडिंग के लिए बाकी फ़ॉर्म: {counts}",

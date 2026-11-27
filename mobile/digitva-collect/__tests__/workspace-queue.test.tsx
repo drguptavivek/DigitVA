@@ -1618,14 +1618,14 @@ describe("queue counts, pager, tiles and cards (owner 2026-11-27)", () => {
     await unmount(renderer);
   });
 
-  test("Review shows Your languages with the same edit action; a save reloads the review counts and list", async () => {
+  test("Review shows My languages with the same edit action; a save reloads the review counts and list", async () => {
     const api = makeApi({ getReviewerStats: jest.fn().mockResolvedValue({ in_scope: 3, completed: 1, available: 2, languages: { mine: ["english", "hindi"] }, allocation: null }) });
     const onEditLanguages = jest.fn();
     let renderer!: ReactTestRenderer;
     const view = (reloadKey: number) => <QueueScreen api={api} mode="reviewing" onOpen={jest.fn()} onEditLanguages={onEditLanguages} reloadKey={reloadKey} />;
     await act(async () => { renderer = create(view(0)); });
     await settle();
-    expect(texts(renderer.root)).toContain("Your languages: English, Hindi");
+    expect(texts(renderer.root)).toContain("My languages: English, Hindi");
     const edit = renderer.root.findAll((n) => n.props.testID === "coding-languages-edit" && n.props.onPress)[0];
     await act(async () => { edit.props.onPress(); });
     expect(onEditLanguages).toHaveBeenCalledTimes(1);

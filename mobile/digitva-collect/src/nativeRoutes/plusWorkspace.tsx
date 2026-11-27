@@ -70,7 +70,7 @@ function Workspace({ mode, vaSid, training = false }: { mode: WorkspaceMode; vaS
   const userId = usePlusUserId(mode, training);
   // Training coding: which queue the list, counts and allocations use (standard set unless the trainee picks own).
   const [trainingQueue, setTrainingQueue] = useState<TrainingQueue>("standard");
-  // The coding languages editor; a save reloads the queue (its "Your languages" line).
+  // The coding languages editor; a save reloads the queue (its "My languages" line).
   const [languagesOpen, setLanguagesOpen] = useState(false);
   const [languagesSaved, setLanguagesSaved] = useState(0);
   const { accounts } = useAppState();

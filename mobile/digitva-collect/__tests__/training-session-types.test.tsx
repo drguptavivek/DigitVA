@@ -67,10 +67,10 @@ describe("codingLanguageLines", () => {
   });
 
   it("says none set for an empty list and shows only languages with forms", () => {
-    expect(codingLanguageLines({ languages: { mine: [], pending: [] } })).toEqual({ mine: "Your languages: none set" });
+    expect(codingLanguageLines({ languages: { mine: [], pending: [] } })).toEqual({ mine: "My languages: none set" });
     expect(codingLanguageLines({
       languages: { mine: ["english", "hindi"], pending: [{ language: "hindi", count: 42 }, { language: "tamil", count: 5 }, { language: "telugu", count: 0 }, { language: "unrecorded", count: 1 }] },
-    })).toEqual({ mine: "Your languages: English, Hindi", pending: "Forms pending coding: Hindi 42 · Tamil 5 · Unrecorded 1" });
+    })).toEqual({ mine: "My languages: English, Hindi", pending: "Forms pending coding: Hindi 42 · Tamil 5 · Unrecorded 1" });
   });
 });
 
@@ -135,7 +135,7 @@ describe("QueueScreen languages and training queues", () => {
     const onEdit = jest.fn();
     const renderer = await render(<QueueScreen api={makeApi({ languages: { mine: ["hindi"], pending: [{ language: "hindi", count: 42 }] } })} mode="coding" onOpen={jest.fn()} onEditLanguages={onEdit} />);
     const all = texts(renderer.root).join("|");
-    expect(all).toContain("Your languages: Hindi");
+    expect(all).toContain("My languages: Hindi");
     expect(all).toContain("Forms pending coding: Hindi 42");
     await act(async () => byId(renderer.root, "coding-languages-edit")[0].props.onPress());
     expect(onEdit).toHaveBeenCalled();

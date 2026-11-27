@@ -180,7 +180,7 @@ function WorkspaceScreen({ forcedMode, training: trainingRoute = false }: { forc
   // undefined while loading, null when the call failed.
   const [home, setHome] = useState<HomeSummary | null>();
   const [progressOpen, setProgressOpen] = useState(false);
-  // The coding languages editor; a save reloads the queue (its "Your languages" line).
+  // The coding languages editor; a save reloads the queue (its "My languages" line).
   const [languagesOpen, setLanguagesOpen] = useState(false);
   const [languagesSaved, setLanguagesSaved] = useState(0);
   // Training coding: which queue the list, counts and allocations use (standard set unless the trainee picks own).

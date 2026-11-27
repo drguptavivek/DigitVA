@@ -10,7 +10,7 @@ import type { JsonRequester } from "./api";
 import { getCodingLanguageChoices, saveCodingLanguages, type CodingLanguageChoices } from "./codingLanguages";
 
 /**
- * The coder's own coding languages (the ✎ after "Your languages"), in the app: Collect shows no web page
+ * The coder's own coding languages (the ✎ after "My languages"), in the app: Collect shows no web page
  * (digitva-mb0d.2). The current languages start ticked; Save needs at least one, as the server does, and calls
  * `onSaved` so the queue reloads its counts.
  */

@@ -1129,7 +1129,7 @@
   "trainingReportDeath": "Report a death",
   "trainingReadReport": "Read the training report (progress and agreement)",
   "trainingOnlyHere": "Everything on this page belongs to the training project. Your real work is in the other menus.",
-  "queueYourLanguages": "Your languages: {languages}",
+  "queueYourLanguages": "My languages: {languages}",
   "queueLanguagesNone": "none set",
   "queueLanguagesEdit": "Edit your languages",
   "queuePendingByLanguage": "Forms pending coding: {counts}",

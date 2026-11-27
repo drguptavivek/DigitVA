@@ -736,9 +736,12 @@ export function QueueScreen({
   }, [api, historyCache, historyIdentity, mode]);
 
   const lastRefresh = useRef(refresh);
+  // Set by a return to the app or tab: that reload shows the last page at once instead of an empty list.
+  const returning = useRef(false);
   useEffect(() => {
-    // A page seen before shows at once; a reload after an action or a return to the tab starts empty, as before.
-    const reloaded = lastRefresh.current !== refresh;
+    // A page seen before shows at once, a return to the tab too; a reload after an action starts empty, as before.
+    const reloaded = lastRefresh.current !== refresh && !returning.current;
+    returning.current = false;
     lastRefresh.current = refresh;
     setData(reloaded ? null : cachedPage(scopeRef.current));
     setBusy(false);
@@ -762,7 +765,8 @@ export function QueueScreen({
       activeRef.current = false;
       generation.current += 1;
       actionInFlight.current = false;
-      setData(null);
+      // The phone drops the rows from the app switcher's snapshot; a hidden browser tab keeps them for its return.
+      if (Platform.OS !== "web") setData(null);
       clearMessage();
       setBusy(false);
       setLoading(false);
@@ -770,10 +774,8 @@ export function QueueScreen({
     const subscription = AppState.addEventListener("change", (next) => {
       activeRef.current = next === "active" && (typeof document === "undefined" || document.visibilityState !== "hidden");
       if (activeRef.current && previous !== "active") {
-        if (scopeRef.current.mode === "coding") {
-          setShowHistory(false);
-          setOffset(0);
-        }
+        // A return keeps the tab, page and filters (digitva-1xof); a conflict or Refresh still goes back to Available.
+        returning.current = true;
         setRefresh((value) => value + 1);
       }
       if (next !== "active") invalidate();
@@ -784,10 +786,8 @@ export function QueueScreen({
       if (document.visibilityState === "hidden") invalidate();
       else if (AppState.currentState === "active") {
         activeRef.current = true;
-        if (scopeRef.current.mode === "coding") {
-          setShowHistory(false);
-          setOffset(0);
-        }
+        // A return keeps the tab, page and filters (digitva-1xof); a conflict or Refresh still goes back to Available.
+        returning.current = true;
         setRefresh((value) => value + 1);
       }
     };

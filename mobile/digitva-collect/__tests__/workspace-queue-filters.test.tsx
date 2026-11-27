@@ -4,7 +4,7 @@
  * sex and age group. docs/policy/case-list-views.md "Code and Review queue sort and filter".
  */
 import React from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 
 import type { AccessProject } from "../src/api";
@@ -452,5 +452,50 @@ describe("queue screen cache key", () => {
     await show(renderer);
     expect(readCached(key(JSON.stringify({ sex: "male" })))).toBeDefined();
     await act(async () => { renderer.unmount(); });
+  });
+});
+
+describe("return to the app or tab (digitva-1xof)", () => {
+  test("keeps the tab, page and filters and shows the last rows while it reloads", async () => {
+    web();
+    const listeners: Array<(state: string) => void> = [];
+    const spy = jest.spyOn(AppState, "addEventListener").mockImplementation((_type, listener) => {
+      listeners.push(listener as (state: string) => void);
+      return { remove: jest.fn() } as unknown as ReturnType<typeof AppState.addEventListener>;
+    });
+    const change = async (state: "active" | "background") => {
+      AppState.currentState = state;
+      await act(async () => { listeners.forEach((listener) => listener(state)); });
+    };
+    AppState.currentState = "active";
+    try {
+      const api = makeApi();
+      const renderer = await mount(<QueueScreen api={api} mode="coding" onOpen={jest.fn()} cacheScope="user-1" />);
+      await press(renderer, "History");
+      await openPanel(renderer);
+      await press(renderer, "Filter sex: Female");
+      await show(renderer);
+      expect(lastCall(api.getCodingHistory)).toEqual({ projectId: undefined, sex: "female", limit: 50, offset: 0 });
+      expect(text(renderer)).toContain("UID-1");
+      const availableCalls = (api.getCodingAvailable as jest.Mock).mock.calls.length;
+      // Every reload call waits (the page and the unfiltered total), so the screen is seen mid-reload.
+      const pending: Array<(value: unknown) => void> = [];
+      (api.getCodingHistory as jest.Mock).mockImplementation(() => new Promise((resolve) => { pending.push(resolve); }));
+      await change("background");
+      await change("active");
+      // The reload is still out: the last page shows at once, on the same tab and filter.
+      expect(text(renderer)).toContain("UID-1");
+      expect(lastCall(api.getCodingHistory)).toEqual({ projectId: undefined, sex: "female", limit: 50, offset: 0 });
+      expect((api.getCodingAvailable as jest.Mock).mock.calls.length).toBe(availableCalls);
+      expect(pressable(renderer.root, "Remove filter: Female")).toBeDefined();
+      expect(pending.length).toBeGreaterThan(0);
+      await act(async () => { pending.forEach((resolve) => resolve({ history: [], count: 0, limit: 50, offset: 0, has_more: false, total: 0 })); });
+      await settle();
+      expect(text(renderer)).not.toContain("UID-1");
+      await act(async () => { renderer.unmount(); });
+    } finally {
+      spy.mockRestore();
+      AppState.currentState = "active";
+    }
   });
 });

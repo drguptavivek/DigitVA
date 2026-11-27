@@ -295,7 +295,13 @@ when the export is present (`VaUsers.landing_url()`, policy
   filter string with every other part, so a revisit never seeds another
   filter's rows; a refused or failed refetch still drops its entry. A filtered
   coder history page is never written to, read from or cleared in the phone's
-  history cache. The client-side "Recodeable only" and sex chips are gone.
+  history cache. The client-side sex chips are gone; "Recodeable only" is a
+  server filter on My coded cases (`recodeable=1`, the Recode button's rule).
+  A return to the app or the browser tab keeps the tab, page and filters and
+  shows the last page from the screen cache while it reloads (digitva-1xof); a
+  hidden browser tab keeps its rows, and the phone drops them on background so
+  the app switcher shows none. A conflict or the Refresh icon still goes back to
+  Available, page one.
   Queue layout (owner 2026-11-27, both queues, web and phone): no summary line
   beside the page title and no card title on Coding (the refresh icon keeps the
   card's top right). Count tiles: Coding "Random pool", "Ready to pick",

@@ -43,9 +43,9 @@ and maps stay in the browser).
 
 ## Ranked next steps
 
-- Approved (owner 2026-11-26): `digitva-l2dg` has landed; once its
-  session confirms the emulator offline-coding test, build the next APK
-  (0.3.32): version bump, web release,
+- On hold (owner 2026-11-27, "wait on .32"; approved 2026-11-26): do not
+  build until the owner says go, even after the l2dg session confirms the
+  emulator offline-coding test. The next APK (0.3.32): version bump, web release,
   Collect, Plus and Play bundle, gates, verification, pin commit; report
   version and CI links to the l2dg session. It also carries the
   case-definition line-break fix (`6070c5c65`). Staging and the phone

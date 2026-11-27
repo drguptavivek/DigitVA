@@ -82,6 +82,8 @@ export function ProjectSelect({ projects, value, onChange, multiple = false, dis
   }, [open]);
 
   if (projects.length === 0) return null;
+  // The web shows the dropdown even for one project (title-row control); the phone keeps its plain line.
+  if (projects.length === 1 && Platform.OS !== "web") return <Text style={s.plain}>{`${t("filterProject")}: ${projects[0].name}`}</Text>;
   const field = `${t("filterProject")}: ${projectSummary(projects, projects.length === 1 ? [projects[0].id] : value)}`;
 
   const show = () => {

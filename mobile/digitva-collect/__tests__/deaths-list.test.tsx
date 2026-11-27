@@ -159,6 +159,14 @@ describe("DeathsList filter bar", () => {
   });
 
 
+  it("says loading, not 'no reported deaths', while the screen-owned list fetches its first page", async () => {
+    mockGetCases.mockReturnValue(new Promise(() => undefined));
+    const tree = await render(<DeathsListPanel />);
+    expect(mockGetCases).toHaveBeenCalledTimes(1);
+    expect(text(tree)).toContain("\"loading\"");
+    expect(text(tree)).not.toContain("noReportedDeaths");
+  });
+
   it("asks the server for the training scope only inside the Training screens", async () => {
     mockBootstrap = { ...makeBootstrap(["interviewer"], { intake: true }), scope: "training" } as typeof mockBootstrap;
     const tree = await render(<DeathsListPanel />);

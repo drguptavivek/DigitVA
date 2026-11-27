@@ -753,13 +753,12 @@ describe("queue layout", () => {
     await unmount(screen.renderer);
   });
 
-  test("a single project is still a dropdown, without an All projects row", async () => {
+  test("on the phone a single project is plain text, not a dropdown", async () => {
     const api = makeApi({ getCodingProjects: jest.fn().mockResolvedValue({ projects: ["P1"], project_options: [options[0]], last_project_id: null }) });
     const screen = await render("coding", api);
-    expect(button(screen.renderer.root, "Project: " + long)).toBeDefined();
+    expect(JSON.stringify(screen.renderer.toJSON())).toContain(long);
+    expect(button(screen.renderer.root, "Project: " + long)).toBeUndefined();
     expect(button(screen.renderer.root, "Project: All projects")).toBeUndefined();
-    await press(screen.renderer, "Project: " + long);
-    expect(button(screen.renderer.root, "All projects")).toBeUndefined();
     await unmount(screen.renderer);
   });
 

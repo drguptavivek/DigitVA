@@ -106,7 +106,26 @@ test("wide screens anchor the menu below the button; narrow ones use a bottom sh
   await act(async () => narrow.tree.unmount());
 });
 
-test("one project is still a dropdown listing just that project; no project renders nothing", async () => {
+test("on the phone one project stays plain text, with no button or menu", async () => {
+  const one = await render({ projects: [projects[0]], fieldRow: true });
+  expect(JSON.stringify(one.tree.toJSON())).toContain("filterProject: Alpha");
+  expect(one.tree.root.findAll((node) => typeof node.props.onPress === "function")).toHaveLength(0);
+  expect(one.tree.root.findAllByType(Modal)).toHaveLength(0);
+  await act(async () => one.tree.unmount());
+});
+
+test("on the web one project is still a dropdown listing just that project; no project renders nothing", async () => {
+  const { Platform } = require("react-native");
+  const os = Platform.OS;
+  Platform.OS = "web";
+  try {
+    await webOneProject();
+  } finally {
+    Platform.OS = os;
+  }
+});
+
+async function webOneProject() {
   const onChange = jest.fn();
   const one = await render({ projects: [projects[0]], onChange });
   await press(one.tree, "filterProject: Alpha");
@@ -120,7 +139,7 @@ test("one project is still a dropdown listing just that project; no project rend
   const none = await render({ projects: [] });
   expect(none.tree.toJSON()).toBeNull();
   await act(async () => none.tree.unmount());
-});
+}
 
 test("a disabled field does not open", async () => {
   const { tree } = await render({ disabled: true });

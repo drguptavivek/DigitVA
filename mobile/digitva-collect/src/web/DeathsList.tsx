@@ -106,10 +106,16 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
   if (bootstrapRef.current !== bootstrap) {
     bootstrapRef.current = bootstrap;
     generationRef.current += 1;
-    // During render, not in the reset effect below: a child's effect (the list panel's first refresh) runs before
-    // this hook's effects when the screen owns the hook, and the reset must not undo what that refresh set.
+    // During render, not in an effect: a child's effect (the list panel's first refresh) runs before this hook's
+    // effects when the screen owns the hook, and the reset must not undo what that refresh set (busy above all).
     projectRef.current = undefined;
     loadedRef.current = false;
+    setCases([]);
+    setCounts({});
+    setNextCursor(null);
+    setBusy(false);
+    setMessage("");
+    setProject(undefined);
   }
 
   useEffect(() => {
@@ -119,15 +125,6 @@ export function useDeathCases(bootstrap: ClientBootstrap | undefined): DeathCase
       generationRef.current += 1;
     };
   }, []);
-
-  useEffect(() => {
-    setCases([]);
-    setCounts({});
-    setNextCursor(null);
-    setBusy(false);
-    setMessage("");
-    setProject(undefined);
-  }, [bootstrap]);
 
   /** Fetch one page; apply it only while the bootstrap, mount and project still match. */
   const fetchPage = useCallback(async (cursor: string | null, apply: (result: Awaited<ReturnType<typeof getCases>>) => void) => {

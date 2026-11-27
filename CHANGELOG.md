@@ -5,6 +5,17 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- ICD-11 API client tokens (`digitva-ddpf`, `f09e6ec6f`, reviewer LAND on
+  `caeb70638`, cherry-picked unchanged onto the handoff commits): admin-issued,
+  scoped, expiring, revocable bearer tokens for `/api/icd11-client/v1/`
+  (terminology only, no case data); migration `a4d7e2c9b1f6`; docs
+  `docs/policy/icd11-client-api.md`, `docs/current-state/icd11-client-api.md`.
+  Verified: dev upgraded to `a4d7e2c9b1f6`, full backend suite 8539 passed /
+  7 skipped (schema drift included); admin "ICD-11 API clients" panel on dev:
+  issue with one-time secret, search 200, wrong scope 403, bad token 401,
+  revoke then `TOKEN_REVOKED` 401, issued/revoked audit rows. Https only is
+  enforced at the ingress (`digitva-lkow`), not on dev. Not deployed; no live
+  token issued (owner go each).
 - Staging runs `c7b1ac797` (owner go 2026-11-27): the queue and cards set,
   the Local cases row, the web screen cache and screen stack, queue
   tab-return, and the 0.3.33 pins. Collect 0.3.33 (run 46014399596), Collect

@@ -21,8 +21,8 @@ docs/current-state/android-release-builds.md. Play AAB 0.3.33 is run
 
 Owner decisions waiting:
 - Each its own go: offer 0.3.33 to phones (after a device check), upgrade
-  the demo, upload the Play AAB, deploy the ICD-11 client tokens and issue
-  the first token.
+  the demo, upload the Play AAB, deploy the ICD-11 client tokens (landed
+  `f09e6ec6f`) and issue the first token.
 - Homepage KPIs: the owner ticks "Included in homepage KPIs" for ICMR01,
   UNSW01, KEM001, TELE01 (only HMR001 counts now).
 - Redis outage 500s every request via the IP-ban check (`digitva-248z`):
@@ -48,16 +48,13 @@ Owner decisions waiting:
 
 ## Ranked next steps
 
-1. Land the ICD-11 API client tokens (`digitva-ddpf`): reviewer LAND on
-   `caeb70638` (`refs/heads/icd11-api-clients`, worktree
-   `.claude/worktrees/icd11-api-clients`, session `Scoped ICD-11 API client
-   tokens`), migration `a4d7e2c9b1f6` on `a40477e55b72`. On main: upgrade
-   dev, full backend suite with `test_schema_drift.py`, browser check of the
-   admin "ICD-11 API Clients" page. https only (owner; `digitva-lkow`
-   closed). Follow-up `digitva-zcmg`.
+1. ICD-11 client tokens landed on main (`f09e6ec6f`, migration
+   `a4d7e2c9b1f6`); staging deploy and the first live token each need the
+   owner's go. Follow-up `digitva-zcmg`.
 2. Land `digitva-329t` (dropdowns open at the field; owner "after 0.3.32",
    now cut): `refs/heads/worktree-agent-aa48d1112a502ab3d` at `221eab308`;
-   rebase, Jest and check-web, re-review if not trivial. Flip-above not
+   not trivial (shared `anchorMenu` now places both menus): needs the
+   reviewer's LAND, then rebase (no file overlap with main), Jest, check-web. Flip-above not
    device-checked (`digitva-wlfr`).
 3. Device-check 0.3.33 from the CI APKs, then ask to offer it: Local cases
    row (`5cqm`), phone cards (`2b7d`), Sort and filter sheet and Recodeable

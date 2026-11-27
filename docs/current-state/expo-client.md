@@ -833,7 +833,9 @@ through `chrome.tsx` (`chrome.web.tsx` keeps the browser header and bottom bar).
   cards, one primary action each, refreshed by pulling the list
   (`RefreshControl`); its Send and Refresh buttons moved to the Sync sheet.
   The coding case lists (`src/ui/CodingCaseChips.tsx`) are rows of one grouped
-  card above the Interviews search and in Settings, never on Home
+  card on the workspace shown while collection is unavailable to the account
+  (`NativePendingWorkspace` in `src/NativeCollectionGate.native.tsx`, for an
+  account with online coding), never on Home
   (`docs/policy/field-data-collection.md`). The Collect Plus "Local cases" row
   (`LocalCasesRow`) sits at the top of the Code tab (QueueScreen `topSlot`, coding mode, not the
   training or reviewing queue; `src/nativeRoutes/plusWorkspace.tsx`), gated

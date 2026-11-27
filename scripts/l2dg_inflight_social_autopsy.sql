@@ -1,4 +1,9 @@
--- Read-only pre-deploy count for migration f3c9d1a7b5e2 (digitva-l2dg).
+-- Read-only count for migration f3c9d1a7b5e2 (digitva-l2dg).
+--
+-- It reads social_autopsy_collect_enabled, which migration e7a4c2f9b1d3 adds:
+-- on a database before that migration, drop the
+-- "AND p.social_autopsy_collect_enabled" line (the backfill sets it equal to
+-- social_autopsy_enabled, so the count is the same).
 --
 -- After the migration, a WHO_2022_VA case whose current payload holds any
 -- social autopsy (sa*) answer, in a project with Collect and Coder Social

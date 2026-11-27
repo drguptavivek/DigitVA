@@ -30,7 +30,6 @@ What landed, newest first. Details live in the commits and the linked docs;
   verbatim into `src/registrationTargets.ts`. Reviewed by the independent
   reviewer; full Jest 362 suites passed after the coordinator routed the two
   new files' type imports through `src/api.ts` (api-entry-point guard).
-  Follow-up `digitva-ctj2` not started.
 - Web Deaths: the "Add a Death to List" form shows the title-row Project
   for a new death and narrows its site choices to that project
   (`digitva-zxw0`, owner request, follow-up to `digitva-uee4`); the form

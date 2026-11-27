@@ -52,7 +52,7 @@ and maps stay in the browser).
   `digitva-329t` dropdowns open at the field, reviewed and emulator-checked,
   on `refs/heads/worktree-agent-aa48d1112a502ab3d` at `221eab308` (worktree
   `.claude/worktrees/agent-aa48d1112a502ab3d`). Flip-above on Android not
-  device-checked (`digitva` P3 bead filed 2026-11-27).
+  device-checked (`digitva-wlfr`, P3).
 - On hold (owner 2026-11-27, "wait on .32"; approved 2026-11-26): do not
   build until the owner says go. The l2dg emulator offline-coding check did
   not finish (2026-11-27): the Local cases case would not open

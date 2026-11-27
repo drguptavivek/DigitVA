@@ -3,7 +3,7 @@ title: Field Data Collection Policy (paths, device data, encryption)
 doc_type: policy
 status: draft
 owner: engineering
-last_updated: 2026-11-21
+last_updated: 2026-11-27
 ---
 
 # Field Data Collection Policy
@@ -904,7 +904,8 @@ primary action per role and nothing else competing with it:
 - **Death reporter (ANM)**: "Register a death" and their reported deaths.
 - **Interviewer (CHO)**: "Start interview" or "Resume draft", plus "Register a
   death" when the account also registers.
-- **Coder links** ("Online cases", "My coded cases") live only in the Code tab,
+- **Coder links** ("Local cases" on Collect Plus with offline coding, "Online cases",
+  "My coded cases") live only in the Code tab,
   never on Home or in the Interviews header.
 - **Zero-count rows are hidden** (Unsent 0, Need a visit 0, Drafts 0).
 

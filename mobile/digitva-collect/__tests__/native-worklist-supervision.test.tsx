@@ -150,7 +150,6 @@ let mockPlus = false;
 let mockOfflineCoding = false;
 jest.mock("../src/appVariant", () => ({ isPlusVariant: () => mockPlus }));
 jest.mock("../src/codingCapabilities", () => ({ canUseOfflineCoding: () => mockOfflineCoding }));
-jest.mock("../src/icd11DorisPreference", () => ({ useIcd11DorisPreference: () => ({ ready: true, answered: true, enabled: true }) }));
 jest.mock("../src/AppState", () => ({
   useAppState: () => {
     mockObservedLockVersion = mockLockVersion;
@@ -549,27 +548,13 @@ describe("worklist supervision entry", () => {
     await act(async () => tree.unmount());
   });
 
-  it("shows the Local cases row on Home for Plus with offline coding, routes to /offline-coding, and hides it otherwise", async () => {
-    const localRows = (tree: ReturnType<typeof create>) => tree.root.findAll((n) => n.props["data-label"] === "localCases");
+  it("never shows a Local cases row on Home, even on Plus with offline coding", async () => {
     mockPlus = true;
     mockOfflineCoding = true;
-    let tree = await mount();
-    expect(localRows(tree).length).toBeGreaterThan(0);
-    await act(async () => localRows(tree).find((n) => typeof n.props.onClick === "function")!.props.onClick());
-    expect(mockRouter.push).toHaveBeenCalledWith({ pathname: "/offline-coding", params: { userId: "u1" } });
-    await act(async () => tree.unmount());
-
-    mockOfflineCoding = false;
-    tree = await mount();
+    const tree = await mount();
     expect(dump(tree)).toContain("registerDeath");
-    expect(localRows(tree)).toHaveLength(0);
-    await act(async () => tree.unmount());
-
-    mockPlus = false;
-    mockOfflineCoding = true;
-    tree = await mount();
-    expect(dump(tree)).toContain("registerDeath");
-    expect(localRows(tree)).toHaveLength(0);
+    expect(tree.root.findAll((n) => n.props["data-label"] === "localCases")).toHaveLength(0);
+    expect(dump(tree)).not.toContain("localCases");
     await act(async () => tree.unmount());
   });
 

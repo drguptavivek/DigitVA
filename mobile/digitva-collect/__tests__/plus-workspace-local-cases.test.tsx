@@ -33,7 +33,7 @@ jest.mock("../src/workspace/QueueScreen", () => ({
 jest.mock("../src/workspace/transport.native", () => ({ createNativeWorkspaceTransport: () => jest.fn() }));
 jest.mock("../src/workspace/CaseWorkspaceScreen", () => ({ CaseWorkspaceScreen: () => null }));
 
-import { PlusCoding } from "../src/nativeRoutes/plusWorkspace";
+import { PlusCoding, PlusReviewing, PlusTrainingCoding } from "../src/nativeRoutes/plusWorkspace";
 import { t } from "../src/i18n";
 
 async function mount() {
@@ -67,5 +67,18 @@ describe("Code tab Local cases row", () => {
     tree = await mount();
     expect(localRows(tree)).toHaveLength(0);
     await act(async () => tree.unmount());
+  });
+
+  it("is absent in reviewing mode and on the training coding route (positive case first)", async () => {
+    mockPlus = true;
+    mockOffline = true;
+    let tree = await mount();
+    expect(localRows(tree).length).toBeGreaterThan(0);
+    await act(async () => tree.unmount());
+    for (const Component of [PlusReviewing, PlusTrainingCoding]) {
+      await act(async () => { tree = create(<Component />); });
+      expect(localRows(tree)).toHaveLength(0);
+      await act(async () => tree.unmount());
+    }
   });
 });

@@ -833,7 +833,11 @@ through `chrome.tsx` (`chrome.web.tsx` keeps the browser header and bottom bar).
   cards, one primary action each, refreshed by pulling the list
   (`RefreshControl`); its Send and Refresh buttons moved to the Sync sheet.
   The coding case lists (`src/ui/CodingCaseChips.tsx`) are rows of one grouped
-  card on Home, above the Interviews search and in Settings. The mode banner
+  card above the Interviews search and in Settings, never on Home
+  (`docs/policy/field-data-collection.md`). The Collect Plus "Local cases" row
+  (`LocalCasesRow`) sits at the top of the Code tab (QueueScreen `topSlot`, coding mode, not the
+  training or reviewing queue; `src/nativeRoutes/plusWorkspace.tsx`), gated
+  `isPlusVariant() && canUseOfflineCoding(account)`. The mode banner
   (`ModeBanner.tsx`) treats the account list and the standalone setup routes
   as standalone only while the phone has no server enrolment (`device`); a
   standalone account's own screens keep it. Both are built from the same local rows
@@ -1269,8 +1273,11 @@ the device while unenrolled.
   (an enrolled backup keeps only the unsent drafts' rows), and the export reads consent from `meta`; the old
   `consent_records` table is no longer written or read (`digitva-9xn9.3`).
 - **Offline coding** (route `/offline-coding`, `src/nativeRoutes/offlineCoding.native.tsx`;
-  reached from the "Local cases" row of the coding case lists, `src/ui/CodingCaseChips.tsx`,
-  shown on the Collect Plus home and worklist, or from a standalone record's "Code" or "View"
+  reached from the "Local cases" row (`LocalCasesRow`, `src/ui/CodingCaseChips.tsx`) at the top
+  of the Collect Plus Code tab (QueueScreen `topSlot`, coding mode, not the training or reviewing
+  queue; gated `isPlusVariant() && canUseOfflineCoding(account)`; never on Home, see
+  `docs/policy/field-data-collection.md`), which also stays in NativeCollectionGate's coding
+  fallback, or from a standalone record's "Code" or "View"
   button, `src/nativeRoutes/standalone.tsx`): lists completed-unsent
   interviews (metadata only, no PII in the list), opens a case in the shared
   `CaseWorkspaceScreen` (as online coding) over a local `WorkspaceApi`

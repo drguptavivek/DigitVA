@@ -20,10 +20,12 @@ What landed, newest first. Details live in the commits and the linked docs;
   3,012,881 to 765,847 B with gzip, `Vary` and `immutable` kept, the new web
   build is served (its network-error text is in the bundle), health 200,
   `/api/icd11-client/` answers JSON, no errors in the app or worker log for 20
-  minutes. Not checked: the service worker second load, PNG and MP3 staying
-  unencoded, the translations endpoint (needs a session), PATCH rate per
-  draft (`digitva-3ko3`, `digitva-y96b`), a Redis outage (not simulated on
-  staging).
+  minutes. Then checked in the browser pane: the new release's asset worker verifies
+  and caches the gzip-encoded bundles (size and SHA-256 over the decoded
+  bytes) and serves them on the second load; PNGs and the font stay
+  unencoded. Not checked: the translations endpoint (needs a session), MP3,
+  PATCH rate per draft (`digitva-3ko3`, `digitva-y96b`), a Redis outage (not
+  simulated on staging).
 - Filter dropdowns scroll their field to the top before opening
   (`digitva-jhc5`, `ec9503bd5`, owner's design): on the phone the keyboard
   hid the Sort and filter Site and unit menu. Opt-in via the panel that owns

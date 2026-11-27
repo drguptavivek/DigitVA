@@ -23,9 +23,9 @@ Owner decisions waiting:
   ICD-11 client token (the code is on staging since `19fc01be4`).
 - Homepage KPIs: the owner ticks "Included in homepage KPIs" for ICMR01,
   UNSW01, KEM001, TELE01 (only HMR001 counts now).
-- Deployed to staging 2026-11-27 (`19fc01be4`), checks left: gzip service
-  worker second load and PNG/MP3 unencoded (`digitva-qq5l`), PATCH rate per
-  draft in the app log (`digitva-y96b`, `digitva-3ko3`). A new ingress
+- Deployed to staging 2026-11-27 (`19fc01be4`), checks left: PATCH rate per
+  draft in the app log (`digitva-y96b`, `digitva-3ko3`). gzip is verified
+  (`digitva-qq5l` closed). A new ingress
   config needs `docker restart digitva-digitva_ingress-1` on the host (the
   single-file bind mount keeps the old inode). `digitva-6sty` heap: needs a
   device measurement (ranked causes in its notes).

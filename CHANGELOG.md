@@ -5,6 +5,14 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Dropdowns open at the field (`digitva-329t`, `c7cd883bb`): ProjectSelect
+  and Select (org-unit pickers) anchor their menu below the field, or above
+  when there is no room, on every width; the bottom sheet is gone. Reviewer
+  subagent LAND on `221eab308` (owner chose a subagent; the reviewer session
+  was not running), picked unchanged onto main. Verified: full Jest 369
+  suites, check-web, and dev web at 375x812: project menu below the field
+  inside the edges, searchable unit picker flips above near the bottom. Not
+  checked on a device (`digitva-wlfr`; the emulator has only Expo Go).
 - Staging offers 0.3.33 to phones (owner go 2026-11-27): Collect and
   Collect Plus 0.3.33 copied from the `c7b1ac797` image into
   `private/android-hosted` after checksum checks; `/api/v1/app/android/latest`

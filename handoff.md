@@ -49,11 +49,8 @@ Owner decisions waiting:
 1. ICD-11 client tokens landed on main (`f09e6ec6f`, migration
    `a4d7e2c9b1f6`); staging deploy and the first live token each need the
    owner's go. Follow-up `digitva-zcmg`.
-2. Land `digitva-329t` (dropdowns open at the field; owner "after 0.3.32",
-   now cut): `refs/heads/worktree-agent-aa48d1112a502ab3d` at `221eab308`;
-   not trivial (shared `anchorMenu` now places both menus): needs the
-   reviewer's LAND, then rebase (no file overlap with main), Jest, check-web. Flip-above not
-   device-checked (`digitva-wlfr`).
+2. `digitva-329t` landed (`c7cd883bb`) and ships in the next APK; its
+   device check is `digitva-wlfr`.
 3. Device-check 0.3.33 (now offered on staging): Local cases
    row (`5cqm`), phone cards (`2b7d`), Sort and filter sheet and Recodeable
    (`znbm`), Reported deaths chips and Refused badge (`aunm`), tab-return

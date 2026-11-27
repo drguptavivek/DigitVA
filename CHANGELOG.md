@@ -5,6 +5,22 @@ What landed, newest first. Details live in the commits and the linked docs;
 
 ## 2026-11-27
 
+- Code and Review queues follow the Site and unit place filter on the
+  server and share one case card (`digitva-lqmo`, owner-settled
+  2026-11-27): name or case id, language and last-action pills, a place line
+  and Site and unit options only for projects where the user sees personal
+  data (server-side `pii_scope` gate, `pii_visible` per project on
+  /me/access), Died / Interviewed / last-action dates, a copy icon on every
+  card, a Pending coding tile for reviewers, Hindi for the remaining queue
+  labels. Phone death details are two cards; the shared web language button
+  is 44px, matching the project picker. API changes are additive keys plus
+  PATCH /profile/languages widened to coder or reviewer; no migration, no
+  old-APK change. Year-only death dates wait on `digitva-xmlw`. Reviewed by
+  the independent reviewer (one PII block fixed in `88cf72fb8`; the
+  duplicate guard taught that the reviewer in-scope count is covered in
+  `cbfd0c80b`). Full backend on main: 8440 passed, only the known
+  date-dependent `digitva-jajs` failing; full Jest 363 suites / 6686
+  passed; check-web passed.
 - Web Add a Death uses the phone's Register a death layout (`digitva-ctj2`,
   owner request): section cards (Deceased, Place, Identifiers, Informant,
   Notes), the phone's field order and spacing, stacked choice lists for Sex

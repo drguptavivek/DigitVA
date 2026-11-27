@@ -17,10 +17,10 @@ No device check of 0.3.30 or 0.3.31.
 
 Owner decisions:
 - No staging deploy until the sessions finish their in-flight work (owner
-  2026-11-27): `digitva-lqmo` place-queue (fix round), the
-  `Role with report access` session (status pending), and each piece
+  2026-11-27): `digitva-5cqm` local-cases-row (in review), and each piece
   reviewed by the INDEPENDENT CODE REVIEWER session before it lands. Main
-  is ahead of staging `eeb8e4815` with uee4, zxw0, a2yf, vbr2, oo77, ctj2.
+  is ahead of staging `eeb8e4815` with uee4, zxw0, a2yf, vbr2, oo77, ctj2,
+  lqmo.
 - Homepage "DigitVA in use" counts only HMR001 (10 interviews): the owner
   will tick "Included in homepage KPIs" (Admin → Projects) for ICMR01,
   UNSW01, KEM001 and TELE01 themselves.
